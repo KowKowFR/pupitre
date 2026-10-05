@@ -66,7 +66,7 @@ function newId(): string {
   return crypto.randomUUID().slice(0, 8);
 }
 
-/** Un bloc neuf de ce type, prêt à être réglé. */
+/** A new block of this type, ready to be set. */
 function blankBlock(type: StatusBlockType): StatusBlock {
   const id = newId();
   switch (type) {
@@ -85,7 +85,7 @@ function blankBlock(type: StatusBlockType): StatusBlock {
   }
 }
 
-/** Un bloc qu'on ne peut pas encore envoyer : un texte vide, un groupe sans sonde. */
+/** A block that cannot be sent yet: an empty text, a group without a probe. */
 function incomplete(block: StatusBlock): boolean {
   if (block.type === 'heading' || block.type === 'text') return block.text.trim() === '';
   if (block.type === 'services') return block.items.length === 0;
@@ -228,7 +228,7 @@ function StatusPageEditor({
   const t = useT(messages);
   const tc = useT(common);
   const [title, setTitle] = React.useState(initial?.title ?? '');
-  // Une première page prend `/status` ; les suivantes demandent leur adresse.
+  // A first page takes `/status`; the following ones ask for their address.
   const [slug, setSlug] = React.useState(
     () => initial?.slug ?? (takenSlugs.includes('') ? 'clients' : ''),
   );
@@ -414,7 +414,7 @@ function StatusPageEditor({
             ) : null}
           </div>
 
-          {/* L'aperçu reste en vue pendant qu'on fait défiler les blocs. */}
+          {/* The preview stays in view while the blocks scroll. */}
           <div className="bg-bg p-5 lg:sticky lg:top-0 lg:max-h-full lg:self-start lg:overflow-y-auto">
             <p className="t-cap mb-3 font-medium uppercase tracking-wide text-text-3">
               {t('editor.preview')}
@@ -465,9 +465,8 @@ function StatusPageEditor({
 }
 
 /**
- * Les blocs, réordonnables : par glisser-déposer à la souris (poignée), ou au
- * clavier par leurs flèches — le glisser-déposer natif n'a pas d'équivalent
- * clavier.
+ * The blocks, reorderable: by mouse drag and drop (handle), or with the keyboard
+ * through their arrows — native drag and drop has no keyboard equivalent.
  */
 function BlockList({
   blocks,
@@ -743,9 +742,9 @@ function BlockFields({
 }
 
 /**
- * L'aperçu : la page telle qu'un visiteur la lirait, recalculée au serveur
- * une fraction de seconde après la dernière frappe. Les blocs encore
- * incomplets n'y figurent pas.
+ * The preview: the page as a visitor would read it, recomputed on the server a
+ * fraction of a second after the last keystroke. The still incomplete blocks do
+ * not appear in it.
  */
 function Preview({
   title,

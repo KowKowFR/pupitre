@@ -15,105 +15,100 @@ import { notificationChannelKindEnum } from '../enums.js';
 import { users } from './auth.js';
 
 /**
- * Un moyen de prévenir quelqu'un, configuré par un opérateur.
+ * A way of warning someone, configured by an operator.
  *
- * ── Pourquoi une table et non le JSONB des paramètres d'instance ────────────
- * `app_settings.value` est un excellent endroit pour un réglage : il en accepte
- * un de plus sans migration. Il est en revanche le mauvais endroit pour ceci,
- * pour trois raisons qui tiennent toutes à la nature de l'objet :
+ * ── Why a table and not the instance settings' JSONB ────────────────────────
+ * `app_settings.value` is an excellent place for a setting: it accepts one more
+ * without a migration. It is, however, the wrong place for this, for three
+ * reasons all tied to the object's nature:
  *
- *   1. Il y en a **plusieurs**, créés et supprimés à la demande. Un tableau
- *      dans un JSONB n'a ni identité stable, ni unicité de nom, ni clé
- *      étrangère vers l'auteur : trois garanties qu'on réécrirait en TypeScript,
- *      c'est-à-dire qu'on n'aurait pas.
- *   2. Ils portent des **secrets**. Le fichier de projet est formel : un secret
- *      ne va jamais dans le JSONB des paramètres — la clé d'API de l'IA suit
- *      déjà cette règle avec sa colonne chiffrée dédiée. Séparer secrets et
- *      configuration aurait donc voulu dire les répartir entre deux endroits
- *      appariés à la main.
- *   3. Ils portent un **état d'exécution** qui change tout seul : dernier
- *      succès, dernier échec, échecs consécutifs. Écrire cet état à chaque
- *      envoi réécrirait le JSONB entier des paramètres d'instance — donc
- *      entrerait en concurrence avec l'écran des réglages, pour une donnée qui
- *      n'est pas un réglage.
+ *   1. There are **several**, created and deleted on demand. An array in a JSONB
+ *      has neither stable identity, nor name uniqueness, nor a foreign key to the
+ *      author: three guarantees we would rewrite in TypeScript, that is that we
+ *      would not have.
+ *   2. They carry **secrets**. The project file is formal: a secret never goes
+ *      into the settings' JSONB — the AI API key already follows that rule with
+ *      its dedicated encrypted column. Separating secrets and configuration
+ *      would therefore have meant spreading them between two places paired by
+ *      hand.
+ *   3. They carry a **run state** that changes by itself: last success, last
+ *      failure, consecutive failures. Writing that state at each send would
+ *      rewrite the instance settings' whole JSONB — hence compete with the
+ *      settings screen, for data that is not a setting.
  */
 export const notificationChannels = pgTable(
   'notification_channels',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     kind: notificationChannelKindEnum('kind').notNull(),
-    /** Comment l'opérateur l'appelle : « astreinte », « salon #ops ». Unique. */
+    /** What the operator calls it: "on-call", "#ops channel". Unique. */
     name: text('name').notNull().unique(),
     /**
-     * Un canal éteint est conservé avec sa configuration. Couper une
-     * intégration bruyante ne doit pas obliger à ressaisir un jeton pour la
-     * rallumer.
+     * A disabled channel is kept with its configuration. Turning off a noisy
+     * integration must not force entering a token again to turn it back on.
      */
     enabled: boolean('enabled').notNull().default(true),
-    /** Champs **non secrets** du canal, tels que le catalogue les décrit. */
+    /** The channel's **non-secret** fields, as the catalog describes them. */
     config: jsonb('config').$type<ChannelConfig>().notNull().default({}),
     /**
-     * Les champs secrets, sérialisés en JSON puis chiffrés en un seul bloc.
-     * AES-256-GCM sous `MASTER_KEY`, format `version:iv:authTag:ciphertext` —
-     * même motif que `targets.encrypted_credential` et
+     * The secret fields, serialized as JSON then encrypted as a single block.
+     * AES-256-GCM under `MASTER_KEY`, `version:iv:authTag:ciphertext` format — the
+     * same pattern as `targets.encrypted_credential` and
      * `app_settings.ai_api_key_encrypted`.
      *
-     * Colonne dédiée et non un champ de `config` : c'est ce qui permet de
-     * sérialiser `config` dans une réponse d'API ou une entrée d'audit sans
-     * risque, précisément parce que le secret n'y est pas.
+     * A dedicated column and not a `config` field: it is what allows serializing
+     * `config` into an API response or an audit entry without risk, precisely
+     * because the secret is not there.
      */
     encryptedSecrets: text('encrypted_secrets'),
     /**
-     * Les événements auxquels ce canal est abonné. Un tableau JSONB plutôt
-     * qu'une table de liaison : la liste est courte, toujours lue en entier, et
-     * jamais interrogée dans l'autre sens.
+     * The events this channel subscribes to. A JSONB array rather than a link table:
+     * the list is short, always read whole, and never queried the other way.
      */
     events: jsonb('events').$type<NotificationEventKey[]>().notNull().default([]),
     lastSuccessAt: timestamp('last_success_at', { withTimezone: true }),
     lastFailureAt: timestamp('last_failure_at', { withTimezone: true }),
-    /** Message du dernier échec, **déjà expurgé** de tout ce qui ressemble à un secret. */
+    /** Message of the last failure, **already scrubbed** of anything that looks like a secret. */
     lastError: text('last_error'),
     /**
-     * Échecs d'affilée. Remis à zéro par le premier succès. C'est ce qui
-     * distingue « le serveur a hoqueté » de « ce canal ne marche plus depuis
-     * trois semaines », et l'écran le dit.
+     * Failures in a row. Reset by the first success. It is what tells "the server
+     * hiccupped" from "this channel has not worked for three weeks", and the screen
+     * says it.
      */
     consecutiveFailures: integer('consecutive_failures').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-    /** `text` et non `uuid` : `users.id` est un identifiant Better Auth. */
+    /** `text` and not `uuid`: `users.id` is a Better Auth identifier. */
     createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
   },
   (t) => [index('notification_channels_enabled_idx').on(t.enabled)],
 );
 
 /**
- * Le réglage du regroupement — une ligne, deux colonnes utiles.
+ * The grouping setting — one row, two useful columns.
  *
- * ── Pourquoi pas `app_settings` ─────────────────────────────────────────────
- * Ce serait l'endroit naturel : un scalaire de plus dans le JSONB, sans
- * migration. Deux raisons de ne pas y aller. D'abord `app_settings.value` est
- * réécrit en entier à chaque enregistrement de l'écran des paramètres, et cette
- * valeur est lue **à chaque événement notifiable** — c'est une donnée du chemin
- * chaud des notifications, pas un préréglage d'instance. Ensuite, le schéma des
- * paramètres est la source unique de vérité d'un autre chantier ; y ajouter un
- * champ pour une raison qui lui est étrangère, c'est le faire grossir par
- * accident. La table des canaux avait été sortie du JSONB pour des motifs
- * voisins, et le raisonnement tient ici aussi.
+ * ── Why not `app_settings` ──────────────────────────────────────────────────
+ * It would be the natural place: one more scalar in the JSONB, without a
+ * migration. Two reasons not to go there. First, `app_settings.value` is
+ * rewritten whole at each save of the settings screen, and this value is read
+ * **at each notifiable event** — it is data of the notifications' hot path, not
+ * an instance preset. Second, the settings schema is another work's single
+ * source of truth; adding a field to it for a reason foreign to it makes it grow
+ * by accident. The channels table had been taken out of the JSONB for similar
+ * reasons, and the reasoning holds here too.
  *
- * ── Pourquoi le réglage existe ──────────────────────────────────────────────
- * Cinq minutes conviennent à une instance qui déploie dix fois par jour ; elles
- * sont trop longues pour une astreinte qui veut voir la vague en direct, trop
- * courtes pour une flotte bruyante. Le réglage est **borné** :
- * `NOTIFICATION_DIGEST_WINDOW_MS_MIN` interdit de le ramener à zéro. Un
- * garde-fou de volume désactivable est un garde-fou désactivé.
+ * ── Why the setting exists ──────────────────────────────────────────────────
+ * Five minutes suit an instance that deploys ten times a day; they are too long
+ * for an on-call that wants to see the wave live, too short for a noisy fleet.
+ * The setting is **bounded**: `NOTIFICATION_DIGEST_WINDOW_MS_MIN` forbids
+ * bringing it to zero. A volume guard that can be disabled is a disabled guard.
  */
 export const notificationPolicy = pgTable(
   'notification_policy',
   {
-    /** Ligne unique. La contrainte est portée par la base, pas par une convention. */
+    /** Single row. The constraint is carried by the database, not by a convention. */
     id: integer('id').primaryKey().default(1),
-    /** Fenêtre de base, en millisecondes. Elle double à chaque orage qui dure. */
+    /** Base window, in milliseconds. It doubles at each lasting storm. */
     windowMs: integer('window_ms').notNull().default(300_000),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
     updatedBy: text('updated_by').references(() => users.id, { onDelete: 'set null' }),
@@ -122,47 +117,46 @@ export const notificationPolicy = pgTable(
 );
 
 /**
- * L'état de regroupement d'un événement — la mémoire du garde-fou de volume.
+ * An event's grouping state — the volume guard's memory.
  *
- * ── Pourquoi en base et pas en mémoire du worker ────────────────────────────
- * Parce qu'un redémarrage du worker au milieu d'un orage relâcherait tout d'un
- * coup : la fenêtre ouverte disparaîtrait, chaque événement suivant repartirait
- * « immédiat », et le regroupement aurait produit exactement le comportement
- * qu'il devait empêcher — en pire, puisqu'il aurait aussi perdu les événements
- * déjà retenus. L'état vit donc là où il survit à tout : la fenêtre en cours
- * ici, les événements retenus dans la table sœur.
+ * ── Why in the database and not in the worker's memory ──────────────────────
+ * Because a worker restart in the middle of a storm would release everything at
+ * once: the open window would disappear, each following event would go out
+ * "immediately" again, and grouping would have produced exactly the behavior it
+ * was meant to prevent — worse, since it would also have lost the events
+ * already held. The state therefore lives where it survives everything: the
+ * current window here, the held events in the sister table.
  *
- * ── Pourquoi pas Redis ──────────────────────────────────────────────────────
- * Redis porte déjà l'anti-doublon des tâches, et c'est le bon endroit pour une
- * information dont la perte est bénigne (au pire, un message en double). Ici la
- * perte n'est pas bénigne : elle perd des alertes retenues. Une table, une
- * transaction, une clé primaire — et l'atomicité de la décision « immédiat ou
- * retenu » est celle de Postgres, pas d'un verrou applicatif.
+ * ── Why not Redis ───────────────────────────────────────────────────────────
+ * Redis already carries the jobs' deduplication, and it is the right place for
+ * information whose loss is benign (at worst, a duplicate message). Here the
+ * loss is not benign: it loses held alerts. A table, a transaction, a primary
+ * key — and the atomicity of the "immediate or held" decision is Postgres's, not
+ * an application lock's.
  */
 export const notificationDigestGroups = pgTable('notification_digest_groups', {
   /**
-   * La clé de regroupement, aujourd'hui l'événement lui-même
-   * (`notificationDigestGroupKey()`). Du `text` et non l'énumération des
-   * événements : la granularité de la clé est une décision de `@pupitre/core`, et
-   * l'affiner un jour ne doit pas coûter une migration.
+   * The grouping key, today the event itself (`notificationDigestGroupKey()`).
+   * `text` and not the events enumeration: the key's granularity is a decision of
+   * `@pupitre/core`, and refining it one day must not cost a migration.
    */
   groupKey: text('group_key').primaryKey(),
   event: text('event').notNull(),
   /**
-   * Fin de la fenêtre ouverte. **`null` est l'état silencieux** : aucun orage en
-   * cours, la prochaine alerte part sans délai. C'est la colonne qui porte tout
-   * l'arbitrage — vide, on prévient vite ; pleine, on prévient peu.
+   * End of the open window. **`null` is the quiet state**: no ongoing storm, the
+   * next alert goes out without delay. It is the column that carries the whole
+   * trade-off — empty, we warn fast; full, we warn little.
    */
   windowEndsAt: timestamp('window_ends_at', { withTimezone: true }),
   windowStartedAt: timestamp('window_started_at', { withTimezone: true }),
-  /** Durée de la fenêtre en cours. Elle double à chaque fermeture non vide. */
+  /** Duration of the current window. It doubles at each non-empty closing. */
   windowMs: integer('window_ms').notNull().default(300_000),
-  /** Fermetures non vides d'affilée, bornées. C'est le « seuil de débit », auto-réglé. */
+  /** Non-empty closings in a row, bounded. It is the self-adjusted "rate threshold". */
   escalation: integer('escalation').notNull().default(0),
   /**
-   * Événements retenus depuis l'ouverture. Compte **au-delà** du nombre de
-   * lignes conservées : c'est lui qui permet au résumé de dire « 500 alertes,
-   * 100 nommées », plutôt que de mentir par omission.
+   * Events held since opening. Counts **beyond** the number of lines kept: it is
+   * what lets the digest say "500 alerts, 100 named", rather than lie by
+   * omission.
    */
   heldCount: integer('held_count').notNull().default(0),
   firstHeldAt: timestamp('first_held_at', { withTimezone: true }),
@@ -171,12 +165,12 @@ export const notificationDigestGroups = pgTable('notification_digest_groups', {
 });
 
 /**
- * Un événement retenu, déjà réduit à la ligne qu'il occupera dans le résumé.
+ * A held event, already reduced to the line it will take in the digest.
  *
- * On ne recopie **pas** la charge utile d'audit : elle est volumineuse, sa forme
- * n'est garantie par rien, et la ligne est parfaitement calculable au moment où
- * l'événement arrive — l'acteur est résolu, le contexte est frais. Ce qui est
- * stocké est donc exactement ce qui sera lu, ni plus, ni moins.
+ * We do **not** copy the audit payload: it is bulky, its shape is guaranteed by
+ * nothing, and the line is perfectly computable when the event arrives — the
+ * actor is resolved, the context is fresh. What is stored is therefore exactly
+ * what will be read, no more, no less.
  */
 export const notificationDigestItems = pgTable(
   'notification_digest_items',
@@ -186,7 +180,7 @@ export const notificationDigestItems = pgTable(
       .notNull()
       .references(() => notificationDigestGroups.groupKey, { onDelete: 'cascade' }),
     occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
-    /** Ce que la ligne nomme : « déploiement 4f2a… », « compte alice@… ». */
+    /** What the line names: "deployment 4f2a…", "account alice@…". */
     label: text('label').notNull(),
     detail: text('detail'),
     url: text('url'),

@@ -18,15 +18,15 @@ import { workerSay } from '../messages.js';
 import { SCHEDULED_JOB_RUNNERS } from '../schedule/runners.js';
 
 /**
- * Enveloppe commune à toutes les tâches planifiées.
+ * The envelope shared by all the scheduled tasks.
  *
- * Elle porte ce qui ne dépend pas du type : relire la ligne en base (une tâche
- * désactivée entre deux occurrences ne doit pas s'exécuter), ouvrir une ligne
- * d'historique, borner le journal, écrire l'audit. Le travail propre au type
- * vit dans `SCHEDULED_JOB_RUNNERS`.
+ * It carries what does not depend on the type: reading the database row again
+ * (a task disabled between two occurrences must not run), opening a history
+ * row, bounding the log, writing the audit. The type-specific work lives in
+ * `SCHEDULED_JOB_RUNNERS`.
  */
 
-/** Le journal d'une exécution est borné : une tâche bavarde ne remplit pas la base. */
+/** A run's log is bounded: a chatty task does not fill up the database. */
 const MAX_LOG_LINES = 200;
 
 export async function handleScheduledJob(
@@ -40,13 +40,13 @@ export async function handleScheduledJob(
     key: data.key,
   });
 
-  // La base fait foi. Un scheduler resté dans Redis alors que la tâche a été
-  // désactivée ne doit rien exécuter — la réconciliation le retirera, mais elle
-  // n'a lieu qu'au démarrage du worker.
+  // The database is authoritative. A scheduler left in Redis while the task was
+  // disabled must run nothing — reconciliation will remove it, but it only happens
+  // at the worker's startup.
   const say = workerSay(await instanceLanguage());
   const row = await getScheduledJob(data.scheduledJobId);
   if (!row) {
-    log.warn('tâche planifiée introuvable en base — occurrence ignorée');
+    log.warn('scheduled task not found in the database — occurrence ignored');
     return {
       scheduledJobId: data.scheduledJobId,
       type: data.type,
@@ -55,7 +55,7 @@ export async function handleScheduledJob(
     };
   }
   if (!row.enabled && !data.manual) {
-    log.info('tâche désactivée — occurrence ignorée');
+    log.info('task disabled — occurrence ignored');
     return {
       scheduledJobId: row.id,
       type: row.type,
@@ -73,7 +73,10 @@ export async function handleScheduledJob(
     else if (lines.length === MAX_LOG_LINES) lines.push(say('schedule.truncated'));
   };
 
-  log.info({ type: row.type, task: definition.jobName, manual: data.manual }, 'tâche planifiée démarrée');
+  log.info(
+    { type: row.type, task: definition.jobName, manual: data.manual },
+    'scheduled task started',
+  );
 
   try {
     const summary = await SCHEDULED_JOB_RUNNERS[row.type]({
@@ -98,7 +101,7 @@ export async function handleScheduledJob(
       ip: data.ip,
     });
 
-    log.info({ summary }, 'tâche planifiée terminée');
+    log.info({ summary }, 'scheduled task completed');
     return { scheduledJobId: row.id, type: row.type, status: 'success', summary };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -119,7 +122,7 @@ export async function handleScheduledJob(
       ip: data.ip,
     });
 
-    log.error({ err: error }, 'tâche planifiée en échec');
+    log.error({ err: error }, 'scheduled task failed');
     throw error;
   }
 }

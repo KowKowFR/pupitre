@@ -1,13 +1,12 @@
 /**
- * L'élément ouvert dans un drawer vit dans l'URL — `?target=prod-1`,
- * `?run=…` — pour qu'un aperçu se partage, se recharge, et que le bouton
- * Précédent le referme.
+ * The item open in a drawer lives in the URL — `?target=prod-1`, `?run=…` — so
+ * that an overview can be shared, reloaded, and closed by the Back button.
  *
- * Ces fonctions sont pures : le hook `useDrawerSelection` les branche sur
- * l'historique du navigateur, les tests les appellent directement.
+ * These functions are pure: the `useDrawerSelection` hook plugs them into the
+ * browser's history, the tests call them directly.
  */
 
-/** L'identifiant sélectionné sous `key`, ou `null`. Une valeur vide compte pour rien. */
+/** The identifier selected under `key`, or `null`. An empty value counts as nothing. */
 export function selectionFrom(search: string | URLSearchParams, key: string): string | null {
   const params = typeof search === 'string' ? new URLSearchParams(search) : search;
   const value = params.get(key);
@@ -15,8 +14,8 @@ export function selectionFrom(search: string | URLSearchParams, key: string): st
 }
 
 /**
- * L'URL de la même page avec `key` posé (ou retiré si `id` est `null`). Les
- * autres paramètres — filtres, page, fenêtre — sont conservés tels quels.
+ * The URL of the same page with `key` set (or removed if `id` is `null`). The
+ * other parameters — filters, page, window — are kept as is.
  */
 export function hrefWithSelection(
   pathname: string,
@@ -32,9 +31,9 @@ export function hrefWithSelection(
 }
 
 /**
- * La ligne voisine dans l'ordre affiché : `1` pour la suivante (J), `-1` pour
- * la précédente (K). `null` aux bords — on ne boucle pas, un opérateur qui
- * descend une liste doit sentir qu'il en a atteint le bout.
+ * The neighboring row in the displayed order: `1` for the next one (J), `-1` for
+ * the previous one (K). `null` at the edges — we do not loop, an operator going
+ * down a list must feel they reached its end.
  */
 export function neighbour<T>(ids: readonly T[], current: T | null, direction: 1 | -1): T | null {
   if (current === null)
@@ -46,8 +45,8 @@ export function neighbour<T>(ids: readonly T[], current: T | null, direction: 1 
 }
 
 /**
- * Une frappe au clavier vient-elle d'une zone de saisie ? Les raccourcis à
- * une lettre (J, K, G, ?) doivent alors se taire.
+ * Does a keystroke come from an input area? The single-letter shortcuts (J, K, G,
+ * ?) must then go quiet.
  */
 export function isTyping(target: EventTarget | null): boolean {
   if (!target || typeof target !== 'object' || !('tagName' in target)) return false;
@@ -70,15 +69,15 @@ export type DrawerKey = {
   metaKey?: boolean;
   ctrlKey?: boolean;
   altKey?: boolean;
-  /** Balise de l'élément qui a reçu la frappe, en minuscules. */
+  /** The tag of the element that received the keystroke, in lowercase. */
   tag?: string;
   typing?: boolean;
 };
 
 /**
- * Ce que fait une touche dans un drawer ouvert : J la ligne suivante, K la
- * précédente, Entrée ouvre la fiche — sauf sur un lien ou un bouton, qui ont
- * déjà leur propre sens pour Entrée. Échap est traité par la couche elle-même.
+ * What a key does in an open drawer: J the next row, K the previous one, Enter
+ * opens the record — except on a link or a button, which already have their own
+ * meaning for Enter. Escape is handled by the layer itself.
  */
 export function drawerKeyAction(
   event: DrawerKey,

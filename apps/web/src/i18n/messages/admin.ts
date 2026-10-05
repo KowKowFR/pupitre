@@ -1,31 +1,30 @@
 import type { Translated } from '@pupitre/core';
 
 /**
- * L'administration : utilisateurs, rôles, journal d'activité — et les erreurs
- * des routes qui les servent.
+ * Administration: users, roles, activity log — and the errors of the routes that
+ * serve them.
  *
- * ── Ce qui n'est pas ici, et pourquoi ───────────────────────────────────────
- * Le journal d'activité affiche des entrées **passées**. Une entrée ne porte
- * que des données : un nom d'action (`deployment.created`), un type de
- * ressource, un identifiant, une IP, une charge utile JSON. Rien de tout cela
- * n'entre dans ce dictionnaire — traduire à l'écriture figerait la langue de
- * la trace pour toujours, et ces valeurs sont des identifiants machine, pas de
- * la prose. Ce qui se traduit, c'est le décor autour : en-têtes, pagination,
- * état vide, intitulés de filtres.
+ * ── What is not here, and why ───────────────────────────────────────────────
+ * The activity log shows **past** entries. An entry only carries data: an action
+ * name (`deployment.created`), a resource type, an identifier, an IP, a JSON
+ * payload. None of that enters this dictionary — translating at write time would
+ * freeze the trace's language forever, and these values are machine identifiers,
+ * not prose. What is translated is the setting around them: headers, pagination,
+ * empty state, filter labels.
  *
- * Même coupure pour les rôles : « verrouillé » est un libellé, `admin` est une
- * clé en base. Les libellés des rôles de départ (« Administrateur »,
- * « Opérateur », « Auditeur », « Observateur », « Sans accès ») restent français dans `@pupitre/core` — le
- * seed les **écrit** dans `roles.label`, où on peut ensuite les renommer.
+ * The same cut for roles: "locked" is a label, `admin` is a database key. The
+ * starting roles' labels ("Administrateur", "Opérateur", "Auditeur",
+ * "Observateur", "Sans accès") stay French in `@pupitre/core` — the seed **writes**
+ * them into `roles.label`, where they can then be renamed.
  *
- * Les descriptions de permissions, elles, sont bien des libellés d'écran :
- * elles vivent dans `@pupitre/core` (`permissionDescriptions`) parce que le
- * vocabulaire RBAC y est partagé, et se rendent avec `translator()`.
+ * The permission descriptions, on the other hand, are indeed screen labels: they
+ * live in `@pupitre/core` (`permissionDescriptions`) because the RBAC vocabulary
+ * is shared there, and are rendered with `translator()`.
  */
 const fr = {
-  // ── Commun aux deux écrans d'administration ─────────────────────────────
+  // ── Shared by both administration screens ───────────────────────────────
 
-  // ═══ Utilisateurs ═══════════════════════════════════════════════════════
+  // ═══ Users ══════════════════════════════════════════════════════════════
   'users.title': 'Utilisateurs',
   'users.description':
     "Un utilisateur porte un rôle ; le rôle porte les permissions. Désactiver un compte coupe ses sessions : il n'est jamais supprimé, pour garder le journal lisible.",
@@ -33,15 +32,15 @@ const fr = {
   'users.invite.title': 'Inviter un utilisateur',
   'users.create.title': 'Créer un utilisateur',
 
-  // Coupée en trois : « Paramètres → Notifications » est mis en évidence dans
-  // la phrase, et un fragment de JSX ne se range pas dans un dictionnaire.
+  // Cut in three: "Settings → Notifications" is highlighted in the sentence, and a
+  // JSX fragment does not fit in a dictionary.
   'users.noMail.before':
     'Aucun canal e-mail (SMTP) actif : le mot de passe doit être saisi ici, puis transmis hors bande — et vous le connaîtrez. Configurez un serveur SMTP dans',
   'users.noMail.settings': 'Paramètres → Notifications',
   'users.noMail.after':
     "pour inviter par lien à la place, et pour que « mot de passe oublié » fonctionne sur l'écran de connexion.",
 
-  // ── Formulaire de création / invitation ─────────────────────────────────
+  // ── Creation / invitation form ──────────────────────────────────────────
   'users.form.name': 'Nom',
   'users.form.email': 'E-mail',
   'users.form.password': 'Mot de passe',
@@ -56,7 +55,7 @@ const fr = {
     'Le compte de {email} est créé, mais l’invitation n’est pas partie : {reason}. Relancez-la depuis la liste.',
   'users.reason.unknown': 'raison inconnue',
 
-  // ── Table des utilisateurs ──────────────────────────────────────────────
+  // ── Users table ─────────────────────────────────────────────────────────
   'users.drawer.invite': "L'invitation part par e-mail dès l'envoi.",
   'users.drawer.create': 'Le compte est créé avec le mot de passe saisi ici.',
   'users.preview.title': 'Ce que reçoit {name}',
@@ -87,10 +86,10 @@ const fr = {
 
   'users.state.disabled': 'désactivé',
   /**
-   * Le motif par défaut d'une désactivation, faute de motif saisi. Il part en
-   * base, dans `users.ban_reason` — une colonne de texte libre que remplit
-   * d'ordinaire un administrateur, dans la langue qu'il veut. Le repli suit
-   * donc la langue de l'instance au moment où il est écrit.
+   * A deactivation's default reason, for lack of a typed one. It goes to the
+   * database, into `users.ban_reason` — a free text column usually filled by an
+   * administrator, in whatever language they want. The fallback therefore follows
+   * the instance's language at the time it is written.
    */
   'users.banReason.default': 'Désactivé par un administrateur',
   'users.state.invited': 'invité',
@@ -116,8 +115,8 @@ const fr = {
     'Nouvelle invitation envoyée à {email} via « {channel} ». Les liens précédents sont morts.',
   'users.invitation.failed': 'L’invitation de {email} n’est pas partie : {reason}',
 
-  // Quatre morceaux plutôt qu'une phrase à trous : le milieu change de forme
-  // selon qu'il y avait des sessions à fermer ou non.
+  // Four pieces rather than a sentence with holes: the middle changes shape
+  // depending on whether there were sessions to close or not.
   'users.2fa.notice.head': 'Second facteur de {email} réinitialisé.',
   'users.2fa.notice.closed': {
     one: '{count} session fermée.',
@@ -141,7 +140,7 @@ const fr = {
   'users.2fa.dialog.pending': 'Réinitialisation…',
   'users.2fa.dialog.confirm': 'Réinitialiser le 2FA de {name}',
 
-  // ═══ Rôles ══════════════════════════════════════════════════════════════
+  // ═══ Roles ══════════════════════════════════════════════════════════════
   'roles.title': 'Rôles',
   'roles.error.locked':
     'Le rôle « {key} » est verrouillé : il ne peut être ni modifié ni supprimé.',
@@ -169,7 +168,7 @@ const fr = {
   'roles.new.help':
     "La clé sert d'identifiant et ne change plus ensuite. Les permissions se choisissent à l'étape suivante, avant la création.",
 
-  // ── Formulaire de création ──────────────────────────────────────────────
+  // ── Creation form ───────────────────────────────────────────────────────
   'roles.form.name': 'Nom',
   'roles.form.namePlaceholder': 'Support niveau 1',
   'roles.form.key': 'Clé',
@@ -180,7 +179,7 @@ const fr = {
   'roles.form.descriptionPlaceholder': 'Lecture seule et relance des scans',
   'roles.form.submit': 'Créer le rôle',
 
-  // ── Éditeur ─────────────────────────────────────────────────────────────
+  // ── Editor ──────────────────────────────────────────────────────────────
   'roles.locked': 'verrouillé',
   'roles.noDescription': 'Sans description.',
   'roles.permissionCount': {
@@ -283,7 +282,7 @@ const fr = {
   'logs.column.resource': 'Ressource',
   'logs.column.ip': 'IP',
   'logs.column.agent': 'Agent',
-  /** Une action sans acteur : le worker, le scheduler, ou un visiteur non connecté. */
+  /** An action without an actor: the worker, the scheduler, or a visitor not signed in. */
   'logs.anonymous': 'système / anonyme',
   'logs.viaToken': 'par le jeton « {name} »',
   'logs.column.token': 'Jeton d’API',
@@ -299,7 +298,7 @@ const fr = {
   'logs.drawer.filterAction': 'Filtrer sur cette action',
   'logs.timezone': 'Horodatages en {timezone}.',
 
-  // ═══ Erreurs des routes ═════════════════════════════════════════════════
+  // ═══ Route errors ═══════════════════════════════════════════════════════
   'error.role.exists': 'Un rôle « {key} » existe déjà',
   'error.role.notFound': 'Rôle « {key} » introuvable',
   'error.role.deleteFailed': "Le rôle « {key} » n'a pas pu être supprimé",
@@ -326,7 +325,7 @@ const fr = {
   'error.invitation.none': 'Aucun lien en cours pour {email}.',
   'error.user.no2fa': "{email} n'a aucun second facteur à réinitialiser.",
 
-  /** Verdicts d'envoi rendus tels quels dans le bandeau de la liste. */
+  /** Sending verdicts rendered as is in the list's banner. */
   'mail.notTriggered': 'aucun e-mail déclenché',
   'mail.sendFailed': 'envoi impossible',
 } as const;

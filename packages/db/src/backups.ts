@@ -28,18 +28,18 @@ import { auditLogs } from './schema/ops.js';
 import { users } from './schema/auth.js';
 
 /**
- * Les sauvegardes : où, comment, et ce qui a été fait.
+ * Backups: where, how, and what was done.
  *
- * Règle calquée sur `targets.ts` et `notifications.ts` : `encrypted_secrets`
- * ne sort d'ici que par `resolveBackupDestination()`, réservée au worker.
- * Toute autre lecture rend la destination sans ses secrets.
+ * A rule modeled on `targets.ts` and `notifications.ts`: `encrypted_secrets` only
+ * leaves here through `resolveBackupDestination()`, reserved to the worker. Any
+ * other read returns the destination without its secrets.
  */
 
 // ─── destination ─────────────────────────────────────────────────────────────
 
 export type BackupDestinationView = Omit<BackupDestinationRow, 'encryptedSecrets'>;
 
-/** Une configuration telle que JSONB la rend : sans les champs `undefined`. */
+/** A configuration as JSONB returns it: without the `undefined` fields. */
 function plain(value: unknown): unknown {
   return JSON.parse(JSON.stringify(value)) as unknown;
 }
@@ -49,7 +49,7 @@ function view(row: BackupDestinationRow): BackupDestinationView {
   return rest;
 }
 
-/** La destination en service — la plus récente activée. */
+/** The destination in service — the most recent enabled one. */
 export async function getActiveBackupDestination(
   db: Database = getDb(),
 ): Promise<BackupDestinationView | null> {
@@ -63,16 +63,15 @@ export async function getActiveBackupDestination(
 }
 
 /**
- * Enregistre la destination. Les secrets absents sont **conservés** — un
- * formulaire qui ne les renvoie pas ne les efface pas —, sauf changement de
- * genre : les clés d'un S3 n'ont aucun sens pour un SFTP.
+ * Saves the destination. Absent secrets are **kept** — a form that does not send
+ * them back does not erase them —, except on a change of kind: an S3's keys make
+ * no sense for an SFTP.
  *
- * Changer de **lieu** (genre ou configuration) crée une nouvelle ligne et met
- * l'ancienne au repos, sans la supprimer : chaque sauvegarde désigne la ligne
- * où elle a été déposée, et doit pouvoir y être relue — restaurée, effacée —
- * après qu'on a déménagé. Un nom ou une clé changés restent sur la même ligne :
- * le lieu n'a pas bougé. Une ancienne destination sans sauvegarde ne sert plus
- * à rien, elle est supprimée.
+ * Changing **place** (kind or configuration) creates a new row and puts the old
+ * one at rest, without deleting it: each backup designates the row where it was
+ * placed, and must be readable there — restored, erased — after moving. A
+ * changed name or key stay on the same row: the place did not move. An old
+ * destination without a backup is no longer useful, it is deleted.
  */
 export async function saveBackupDestination(
   input: {
@@ -100,7 +99,7 @@ export async function saveBackupDestination(
     else merged[name] = value;
   }
 
-  // Valide l'ensemble avant d'écrire : une destination incomplète n'est pas rangée.
+  // Validates the whole before writing: an incomplete destination is not stored.
   const resolved = parseBackupDestination(input.kind, input.config, merged);
   const values = {
     kind: input.kind,
@@ -109,7 +108,7 @@ export async function saveBackupDestination(
     encryptedSecrets: Object.keys(merged).length > 0 ? encrypt(JSON.stringify(merged)) : null,
     secretFields: Object.keys(merged).sort(),
     enabled: true,
-    // Une destination changée n'a encore été testée par personne.
+    // A changed destination has not been tested by anybody yet.
     lastCheckedAt: null,
     lastCheckError: null,
     updatedAt: new Date(),
@@ -148,11 +147,11 @@ export async function saveBackupDestination(
             );
           return inserted;
         });
-  if (!row) throw new Error("la destination n'a pas été enregistrée");
+  if (!row) throw new Error('the destination was not saved');
   return view(row);
 }
 
-/** Pour le worker seul : la destination avec ses secrets déchiffrés. */
+/** For the worker alone: the destination with its secrets decrypted. */
 export async function resolveBackupDestination(
   id?: string | null,
   db: Database = getDb(),
@@ -185,7 +184,7 @@ export async function recordBackupDestinationCheck(
     .where(eq(backupDestinations.id, id));
 }
 
-/** Retire la destination : plus rien ne part tant qu'une autre n'est pas réglée. */
+/** Removes the destination: nothing goes out until another is set. */
 export async function disableBackupDestinations(db: Database = getDb()): Promise<number> {
   const rows = await db
     .update(backupDestinations)
@@ -195,7 +194,7 @@ export async function disableBackupDestinations(db: Database = getDb()): Promise
   return rows.length;
 }
 
-// ─── politique par application ───────────────────────────────────────────────
+// ─── policy per application ──────────────────────────────────────────────────
 
 export async function getBackupPolicy(
   applicationId: string,
@@ -237,7 +236,7 @@ export async function saveBackupPolicy(
     .onConflictDoUpdate({ target: backupPolicies.applicationId, set: values });
 }
 
-/** Les applications que la tâche planifiée doit sauvegarder. */
+/** The applications the scheduled task must back up. */
 export async function listScheduledBackupPolicies(
   db: Database = getDb(),
 ): Promise<Array<{ applicationId: string; slug: string; policy: BackupPolicy }>> {
@@ -258,13 +257,16 @@ export async function listScheduledBackupPolicies(
   }));
 }
 
-/** Les applications dont la politique a déjà été réglée — le choix du premier déploiement n'est plus proposé. */
+/**
+ * The applications whose policy was already set — the first deployment's choice
+ * is no longer offered.
+ */
 export async function listBackupPolicyApplicationIds(db: Database = getDb()): Promise<Set<string>> {
   const rows = await db.select({ id: backupPolicies.applicationId }).from(backupPolicies);
   return new Set(rows.map((row) => row.id));
 }
 
-/** Toutes les politiques posées, par application — pour la vue d'ensemble des réglages. */
+/** All the policies set, per application — for the settings overview. */
 export async function listBackupPolicies(
   db: Database = getDb(),
 ): Promise<Map<string, BackupPolicy>> {
@@ -282,7 +284,7 @@ export async function listBackupPolicies(
   );
 }
 
-/** Combien d'applications sont sauvegardées automatiquement — pour l'écran des réglages. */
+/** How many applications are backed up automatically — for the settings screen. */
 export async function countEnabledBackupPolicies(db: Database = getDb()): Promise<number> {
   const [row] = await db
     .select({ count: sql<number>`count(*)::int` })
@@ -291,7 +293,7 @@ export async function countEnabledBackupPolicies(db: Database = getDb()): Promis
   return row?.count ?? 0;
 }
 
-// ─── l'historique ────────────────────────────────────────────────────────────
+// ─── the history ─────────────────────────────────────────────────────────────
 
 export async function createBackupRecord(
   input: {
@@ -310,7 +312,7 @@ export async function createBackupRecord(
   db: Database = getDb(),
 ): Promise<BackupRow> {
   const [row] = await db.insert(backups).values(input).returning();
-  if (!row) throw new Error("la sauvegarde n'a pas été enregistrée");
+  if (!row) throw new Error('the backup was not saved');
   return row;
 }
 
@@ -359,9 +361,9 @@ export async function listBackups(
 }
 
 /**
- * Les sauvegardes réussies d'une application (ou du panel) : ce que la
- * rétention trie. Une sauvegarde ne compte que sur sa destination d'origine —
- * en changer ne doit pas effacer ce qui reste sur l'ancienne.
+ * An application's (or the panel's) successful backups: what retention sorts. A
+ * backup only counts on its original destination — changing it must not erase
+ * what remains on the old one.
  */
 export async function listRetainedBackups(
   scope: { kind: 'panel' } | { kind: 'application'; applicationId: string },
@@ -388,9 +390,9 @@ export async function deleteBackupRecords(ids: string[], db: Database = getDb())
 }
 
 /**
- * Un échec ne laisse rien sur la destination, seulement une ligne d'historique :
- * utile un mois pour comprendre, encombrant ensuite — une destination en panne
- * en écrirait une par nuit. Les réussites suivent la rétention, pas ce délai.
+ * A failure leaves nothing on the destination, only a history row: useful for a
+ * month to understand, cluttering afterwards — a failing destination would write
+ * one every night. Successes follow retention, not this delay.
  */
 export async function pruneFailedBackups(
   scope: { kind: 'panel' } | { kind: 'application'; applicationId: string },
@@ -411,7 +413,7 @@ export async function pruneFailedBackups(
   return removed.length;
 }
 
-/** Une sauvegarde ou une restauration est-elle en cours pour cette application ? */
+/** Is a backup or a restore in progress for this application? */
 export async function hasRunningBackup(
   applicationId: string | null,
   db: Database = getDb(),
@@ -432,14 +434,14 @@ export async function hasRunningBackup(
 }
 
 /**
- * Au démarrage du worker : ce qui était « en cours » ne l'est plus — le
- * processus qui l'exécutait est mort avec l'ancien worker. Le dire, plutôt
- * que de laisser une sauvegarde tourner pour toujours à l'écran.
+ * At the worker's startup: what was "in progress" no longer is — the process
+ * running it died with the old worker. Say so, rather than let a backup run
+ * forever on screen.
  */
 export async function failInterruptedBackups(
   startedBefore: Date,
-  /** La raison écrite sur chaque sauvegarde, dans la langue de l'instance. */
-  reason = 'interrompue : le worker a redémarré pendant la sauvegarde',
+  /** The reason written on each backup, in the instance's language. */
+  reason = 'interrupted: the worker restarted during the backup',
   db: Database = getDb(),
 ): Promise<number> {
   const rows = await db
@@ -454,7 +456,7 @@ export async function failInterruptedBackups(
   return rows.length;
 }
 
-/** La dernière sauvegarde de chaque application — pour la liste et le tableau de bord. */
+/** Each application's last backup — for the list and the dashboard. */
 export async function latestBackupByApplication(
   db: Database = getDb(),
 ): Promise<Map<string, Pick<BackupRow, 'status' | 'startedAt' | 'finishedAt' | 'error'>>> {
@@ -480,8 +482,8 @@ export async function latestBackupByApplication(
 }
 
 /**
- * La dernière restauration d'une application, réussie ou non. Elle n'a pas de
- * table : le journal d'audit la porte, avec son déroulé — c'est là qu'on la lit.
+ * An application's last restore, successful or not. It has no table: the audit
+ * log carries it, with its course — that is where it is read.
  */
 export async function lastRestoreOf(
   applicationId: string,

@@ -10,9 +10,9 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const paramsSchema = z.object({
-  // i18n-ignore — message Zod : il voyage dans `error.details`, que le panel
-  // n'affiche pas. C'est un diagnostic pour qui appelle l'API à la main.
-  id: z.string().min(1).max(64).regex(/^[A-Za-z0-9:_-]+$/, 'identifiant de tâche invalide'),
+  // i18n-ignore — a Zod message: it travels in `error.details`, which the panel
+  // does not show. It is a diagnosis for whoever calls the API by hand.
+  id: z.string().min(1).max(64).regex(/^[A-Za-z0-9:_-]+$/, 'invalid job identifier'),
 });
 
 type Context = { params: Promise<{ id: string }> };

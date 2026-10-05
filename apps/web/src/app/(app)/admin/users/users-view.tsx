@@ -47,25 +47,25 @@ import { common } from '@/i18n/messages/common';
 import { formatDateTimeWith, type FormatSettings } from '@/lib/format';
 import { toast } from '@/lib/toast';
 
-/** Miroir de `TwoFactorState` (`@pupitre/db`) — le client ne dépend pas de la base. */
+/** Mirror of `TwoFactorState` (`@pupitre/db`) — the client does not depend on the database. */
 export type TwoFactorState = 'none' | 'pending' | 'active';
 
-/** Miroir d'`AccountState` (route `/api/admin/users`). */
+/** Mirror of `AccountState` (route `/api/admin/users`). */
 export type AccountState = 'invited' | 'expired' | 'active';
 
 export type AdminUserRow = {
   id: string;
   name: string;
   email: string;
-  /** L'URL versionnée de sa photo de profil, ou `null`. */
+  /** The versioned URL of their profile picture, or `null`. */
   image: string | null;
   banned: boolean;
   banReason: string | null;
   roles: RoleKey[];
   twoFactor: TwoFactorState;
-  /** La politique de l'instance l'exige de ce compte (« Comptes et sessions »). */
+  /** The instance's policy requires it from this account ("Accounts and sessions"). */
   twoFactorRequired: boolean;
-  /** Invité (lien vivant), invitation périmée, ou compte actif. */
+  /** Invited (live link), expired invitation, or active account. */
   state: AccountState;
   invitationExpiresAt: string | null;
   createdAt: string;
@@ -80,7 +80,7 @@ type CreatedUser = {
   email: string;
   name: string;
   roles: RoleKey[];
-  /** Verdict de l'envoi, `null` quand le compte a été créé avec un mot de passe. */
+  /** The sending's verdict, `null` when the account was created with a password. */
   invitation: { sent: boolean; channel: string | null; error: string | null } | null;
 };
 
@@ -102,12 +102,12 @@ export function UsersView({
   currentUserName: string;
   instanceName: string;
   roles: readonly RoleOption[];
-  /** Le canal e-mail actif, ou `null` : décide du régime du formulaire. */
+  /** The active email channel, or `null`: decides the form's regime. */
   channel: string | null;
   passwordMinLength: number;
   canResetTwoFactor: boolean;
-  /** Locale et fuseau de l'instance. Par props : cette table est rendue sur le
-   *  serveur avant de l'être ici, et les deux doivent écrire la même date. */
+  /** The instance's locale and time zone. Through props: this table is rendered on
+   *  the server before being rendered here, and both must write the same date. */
   format: FormatSettings;
 }) {
   const router = useRouter();
@@ -117,11 +117,11 @@ export function UsersView({
   const [pending, startTransition] = useTransition();
   const [resetting, setResetting] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
-  /** Identifiant de l'utilisateur dont l'invitation est en cours de traitement. */
+  /** The identifier of the user whose invitation is being processed. */
   const [inviting, setInviting] = useState<string | null>(null);
-  /** Utilisateur dont la réinitialisation est en cours de confirmation. */
+  /** The user whose reset is being confirmed. */
   const [confirmTarget, setConfirmTarget] = useState<AdminUserRow | null>(null);
-  /** Clé d'ouverture du drawer d'invitation : un formulaire neuf à chaque fois. */
+  /** The invitation drawer's opening key: a fresh form each time. */
   const [creating, setCreating] = useState<number | null>(null);
 
   async function call(url: string, init: RequestInit, done?: string) {
@@ -140,11 +140,11 @@ export function UsersView({
   }
 
   /**
-   * Relancer ou annuler une invitation.
+   * Resending or cancelling an invitation.
    *
-   * Les deux passent par la même route (`POST` / `DELETE`) et rendent le nombre
-   * de liens tués : c'est ce qui permet de dire « l'ancien lien ne fonctionne
-   * plus » plutôt que de laisser croire qu'on en a juste ajouté un.
+   * Both go through the same route (`POST` / `DELETE`) and return the number of
+   * links killed: that is what allows saying "the old link no longer works"
+   * rather than letting one believe that a new one was merely added.
    */
   async function invitation(user: AdminUserRow, method: 'POST' | 'DELETE') {
     setError(null);
@@ -349,7 +349,7 @@ export function UsersView({
                             </DropdownMenuItem>
                           ) : null}
                           {user.image ? (
-                            // La modération d'une photo déplacée : elle part, le compte reste.
+                            // Moderating an inappropriate picture: it goes, the account stays.
                             <DropdownMenuItem
                               onSelect={() =>
                                 void call(
@@ -364,7 +364,7 @@ export function UsersView({
                             </DropdownMenuItem>
                           ) : null}
                           {isSelf ? (
-                            // Un geste refusé se dit en clair, à sa place.
+                            // A refused gesture is spelled out, in its place.
                             <DropdownMenuLabel className="t-cap font-normal text-text-3">
                               {t('error.user.disableSelf')}
                             </DropdownMenuLabel>
@@ -452,9 +452,9 @@ export function UsersView({
 }
 
 /**
- * L'invitation — ou la création, sans canal e-mail — dans un drawer. Le
- * formulaire montre ce que la personne recevra : un objet, un lien, et la
- * promesse que personne d'autre ne connaîtra son mot de passe.
+ * The invitation — or the creation, without an email channel — in a drawer. The
+ * form shows what the person will receive: a subject, a link, and the promise
+ * that nobody else will know their password.
  */
 function CreateUser({
   roles,
@@ -497,9 +497,9 @@ function CreateUser({
       body: JSON.stringify({
         name,
         email,
-        // Champ omis en régime invitation : c'est son absence qui dit à la
-        // route « invite au lieu de créer ». Envoyer une chaîne vide ferait
-        // échouer la validation au lieu de basculer de régime.
+        // Field omitted in the invitation regime: its absence is what tells the route
+        // "invite instead of creating". Sending an empty string would fail the
+        // validation instead of switching regime.
         ...(canInvite ? {} : { password: String(form.get('password') ?? '') }),
         role,
       }),
@@ -514,9 +514,9 @@ function CreateUser({
 
     const created = (await response.json().catch(() => null)) as CreatedUser | null;
 
-    // Le compte existe dans tous les cas ; l'e-mail, lui, a pu ne pas partir.
-    // Dire « invitation envoyée » sans le savoir serait exactement le silence
-    // que ce parcours doit éviter.
+    // The account exists in every case; the email, on the other hand, may not have
+    // gone out. Saying "invitation sent" without knowing would be exactly the
+    // silence this journey must avoid.
     if (!canInvite) {
       toast({ title: t('users.created.notice') });
     } else if (created?.invitation?.sent) {
@@ -625,12 +625,12 @@ function CreateUser({
 }
 
 /**
- * L'état du compte, en pastille.
+ * The account's state, as a chip.
  *
- * « Désactivé » l'emporte sur tout le reste : c'est le fait qui compte, et un
- * compte désactivé n'a pas d'invitation en cours qui vaille la peine d'être
- * lue. Les deux états d'invitation, eux, sont distincts parce qu'ils appellent
- * deux gestes différents — relancer, ou attendre.
+ * "Disabled" wins over everything else: it is the fact that counts, and a
+ * disabled account has no invitation in progress worth reading. The two
+ * invitation states, for their part, are distinct because they call for two
+ * different gestures — resend, or wait.
  */
 function AccountState({ user, t, format }: { user: AdminUserRow; t: T; format: FormatSettings }) {
   if (user.banned) {
@@ -647,8 +647,8 @@ function AccountState({ user, t, format }: { user: AdminUserRow; t: T; format: F
         {user.invitationExpiresAt ? (
           <span className="t-cap text-text-3">
             {t('users.invitation.validUntil', {
-              // `settings.locale` tel quel : la langue à deux lettres
-              // rendait « 2:32 PM » sur une instance réglée sur `en-GB`.
+              // `settings.locale` as is: the two-letter language rendered "2:32 PM" on an
+              // instance set to `en-GB`.
               date: formatDateTimeWith(user.invitationExpiresAt, format, {
                 day: '2-digit',
                 month: '2-digit',

@@ -1,11 +1,11 @@
 import { createHash, createHmac } from 'node:crypto';
 
 /**
- * AWS Signature Version 4, pour S3 et ses compatibles.
+ * AWS Signature Version 4, for S3 and its compatibles.
  *
- * Écrite ici plutôt qu'importée : le SDK AWS pèse plusieurs mégaoctets pour les
- * cinq requêtes dont on a besoin, et la signature tient en quelques lignes que
- * le test confronte au vecteur officiel d'AWS.
+ * Written here rather than imported: the AWS SDK weighs several megabytes for
+ * the five requests we need, and the signature fits in a few lines the test
+ * checks against AWS's official vector.
  */
 
 export const EMPTY_SHA256 = createHash('sha256').update('').digest('hex');
@@ -18,7 +18,7 @@ function hmac(key: Buffer | string, data: string): Buffer {
   return createHmac('sha256', key).update(data).digest();
 }
 
-/** Encodage RFC 3986 tel que S3 l'attend : tout sauf `A-Za-z0-9-_.~`. */
+/** RFC 3986 encoding as S3 expects it: everything except `A-Za-z0-9-_.~`. */
 export function encodeRfc3986(value: string): string {
   return encodeURIComponent(value).replace(
     /[!'()*]/g,
@@ -26,7 +26,7 @@ export function encodeRfc3986(value: string): string {
   );
 }
 
-/** Une clé d'objet, segment par segment : les `/` restent des séparateurs. */
+/** An object key, segment by segment: the `/` stay separators. */
 export function encodeKeyPath(key: string): string {
   return key.split('/').map(encodeRfc3986).join('/');
 }
@@ -34,10 +34,10 @@ export function encodeKeyPath(key: string): string {
 export type SignInput = {
   method: string;
   host: string;
-  /** Chemin **déjà encodé** (`/bucket/apps/blog/x.pupb`). */
+  /** Path **already encoded** (`/bucket/apps/blog/x.pupb`). */
   path: string;
   query?: Record<string, string>;
-  /** En-têtes à signer, noms en minuscules ; `host` et `x-amz-*` sont ajoutés. */
+  /** Headers to sign, lowercase names; `host` and `x-amz-*` are added. */
   headers?: Record<string, string>;
   payloadHash: string;
   region: string;
@@ -54,7 +54,7 @@ export function canonicalQuery(query: Record<string, string> = {}): string {
     .join('&');
 }
 
-/** Rend les en-têtes à envoyer, `authorization` compris. */
+/** Returns the headers to send, `authorization` included. */
 export function signV4(input: SignInput): Record<string, string> {
   const date = input.date ?? new Date();
   const amzDate = date

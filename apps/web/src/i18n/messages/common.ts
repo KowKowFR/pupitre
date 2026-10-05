@@ -1,19 +1,19 @@
 import type { Translated } from '@pupitre/core';
 
 /**
- * Le vocabulaire que tous les écrans partagent — les verbes des boutons, les
- * états d'attente, les en-têtes de colonne qui reviennent partout.
+ * The vocabulary all the screens share — the buttons' verbs, the waiting states,
+ * the column headers that come back everywhere.
  *
- * Ce module est **fermé**. Un mot n'y entre que s'il est employé tel quel par
- * au moins trois surfaces sans rien devoir au contexte : « Enregistrer » oui,
- * « Enregistrer et continuer » non — celui-là appartient à l'assistant. Un
- * fourre-tout où chaque écran dépose sa phrase finit par imposer aux autres une
- * formulation qui ne leur va pas, et personne n'ose plus y toucher.
+ * This module is **closed**. A word only enters it if it is used as is by at
+ * least three surfaces without owing anything to the context: "Save" yes, "Save
+ * and continue" no — that one belongs to the assistant. A catch-all where each
+ * screen drops its sentence ends up imposing on the others a wording that does
+ * not suit them, and nobody dares touch it any more.
  *
- * En cas de doute : la chaîne va dans le dictionnaire de sa surface.
+ * When in doubt: the string goes into its surface's dictionary.
  */
 const fr = {
-  // ── Verbes d'action ─────────────────────────────────────────────────────
+  // ── Action verbs ────────────────────────────────────────────────────────
   save: 'Enregistrer',
   cancel: 'Annuler',
   close: 'Fermer',
@@ -27,14 +27,14 @@ const fr = {
   reset: 'Réinitialiser',
   selectAll: 'Tout sélectionner',
 
-  // ── États d'attente. Le « … » est un vrai caractère U+2026, comme partout.
+  // ── Waiting states. The "…" is a real U+2026 character, as everywhere.
   saving: 'Enregistrement…',
   loading: 'Chargement…',
   creating: 'Création…',
   deleting: 'Suppression…',
   checking: 'Vérification…',
 
-  // ── En-têtes de colonne ─────────────────────────────────────────────────
+  // ── Column headers ──────────────────────────────────────────────────────
   'column.date': 'Date',
   'column.state': 'État',
   'column.status': 'Statut',
@@ -49,17 +49,17 @@ const fr = {
   'page.position': 'Page {page} sur {total}',
 
   /**
-   * Le repli de tout `fetch` du panel quand la réponse n'a pas de message.
-   * Vingt-huit occurrences le répétaient à l'identique ; il n'en reste qu'une.
+   * The fallback of any panel `fetch` when the response has no message.
+   * Twenty-eight occurrences repeated it identically; only one is left.
    */
   'http.failure': 'Échec (HTTP {status})',
 
-  /** Valeur absente dans un tableau. Un tiret cadratin, pas un trait d'union. */
+  /** A missing value in a table. An em dash, not a hyphen. */
   none: '—',
 
   /**
-   * Durée écoulée, « il y a 27 min ». Cibles, déploiements, sondes et journal
-   * la disent tous — voir `lib/relative-time.ts`.
+   * Elapsed time, "27 min ago". Targets, deployments, probes and the log all say
+   * it — see `lib/relative-time.ts`.
    */
   'ago.now': "à l'instant",
   'ago.seconds': 'il y a {count} s',

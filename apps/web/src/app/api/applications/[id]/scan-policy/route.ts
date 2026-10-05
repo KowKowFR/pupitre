@@ -24,7 +24,7 @@ async function application(id: string) {
   return row;
 }
 
-/** Le réglage de scan de l'application. `null` : comme l'instance. */
+/** The application's scan setting. `null`: like the instance. */
 export const GET = apiRoute<Context>(async (request, context) => {
   await requirePermission(request, 'scan:read');
   const { id } = paramsSchema.parse(await context.params);
@@ -32,9 +32,9 @@ export const GET = apiRoute<Context>(async (request, context) => {
 });
 
 /**
- * Régler ce qui bloque l'application : son seuil, et s'il ne vaut que pour
- * les failles corrigeables. Les deux champs sont exigés — `null` rend la
- * main à l'instance. Vaut pour les prochains déploiements.
+ * Setting what blocks the application: its threshold, and whether it only holds
+ * for fixable vulnerabilities. Both fields are required — `null` hands control
+ * back to the instance. Holds for the next deployments.
  */
 export const PUT = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'scan:configure');

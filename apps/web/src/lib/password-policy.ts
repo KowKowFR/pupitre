@@ -1,11 +1,11 @@
 /**
- * Politique de mot de passe — une seule valeur, partagée par le serveur
- * (`emailAndPassword.minPasswordLength`), les routes de compte et les
- * formulaires. Elle reprend telle quelle ce que l'inscription exigeait déjà :
- * un changement de mot de passe n'est pas l'endroit où durcir la règle
- * unilatéralement, sinon un compte devient plus dur à sécuriser qu'à créer.
+ * The password policy — a single value, shared by the server
+ * (`emailAndPassword.minPasswordLength`), the account routes and the forms. It
+ * takes as is what sign-up already required: a password change is not the place
+ * to harden the rule unilaterally, otherwise an account becomes harder to secure
+ * than to create.
  *
- * Ce module n'est pas `server-only` : les formulaires client l'importent pour
- * refuser un mot de passe trop court sans aller-retour réseau.
+ * This module is not `server-only`: the client forms import it to refuse a
+ * password that is too short without a network round trip.
  */
 export const PASSWORD_MIN_LENGTH = 12;

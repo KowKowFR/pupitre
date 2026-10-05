@@ -10,13 +10,12 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Le retour de GitHub après création de l'App : un code, échangé contre ses
- * identifiants — dont la clé privée, montrée une seule fois, chiffrée aussitôt.
+ * GitHub's return after creating the App: a code, exchanged for its credentials —
+ * including the private key, shown only once, encrypted right away.
  *
- * C'est une navigation du navigateur, pas un appel de GitHub : le panel n'a
- * jamais à être joignable. Réussi, on enchaîne sur l'installation (choix des
- * dépôts) ; raté, on revient aux Paramètres avec l'erreur, jamais sur une page
- * JSON.
+ * It is a browser navigation, not a call from GitHub: the panel never has to be
+ * reachable. On success, we go on to the installation (choice of repositories);
+ * on failure, we go back to Settings with the error, never to a JSON page.
  */
 export async function GET(request: Request): Promise<Response> {
   const origin = panelOrigin();
@@ -69,7 +68,7 @@ export async function GET(request: Request): Promise<Response> {
     response.cookies.delete({ name: GITHUB_STATE_COOKIE, path: '/api/integrations/github' });
     return response;
   } catch (error) {
-    logger.warn({ err: error }, "création de l'application GitHub impossible");
+    logger.warn({ err: error }, 'GitHub App creation failed');
     return back('github');
   }
 }

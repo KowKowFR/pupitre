@@ -35,13 +35,13 @@ export type AdminUser = {
   banned: boolean;
   banReason: string | null;
   roles: RoleKey[];
-  /** Second facteur : sans lui, réinitialiser serait un bouton actionné à l'aveugle. */
+  /** Second factor: without it, resetting would be a button pressed blindly. */
   twoFactor: TwoFactorState;
-  /** Où en est le compte : invité, invitation périmée, ou actif. */
+  /** Where the account stands: invited, expired invitation, or active. */
   state: AccountState;
-  /** Échéance du lien en cours, quand il y en a un. Jamais le lien lui-même. */
+  /** The current link's expiry, when there is one. Never the link itself. */
   invitationExpiresAt: string | null;
-  /** L'adresse a été prouvée — la personne a cliqué sur un lien qui y était envoyé. */
+  /** The address was proven — the person clicked a link sent to it. */
   emailVerified: boolean;
   createdAt: string;
 };
@@ -76,27 +76,27 @@ export const GET = apiRoute(async (request) => {
 });
 
 /**
- * ## Inviter, ou fabriquer un mot de passe : une seule route, deux régimes
+ * ## Inviting, or making up a password: a single route, two regimes
  *
- * `password` absent → **invitation**. Le compte est créé sans aucun mot de
- * passe (pas même un aléatoire jeté ensuite : Better Auth crée la ligne
- * `credential` au moment du `reset-password`, donc il n'y a rien à jeter), et
- * la personne reçoit un lien pour en choisir un. Personne d'autre ne le connaît
- * jamais — pas même celui qui a invité.
+ * `password` absent → **invitation**. The account is created without any password
+ * (not even a random one thrown away afterwards: Better Auth creates the
+ * `credential` row at `reset-password` time, so there is nothing to throw away),
+ * and the person receives a link to choose one. Nobody else ever knows it — not
+ * even whoever invited.
  *
- * `password` présent → **création directe**, l'ancien comportement.
+ * `password` present → **direct creation**, the old behavior.
  *
- * ### Pourquoi les deux survivent
+ * ### Why both survive
  *
- * Le supprimer casserait le seul chemin qui fonctionne sur une instance
- * neuve : tant qu'aucun canal SMTP n'est configuré — l'état par défaut —, aucun
- * e-mail ne peut partir, et l'assistant de démarrage doit pourtant pouvoir
- * créer un compte. C'est aussi le seul chemin utilisable par un script.
+ * Removing it would break the only path that works on a new instance: as long as
+ * no SMTP channel is configured — the default state —, no email can go out, and
+ * the onboarding assistant must still be able to create an account. It is also
+ * the only path usable by a script.
  *
- * Ce qui disparaît, c'est le **choix** : l'écran `/admin/users` n'affiche qu'un
- * seul formulaire, et c'est la capacité de l'instance qui décide lequel. Un
- * opérateur ne voit jamais deux façons de faire la même chose ; l'API, elle, en
- * garde deux, parce qu'elle sert aussi ceux qui n'ont pas d'écran.
+ * What disappears is the **choice**: the `/admin/users` screen only shows one
+ * form, and it is the instance's capability that decides which. An operator
+ * never sees two ways of doing the same thing; the API, for its part, keeps two,
+ * because it also serves those who have no screen.
  */
 const createUserSchema = z.object({
   name: z.string().min(1).max(100),
@@ -123,9 +123,9 @@ export const POST = apiRoute(async (request) => {
     throw new NotFoundError(msg(admin, 'error.role.notFound', { key: input.role }));
   }
 
-  // La capacité est vérifiée **avant** de créer quoi que ce soit : un compte
-  // invité qui ne recevra jamais son invitation est un compte qu'il faudra
-  // supprimer à la main.
+  // The capability is checked **before** creating anything: an invited account
+  // that will never receive its invitation is an account that will have to be
+  // deleted by hand.
   const channel = invite ? await mailChannelName() : null;
   if (invite && !channel) {
     throw new HttpError(
@@ -135,20 +135,20 @@ export const POST = apiRoute(async (request) => {
     );
   }
 
-  // Passe par Better Auth pour que le mot de passe soit haché comme à
-  // l'inscription. Son plugin admin ne connaît que son propre vocabulaire de
-  // rôles : on crée donc le compte avec le moins privilégié qu'il accepte, puis
-  // on pose le rôle réel par notre couche, qui est l'autorité. Sans ce détour,
-  // créer un utilisateur avec un rôle personnalisé serait refusé par Better Auth.
+  // Goes through Better Auth so that the password is hashed as at sign-up. Its
+  // admin plugin only knows its own role vocabulary: so we create the account with
+  // the least privileged one it accepts, then set the real role through our layer,
+  // which is the authority. Without this detour, creating a user with a custom
+  // role would be refused by Better Auth.
   const created = await getAuth().api.createUser({
     body: {
       name: input.name,
       email: input.email,
-      // Champ omis pour une invitation : le compte naît sans mot de passe.
+      // Field omitted for an invitation: the account is born without a password.
       ...(input.password === undefined ? {} : { password: input.password }),
       role: 'viewer',
     },
-    // Better Auth revérifie de son côté que l'appelant est administrateur.
+    // Better Auth checks again on its side that the caller is an administrator.
     headers: request.headers,
   });
 
@@ -159,9 +159,8 @@ export const POST = apiRoute(async (request) => {
     action: 'user.created.by_admin',
     resourceType: 'user',
     resourceId: created.user.id,
-    // `method` distingue les deux régimes dans le journal. Sans lui, on ne
-    // saurait pas, six mois plus tard, si un mot de passe a un jour transité
-    // par un canal humain.
+    // `method` tells the two regimes apart in the log. Without it, one would not
+    // know, six months later, whether a password ever went through a human channel.
     after: {
       email: input.email,
       name: input.name,
@@ -198,17 +197,17 @@ export const POST = apiRoute(async (request) => {
 });
 
 /**
- * Fabrique le lien, l'envoie, trace — pour un compte qui existe déjà.
+ * Makes the link, sends it, traces — for an account that already exists.
  *
- * Partagé entre la création par invitation et le bouton « Relancer » de
- * `/admin/users`, parce que ce sont **exactement** les mêmes gestes : la
- * deuxième invitation n'est pas une invitation au rabais.
+ * Shared between creation by invitation and `/admin/users`' "Resend" button,
+ * because they are **exactly** the same gestures: the second invitation is not a
+ * cut-price invitation.
  *
- * L'échec d'envoi n'annule pas le compte et ne renvoie pas d'erreur HTTP : il
- * est rapporté dans la réponse. Créer le compte puis le détruire parce que le
- * serveur SMTP a hoqueté serait un remède pire que le mal — la personne
- * apparaît dans la liste avec l'état « invitation à relancer », ce qu'un
- * administrateur sait traiter.
+ * The sending's failure does not cancel the account and does not return an HTTP
+ * error: it is reported in the response. Creating the account then destroying it
+ * because the SMTP server hiccupped would be a cure worse than the disease — the
+ * person appears in the list with the "invitation to resend" state, which an
+ * administrator knows how to handle.
  */
 export async function inviteExistingUser(options: {
   userId: string;
@@ -219,8 +218,8 @@ export async function inviteExistingUser(options: {
   headers: Headers;
   resend: boolean;
 }): Promise<{ sent: boolean; channel: string | null; error: string | null }> {
-  // Les deux verdicts ci-dessous sont rendus tels quels dans le bandeau de
-  // `/admin/users` : ils suivent donc la langue de l'instance, comme le reste.
+  // The two verdicts below are rendered as is in `/admin/users`' banner: they
+  // therefore follow the instance's language, like the rest.
   const t = translator(admin, await currentLanguage());
 
   let sent = false;
@@ -228,16 +227,15 @@ export async function inviteExistingUser(options: {
   let error: string | null = null;
 
   try {
-    // `captureAccountMail` ouvre le contexte qui fait **attendre** l'envoi :
-    // un administrateur qui invite doit savoir si le message est parti, pas
-    // qu'il est enfilé. Le formulaire public de réinitialisation, lui, n'ouvre
-    // aucun contexte — il ne doit rien attendre. Voir `@/lib/account-mail`.
+    // `captureAccountMail` opens the context that makes the sending **awaited**: an
+    // administrator who invites must know whether the message went out, not that it
+    // is queued. The public reset form, for its part, opens no context — it must not
+    // wait for anything. See `@/lib/account-mail`.
     const { verdict } = await captureAccountMail(() =>
       getAuth().api.requestPasswordReset({
-        // `redirectTo` ne décide pas du texte de l'e-mail — c'est l'état du
-        // compte qui le décide, côté serveur. Il est passé pour que le GET de
-        // vérification du jeton ait une destination si jamais la réécriture de
-        // `withLanding()` n'avait pas lieu.
+        // `redirectTo` does not decide the email's text — it is the account's state that
+        // decides it, on the server side. It is passed so that the token's verification
+        // GET has a destination if ever `withLanding()`'s rewriting did not take place.
         body: { email: options.email, redirectTo: INVITATION_PATH },
         headers: options.headers,
       }),
@@ -254,8 +252,8 @@ export async function inviteExistingUser(options: {
     action: options.resend ? 'user.invitation.resent' : 'user.invited',
     resourceType: 'user',
     resourceId: options.userId,
-    // Aucun jeton, aucun lien : la trace dit qui a invité qui, par quel canal,
-    // et si c'est parti. Elle n'ouvre aucun compte.
+    // No token, no link: the trace says who invited whom, through which channel, and
+    // whether it went out. It opens no account.
     after: { email: options.email, invitedBy: options.actorEmail, sent, channel, error },
     ip: options.ip,
   });

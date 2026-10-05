@@ -24,7 +24,7 @@ const HEALTH_TONE: Record<string, Tone> = {
   unknown: 'idle',
 };
 
-/** La part de la fiche que rend le serveur, telle qu'elle traverse jusqu'ici. */
+/** The part of the record the server renders, as it travels all the way here. */
 export type ApplicationRecordView = Pick<ApplicationRecord, 'key' | 'tabs' | 'counts' | 'alerts'>;
 
 const SERVER_TABS: ApplicationRecordTab[] = [
@@ -38,10 +38,10 @@ const SERVER_TABS: ApplicationRecordTab[] = [
 ];
 
 /**
- * La fiche d'une application, dans un tiroir. L'onglet « Aperçu » se lit sur
- * la ligne de la liste — ce qui va tourner, où elle est en service — et porte
- * le déploiement rapide ; les autres onglets arrivent du serveur. Le choix de
- * la cible borne celui du runtime : on ne propose que ce que le preflight a vu.
+ * An application's record, in a drawer. The "Overview" tab reads from the list's
+ * row — what will run, where it is in service — and carries the quick
+ * deployment; the other tabs come from the server. The choice of target bounds
+ * that of the runtime: only what the preflight saw is offered.
  */
 export function ApplicationDrawer({
   application,
@@ -65,7 +65,7 @@ export function ApplicationDrawer({
   onDelete,
 }: {
   application: ApplicationRow | null;
-  /** La fiche rendue au serveur, si c'est bien celle de `application`. */
+  /** The record rendered on the server, if it is indeed `application`'s. */
   record: ApplicationRecordView | null;
   onClose: () => void;
   onPrevious?: () => void;
@@ -74,13 +74,13 @@ export function ApplicationDrawer({
   canDeploy: boolean;
   canDelete: boolean;
   canReadBackups: boolean;
-  /** L'onglet « Sécurité » : ce qui bloque l'application, et ses failles acceptées. */
+  /** The "Security" tab: what blocks the application, and its accepted vulnerabilities. */
   canReadScans?: boolean;
   autoRollback: boolean;
   onAutoRollbackChange: (value: boolean) => void;
-  /** Au premier déploiement : activer la sauvegarde. Rendu par la liste, posé ici. */
+  /** At the first deployment: enable the backup. Rendered by the list, placed here. */
   backupChoice?: React.ReactNode;
-  /** Les domaines, pour la cible choisie : ils dépendent de son reverse proxy. */
+  /** The domains, for the chosen target: they depend on its reverse proxy. */
   domainsChoice?: (target: DeployTarget) => React.ReactNode;
   focusDeploy: boolean;
   busy: boolean;
@@ -91,9 +91,9 @@ export function ApplicationDrawer({
   const t = useT(messages);
   const [targetId, setTargetId] = useState<string | null>(null);
   const [runtimeChoice, setRuntimeChoice] = useState<'docker' | 'k3s' | null>(null);
-  // Par défaut : une cible où l'application est déjà en service, sinon la
-  // première cible opérationnelle — jamais une machine injoignable par hasard
-  // d'ordre alphabétique.
+  // By default: a target where the application is already in service, otherwise
+  // the first operational target — never an unreachable machine by the chance of
+  // alphabetical order.
   const liveOn = new Set((application?.live ?? []).map((entry) => entry.targetName));
   const fallback = targets.find((candidate) => liveOn.has(candidate.name)) ?? targets[0];
   const target = targets.find((candidate) => candidate.id === targetId) ?? fallback;

@@ -6,32 +6,32 @@ import type { UiLanguage } from '../i18n.js';
 import { proxySay, type ProxySay } from './messages.js';
 
 /**
- * La sonde d'une route, commune à tous les proxies qui écoutent sur les ports
- * 80 et 443 de leur machine.
+ * A route's probe, shared by every proxy listening on ports 80 and 443 of its
+ * machine.
  *
- * Lancée **sur la machine du proxy**, en forçant le nom vers la boucle locale
- * (`--resolve`) : on éprouve le proxy et sa configuration, pas le DNS public —
- * qui peut ne pas encore pointer là, ou passer par un CDN. Le certificat est lu
- * de la même façon, sur le port 443, avec le nom demandé (SNI).
+ * Run **on the proxy's machine**, forcing the name to loopback (`--resolve`): we
+ * test the proxy and its configuration, not the public DNS — which may not point
+ * there yet, or go through a CDN. The certificate is read the same way, on port
+ * 443, with the requested name (SNI).
  */
 
 const PROBE_TIMEOUT_MS = 60_000;
 
 /**
- * Ce qui trahit un proxy qui ne connaît pas le nom demandé, ou qui n'a pas
- * encore de vrai certificat. Chacun a les siens : Traefik répond 404 avec un
- * corps à lui, BunkerWeb sert sa page par défaut **en 200**. Sans signature,
- * une route absente passerait pour une route qui répond.
+ * What gives away a proxy that does not know the requested name, or does not
+ * have a real certificate yet. Each has its own: Traefik answers 404 with a body
+ * of its own, BunkerWeb serves its default page **as a 200**. Without a
+ * signature, a missing route would pass for a route that answers.
  */
 export type ProbeSignatures = {
-  /** Un extrait du corps que le proxy rend pour un nom qu'il ne connaît pas. */
+  /** An excerpt of the body the proxy returns for a name it does not know. */
   noRouteBody: string;
-  /** Le certificat qu'il présente tant qu'il n'en a pas obtenu un vrai. */
+  /** The certificate it presents until it has obtained a real one. */
   placeholderCertificate: RegExp;
   /**
-   * Un fichier de la machine du proxy qui porte un en-tête à joindre aux
-   * sondes (`Nom: valeur`) — celui qui les fait passer la liste blanche d'un
-   * WAF. Lu par `curl -H @fichier` : la valeur n'apparaît dans aucun argument.
+   * A file on the proxy's machine carrying a header to attach to the probes
+   * (`Name: value`) — the one that gets them through a WAF's whitelist. Read by
+   * `curl -H @file`: the value appears in no argument.
    */
   headerFile?: string;
 };
@@ -47,7 +47,7 @@ export function routeProbeScript(
     `H=${host}`,
     `P=${target}`,
     'B=$(mktemp)',
-    // Un en-tête de la machine, s'il y en a un : sa valeur reste dans le fichier.
+    // A header from the machine, if there is one: its value stays in the file.
     `F=${signatures.headerFile ? shellQuote(signatures.headerFile) : "''"}`,
     '[ -n "$F" ] && [ -r "$F" ] || F=/dev/null',
     'probe() {',
@@ -73,7 +73,7 @@ export function routeProbeScript(
   ].join('\n');
 }
 
-/** Ce qu'une requête à travers le proxy a donné : son code, et s'il ne connaît pas le nom. */
+/** What a request through the proxy gave: its code, and whether it does not know the name. */
 export type Probed = { code: number; noRoute: boolean };
 
 function parseProbes(stdout: string): Record<'http' | 'https', Probed | undefined> {
@@ -90,7 +90,7 @@ function parseProbes(stdout: string): Record<'http' | 'https', Probed | undefine
   return result;
 }
 
-/** Le texte d'un champ du certificat, sans le préfixe `CN=` superflu pour l'œil. */
+/** The text of a certificate field, without the `CN=` prefix, superfluous to the eye. */
 function field(stdout: string, names: string[]): string | null {
   for (const line of stdout.split('\n')) {
     const match = /^(?:cert|curl) ([a-zA-Z ]+?)\s*=\s*(.*)$/.exec(line.trim());
@@ -115,7 +115,7 @@ export function parseCertificate(
   const issuer = field(stdout, ['issuer']);
   const notAfter = parseDate(field(stdout, ['notafter', 'expire date']));
   if (!subject && !issuer) return { status: 'unknown', subject: null, issuer: null, notAfter };
-  // Le certificat d'attente du proxy : l'émission n'a pas encore abouti.
+  // The proxy's placeholder certificate: issuance has not succeeded yet.
   const isDefault = signatures.placeholderCertificate.test(`${subject ?? ''} ${issuer ?? ''}`);
   const expired = notAfter !== null && Date.parse(notAfter) < now;
   return {
@@ -165,8 +165,8 @@ export function interpretRouteProbe(
 }
 
 /**
- * Le verdict d'une sonde, d'où qu'elle vienne : de la machine du proxy (le
- * script ci-dessus), ou du panel pour un proxy distant (`probeDirect()`).
+ * A probe's verdict, wherever it comes from: from the proxy's machine (the
+ * script above), or from the panel for a remote proxy (`probeDirect()`).
  */
 export function judgeRouteProbe(
   route: ProxyRoute,

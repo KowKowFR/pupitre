@@ -20,9 +20,9 @@ import { toast } from '@/lib/toast';
 type ApiError = { error?: { message?: string } };
 
 /**
- * L'onglet « Sécurité » d'une application : ce qui bloque ses mises en ligne
- * — son seuil, et s'il ne vaut que pour les failles corrigeables — et les
- * failles qu'on y a acceptées. Le réglage vide reprend celui de l'instance.
+ * An application's "Security" tab: what blocks its releases — its threshold, and
+ * whether it only holds for fixable vulnerabilities — and the vulnerabilities
+ * accepted for it. The empty setting takes the instance's.
  */
 export function ApplicationSecurity({
   applicationId,

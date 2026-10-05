@@ -2,14 +2,14 @@ import { evaluateReachability, getTarget, logAudit } from '@pupitre/db';
 import { logger } from '../logger.js';
 
 /**
- * Fait d'une bascule de joignabilité un message — par `logAudit()`, comme les
- * franchissements de seuil (`notify.ts`) : écrire l'audit **est** l'émission,
- * l'observateur la reconnaît au catalogue (`target.unreachable`,
- * `target.reachable`) et la distribue aux canaux abonnés.
+ * Turns a reachability flip into a message — through `logAudit()`, like
+ * threshold crossings (`notify.ts`): writing the audit **is** the emission, the
+ * observer recognizes it in the catalog (`target.unreachable`,
+ * `target.reachable`) and delivers it to the subscribed channels.
  *
- * Une machine éteinte ne franchit aucun seuil : ses relevés échouent, et c'est
- * précisément ce que les seuils ne savent pas dire. Sans cette annonce, elle
- * tombe en silence.
+ * A machine turned off crosses no threshold: its readings fail, and that is
+ * precisely what thresholds cannot say. Without this announcement, it goes down
+ * silently.
  */
 export async function judgeReachability(target: {
   id: string;
@@ -39,9 +39,9 @@ export async function judgeReachability(target: {
     });
     return transition.kind;
   } catch (error) {
-    // Comme pour les seuils : un message qui ne part pas ne doit pas emporter
-    // le relevé, qui, lui, est déjà en base.
-    logger.error({ err: error, targetId: target.id }, 'bascule de joignabilité non annoncée');
+    // As for thresholds: a message that does not go out must not take the reading
+    // with it, which is already in the database.
+    logger.error({ err: error, targetId: target.id }, 'reachability flip not announced');
     return null;
   }
 }

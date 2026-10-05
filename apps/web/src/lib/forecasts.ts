@@ -11,7 +11,7 @@ import { listOpenForecasts, type ForecastRow } from '@pupitre/db';
 import { currentLanguage } from '@/i18n/server';
 import type { AuthContext } from '@/lib/rbac';
 
-/** Une prévision en cours, mise en mots pour l'écran. */
+/** A current forecast, put into words for the screen. */
 export type ForecastView = {
   id: string;
   kind: ForecastKind;
@@ -21,13 +21,13 @@ export type ForecastView = {
   subjectName: string;
   title: string;
   sentence: string;
-  /** Le tiroir du sujet. */
+  /** The subject's drawer. */
   href: string;
   etaAt: string | null;
   openedAt: string;
 };
 
-/** Qui peut lire quel sujet : la même permission que son écran. */
+/** Who can read which subject: the same permission as its screen. */
 const READ_PERMISSION = {
   target: 'target:read',
   monitor: 'monitor:read',
@@ -36,9 +36,9 @@ const READ_PERMISSION = {
 } as const;
 
 /**
- * Les prévisions en cours que la session a le droit de lire, dans la langue
- * de l'instance. Une prévision sur une sonde n'est pas montrée à qui ne voit
- * pas les sondes — la même règle que partout.
+ * The current forecasts the session is allowed to read, in the instance's
+ * language. A forecast on a probe is not shown to whoever does not see the probes
+ * — the same rule as everywhere.
  */
 export async function visibleForecasts(
   auth: Pick<AuthContext, 'can'>,

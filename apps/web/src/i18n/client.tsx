@@ -11,19 +11,18 @@ import {
 } from '@pupitre/core';
 
 /**
- * La langue, côté client.
+ * The language, client side.
  *
- * Le contexte ne porte que **la langue**, jamais les dictionnaires. C'est le
- * point qui décide de la taille des pages : si le fournisseur transportait les
- * messages, l'intégralité des textes du panel — une centaine de kilo-octets —
- * traverserait la charge utile RSC à chaque navigation. En ne transportant que
- * deux lettres, les dictionnaires restent des *modules*, importés par les
- * écrans qui s'en servent, découpés par le bundler comme le reste du code et
- * mis en cache par le navigateur une fois pour toutes.
+ * The context only carries **the language**, never the dictionaries. It is the
+ * point that decides the pages' size: if the provider carried the messages, all
+ * the panel's texts — about a hundred kilobytes — would cross the RSC payload at
+ * each navigation. By only carrying two letters, the dictionaries stay
+ * *modules*, imported by the screens that use them, split by the bundler like
+ * the rest of the code and cached by the browser once and for all.
  *
- * C'est aussi pourquoi `useT()` prend le dictionnaire en argument plutôt qu'un
- * nom d'espace : un nom demanderait un registre central, donc un module qui
- * importe tous les dictionnaires, donc la fin du découpage.
+ * That is also why `useT()` takes the dictionary as an argument rather than a
+ * namespace name: a name would require a central registry, hence a module that
+ * imports all the dictionaries, hence the end of the splitting.
  */
 const LanguageContext = createContext<UiLanguage>(DEFAULT_UI_LANGUAGE);
 
@@ -37,12 +36,12 @@ export function LanguageProvider({
   return <LanguageContext.Provider value={language}>{children}</LanguageContext.Provider>;
 }
 
-/** La langue courante, pour ce qui a besoin d'elle sans avoir besoin de `t`. */
+/** The current language, for what needs it without needing `t`. */
 export function useLanguage(): UiLanguage {
   return useContext(LanguageContext);
 }
 
-/** Le `t` d'un composant client. Même fonction pure que côté serveur. */
+/** A client component's `t`. The same pure function as on the server side. */
 export function useT<F extends Dict>(bundle: Bundle<F>): Translate<F> {
   const language = useContext(LanguageContext);
   return useMemo(() => translator(bundle, language), [bundle, language]);

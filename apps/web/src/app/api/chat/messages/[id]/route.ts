@@ -14,8 +14,8 @@ const paramsSchema = z.object({ id: z.string().uuid() });
 type Context = { params: Promise<{ id: string }> };
 
 /**
- * Effacer un message : le sien, toujours ; celui d'un autre, avec
- * `user:manage` — et alors c'est tracé, parce que c'est de la modération.
+ * Deleting a message: one's own, always; someone else's, with `user:manage` — and
+ * then it is traced, because it is moderation.
  */
 export const DELETE = apiRoute<Context>(async (request, context) => {
   const auth = await requireTeamMember(request);

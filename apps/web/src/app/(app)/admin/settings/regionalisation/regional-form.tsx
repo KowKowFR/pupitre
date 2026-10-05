@@ -17,29 +17,28 @@ import { SectionForm } from '../section-form';
 import { useSettingsPatch } from '../use-settings-patch';
 
 /**
- * Instant de référence de l'aperçu.
+ * The preview's reference instant.
  *
- * Fixe, et non `new Date()` : l'aperçu est rendu côté serveur puis réhydraté
- * côté client, et deux appels à `new Date()` séparés de quelques centaines de
- * millisecondes produiraient deux chaînes différentes — donc une erreur
- * d'hydratation. Un instant figé montre exactement ce qu'on veut montrer : le
- * décalage du fuseau et la forme du rendu.
+ * Fixed, and not `new Date()`: the preview is rendered on the server then
+ * rehydrated on the client, and two calls to `new Date()` a few hundred
+ * milliseconds apart would produce two different strings — hence a hydration
+ * error. A frozen instant shows exactly what we want to show: the time zone's
+ * offset and the rendering's shape.
  */
 const PREVIEW_INSTANT = new Date('2026-01-15T14:32:07Z');
 
 /**
- * C'est ici, et nulle part ailleurs, que la langue du panel se choisit.
+ * It is here, and nowhere else, that the panel's language is chosen.
  *
- * Pas de section « Langue » à côté de « Régionalisation » : ce serait deux
- * écrans pour une seule question. La locale décidait déjà du nom des mois et
- * de l'ordre jour/mois ; elle décide maintenant aussi des mots. Un seul
- * réglage, donc un seul état possible — jamais un panel anglais qui daterait
- * ses lignes en français.
+ * No "Language" section next to "Regional settings": it would be two screens for
+ * a single question. The locale already decided the months' names and the
+ * day/month order; it now decides the words too. A single setting, hence a
+ * single possible state — never an English panel dating its lines in French.
  *
- * La liste proposée n'est plus `SUPPORTED_LOCALES` mais `TRANSLATED_LOCALES` :
- * on n'offre que les langues que le panel parle réellement. Une instance qui
- * porte encore `de-DE` en base garde sa valeur — elle apparaît alors dans la
- * liste, une fois, pour qu'on puisse en sortir.
+ * The offered list is no longer `SUPPORTED_LOCALES` but `TRANSLATED_LOCALES`:
+ * only the languages the panel really speaks are offered. An instance that still
+ * carries `de-DE` in the database keeps its value — it then appears in the list,
+ * once, so that one can leave it.
  */
 export function RegionalForm({
   settings,
@@ -67,8 +66,8 @@ export function RegionalForm({
     long: t('regional.style.long'),
   };
 
-  // Aperçu dérivé de l'état courant, recalculé à chaque rendu : pas d'effet, pas
-  // d'état miroir à resynchroniser.
+  // Preview derived from the current state, recomputed at each render: no effect,
+  // no mirror state to resynchronize.
   const preview = formatDateTime(PREVIEW_INSTANT, { timezone, locale, dateStyle, timeStyle });
 
   function reset() {

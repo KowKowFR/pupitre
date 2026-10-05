@@ -27,7 +27,7 @@ const HEALTH_TONE: Record<string, Tone> = {
   unknown: 'idle',
 };
 
-/** La part de la fiche que rend le serveur, telle qu'elle traverse jusqu'ici. */
+/** The part of the record the server renders, as it travels all the way here. */
 export type TargetRecordView = Pick<
   TargetRecord,
   'key' | 'overview' | 'tabs' | 'counts' | 'actions'
@@ -36,12 +36,11 @@ export type TargetRecordView = Pick<
 const SERVER_TABS: TargetRecordTab[] = ['workloads', 'proxy', 'ports', 'preflight', 'config'];
 
 /**
- * La fiche d'une cible, dans un tiroir. L'aperçu se lit sur la ligne de la
- * liste — son état et ce qui l'explique, sa connexion, ses runtimes, sa
- * charge, ce qu'elle porte — et s'ouvre sur les relevés de la machine ; les
- * autres onglets arrivent du serveur. « Modifier » remplace la fiche par le
- * formulaire, dans le même tiroir. La suppression, en bas de l'aperçu, n'est
- * active que lorsque l'API l'accepterait.
+ * A target's record, in a drawer. The overview reads from the list's row — its
+ * state and what explains it, its connection, its runtimes, its load, what it
+ * carries — and opens on the machine's readings; the other tabs come from the
+ * server. "Edit" replaces the record with the form, in the same drawer. Deletion,
+ * at the bottom of the overview, is only active when the API would accept it.
  */
 export function TargetDrawer({
   target,
@@ -62,7 +61,7 @@ export function TargetDrawer({
   onDelete,
 }: {
   target: TargetRow | null;
-  /** La fiche rendue au serveur, si c'est bien celle de `target`. */
+  /** The record rendered on the server, if it is indeed `target`'s. */
   record: TargetRecordView | null;
   editing: boolean;
   onEdit: (editing: boolean) => void;
@@ -302,8 +301,8 @@ export function TargetDrawer({
                 </div>
               }
             />
-            {/* La ligne ne porte pas la colonne chiffrée : le formulaire ne
-                reçoit jamais de credential, il ne peut que le remplacer. */}
+            {/* The row does not carry the encrypted column: the form never
+                receives a credential, it can only replace it. */}
             <TargetForm
               frame="drawer"
               initial={{

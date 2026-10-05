@@ -3,10 +3,10 @@
 import * as React from 'react';
 
 /**
- * Le dernier maillon du fil d'Ariane — l'objet de la page (« prod-1 »,
- * « Nouvelle application »). La barre haute connaît l'instance et la section
- * par le chemin ; seul l'écran connaît le nom de ce qu'il montre. Il le
- * déclare en rendant `<Crumb label="…" />`, qui s'efface quand l'écran s'en va.
+ * The breadcrumb's last link — the page's object ("prod-1", "New application").
+ * The top bar knows the instance and the section through the path; only the
+ * screen knows the name of what it shows. It declares it by rendering
+ * `<Crumb label="…" />`, which fades away when the screen goes.
  */
 
 type CrumbValue = {
@@ -26,7 +26,7 @@ export function useCrumb(): string | null {
   return React.useContext(CrumbContext).label;
 }
 
-/** Déclare l'objet de la page. Ne rend rien. */
+/** Declares the page's object. Renders nothing. */
 export function Crumb({ label }: { label: string }) {
   const { set } = React.useContext(CrumbContext);
   React.useEffect(() => {

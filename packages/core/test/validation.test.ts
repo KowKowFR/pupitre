@@ -4,17 +4,19 @@ import { z } from 'zod';
 import { formatIssues } from '../src/ai/generate.js';
 import { aiCopy } from '../src/ai/messages.js';
 import { redactApiKey } from '../src/ai/model.js';
+import { s3DestinationConfigSchema } from '../src/backup/destinations.js';
 import { monitorUrlSchema } from '../src/monitors/ssrf.js';
 import { hostnameSchema } from '../src/proxy/model.js';
 import { sourceCopy } from '../src/sources/messages.js';
 import { parseSourceSpec } from '../src/sources/spec-file.js';
-import { appSpecSchema } from '../src/spec/app-spec.js';
+import { appSpecSchema, slugSchema, volumeSizeSchema } from '../src/spec/app-spec.js';
+import { statusPageSlugSchema } from '../src/status-page.js';
 import { issueMessage, localizeZodError, validationCopy } from '../src/validation.js';
 
 /**
- * Les reproches des schémas gardent leur phrase française — tests, boucle de
- * correction de l'IA — et se redisent dans la langue de l'écran au moment de
- * les montrer. Ce fichier éprouve ce passage, et les messages qui en vivent.
+ * Schema complaints keep their French sentence — tests, the AI's correction loop
+ * — and are said again in the screen's language when shown. This file tests
+ * that step, and the messages that live from it.
  */
 
 type Entry = string | Readonly<Record<string, string>>;
@@ -31,20 +33,20 @@ function placeholders(value: Entry): string[] {
   return [...names].sort();
 }
 
-describe('Reproches de validation — deux langues', () => {
+describe('Validation complaints — two languages', () => {
   for (const [name, bundle] of Object.entries({
     validation: validationCopy,
     sources: sourceCopy,
     ai: aiCopy,
   })) {
-    it(`${name} : mêmes variables, pas de français dans l'anglais`, () => {
+    it(`${name}: same variables, no French in the English`, () => {
       const fr = bundle.fr as Record<string, Entry>;
       const en = bundle.en as Record<string, Entry>;
       for (const key of Object.keys(fr)) {
-        assert.ok(en[key] !== undefined, `${key} manque en anglais`);
+        assert.ok(en[key] !== undefined, `${key} missing in English`);
         assert.deepEqual(placeholders(en[key] as Entry), placeholders(fr[key] as Entry), key);
         for (const form of forms(en[key] as Entry)) {
-          assert.doesNotMatch(form, /[éèêàçùœ«»]/, `${key} : « ${form} »`);
+          assert.doesNotMatch(form, /[éèêàçùœ«»]/, `${key}: “${form}”`);
         }
       }
     });
@@ -58,8 +60,8 @@ const service = (name: string, exposed = false) => ({
   exposed,
 });
 
-describe('Reproches de validation — redits dans la langue de l’écran', () => {
-  it('le français reste la phrase par défaut, l’anglais se rend à la demande', () => {
+describe('Validation complaints — said again in the screen’s language', () => {
+  it('French stays the default sentence, English renders on request', () => {
     const parsed = appSpecSchema.safeParse({
       name: 'demo',
       version: '1.0.0',
@@ -73,20 +75,21 @@ describe('Reproches de validation — redits dans la langue de l’écran', () =
     assert.equal(issueMessage(issue, 'fr'), 'noms de services dupliqués : web');
   });
 
-  it('un contrôle intégré se retrouve par sa phrase française', () => {
+  it('a built-in check is found by its French sentence', () => {
     const parsed = appSpecSchema.safeParse({ name: 'demo', version: '1.0.0', services: [] });
     assert.ok(!parsed.success);
     const english = localizeZodError(parsed.error, 'en');
     assert.ok(english instanceof z.ZodError);
     assert.ok(english.issues.some((issue) => issue.message === 'at least one service'));
-    // Le chemin ne bouge pas : `z.flattenError()` range les reproches au même champ.
+    // The path does not move: `z.flattenError()` files the complaints under the
+    // same field.
     assert.deepEqual(
       english.issues.map((issue) => issue.path.join('.')),
       parsed.error.issues.map((issue) => issue.path.join('.')),
     );
   });
 
-  it('un nom de domaine refusé, un refus SSRF', () => {
+  it('a refused domain name, an SSRF refusal', () => {
     const host = hostnameSchema.safeParse('*.example.com');
     assert.ok(!host.success);
     assert.equal(
@@ -101,14 +104,40 @@ describe('Reproches de validation — redits dans la langue de l’écran', () =
     assert.doesNotMatch(issueMessage(refusal, 'en'), /[éèàç«»]/);
   });
 
-  it('un reproche inconnu reste tel quel', () => {
+  it('the schemas’ own fixed sentences are all found again', () => {
+    // A `.regex(…, '…')` sentence missing from the dictionary reaches an
+    // English screen in French: each one is rendered here, never left as is.
+    const failures = [
+      slugSchema.safeParse('Not A Slug'),
+      volumeSizeSchema.safeParse('ten gigs'),
+      statusPageSlugSchema.safeParse('-edge-'),
+      s3DestinationConfigSchema.safeParse({
+        endpoint: 'https://s3.example.com',
+        bucket: 'B',
+        prefix: '../up',
+      }),
+    ];
+    for (const result of failures) {
+      assert.ok(!result.success);
+      for (const issue of result.error.issues) {
+        const english = issueMessage(issue, 'en');
+        assert.doesNotMatch(english, /[éèàç«»]| : /, `still French: ${english}`);
+      }
+    }
+    assert.equal(
+      issueMessage(slugSchema.safeParse('Nope').error!.issues[0]!, 'en'),
+      'kebab-case name: lowercase letters, digits and dashes',
+    );
+  });
+
+  it('an unknown complaint stays as is', () => {
     assert.equal(
       issueMessage({ message: 'Too small: expected string' }, 'en'),
       'Too small: expected string',
     );
   });
 
-  it('le pupitre.json d’un commit, en anglais', () => {
+  it('a commit’s pupitre.json, in English', () => {
     const wrong = parseSourceSpec(
       JSON.stringify({ name: 'autre', version: '1.0.0', services: [service('web', true)] }),
       'demo',
@@ -124,7 +153,7 @@ describe('Reproches de validation — redits dans la langue de l’écran', () =
     assert.match(unreadable.issues[0] ?? '', /^unreadable JSON: /);
   });
 
-  it('la génération par IA : reproches et clé masquée', () => {
+  it('AI generation: complaints and masked key', () => {
     const parsed = appSpecSchema.safeParse({ name: 'demo', version: '1.0.0', services: [] });
     assert.ok(!parsed.success);
     assert.ok(formatIssues(parsed.error, 'en').includes('services: at least one service'));

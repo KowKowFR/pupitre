@@ -22,19 +22,19 @@ import { confirmMatches } from '@/lib/confirm';
 import { withSlot } from '@/lib/rich';
 
 /**
- * Confirmation de suppression d'une application.
+ * Confirming an application's deletion.
  *
- * Trois écrans dans une seule modale, parce que ce sont trois moments d'un même
- * geste et qu'on ne renvoie pas l'utilisateur ailleurs entre deux :
+ * Three screens in a single modal, because they are three moments of the same
+ * gesture and the user is not sent elsewhere in between:
  *
- *   1. **Rien ne bloque** — l'application ne porte que de l'historique. On dit
- *      combien de lignes partent et quels ports sont rendus, et on efface.
- *   2. **Quelque chose tourne** — on nomme chaque déploiement encore en place :
- *      la cible, le projet Compose, le port. La cascade ira les détruire.
- *   3. **Une cible a résisté** — on nomme ce qui restera sur la machine, et le
- *      forçage se débloque en retapant le nom de l'application. Pas une case à
- *      cocher : effacer l'enregistrement, c'est perdre la seule information qui
- *      permettait de retrouver ce qui tourne encore.
+ *   1. **Nothing blocks** — the application only carries history. We say how many
+ *      rows go and which ports are released, and we erase.
+ *   2. **Something runs** — we name each deployment still in place: the target,
+ *      the Compose project, the port. The cascade will destroy them.
+ *   3. **A target resisted** — we name what will remain on the machine, and
+ *      forcing unlocks by typing the application's name again. Not a checkbox:
+ *      erasing the record is losing the only information that allowed finding
+ *      what still runs.
  */
 
 type Blocker = {
@@ -111,7 +111,7 @@ export function DeleteApplicationDialog({
   const [progress, setProgress] = useState<string | null>(null);
   const [confirm, setConfirm] = useState('');
 
-  /** Lecture pure : elle rend la prévisualisation ou lève, elle n'écrit aucun état. */
+  /** A pure read: it returns the preview or throws, it writes no state. */
   const fetchPreview = useCallback(async (): Promise<Preview> => {
     const response = await fetch(`/api/applications/${application.id}/cascade`);
     if (!response.ok) {
@@ -121,8 +121,8 @@ export function DeleteApplicationDialog({
     return (await response.json()) as Preview;
   }, [application.id, tc]);
 
-  // La modale est montée à l'ouverture et démontée à la fermeture : l'état
-  // repart de zéro tout seul, il n'y a rien à réinitialiser ici.
+  // The modal is mounted on opening and unmounted on closing: the state starts from
+  // scratch on its own, there is nothing to reset here.
   useEffect(() => {
     let cancelled = false;
     fetchPreview().then(
@@ -140,7 +140,7 @@ export function DeleteApplicationDialog({
     };
   }, [fetchPreview, t]);
 
-  /** Efface directement : plus rien ne tourne, il ne reste que de l'historique. */
+  /** Erases directly: nothing runs any more, only history is left. */
   async function eraseHistory() {
     setPending(true);
     setError(null);
@@ -149,8 +149,8 @@ export function DeleteApplicationDialog({
     if (!response.ok) {
       const body = (await response.json().catch(() => ({}))) as ApiError;
       setError(body.error?.message ?? tc('http.failure', { status: response.status }));
-      // La garde a peut-être changé d'avis depuis la prévisualisation : quelque
-      // chose a pu être redéployé entre-temps.
+      // The guard may have changed its mind since the preview: something may have been
+      // redeployed in the meantime.
       fetchPreview().then(setPreview, () => {});
       return;
     }
@@ -194,7 +194,7 @@ export function DeleteApplicationDialog({
       onDeleted();
       return;
     }
-    // Échec partiel : l'application est intacte, on nomme ce qui a résisté.
+    // Partial failure: the application is intact, we name what resisted.
     setOutcome(outcomeOrError.result);
     setError(outcomeOrError.result.summary);
     setConfirm('');
@@ -202,8 +202,8 @@ export function DeleteApplicationDialog({
 
   const blockers = preview?.blockers ?? [];
   const abandoned = outcome?.abandoned ?? [];
-  // Détruire (cascade) et forcer l'effacement font retaper le nom : ce sont
-  // les deux gestes qui perdent des données sur une machine.
+  // Destroying (cascade) and forcing the erasure require typing the name again:
+  // they are the two gestures that lose data on a machine.
   const needsName = abandoned.length > 0 || blockers.length > 0;
   const armed = !needsName || confirmMatches(confirm, application.slug);
   const inputId = `delete-${application.id}`;
@@ -398,21 +398,21 @@ export function DeleteApplicationDialog({
 
 
 /**
- * Suit la tâche jusqu'à son verdict.
+ * Follows the job until its verdict.
  *
- * Sur `/api/applications/:id/cascade?jobId=` et non sur la route générique de
- * la file : celle-ci exige `job:read`, que quelqu'un ayant le droit de
- * supprimer n'a pas forcément.
+ * On `/api/applications/:id/cascade?jobId=` and not on the queue's generic route:
+ * that one requires `job:read`, which someone allowed to delete does not
+ * necessarily have.
  */
 async function waitForJob(
   applicationId: string,
   jobId: string,
   onProgress: (message: string) => void,
-  /** Les deux phrases dont la boucle a besoin, déjà rendues par l'appelant. */
+  /** The two sentences the loop needs, already rendered by the caller. */
   words: { failed: string; progress: (state: string) => string },
 ): Promise<{ result: CascadeResult | null; error: string | null }> {
-  // Dix minutes : trois cibles injoignables coûtent chacune une tentative SSH
-  // bornée, plus la purge. Très au-delà du cas réel.
+  // Ten minutes: three unreachable targets each cost a bounded SSH attempt, plus
+  // the purge. Far beyond the real case.
   const deadline = Date.now() + 10 * 60_000;
 
   while (Date.now() < deadline) {

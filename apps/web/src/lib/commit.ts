@@ -1,16 +1,17 @@
 import { GITHUB_WEB_URL, commitWebUrl, repositoryWebUrl } from '@pupitre/core';
 
 /**
- * Le commit d'un run, côté navigateur. Le déploiement garde l'adresse web de
- * son dépôt (`source_url`), recopiée de sa forge — GitHub, GitLab ou Gitea —
- * au moment du run : le lien vers le commit en découle, même si la liaison a
- * disparu depuis. Un run d'avant cette adresse vient forcément de GitHub.
+ * A run's commit, browser side. The deployment keeps its repository's web
+ * address (`source_url`), copied from its forge — GitHub, GitLab or Gitea — at the
+ * time of the run: the link to the commit follows from it, even if the link has
+ * disappeared since. A run from before this address necessarily comes from
+ * GitHub.
  */
 export type CommitSource = {
   repository: string;
   ref: string | null;
   sha: string;
-  /** L'adresse web du dépôt chez sa forge. */
+  /** The repository's web address at its forge. */
   url: string | null;
 };
 
@@ -21,7 +22,7 @@ export function commitHrefOf(source: CommitSource): string {
   );
 }
 
-/** Le commit d'un run, s'il vient d'un dépôt lié. */
+/** A run's commit, if it comes from a linked repository. */
 export function commitSourceOf(row: {
   sourceRepository: string | null;
   sourceRef: string | null;

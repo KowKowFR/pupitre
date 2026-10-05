@@ -1,27 +1,27 @@
 /**
- * Une écriture vient-elle du panel lui-même ?
+ * Does a write come from the panel itself?
  *
- * Le cookie de session est `SameSite=Lax` : un navigateur ne l'envoie pas avec
- * un formulaire posté depuis un autre **site**. Mais un site, c'est un domaine
- * enregistrable entier : `blog.exemple.fr` et `pupitre.exemple.fr` en sont un
- * seul. Or Pupitre déploie justement des sites, souvent sur des sous-domaines
- * voisins du panel — une page piégée là-bas, ouverte par un administrateur
- * connecté, lui ferait poster ce qu'elle veut, cookie compris.
+ * The session cookie is `SameSite=Lax`: a browser does not send it with a form
+ * posted from another **site**. But a site is a whole registrable domain:
+ * `blog.exemple.fr` and `pupitre.exemple.fr` are one. Yet Pupitre precisely
+ * deploys sites, often on subdomains neighboring the panel — a booby-trapped page
+ * there, opened by a signed-in administrator, would make them post whatever it
+ * wants, cookie included.
  *
- * Toute requête d'écriture d'un navigateur porte l'en-tête `Origin` (les
- * navigateurs récents l'envoient aussi en même origine), et le plus souvent
- * `Sec-Fetch-Site` : on exige que l'un ou l'autre dise « le panel ». Une
- * requête qui ne porte ni l'un ni l'autre ne vient pas d'un navigateur —
- * `curl`, un script, le worker — et n'a pas de cookie à détourner : elle passe.
+ * Every write request from a browser carries the `Origin` header (recent browsers
+ * also send it for the same origin), and most often `Sec-Fetch-Site`: we require
+ * one or the other to say "the panel". A request that carries neither does not
+ * come from a browser — `curl`, a script, the worker — and has no cookie to
+ * hijack: it goes through.
  *
- * Module pur, sans `server-only` : il se teste sans serveur.
+ * A pure module, without `server-only`: it is tested without a server.
  */
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 /**
- * La raison pour laquelle cette requête est refusée, ou `null` si elle vient
- * du panel (ou n'écrit rien). `panelOrigin` : celle de `BETTER_AUTH_URL`.
+ * The reason this request is refused, or `null` if it comes from the panel (or
+ * writes nothing). `panelOrigin`: `BETTER_AUTH_URL`'s.
  */
 export function foreignWrite(
   request: { method: string; headers: Pick<Headers, 'get'> },
@@ -31,7 +31,7 @@ export function foreignWrite(
 
   const origin = request.headers.get('origin');
   if (origin !== null) {
-    // `null` en toutes lettres : une page en bac à sable, un `data:` — jamais le panel.
+    // `null` spelled out: a sandboxed page, a `data:` — never the panel.
     return origin === panelOrigin ? null : `origine ${origin}`;
   }
 
@@ -42,7 +42,7 @@ export function foreignWrite(
   return null;
 }
 
-/** L'origine d'une URL de base (`https://pupitre.exemple.fr/` → `https://pupitre.exemple.fr`). */
+/** The origin of a base URL (`https://pupitre.example.com/` → `https://pupitre.example.com`). */
 export function originOf(url: string): string {
   return new URL(url).origin;
 }

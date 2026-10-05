@@ -1,12 +1,12 @@
 import { createHash, randomBytes } from 'node:crypto';
 
 /**
- * Le format d'un jeton d'API : `pup_` puis 32 octets d'aléa en base64url.
+ * An API token's format: `pup_` then 32 random bytes in base64url.
  *
- * Le préfixe n'est pas décoratif : il dit d'où vient un jeton trouvé dans un
- * journal ou un dépôt, et le rend reconnaissable par un outil de détection de
- * secrets. Les huit caractères qui le suivent servent à le désigner à l'écran
- * sans le révéler.
+ * The prefix is not decorative: it says where a token found in a log or a
+ * repository comes from, and makes it recognizable by a secret detection tool.
+ * The eight characters that follow it serve to designate it on screen without
+ * revealing it.
  */
 export const API_TOKEN_PREFIX = 'pup_';
 
@@ -18,20 +18,20 @@ export function generateApiToken(): { token: string; prefix: string; hash: strin
 }
 
 /**
- * L'empreinte rangée en base. Un SHA-256 simple suffit : le jeton porte
- * 256 bits d'aléa, il n'y a rien à deviner et donc rien à ralentir — ce qui
- * justifie un hachage lent pour un mot de passe ne s'applique pas ici.
+ * The fingerprint stored in the database. A plain SHA-256 is enough: the token
+ * carries 256 bits of randomness, there is nothing to guess and therefore nothing
+ * to slow down — what justifies a slow hash for a password does not apply here.
  */
 export function hashApiToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
 
 /**
- * Ce que dit l'en-tête `Authorization` :
- *   - `null` : pas d'en-tête, ou un autre schéma que `Bearer` — la requête
- *     s'authentifie autrement (par sa session) ;
- *   - `'malformed'` : un `Bearer` qui n'a pas la forme d'un jeton Pupitre ;
- *   - le jeton sinon.
+ * What the `Authorization` header says:
+ *   - `null`: no header, or another scheme than `Bearer` — the request
+ *     authenticates otherwise (through its session);
+ *   - `'malformed'`: a `Bearer` that does not have the shape of a Pupitre token;
+ *   - the token otherwise.
  */
 export function bearerToken(headers: Pick<Headers, 'get'>): string | 'malformed' | null {
   const header = headers.get('authorization');

@@ -10,83 +10,82 @@ import type { UiLanguage } from '../i18n.js';
 import { proxySay } from './messages.js';
 
 /**
- * La machine d'un proxy joint-elle vraiment celle qu'il doit servir ?
+ * Does a proxy's machine really reach the one it must serve?
  *
- * Une route qui existe ou un ping qui répond ne le prouvent pas : un groupe de
- * sécurité de l'hébergeur, un pare-feu ou une adresse qui n'est pas la bonne
- * laissent passer l'un et bloquent l'application. On éprouve donc le chemin
- * même qu'emprunteront les visiteurs :
+ * A route that exists or a ping that answers do not prove it: a host's security
+ * group, a firewall or an address that is not the right one let one through and
+ * block the application. We therefore test the very path visitors will take:
  *
- *   1. depuis la machine du proxy, la route vers l'adresse donnée ;
- *   2. sur la machine servie, un écouteur éphémère sur un port libre **de la
- *      plage des applications** — c'est là que le driver publiera ;
- *   3. depuis la machine du proxy, une connexion à `adresse:port`, qui doit
- *      rapporter un jeton tiré pour l'occasion : c'est bien cette machine qui
- *      a répondu, pas une autre derrière la même adresse ;
- *   4. l'écouteur note l'adresse d'où la connexion est arrivée — celle à qui
- *      ouvrir le port, NAT compris.
+ *   1. from the proxy's machine, the route to the given address;
+ *   2. on the served machine, an ephemeral listener on a free port **in the
+ *      applications' range** — that is where the driver will publish;
+ *   3. from the proxy's machine, a connection to `address:port`, which must
+ *      bring back a token drawn for the occasion: it really is this machine that
+ *      answered, not another one behind the same address;
+ *   4. the listener notes the address the connection arrived from — the one to
+ *      open the port to, NAT included.
  *
- * Rien ne reste : l'écouteur s'arrête de lui-même, la règle de pare-feu posée
- * pour le test est retirée. Aucun runtime n'intervient : c'est la machine qu'on
- * éprouve, pas Docker ni Kubernetes.
+ * Nothing remains: the listener stops by itself, the firewall rule set for the
+ * test is removed. No runtime is involved: it is the machine being tested, not
+ * Docker or Kubernetes.
  */
 
-/** Ce que l'écouteur attend avant de s'arrêter de lui-même. */
+/** How long the listener waits before stopping by itself. */
 const LISTENER_LIFETIME_S = 30;
-/** Le délai laissé à la connexion depuis la machine du proxy. */
+/** The time given to the connection from the proxy's machine. */
 const CONNECT_TIMEOUT_S = 5;
 const SHORT_MS = 30_000;
-/** Le commentaire de la règle ufw du test : reconnaissable, et retirée aussitôt. */
+/** The comment of the test's ufw rule: recognizable, and removed right away. */
 const REACH_UFW_COMMENT = `${UFW_MARKER}:reach`;
 
 export type ReachFailure =
-  /** La machine du proxy n'a aucune route vers l'adresse. */
+  /** The proxy's machine has no route to the address. */
   | 'no_route'
-  /** Aucun port libre dans la plage, ou aucun moyen d'écouter sur la machine servie. */
+  /** No free port in the range, or no way to listen on the served machine. */
   | 'no_listener'
-  /** Rien n'est revenu : un pare-feu jette les paquets, ou l'adresse ne mène nulle part. */
+  /** Nothing came back: a firewall drops the packets, or the address leads nowhere. */
   | 'timeout'
-  /** L'adresse répond mais refuse le port : pare-feu en REJECT, ou autre machine. */
+  /** The address answers but refuses the port: a firewall in REJECT, or another machine. */
   | 'refused'
-  /** Quelqu'un a répondu, mais pas l'écouteur posé : ce n'est pas cette machine. */
+  /** Someone answered, but not the listener set up: it is not this machine. */
   | 'mismatch'
   | 'error';
 
 export type ReachResult = {
-  /** `null` : pas pu éprouver — ni python3, ni perl, ni nc sur la machine servie. */
+  /** `null`: could not test — neither python3, nor perl, nor nc on the served machine. */
   ok: boolean | null;
   address: string;
-  /** Le port éprouvé, pris dans la plage des applications. */
+  /** The port tested, taken from the applications' range. */
   port: number | null;
-  /** L'adresse de la machine du proxy vers celle-ci, selon sa table de routage. */
+  /** The address from the proxy's machine to this one, according to its routing table. */
   routeSource: string | null;
-  /** L'adresse d'où la connexion est arrivée, vue de la machine servie. */
+  /** The address the connection arrived from, as seen from the served machine. */
   observedSource: string | null;
-  /** L'adresse donnée est l'une de celles de la machine servie : on peut y publier. */
+  /** The given address is one of the served machine's: we can publish on it. */
   bindable: boolean;
   failure: ReachFailure | null;
-  /** La phrase à montrer : ce qui a été éprouvé, ou ce qui bloque. */
+  /** The sentence to show: what was tested, or what blocks. */
   detail: string;
 };
 
 /**
- * D'où l'on éprouve le chemin : la machine du proxy, par SSH — ou, pour un
- * proxy distant que Pupitre ne pilote pas, le proxy lui-même, qui relaie la
- * requête comme il relaiera les visiteurs.
+ * Where the path is tested from: the proxy's machine, over SSH — or, for a
+ * remote proxy Pupitre does not drive, the proxy itself, which relays the
+ * request as it will relay visitors.
  */
 export type ReachOrigin = {
-  /** Comment le nommer dans les messages : la machine, ou la connexion. */
+  /** How to name it in messages: the machine, or the connection. */
   name: string;
   /**
-   * L'adresse de départ vers `address` selon la table de routage. `null` :
-   * aucune route ; `undefined` : sans objet — un proxy distant ne la dit pas.
+   * The source address toward `address` according to the routing table. `null`:
+   * no route; `undefined`: not applicable — a remote proxy does not tell it.
    */
   routeSource(address: string): Promise<string | null | undefined>;
-  /** `GET /{token}` vers `address:port`, rendu dans le vocabulaire de curl. */
+  /** `GET /{token}` to `address:port`, rendered in curl's vocabulary. */
   connect(address: string, port: number, token: string): Promise<ReachAttempt>;
 };
 
-/** Éprouver depuis la machine du proxy : `ip route get`, puis `curl`. */
+/** Test from the proxy's machine: `ip route get`, then `curl`. */
 export function sshReachOrigin(proxyHost: TargetContext): ReachOrigin {
   return {
     name: proxyHost.target.name,
@@ -103,7 +102,7 @@ export function sshReachOrigin(proxyHost: TargetContext): ReachOrigin {
       const host = address.includes(':') ? `[${address}]` : address;
       const connect = await exec(
         proxyHost.sshSession,
-        // Le code de curl, pris aussitôt : celui d'un `echo` ne dirait rien.
+        // curl's code, taken right away: an `echo`'s would say nothing.
         `curl -s -m ${CONNECT_TIMEOUT_S} http://${host}:${port}/${token}; code=$?; echo; echo "curl=$code"`,
         { timeout: (CONNECT_TIMEOUT_S + 10) * 1000 },
       );
@@ -115,17 +114,17 @@ export function sshReachOrigin(proxyHost: TargetContext): ReachOrigin {
   };
 }
 
-/** L'adresse d'arrivée à retenir pour le pare-feu : celle observée, sinon celle de la route. */
+/** The arrival address to keep for the firewall: the one observed, otherwise the route's. */
 export function reachSource(result: ReachResult): string | null {
   return result.observedSource ?? result.routeSource;
 }
 
-// ─── les morceaux qui se testent seuls ───────────────────────────────────────
+// ─── the pieces that can be tested alone ─────────────────────────────────────
 
 /**
- * Des ports candidats, tirés au hasard dans la plage, hors de ceux que le
- * panel a déjà réservés. Au hasard plutôt que le premier libre : deux tests en
- * même temps ne se disputent pas le même.
+ * Candidate ports, drawn at random in the range, outside those the panel has
+ * already reserved. At random rather than the first free one: two tests at the
+ * same time do not fight over the same one.
  */
 export function reachCandidates(
   range: PortRange,
@@ -140,7 +139,7 @@ export function reachCandidates(
     const port = range.min + Math.floor(random() * size);
     if (!exclude.has(port)) picked.add(port);
   }
-  // Une plage étroite et presque pleine : on la parcourt plutôt que de jouer.
+  // A narrow, almost full range: we go through it rather than gamble.
   if (picked.size === 0 && size <= 4096) {
     for (let port = range.min; port <= range.max && picked.size < count; port += 1) {
       if (!exclude.has(port)) picked.add(port);
@@ -149,7 +148,7 @@ export function reachCandidates(
   return [...picked];
 }
 
-/** `::ffff:10.0.0.2` (IPv4 vue par un écouteur IPv6) → `10.0.0.2`. */
+/** `::ffff:10.0.0.2` (IPv4 seen by an IPv6 listener) → `10.0.0.2`. */
 export function normalizePeer(peer: string | null | undefined): string | null {
   const value = peer?.trim() ?? '';
   if (!value) return null;
@@ -157,9 +156,9 @@ export function normalizePeer(peer: string | null | undefined): string | null {
 }
 
 /**
- * Ce que dit la connexion. `curl` rend 7 quand la connexion est refusée, 28
- * quand rien n'est revenu dans le délai ; un corps sans le jeton vient de
- * quelqu'un d'autre.
+ * What the connection says. `curl` returns 7 when the connection is refused, 28
+ * when nothing came back in time; a body without the token comes from someone
+ * else.
  */
 export function interpretReach(input: {
   curlCode: number;
@@ -197,15 +196,15 @@ export function interpretReach(input: {
   };
 }
 
-// ─── l'écouteur ──────────────────────────────────────────────────────────────
+// ─── the listener ────────────────────────────────────────────────────────────
 
 /**
- * Un écouteur d'une connexion utile : il répond le jeton à qui le demande, note
- * d'où elle vient, et s'arrête. Ce qui arrive d'autre reçoit un 404, et
- * l'attente est bornée. En python3, sinon en perl (IPv4 seulement), sinon avec
- * `nc` — BusyBox, traditionnel ou OpenBSD : une Alpine n'a souvent que lui.
- * Ce dernier répond à la première connexion sans lire la demande ni noter
- * l'arrivée : le jeton suffit à prouver que c'est cette machine.
+ * A listener for one useful connection: it answers the token to whoever asks
+ * for it, notes where it came from, and stops. Anything else gets a 404, and
+ * the wait is bounded. In python3, otherwise in perl (IPv4 only), otherwise
+ * with `nc` — BusyBox, traditional or OpenBSD: an Alpine often has only that.
+ * The last one answers the first connection without reading the request or
+ * noting the arrival: the token is enough to prove it is this machine.
  */
 const LISTENER_PY = `import socket, sys
 host, port, token, out = sys.argv[1], int(sys.argv[2]), sys.argv[3], sys.argv[4]
@@ -252,7 +251,7 @@ while (my $c = $s->accept) {
 const LISTENER_SH = `port=$2; token=$3
 to=''; command -v timeout >/dev/null 2>&1 && to='timeout ${LISTENER_LIFETIME_S}'
 reply() { printf 'HTTP/1.0 200 OK\\r\\nContent-Type: text/plain\\r\\nContent-Length: %s\\r\\nConnection: close\\r\\n\\r\\n%s\\n' "$((\${#token} + 1))" "$token"; }
-# \`nc -l -p\` : BusyBox et traditionnel ; \`nc -l <port>\` : OpenBSD.
+# \`nc -l -p\`: BusyBox and traditional; \`nc -l <port>\`: OpenBSD.
 reply | $to nc -l -p "$port" >/dev/null 2>&1 || reply | $to nc -l "$port" >/dev/null 2>&1
 `;
 
@@ -260,18 +259,18 @@ function base64(value: string): string {
   return Buffer.from(value, 'utf8').toString('base64');
 }
 
-// ─── l'épreuve ───────────────────────────────────────────────────────────────
+// ─── the test ────────────────────────────────────────────────────────────────
 
 export async function checkReach(input: {
-  /** D'où l'on éprouve : la machine du proxy (`sshReachOrigin`), ou le proxy distant. */
+  /** Where we test from: the proxy's machine (`sshReachOrigin`), or the remote proxy. */
   origin: ReachOrigin;
-  /** Une session vers la machine servie. */
+  /** A session to the served machine. */
   served: TargetContext;
-  /** L'adresse de la machine servie, vue de celle du proxy. */
+  /** The served machine's address, as seen from the proxy's. */
   address: string;
-  /** La plage où les applications de la machine servie sont publiées. */
+  /** The range where the served machine's applications are published. */
   portRange: PortRange;
-  /** Les ports que le panel a déjà réservés sur la machine servie. */
+  /** The ports the panel has already reserved on the served machine. */
   reserved?: ReadonlySet<number>;
   onLog?: LogSink;
 }): Promise<ReachResult> {
@@ -290,7 +289,7 @@ export async function checkReach(input: {
     detail: '',
   };
 
-  // 1. La route, depuis la machine du proxy — quand on la connaît.
+  // 1. The route, from the proxy's machine — when it is known.
   const found = await origin.routeSource(address);
   if (found === null) {
     return {
@@ -304,7 +303,7 @@ export async function checkReach(input: {
     onLog(say('reach.route', { proxy: proxyName, address, source: routeSource }));
   }
 
-  // 2. L'adresse est-elle à la machine servie ? On écoute alors sur elle seule.
+  // 2. Does the address belong to the served machine? We then listen on it alone.
   const addresses = await exec(
     served.sshSession,
     "ip -o addr show 2>/dev/null | awk '{print $4}' | cut -d/ -f1",
@@ -316,7 +315,7 @@ export async function checkReach(input: {
     .includes(address);
   const withRoute: ReachResult = { ...base, routeSource, bindable };
 
-  // 3. Un port libre de la plage : ni réservé par le panel, ni déjà en écoute.
+  // 3. A free port in the range: neither reserved by the panel, nor already listening.
   const listening = await listeningPorts(served);
   const taken = new Set<number>([...(input.reserved ?? []), ...(listening ?? [])]);
   const candidates = reachCandidates(input.portRange, taken);
@@ -334,9 +333,9 @@ export async function checkReach(input: {
     const listenOn = bindable ? address : address.includes(':') ? '::' : '0.0.0.0';
     let ruleAdded = false;
     try {
-      // Le pare-feu de la machine ne doit pas fausser l'épreuve : le port d'une
-      // application publiée par Docker ou par un NodePort passe avant lui. Le
-      // temps du test, ce port-là est ouvert — puis refermé.
+      // The machine's firewall must not skew the test: the port of an application
+      // published by Docker or through a NodePort goes before it. For the duration of
+      // the test, that port is opened — then closed.
       if ((await ufwState(served)) === 'active') {
         const opened = await exec(
           served.sshSession,
@@ -346,7 +345,7 @@ export async function checkReach(input: {
         ruleAdded = opened.code === 0;
       }
 
-      // 4. L'écouteur, détaché : il s'arrête seul au bout de LISTENER_LIFETIME_S.
+      // 4. The listener, detached: it stops by itself after LISTENER_LIFETIME_S.
       const started = await exec(
         served.sshSession,
         [
@@ -359,7 +358,7 @@ export async function checkReach(input: {
           `else echo none; exit 0; fi`,
           `nohup $runner ${shellQuote(listenOn)} ${port} ${token} ${stem}.peer >/dev/null 2>&1 &`,
           `pid=$!; echo "$pid" > ${stem}.pid`,
-          // Prêt quand le port écoute ; mort s'il n'a pas pu s'y attacher.
+          // Ready when the port listens; dead if it could not bind to it.
           `for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do`,
           `  kill -0 "$pid" 2>/dev/null || { echo dead; exit 0; }`,
           `  (ss -tlnH 2>/dev/null || netstat -tln 2>/dev/null) | grep -qE '[:.]${port}[[:space:]]' && { echo up; exit 0; }`,
@@ -390,7 +389,7 @@ export async function checkReach(input: {
         };
       }
 
-      // 5. La connexion, depuis le proxy.
+      // 5. The connection, from the proxy.
       const connect = await origin.connect(address, port, token);
       const verdict = interpretReach({
         curlCode: connect.curlCode,
@@ -402,7 +401,7 @@ export async function checkReach(input: {
         language: served.language,
       });
 
-      // 6. D'où la connexion est arrivée, vue d'ici.
+      // 6. Where the connection arrived from, as seen from here.
       const peer = await exec(served.sshSession, `cat ${stem}.peer 2>/dev/null || true`, {
         timeout: SHORT_MS,
       });
@@ -411,9 +410,9 @@ export async function checkReach(input: {
       if (observedSource && routeSource && observedSource !== routeSource) {
         onLog(say('reach.nat', { target: served.target.name, source: observedSource }));
       }
-      // Ni l'écouteur (nc ne la note pas) ni la route (un proxy distant ne la
-      // dit pas) : on ne sait pas d'où il arrive, et on le dit — le port des
-      // applications ne pourra pas être ouvert à lui seul.
+      // Neither the listener (nc does not note it) nor the route (a remote proxy does
+      // not tell it): we do not know where it arrives from, and we say so — the
+      // applications' port cannot be opened to it alone.
       const unknownSource = verdict.failure === null && !observedSource && !routeSource;
       return {
         ...withRoute,
@@ -441,10 +440,9 @@ export async function checkReach(input: {
   };
 
   let result = await attempt(candidates[0]!);
-  // Un port d'essai peut être détourné par un service que Pupitre ne connaît
-  // pas — le NodePort d'un autre déploiement : une autre application répond.
-  // On réessaie ailleurs avant de conclure ; une adresse qui mène vraiment
-  // ailleurs échoue deux fois.
+  // A test port can be hijacked by a service Pupitre does not know — another
+  // deployment's NodePort: another application answers. We try elsewhere before
+  // concluding; an address that really leads elsewhere fails twice.
   if (result.failure === 'mismatch' && candidates[1] !== undefined) {
     onLog(say('reach.retry', { detail: result.detail }));
     result = await attempt(candidates[1]);

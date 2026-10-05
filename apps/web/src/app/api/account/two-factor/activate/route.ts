@@ -13,13 +13,12 @@ export const dynamic = 'force-dynamic';
 const bodySchema = z.object({ code: z.string().regex(/^\d{6}$/) });
 
 /**
- * Seconde moitié de l'activation : un premier code doit être valide avant que
- * le second facteur ne soit réellement armé. Sans cette étape, un utilisateur
- * dont l'application d'authentification est mal réglée se retrouverait enfermé
- * dehors à la prochaine connexion.
+ * The second half of the activation: a first code must be valid before the
+ * second factor is really armed. Without this step, a user whose authenticator
+ * app is badly set would find themselves locked out at the next sign-in.
  *
- * Better Auth fait tourner le cookie de session en marquant `twoFactorEnabled` :
- * la réponse relaie ses `Set-Cookie`.
+ * Better Auth rotates the session cookie when marking `twoFactorEnabled`: the
+ * response relays its `Set-Cookie`s.
  */
 export const POST = apiRoute(async (request) => {
   const auth = await requireSession(request);

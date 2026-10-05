@@ -2,21 +2,20 @@ import type { AppSpecInput } from '../spec/index.js';
 import type { CatalogParams } from './types.js';
 
 /**
- * Les pièces que les modèles partagent : les bases de données, l'ingress,
- * l'URL publique. Écrites une fois, pour que deux modèles qui embarquent
- * PostgreSQL l'embarquent de la même façon — même image, même sonde, même
- * volume.
+ * The pieces the templates share: the databases, the ingress, the public URL.
+ * Written once, so that two templates that ship PostgreSQL ship it the same way
+ * — same image, same probe, same volume.
  */
 
 type ServiceInput = AppSpecInput['services'][number];
 
-/** L'URL publique de l'application, quand elle a un domaine. */
+/** The application's public URL, when it has a domain. */
 export function publicUrl(params: CatalogParams): string | null {
   if (!params.host) return null;
   return `${params.tls ? 'https' : 'http'}://${params.host}`;
 }
 
-/** `env` qui ne pose une variable que si la valeur existe. */
+/** `env` that only sets a variable if the value exists. */
 export function envWhen(
   entries: Record<string, string | null | undefined>,
 ): Record<string, string> {
@@ -27,7 +26,7 @@ export function envWhen(
   );
 }
 
-/** L'AppSpec d'un modèle : le nom choisi, et l'ingress seulement s'il y a un domaine. */
+/** A template's AppSpec: the chosen name, and the ingress only if there is a domain. */
 export function appSpec(params: CatalogParams, services: ServiceInput[]): AppSpecInput {
   const exposed = services.find((service) => service.exposed);
   return {
@@ -41,8 +40,9 @@ export function appSpec(params: CatalogParams, services: ServiceInput[]): AppSpe
 }
 
 /**
- * PostgreSQL, service interne. Le mot de passe est `POSTGRES_PASSWORD` : le
- * service applicatif le lit sous son propre nom par un alias `{ name, from }`.
+ * PostgreSQL, internal service. The password is `POSTGRES_PASSWORD`: the
+ * application service reads it under its own name through a `{ name, from }`
+ * alias.
  */
 export function postgres(database: string, size = '10Gi'): ServiceInput {
   return {
@@ -57,7 +57,7 @@ export function postgres(database: string, size = '10Gi'): ServiceInput {
   };
 }
 
-/** MariaDB, service interne. Même principe : `MARIADB_PASSWORD` porte la valeur. */
+/** MariaDB, internal service. Same principle: `MARIADB_PASSWORD` carries the value. */
 export function mariadb(database: string, size = '10Gi'): ServiceInput {
   return {
     name: 'mariadb',
@@ -71,7 +71,7 @@ export function mariadb(database: string, size = '10Gi'): ServiceInput {
   };
 }
 
-/** Redis sans persistance : une file ou un cache, jamais une donnée à garder. */
+/** Redis without persistence: a queue or a cache, never data to keep. */
 export function redis(): ServiceInput {
   return {
     name: 'redis',

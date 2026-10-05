@@ -21,14 +21,14 @@ const paramsSchema = z.object({ id: z.string().uuid(), ref: z.string().min(3).ma
 type Context = { params: Promise<{ id: string; ref: string }> };
 
 /**
- * Met à jour une charge : image la plus récente, même configuration.
+ * Updates a workload: the most recent image, the same configuration.
  *
- * Toujours par la file, jamais dans la route : un `docker pull` tire des
- * dizaines de mégaoctets, un `rollout status` attend que des pods démarrent.
- * La progression part sur `workload:{targetId}` et se relaie en SSE.
+ * Always through the queue, never in the route: a `docker pull` pulls dozens of
+ * megabytes, a `rollout status` waits for pods to start. The progress goes out on
+ * `workload:{targetId}` and is relayed over SSE.
  *
- * Une charge du panel est refusée ici aussi : la mettre à jour, c'est la
- * redéployer — le panel a un pipeline pour ça, avec ses scans et son historique.
+ * A panel workload is refused here too: updating it is redeploying it — the
+ * panel has a pipeline for that, with its scans and its history.
  */
 export const POST = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'workload:manage');
@@ -66,9 +66,9 @@ export const POST = apiRoute<Context>(async (request, context) => {
       },
       ip: auth.ip,
     });
-    // Deux clés plutôt qu'un fragment interpolé : `msg()` ne rend la phrase
-    // qu'au moment de sérialiser, quand la langue est connue — un morceau de
-    // français collé ici n'aurait jamais été traduit.
+    // Two keys rather than an interpolated fragment: `msg()` only renders the
+    // sentence at serialization time, when the language is known — a piece of French
+    // pasted here would never have been translated.
     throw new ConflictError(
       workload.managedApp
         ? msg(messages, 'error.workloadManagedUpdateApp', {

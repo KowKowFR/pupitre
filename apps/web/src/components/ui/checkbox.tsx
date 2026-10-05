@@ -4,11 +4,12 @@ import * as React from 'react';
 import { cn } from '@/lib/utils';
 
 /**
- * Case à cocher — 16 px, coche blanche sur outremer, état mixte compris.
+ * A checkbox — 16 px, white check on ultramarine, mixed state included.
  *
- * Le natif porte déjà le clavier, le rôle et l'état `indeterminate` ; il ne
- * manque que l'apparence. `indeterminate` n'existe qu'en propriété DOM,
- * jamais en attribut : d'où le `ref` qui la repose à chaque changement.
+ * The native one already carries the keyboard, the role and the `indeterminate`
+ * state; only the appearance is missing. `indeterminate` only exists as a DOM
+ * property, never as an attribute: hence the `ref` that sets it again at each
+ * change.
  */
 export type CheckboxProps = Omit<React.ComponentProps<'input'>, 'type'> & {
   indeterminate?: boolean;
@@ -38,8 +39,8 @@ function Checkbox({ className, indeterminate = false, ref, ...props }: CheckboxP
 }
 
 /**
- * Case et son libellé, avec une aide facultative dessous — la forme des
- * listes de permissions et des options de formulaire.
+ * A checkbox and its label, with an optional help underneath — the shape of the
+ * permission lists and form options.
  */
 function CheckboxField({
   label,
@@ -59,9 +60,9 @@ function CheckboxField({
 }
 
 /**
- * Case présentée en pastille — les sept jours de la semaine, typiquement, où
- * une colonne de cases prendrait toute la largeur. Le natif porte l'état,
- * `has-[:checked]` porte le style.
+ * A checkbox shown as a chip — the seven days of the week, typically, where a
+ * column of checkboxes would take the whole width. The native one carries the
+ * state, `has-[:checked]` carries the style.
  */
 export type CheckboxChipProps = Omit<React.ComponentProps<'input'>, 'type'> & {
   label: React.ReactNode;

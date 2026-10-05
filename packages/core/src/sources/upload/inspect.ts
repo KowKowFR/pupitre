@@ -17,28 +17,26 @@ import {
 } from '../upload-model.js';
 
 /**
- * La lecture d'une archive téléversée, et son remplacement par une archive
- * propre.
+ * Reading an uploaded archive, and replacing it with a clean archive.
  *
- * L'archive n'est pas décompressée par `tar -x` ni par une bibliothèque qui
- * écrirait ce qu'on lui donne : chaque entrée passe ici, est jugée, puis
- * écrite par ce code — ou l'archive entière est refusée. Ce qui est refusé :
+ * The archive is not unpacked by `tar -x` nor by a library that would write
+ * whatever it is given: each entry goes through here, is judged, then written
+ * by this code — or the whole archive is refused. What is refused:
  *
- *   - un chemin absolu, ou qui remonte (`..`) ;
- *   - un lien symbolique qui pointe hors de l'archive, ou qu'une entrée
- *     suivante traverserait pour écrire ailleurs ;
- *   - un lien dur, un périphérique, un tube nommé ;
- *   - deux entrées au même chemin, un fichier qui servirait de dossier ;
- *   - au-delà de `maxEntries` entrées ou de `maxUnpackedBytes` décompressés.
+ *   - an absolute path, or one that climbs up (`..`);
+ *   - a symbolic link pointing outside the archive, or that a following entry
+ *     would traverse to write elsewhere;
+ *   - a hard link, a device, a named pipe;
+ *   - two entries at the same path, a file that would serve as a folder;
+ *   - beyond `maxEntries` entries or `maxUnpackedBytes` decompressed.
  *
- * Les droits sont ramenés à `0644` ou `0755` (le bit d'exécution survit, rien
- * d'autre) ; `.git/`, `__MACOSX/`, `.DS_Store` et les fichiers AppleDouble
- * (`._*`) du `tar` de macOS sont laissés de côté. Une archive faite
- * d'un seul dossier perd ce dossier de tête, sauf si les Dockerfiles attendus
- * se trouvent sans le retirer.
+ * Permissions are brought down to `0644` or `0755` (the execute bit survives,
+ * nothing else); `.git/`, `__MACOSX/`, `.DS_Store` and macOS `tar`'s AppleDouble
+ * files (`._*`) are left aside. An archive made of a single folder loses that
+ * leading folder, unless the expected Dockerfiles are found without removing it.
  *
- * L'archive rendue est un `tar.gz` dont tout vit sous `source/` : le driver la
- * décompresse avec `--strip-components=1`, comme celle d'un commit GitHub.
+ * The returned archive is a `tar.gz` where everything lives under `source/`: the
+ * driver unpacks it with `--strip-components=1`, like a GitHub commit's.
  */
 
 export class SourceArchiveRejected extends Error {
@@ -52,11 +50,11 @@ export class SourceArchiveRejected extends Error {
 }
 
 export type InspectOptions = {
-  /** Les Dockerfiles que l'AppSpec attend, relatifs à la racine du code. */
+  /** The Dockerfiles the AppSpec expects, relative to the code's root. */
   expected?: readonly string[];
   maxEntries?: number;
   maxUnpackedBytes?: number;
-  /** Où travailler ; un dossier temporaire du système par défaut. */
+  /** Where to work; a system temporary folder by default. */
   workDir?: string;
 };
 
@@ -67,8 +65,8 @@ const MAX_COMPONENT = 255;
 const MAX_LINK_TARGET = 4096;
 
 /**
- * Un chemin d'entrée, ramené à sa forme relative — ou la raison de son refus.
- * `null` : l'entrée ne nomme rien (la racine `./`), on l'ignore.
+ * An entry's path, brought to its relative form — or the reason for refusing
+ * it. `null`: the entry names nothing (the `./` root), it is ignored.
  */
 export function entryPath(raw: string): string | null {
   if (raw.includes('\0')) throw new SourceArchiveRejected('invalid_name', raw.replace(/\0/g, '␀'));
@@ -88,7 +86,7 @@ export function entryPath(raw: string): string | null {
   return path;
 }
 
-/** La cible d'un lien, résolue depuis son dossier : elle doit rester dans l'archive. */
+/** A link's target, resolved from its folder: it must stay inside the archive. */
 export function assertLinkInside(path: string, target: string): void {
   if (target === '' || target.includes('\0') || Buffer.byteLength(target) > MAX_LINK_TARGET) {
     throw new SourceArchiveRejected('invalid_name', `${path} → ${target.slice(0, 120)}`);
@@ -102,11 +100,11 @@ export function assertLinkInside(path: string, target: string): void {
   }
 }
 
-/** L'arbre décompressé, tenu à jour entrée après entrée. */
+/** The unpacked tree, kept up to date entry after entry. */
 class Tree {
   readonly kinds = new Map<string, Kind>();
   readonly links: { path: string; target: string }[] = [];
-  /** Les écritures en cours : un refus les ferme, pour que rien ne reste suspendu. */
+  /** The writes in progress: a refusal closes them, so that nothing stays hanging. */
   readonly open = new Set<Writable>();
   entries = 0;
   skipped = 0;
@@ -125,7 +123,7 @@ class Tree {
     }
   }
 
-  /** `true` : l'entrée est à laisser de côté (`.git/`, `__MACOSX/`, `._*`, `.DS_Store`). */
+  /** `true`: the entry is to be left aside (`.git/`, `__MACOSX/`, `._*`, `.DS_Store`). */
   skips(path: string): boolean {
     const skipped = isSkippedSourcePath(path);
     if (skipped) this.skipped += 1;
@@ -133,8 +131,8 @@ class Tree {
   }
 
   /**
-   * Réserve un chemin pour une entrée de ce type, après avoir vérifié qu'il
-   * ne traverse aucun lien et qu'aucun fichier n'y sert de dossier.
+   * Reserves a path for an entry of this type, after checking that it traverses
+   * no link and that no file serves as a folder there.
    */
   claim(path: string, kind: Kind): void {
     const parts = path.split('/');
@@ -158,10 +156,10 @@ class Tree {
   }
 
   /**
-   * Écrit un fichier depuis son flux, en comptant ses octets contre le
-   * plafond : le compteur est un maillon de la chaîne, pas un écouteur posé à
-   * côté — un écouteur `data` mettrait le flux en marche avant que la chaîne
-   * ne soit branchée, et ce qui était en tampon serait perdu pour le fichier.
+   * Writes a file from its stream, counting its bytes against the cap: the
+   * counter is a link of the chain, not a listener set beside it — a `data`
+   * listener would start the stream before the chain is plugged in, and what was
+   * buffered would be lost for the file.
    */
   async file(path: string, mode: number | undefined, content: Readable): Promise<void> {
     this.claim(path, 'file');
@@ -207,13 +205,13 @@ class Tree {
     });
   }
 
-  /** Ferme ce qui s'écrit encore : l'archive est refusée, plus rien n'arrivera. */
+  /** Closes what is still being written: the archive is refused, nothing more will come. */
   abort(): void {
     for (const stream of this.open) stream.destroy();
     this.open.clear();
   }
 
-  /** Un lien symbolique, créé seulement à la fin : rien ne s'écrit à travers. */
+  /** A symbolic link, created only at the end: nothing is written through it. */
   link(path: string, target: string): void {
     assertLinkInside(path, target);
     this.claim(path, 'symlink');
@@ -221,10 +219,10 @@ class Tree {
   }
 
   /**
-   * Crée les liens, une fois la racine choisie : un lien doit rester dans le
-   * code **tel qu'il sera déposé**. Dans `mon-app/`, `lien → ../compose.yml`
-   * reste dans l'archive mais sortirait du code une fois `mon-app/` retiré —
-   * il viserait les fichiers de pilotage de la release.
+   * Creates the links, once the root is chosen: a link must stay inside the code
+   * **as it will be placed**. In `my-app/`, `link → ../compose.yml` stays inside
+   * the archive but would leave the code once `my-app/` is removed — it would
+   * point at the release's control files.
    */
   async finishLinks(strippedRoot: string | null): Promise<void> {
     for (const { path, target } of this.links) {
@@ -241,7 +239,7 @@ class Tree {
   }
 }
 
-// ─── tar et tar.gz ───────────────────────────────────────────────────────────
+// ─── tar and tar.gz ──────────────────────────────────────────────────────────
 
 const TAR_FILE_TYPES = new Set(['File', 'OldFile', 'ContiguousFile']);
 
@@ -370,13 +368,13 @@ async function readAll(stream: Readable): Promise<Buffer> {
   return Buffer.concat(chunks);
 }
 
-/** Une erreur des bibliothèques, ramenée à un refus qu'on sait dire. */
+/** A library error, brought down to a refusal we can phrase. */
 function asRejection(error: unknown): SourceArchiveRejected {
   if (error instanceof SourceArchiveRejected) return error;
   const cause = (error as { cause?: unknown } | null)?.cause;
   if (cause instanceof SourceArchiveRejected) return cause;
   const message = error instanceof Error ? error.message : String(error);
-  // Les noms que yauzl refuse lui-même, avant qu'on ne les voie.
+  // The names yauzl refuses itself, before we see them.
   if (/^absolute path/i.test(message)) return new SourceArchiveRejected('absolute_path', message);
   if (/^invalid relative path/i.test(message)) {
     return new SourceArchiveRejected('parent_path', message);
@@ -384,11 +382,11 @@ function asRejection(error: unknown): SourceArchiveRejected {
   return new SourceArchiveRejected('corrupt', message.slice(0, 300));
 }
 
-// ─── l'ensemble ──────────────────────────────────────────────────────────────
+// ─── the whole ───────────────────────────────────────────────────────────────
 
 /**
- * Lit `input`, le juge, et écrit dans `output` l'archive propre à déposer.
- * Lève `SourceArchiveRejected` au premier refus ; rien ne reste sur le disque.
+ * Reads `input`, judges it, and writes into `output` the clean archive to place.
+ * Throws `SourceArchiveRejected` at the first refusal; nothing stays on the disk.
  */
 export async function inspectSourceArchive(
   input: string,
@@ -409,8 +407,8 @@ export async function inspectSourceArchive(
 
     if (tree.kinds.size === 0) throw new SourceArchiveRejected('empty');
 
-    // Un seul dossier en tête : c'est l'emballage (`mon-app/…`), sauf si les
-    // Dockerfiles attendus se trouvent sans le retirer.
+    // A single leading folder: it is the wrapping (`my-app/…`), unless the expected
+    // Dockerfiles are found without removing it.
     const expected = options.expected ?? [];
     const top = [...tree.kinds.keys()].filter((path) => !path.includes('/'));
     const wrapper = top.length === 1 && tree.kinds.get(top[0]!) === 'dir' ? top[0]! : null;

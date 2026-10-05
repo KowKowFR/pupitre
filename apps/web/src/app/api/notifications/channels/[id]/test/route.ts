@@ -14,20 +14,19 @@ const paramsSchema = z.object({ id: z.string().uuid() });
 type Context = { params: Promise<{ id: string }> };
 
 /**
- * Envoie un message d'essai et **attend le verdict**.
+ * Sends a test message and **waits for the verdict**.
  *
- * Ce bouton n'est pas un ornement : une configuration SMTP fausse ne se
- * découvre autrement qu'au premier incident, c'est-à-dire au pire moment. Une
- * réponse « c'est enfilé » ne dirait rien de ce qu'on veut savoir.
+ * This button is not an ornament: a wrong SMTP configuration is otherwise only
+ * discovered at the first incident, that is at the worst moment. A "it is queued"
+ * answer would say nothing about what one wants to know.
  *
- * L'arbitrage synchrone / file est détaillé dans `@/lib/notifications` : la
- * route enfile puis attend, sur le modèle de `/api/targets/[id]/metrics`, parce
- * que le panel n'a aucun transport SMTP et que le travail réel appartient au
- * worker.
+ * The synchronous / queue trade-off is detailed in `@/lib/notifications`: the
+ * route queues then waits, on the model of `/api/targets/[id]/metrics`, because
+ * the panel has no SMTP transport and the real work belongs to the worker.
  *
- * `settings:manage` et non `settings:read` : un essai fait *partir* un message
- * vers un tiers, avec les identifiants de l'instance. C'est une écriture vers
- * l'extérieur, pas une lecture.
+ * `settings:manage` and not `settings:read`: a test makes a message *go out* to a
+ * third party, with the instance's credentials. It is a write to the outside, not
+ * a read.
  */
 export const POST = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'settings:manage');
@@ -48,7 +47,7 @@ export const POST = apiRoute<Context>(async (request, context) => {
       name: channel.name,
       probeOk: result.probe.ok,
       delivered: result.delivered,
-      // Déjà expurgé par la couche d'envoi : aucun fragment de jeton ici.
+      // Already redacted by the sending layer: no token fragment here.
       error: result.error,
     },
     ip: auth.ip,

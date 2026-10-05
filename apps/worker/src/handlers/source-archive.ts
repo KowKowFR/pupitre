@@ -22,14 +22,15 @@ import { logger } from '../logger.js';
 import { exportArchiveChunks, importArchiveChunks } from '../sources/stored-archive.js';
 
 /**
- * Une archive de code téléversée, lue par le worker.
+ * An uploaded code archive, read by the worker.
  *
- * La route a rangé les octets reçus et rendu la main ; ici, on les relit
- * entrée par entrée (`inspectSourceArchive`), on refuse ce qui sortirait du
- * dossier, et l'on range à la place l'archive propre — la seule qu'un
- * déploiement déposera. Les octets reçus s'effacent dans les deux cas.
+ * The route stored the received bytes and returned; here, we read them again
+ * entry by entry (`inspectSourceArchive`), refuse what would leave the folder,
+ * and store instead the clean archive — the only one a deployment will place.
+ * The received bytes are erased in both cases.
  *
- * La tâche est rejouable : elle ne fait rien d'une archive qui n'attend plus.
+ * The job can be replayed: it does nothing with an archive that is no longer
+ * waiting.
  */
 export async function handleSourceArchiveInspect(
   job: Job,
@@ -68,7 +69,7 @@ export async function handleSourceArchiveInspect(
       });
       const archiveBytes = await importArchiveChunks(archive.id, 'tree', output);
       await markSourceArchiveReady(archive.id, { archiveBytes, report });
-      log.info({ files: report.files, bytes: report.unpackedBytes }, 'archive de code prête');
+      log.info({ files: report.files, bytes: report.unpackedBytes }, 'code archive ready');
       await logAudit({
         actorId: data.actorId,
         action: 'source_archive.ready',
@@ -87,7 +88,7 @@ export async function handleSourceArchiveInspect(
     } catch (error) {
       if (!(error instanceof SourceArchiveRejected)) throw error;
       await markSourceArchiveRejected(archive.id, { rejection: error.code, detail: error.detail });
-      log.warn({ rejection: error.code, detail: error.detail }, 'archive de code refusée');
+      log.warn({ rejection: error.code, detail: error.detail }, 'code archive refused');
       await logAudit({
         actorId: data.actorId,
         action: 'source_archive.rejected',
@@ -99,16 +100,16 @@ export async function handleSourceArchiveInspect(
       outcome = { archiveId: archive.id, status: 'rejected', rejection: error.code };
     }
   } catch (error) {
-    // Une panne (base, disque), pas un refus : l'archive reste en attente, et
-    // le journal du worker dit pourquoi. Un nouvel envoi la remplacera.
-    log.error({ err: error }, `lecture de l'archive impossible : ${errorMessage(error)}`);
+    // A failure (database, disk), not a refusal: the archive stays pending, and the
+    // worker's log says why. A new upload will replace it.
+    log.error({ err: error }, `archive could not be read: ${errorMessage(error)}`);
     throw error;
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
 
-  // On ne garde que les dernières, refusées comprises : une archive que
-  // construit un déploiement en cours est épargnée.
+  // We only keep the last ones, refused ones included: an archive a deployment in
+  // progress is building is spared.
   const removed = await pruneSourceArchives(archive.applicationId, SOURCE_ARCHIVES_KEPT);
   if (removed.length > 0) {
     await logAudit({

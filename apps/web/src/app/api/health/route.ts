@@ -10,27 +10,27 @@ export const dynamic = 'force-dynamic';
 type ComponentState = 'ok' | 'error';
 
 /**
- * État de la génération par IA.
+ * The state of AI generation.
  *
- * `prompt` mérite d'être ici, et pas seulement dans la route de génération : le
- * prompt système est un **fichier**, et un fichier peut manquer d'une image
- * Docker sans que rien ne le dise. Le charger depuis la sonde de santé fait
- * échouer bruyamment ce qui, sinon, n'échouerait qu'au premier utilisateur —
- * et permet de le vérifier dans le conteneur, pas seulement en local.
+ * `prompt` deserves to be here, and not only in the generation route: the system
+ * prompt is a **file**, and a file can be missing from a Docker image without
+ * anything saying so. Loading it from the health probe makes fail loudly what
+ * would otherwise only fail at the first user — and allows checking it in the
+ * container, not only locally.
  *
- * `enabled: false` (pas de clé) n'est pas une panne : le reste du panel marche.
+ * `enabled: false` (no key) is not an outage: the rest of the panel works.
  *
- * `keySource` dit **d'où** vient la clé retenue, jamais ce qu'elle contient : ni
- * sa valeur, ni ses derniers caractères, ni sa longueur. C'est l'information
- * dont on a besoin pour diagnostiquer « je l'ai posée dans l'écran mais le panel
- * lit encore l'environnement », et c'est la seule qu'une sonde publique peut
- * donner sans devenir un oracle sur un secret.
+ * `keySource` says **where** the chosen key comes from, never what it contains:
+ * neither its value, nor its last characters, nor its length. It is the
+ * information needed to diagnose "I set it in the screen but the panel still
+ * reads the environment", and it is the only one a public probe can give without
+ * becoming an oracle on a secret.
  */
 type AiState = {
   enabled: boolean;
   provider: string;
   model: string;
-  /** `settings` : clé en base ; `env` : variable d'environnement ; `none` : aucune. */
+  /** `settings`: key in the database; `env`: environment variable; `none`: none. */
   keySource: 'settings' | 'env' | 'none';
   prompt: ComponentState;
   promptBytes: number | null;
@@ -46,45 +46,43 @@ type HealthPayload = {
 };
 
 /**
- * Marqueur de présence — **jamais** une clé.
+ * A presence marker — **never** a key.
  *
- * `resolveAiConfig()` ne demande pas « une clé est-elle configurée ? » mais la
- * clé elle-même : c'est ce qui lui permet de servir aussi le chemin d'appel au
- * fournisseur. La sonde, elle, n'a rien à déchiffrer et rien à envoyer à
- * personne — elle passe donc ce marqueur à la place et ne relit jamais
- * `apiKey` en retour.
+ * `resolveAiConfig()` does not ask "is a key configured?" but for the key itself:
+ * that is what lets it also serve the path that calls the provider. The probe,
+ * for its part, has nothing to decrypt and nothing to send to anyone — so it
+ * passes this marker instead and never reads `apiKey` back.
  *
- * Réutiliser la fonction plutôt que recopier sa règle de priorité
- * (paramètres > environnement, et le drapeau `enabled` qui coupe tout) est ce
- * qui garantit que la sonde et l'écran de génération répondent la même chose.
- * C'est précisément la divergence qu'on corrige : la sonde ne regardait que
- * `OPENROUTER_API_KEY` et annonçait « IA désactivée » à une instance qui
- * générait très bien depuis OpenAI avec une clé en base.
+ * Reusing the function rather than copying its priority rule (settings >
+ * environment, and the `enabled` flag that cuts everything) is what guarantees
+ * that the probe and the generation screen answer the same thing. It is precisely
+ * the divergence being fixed: the probe only looked at `OPENROUTER_API_KEY` and
+ * announced "AI disabled" to an instance that generated just fine from OpenAI
+ * with a key in the database.
  */
-// i18n-ignore — marqueur interne passé à `resolveAiConfig()` en guise de clé
-// factice, et jamais relu. Ce n'est pas une phrase, c'est une sentinelle.
-const KEY_PRESENT = '(clé enregistrée en base)';
+// i18n-ignore — an internal marker passed to `resolveAiConfig()` as a dummy key,
+// and never read back. It is not a sentence, it is a sentinel.
+const KEY_PRESENT = '(key stored in the database)';
 
 async function probe(name: string, run: () => Promise<unknown>): Promise<ComponentState> {
   try {
     await run();
     return 'ok';
   } catch (error) {
-    logger.error({ component: name, error: error instanceof Error ? error.message : error }, 'sonde en échec');
+    logger.error({ component: name, error: error instanceof Error ? error.message : error }, 'probe failed');
     return 'error';
   }
 }
 
 /**
- * Coût par sonde : **une** lecture de `app_settings`, servie par le cache
- * mémoire de cinq secondes de `getAppSettings()`. Le healthcheck du conteneur
- * `panel` interroge cette route toutes les dix secondes : au pire une requête
- * sur une ligne unique par sonde, la même que celle que fait déjà chaque rendu
- * de page. Aucun appel au fournisseur d'IA, et aucun déchiffrement de plus —
- * `getAiApiKey()` n'est jamais appelé ici.
+ * Cost per probe: **one** read of `app_settings`, served by `getAppSettings()`'s
+ * five-second memory cache. The `panel` container's healthcheck queries this
+ * route every ten seconds: at worst one query on a single row per probe, the same
+ * that each page render already makes. No call to the AI provider, and no extra
+ * decryption — `getAiApiKey()` is never called here.
  *
- * Une base injoignable ne fait pas échouer la sonde IA : on retombe sur
- * l'environnement seul, et c'est `db` qui porte la panne.
+ * An unreachable database does not fail the AI probe: we fall back on the
+ * environment alone, and it is `db` that carries the outage.
  */
 async function aiState(): Promise<AiState> {
   let settings: Parameters<typeof resolveAiConfig>[0]['settings'] = null;
@@ -96,7 +94,7 @@ async function aiState(): Promise<AiState> {
   } catch (error) {
     logger.error(
       { component: 'ai-settings', error: error instanceof Error ? error.message : error },
-      'paramètres IA illisibles, repli sur l’environnement',
+      'AI settings unreadable, falling back on the environment',
     );
   }
 
@@ -119,7 +117,7 @@ async function aiState(): Promise<AiState> {
   } catch (error) {
     logger.error(
       { component: 'ai-prompt', error: error instanceof Error ? error.message : error },
-      'prompt système introuvable',
+      'system prompt not found',
     );
     return { ...base, prompt: 'error', promptBytes: null };
   }
@@ -132,8 +130,8 @@ export async function GET(): Promise<NextResponse<HealthPayload>> {
     aiState(),
   ]);
 
-  // Un prompt introuvable ne dégrade la santé que si la génération est activée :
-  // sur un panel sans clé, le fichier ne sert à personne.
+  // A missing prompt only degrades the health if generation is enabled: on a panel
+  // without a key, the file serves nobody.
   const aiOk = !ai.enabled || ai.prompt === 'ok';
   const status: HealthPayload['status'] = db === 'ok' && redis === 'ok' && aiOk ? 'ok' : 'degraded';
 

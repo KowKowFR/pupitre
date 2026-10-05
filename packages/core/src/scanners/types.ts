@@ -2,27 +2,27 @@ import type { ImageStore, ScanKind, ScanReport, ScannerKey } from '../scan.js';
 import type { SshSession } from '../ssh/client.js';
 
 /**
- * Contrat que doit remplir un outil pour être exécutable par le panel.
+ * The contract a tool must fulfill to be runnable by the panel.
  *
- * Même règle structurante que pour les drivers : un scanner **n'importe rien**
- * de `packages/db`, ni de `apps/web`, ni de Redis. Il reçoit une session SSH et
- * une référence d'image, il exécute sur la machine cible, et il émet des lignes.
- * C'est l'appelant qui décide de les publier sur Redis ou de les jeter.
+ * The same structuring rule as for drivers: a scanner **imports nothing** from
+ * `packages/db`, nor `apps/web`, nor Redis. It receives an SSH session and an
+ * image reference, it runs on the target machine, and it emits lines. It is the
+ * caller that decides to publish them on Redis or to discard them.
  *
- * Ajouter un scanner doit se faire en ajoutant une classe et une entrée dans la
- * fabrique, sans modifier le worker ni les routes.
+ * Adding a scanner must be done by adding a class and an entry in the factory,
+ * without changing the worker or the routes.
  */
 
-/** Le scanner émet des lignes, il ne sait pas où elles vont. */
+/** The scanner emits lines, it does not know where they go. */
 export type ScanLogSink = (line: string) => void;
 
 export type ScanContext = {
   session: SshSession;
-  /** Référence de l'image à analyser, telle que le runtime la nomme. */
+  /** Reference of the image to analyze, as the runtime names it. */
   image: string;
-  /** Où le runtime garde cette image — déclaré par le driver. */
+  /** Where the runtime keeps this image — declared by the driver. */
   store: ImageStore;
-  /** Millisecondes. Défaut : `SCAN_TIMEOUT_MS`. */
+  /** Milliseconds. Default: `SCAN_TIMEOUT_MS`. */
   timeoutMs?: number;
 };
 
@@ -31,17 +31,17 @@ export interface Scanner {
   readonly kind: ScanKind;
 
   /**
-   * Garantit la présence de l'outil sur la cible, à la version attendue.
-   * Idempotent et bon marché : un binaire déjà à la bonne version n'est pas
-   * réinstallé.
+   * Guarantees the tool is present on the target, at the expected version.
+   * Idempotent and cheap: a binary already at the right version is not
+   * reinstalled.
    */
   ensureInstalled(session: SshSession, onLog?: ScanLogSink): Promise<string>;
 
-  /** Analyse l'image et retourne un rapport normalisé. */
+  /** Analyzes the image and returns a normalized report. */
   run(ctx: ScanContext, onLog: ScanLogSink): Promise<ScanReport>;
 }
 
-/** Échec imputable à un scanner, avec le contexte utile au diagnostic. */
+/** A failure attributable to a scanner, with the context useful for diagnosis. */
 export class ScannerError extends Error {
   constructor(
     message: string,

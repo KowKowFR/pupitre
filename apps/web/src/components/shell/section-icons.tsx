@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import type { SectionKey } from '@/lib/navigation';
 
-/** L'icône de chaque section — la même dans le rail, la palette et le fil d'Ariane. */
+/** Each section's icon — the same in the rail, the palette and the breadcrumb. */
 export const SECTION_ICON: Record<SectionKey, LucideIcon> = {
   dashboard: Gauge,
   targets: Server,

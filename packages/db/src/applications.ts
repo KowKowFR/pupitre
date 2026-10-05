@@ -8,12 +8,11 @@ import { applications, targets } from './schema/infra.js';
 export type Application = typeof applications.$inferSelect;
 
 /**
- * Provenance d'une AppSpec générée par IA.
+ * Provenance of an AI-generated AppSpec.
  *
- * Facultative : une application créée à la main n'en a pas. Quand elle est là,
- * on garde la demande de l'utilisateur ET la spec telle que le modèle l'a
- * produite, avant relecture — c'est la seule façon de savoir, plus tard, ce qui
- * a été corrigé à la main.
+ * Optional: an application created by hand has none. When it is there, we keep
+ * the user's request AND the spec as the model produced it, before review — it is
+ * the only way to know, later, what was corrected by hand.
  */
 export const generationOriginSchema = z.object({
   prompt: z.string().min(1).max(4000),
@@ -24,7 +23,7 @@ export const generationOriginSchema = z.object({
 export type GenerationOrigin = z.infer<typeof generationOriginSchema>;
 
 export const createApplicationSchema = z.object({
-  /** Le slug vient de l'AppSpec : une seule source de vérité pour le nom. */
+  /** The slug comes from the AppSpec: a single source of truth for the name. */
   description: z.string().max(500).optional(),
   appSpec: appSpecSchema,
   generation: generationOriginSchema.optional(),
@@ -33,7 +32,7 @@ export const createApplicationSchema = z.object({
 export const updateApplicationSchema = z.object({
   description: z.string().max(500).optional(),
   appSpec: appSpecSchema.optional(),
-  /** Remplacer l'AppSpec par une nouvelle génération remplace aussi sa provenance. */
+  /** Replacing the AppSpec with a new generation also replaces its provenance. */
   generation: generationOriginSchema.optional(),
 });
 
@@ -87,7 +86,7 @@ export async function createApplication(
     })
     .returning();
 
-  if (!row) throw new Error("createApplication : l'insertion n'a retourné aucune ligne");
+  if (!row) throw new Error('createApplication: the insert returned no row');
   return row;
 }
 
@@ -127,10 +126,10 @@ export async function deleteApplication(id: string, db: Database = getDb()): Pro
 }
 
 /**
- * Ce qu'un effacement forcé a emporté.
+ * What a forced erasure took away.
  *
- * Renvoyé *pour être journalisé* : une fois la transaction passée, ces lignes
- * n'existent plus nulle part ailleurs.
+ * Returned *to be logged*: once the transaction is through, these rows no longer
+ * exist anywhere else.
  */
 export type ApplicationErasure = {
   applicationId: string;
@@ -140,23 +139,22 @@ export type ApplicationErasure = {
 };
 
 /**
- * Efface l'application, tout son historique et toutes ses réservations de port,
- * **sans aucun garde-fou** — c'est l'appelant qui répond du sien.
+ * Erases the application, its whole history and all its port reservations,
+ * **without any safeguard** — it is the caller that answers for its own.
  *
- * Deux appelants, deux gardes : `DELETE /api/applications/:id` n'y vient
- * qu'après avoir constaté qu'aucun déploiement ne bloque
- * (`listApplicationDeletionBlockers()`), et le forçage de la cascade n'y vient
- * qu'après avoir tenté la destruction et **journalisé ce qu'il abandonne**.
+ * Two callers, two guards: `DELETE /api/applications/:id` only comes here after
+ * observing that no deployment blocks (`listApplicationDeletionBlockers()`), and
+ * the forced cascade only comes here after attempting the destruction and
+ * **logging what it abandons**.
  *
- * Volontairement distincte de `purgeDeployments()`, qui refuse ce qui est
- * vivant : desserrer le garde-fou de la purge pour servir le cas du forçage
- * l'aurait rendu contournable partout ailleurs. Ici le contrat est explicite
- * dès le nom.
+ * Deliberately distinct from `purgeDeployments()`, which refuses what is alive:
+ * loosening the purge's safeguard to serve the forced case would have made it
+ * bypassable everywhere else. Here the contract is explicit from the name.
  *
- * Les deux clés étrangères sont en `ON DELETE CASCADE` : supprimer
- * l'application suffirait. On les efface quand même explicitement, parce qu'une
- * cascade silencieuse ne rend rien — et qu'il faut pouvoir écrire dans le
- * journal *quels* ports ont été rendus et *quels* déploiements ont disparu.
+ * Both foreign keys are `ON DELETE CASCADE`: deleting the application would be
+ * enough. We still erase them explicitly, because a silent cascade returns
+ * nothing — and one must be able to write in the log *which* ports were given
+ * back and *which* deployments disappeared.
  */
 export async function eraseApplication(
   id: string,
@@ -198,11 +196,11 @@ export async function eraseApplication(
 }
 
 /**
- * Déploiements rattachés à une application, tous statuts confondus.
+ * Deployments attached to an application, all statuses together.
  *
- * **Ne dit pas si l'application est supprimable** : un déploiement `destroyed`
- * compte ici alors qu'il ne bloque rien. Pour cette question, et elle seule,
- * c'est `listApplicationDeletionBlockers()` qui fait foi.
+ * **Does not say whether the application can be deleted**: a `destroyed`
+ * deployment counts here while it blocks nothing. For that question, and that
+ * one alone, `listApplicationDeletionBlockers()` is authoritative.
  */
 export async function countDeploymentsFor(
   applicationId: string,

@@ -44,18 +44,18 @@ import type { MonitorRecord } from './record/record';
 import { LatencySparkline, OutcomeStrip, StripAxis } from './monitor-charts';
 
 /**
- * L'écran des sondes.
+ * The probes screen.
  *
- * Trois principes de lecture, tous tenus ici :
+ * Three reading principles, all held here:
  *
- *   — l'état se lit **à la forme autant qu'à la couleur** : un voyant et un mot,
- *     et chaque barre de la frise nomme son verdict au survol ;
- *   — une sonde **jamais exécutée le dit**, au lieu d'afficher 0 % ;
- *   — un taux dit **sur quelle fenêtre** il porte et **combien de mesures** le
- *     composent : « 100 % sur 3 mesures » n'est pas « 100 % sur 1 440 ».
+ *   — the state reads **from the shape as much as from the color**: an indicator
+ *     and a word, and each bar of the strip names its verdict on hover;
+ *   — a probe **never run says so**, instead of showing 0%;
+ *   — a rate says **over which window** it applies and **how many measurements**
+ *     make it up: "100% over 3 measurements" is not "100% over 1,440".
  *
- * Et le formulaire ne connaît aucun type de sonde : il se construit à partir du
- * catalogue que le serveur lui envoie.
+ * And the form knows no probe type: it builds itself from the catalog the server
+ * sends it.
  */
 
 export type MonitorRow = {
@@ -98,7 +98,7 @@ const STATUS_TONE: Record<MonitorRow['status'], Tone> = {
   unknown: 'idle',
 };
 
-/** Ce qu'une création reçoit en entrée : vide, ou pré-rempli par « Superviser ». */
+/** What a creation receives as input: empty, or prefilled by "Monitor". */
 type CreateSeed = { key: number; app: AdoptableApp | null };
 
 export function MonitorsPanel({
@@ -115,10 +115,10 @@ export function MonitorsPanel({
   adoptable: AdoptableApp[];
   canManage: boolean;
   retentionDays: number;
-  /** Locale et fuseau de l'instance, pour les figures. Par props, jamais par
-   *  contexte : la frise est rendue sur le serveur avant de l'être ici. */
+  /** The instance's locale and time zone, for the figures. Through props, never
+   *  through context: the strip is rendered on the server before being rendered here. */
   format: FormatSettings;
-  /** La fiche de la sonde ouverte, rendue au serveur. */
+  /** The open probe's record, rendered on the server. */
   record: MonitorRecord | null;
 }) {
   const t = useT(messages);
@@ -336,12 +336,12 @@ export function MonitorsPanel({
 }
 
 /**
- * Le motif d'une suspension, rendu à la lecture.
+ * A pause's reason, rendered at read time.
  *
- * `paused_reason` porte une **clé** quand le balayage l'a écrite, et du texte
- * libre sinon — une ligne d'avant ce changement, ou un motif qu'un humain aura
- * saisi un jour. On traduit ce qu'on reconnaît, on affiche le reste tel quel :
- * c'est ce qui laisse les lignes déjà en base intactes.
+ * `paused_reason` carries a **key** when the sweep wrote it, and free text
+ * otherwise — a row from before this change, or a reason a human typed one day.
+ * We translate what we recognize, and show the rest as is: it is what leaves the
+ * rows already in the database intact.
  */
 function pausedReasonLabel(raw: string, t: Messages): string {
   const pause = parseMonitorPause(raw);
@@ -351,9 +351,9 @@ function pausedReasonLabel(raw: string, t: Messages): string {
 }
 
 /**
- * Un taux en pourcentage, sans le décompte : celui-ci est dans l'infobulle.
- * `Intl` place le signe selon la langue — « 98,84 % » en français, « 98.84% »
- * en anglais — et 100 s'écrit sans décimale.
+ * A rate as a percentage, without the count: that is in the tooltip. `Intl`
+ * places the sign according to the language — "98,84 %" in French, "98.84%" in
+ * English — and 100 is written without a decimal.
  */
 function percentOf(ratio: number | null, format: FormatSettings): string {
   if (ratio === null) return '—';
@@ -380,20 +380,20 @@ function MonitorCard({
   format: FormatSettings;
   busy: boolean;
   selected: boolean;
-  /** Ouvre la fiche, sur un onglet précis si on le donne. */
+  /** Opens the record, on a precise tab if one is given. */
   onOpen: (tab?: string) => void;
   onToggle: () => void;
   onProbe: () => void;
   onRemove: () => void;
 }) {
   const t = useT(messages);
-  // `formatSince` appartient à l'écran des applications et parle son
-  // vocabulaire : on lui passe son `t`, sinon il retombe sur le français.
+  // `formatSince` belongs to the applications screen and speaks its vocabulary:
+  // we pass it its `t`, otherwise it falls back on French.
   const tSince = useT(servers);
   const language = useLanguage();
 
-  // Un échec en cours mais pas encore confirmé : l'écran le dit franchement
-  // plutôt que d'afficher « sain » ou « en panne », qui seraient tous deux faux.
+  // A failure in progress but not yet confirmed: the screen says so frankly
+  // rather than show "healthy" or "down", which would both be wrong.
   const pending =
     monitor.consecutiveFailures > 0 && monitor.consecutiveFailures < monitor.failureThreshold;
   const failing = monitor.status === 'unreachable' || monitor.status === 'unhealthy';
@@ -533,10 +533,10 @@ function MonitorCard({
 }
 
 /**
- * La fiche d'une sonde, dans un tiroir. L'aperçu se lit sur la carte — sa
- * cible et sa règle, ses derniers passages, son dernier relevé ; la courbe,
- * les incidents et la capture de référence arrivent du serveur. « Modifier »
- * remplace la fiche par le formulaire, dans le même tiroir.
+ * A probe's record, in a drawer. The overview reads from the card — its target
+ * and its rule, its last passes, its last reading; the curve, the incidents and
+ * the reference capture come from the server. "Edit" replaces the record with the
+ * form, in the same drawer.
  */
 function MonitorDrawer({
   monitor,
@@ -554,7 +554,7 @@ function MonitorDrawer({
   onProbe,
 }: {
   monitor: MonitorRow | null;
-  /** La fiche rendue au serveur, si c'est bien celle de `monitor`. */
+  /** The record rendered on the server, if it is indeed `monitor`'s. */
   record: MonitorRecord | null;
   editing: boolean;
   onEdit: (editing: boolean) => void;
@@ -728,7 +728,7 @@ function MonitorDrawer({
   );
 }
 
-// ─── création ─────────────────────────────────────────────────────────────────
+// ─── creation ─────────────────────────────────────────────────────────────────
 
 function CreateDrawer({
   seed,
@@ -745,7 +745,7 @@ function CreateDrawer({
   return (
     <Drawer open={seed !== null} onOpenChange={onOpenChange} wide label={t('create.title')}>
       {seed ? (
-        // Une clé par ouverture : « Superviser » repart d'un formulaire pré-rempli.
+        // One key per opening: "Monitor" starts again from a prefilled form.
         <MonitorForm key={seed.key} mode="create" app={seed.app} types={types} onDone={onCreated} />
       ) : null}
     </Drawer>

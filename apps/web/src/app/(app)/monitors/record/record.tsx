@@ -28,21 +28,21 @@ import { MonitorDetail } from './monitor-detail';
 export type MonitorRecordTab = 'measures' | 'reference';
 
 export type MonitorRecord = {
-  /** L'identifiant de la sonde : c'est la clé du tiroir. */
+  /** The probe's identifier: it is the drawer's key. */
   key: string;
   tabs: Partial<Record<MonitorRecordTab, ReactNode>>;
-  /** Ce qui ouvre l'aperçu : les prévisions sur la sonde (ralentissement, instabilité). */
+  /** What opens the overview: the forecasts on the probe (slowdown, instability). */
   alerts: ReactNode;
-  /** Ce que le pied du tiroir ajoute : mettre en maintenance. */
+  /** What the drawer's footer adds: putting under maintenance. */
   actions: ReactNode;
-  /** Ce que « Modifier » préremplit — `null` sans `monitor:manage`. */
+  /** What "Edit" prefills — `null` without `monitor:manage`. */
   edit: { monitor: EditableMonitor; types: TypeOption[] } | null;
 };
 
 /**
- * Les dates deviennent des chaînes ISO en traversant la frontière serveur →
- * client. Les octets, eux, ne traversent pas : `CaptureMeta` ne les porte pas,
- * et l'image est chargée par son URL — voir `api/monitors/[id]/captures/[…]`.
+ * The dates become ISO strings when crossing the server → client boundary. The
+ * bytes, for their part, do not cross: `CaptureMeta` does not carry them, and the
+ * image is loaded by its URL — see `api/monitors/[id]/captures/[…]`.
  */
 function toCaptureView(capture: CaptureMeta): CaptureView {
   return {
@@ -63,9 +63,9 @@ function toCaptureView(capture: CaptureMeta): CaptureView {
 }
 
 /**
- * La fiche d'une sonde, rendue au serveur pour son tiroir : la courbe, les
- * incidents et leurs captures, la table des mesures, la capture de référence —
- * et ce qu'il faut pour la modifier sur place.
+ * A probe's record, rendered on the server for its drawer: the curve, the
+ * incidents and their captures, the measurements table, the reference capture —
+ * and what it takes to edit it in place.
  */
 export async function monitorRecord(
   row: Monitor,
@@ -75,8 +75,8 @@ export async function monitorRecord(
   const language = await currentLanguage();
   const [[view], checks, incidents, reference, forecasts, maintenance] = await Promise.all([
     buildMonitorViews([row]),
-    // Deux cents points : de quoi couvrir plus de trois heures d'une sonde à la
-    // minute sans faire traverser la moitié de la série à chaque affichage.
+    // Two hundred points: enough to cover more than three hours of a per-minute
+    // probe without sending half the series across at each display.
     listChecks(row.id, 200),
     listIncidents(row.id, 50),
     liveReference(row.id),
@@ -86,10 +86,10 @@ export async function monitorRecord(
   if (!view) return null;
 
   /**
-   * Les captures des incidents affichés, en **une** requête plutôt qu'une par
-   * incident — cinquante incidents feraient cinquante allers-retours. Aucun
-   * octet ne remonte ici : ces lignes ne portent que les métadonnées, et
-   * l'image est chargée par la route qui la sert.
+   * The captures of the displayed incidents, in **one** query rather than one per
+   * incident — fifty incidents would make fifty round trips. No byte comes up here:
+   * these rows only carry the metadata, and the image is loaded by the route that
+   * serves it.
    */
   const captureRows = await listCapturesForIncidents(incidents.map((incident) => incident.id));
   const captures: Record<string, CaptureView[]> = {};
@@ -98,8 +98,8 @@ export async function monitorRecord(
     (captures[capture.incidentId] ??= []).push(toCaptureView(capture));
   }
 
-  // Annoncer une panne aux visiteurs se fait depuis l'écran des pages de statut ;
-  // la fiche y mène, avec le compte de ce qui est déjà publié.
+  // Announcing an outage to visitors is done from the status pages screen; the
+  // record leads there, with the count of what is already published.
   const announcements = auth.can('status_page:announce')
     ? Object.fromEntries(
         await countStatusUpdatesByIncident(incidents.map((incident) => incident.id)),
@@ -107,8 +107,8 @@ export async function monitorRecord(
     : null;
 
   const definition = isMonitorType(row.type) ? monitorTypeDefinition(row.type, language) : null;
-  // Modifier demande `monitor:manage` et un type encore connu du catalogue :
-  // sans définition, le formulaire ne saurait pas quels champs montrer.
+  // Editing requires `monitor:manage` and a type still known to the catalog:
+  // without a definition, the form would not know which fields to show.
   const editTypes =
     auth.can('monitor:manage') && isMonitorType(row.type)
       ? ((await monitorTypeOptions([row.type])) as TypeOption[])

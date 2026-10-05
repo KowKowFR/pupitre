@@ -1,15 +1,15 @@
 import 'server-only';
 import type { ApiTokenView } from '@pupitre/db';
 
-/** Les échéances proposées, en jours. `null` : sans échéance. */
+/** The offered expiries, in days. `null`: without expiry. */
 export const API_TOKEN_EXPIRIES = [30, 90, 365] as const;
 
-/** Assez pour une CI par dépôt, pas assez pour qu'on cesse de savoir à quoi sert chacun. */
+/** Enough for one CI per repository, not enough to stop knowing what each one is for. */
 export const MAX_LIVE_API_TOKENS = 25;
 
 export type ApiTokenStatus = 'active' | 'revoked' | 'expired';
 
-/** Un jeton tel que l'écran le voit — jamais le jeton lui-même. */
+/** A token as the screen sees it — never the token itself. */
 export type ApiTokenDto = {
   id: string;
   name: string;

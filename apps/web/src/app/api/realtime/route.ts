@@ -15,22 +15,22 @@ import {
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** Toutes les quatre respirations (~100 s), la session est relue : révoquée, le flux se ferme. */
+/** Every four breaths (~100 s), the session is read again: revoked, the stream closes. */
 const SESSION_RECHECK_EVERY = 4;
 
 /**
- * Le flux temps réel d'un onglet : présence, discussion, signaux des écrans.
+ * A tab's real-time stream: presence, chat, screen signals.
  *
- * Ouvert, il compte comme une présence ; fermé, il la retire. Le premier
- * message (`hello`) donne l'état complet — qui est là, combien de messages
- * non lus — puis ne viennent que des changements. Un onglet qui se reconnecte
- * repart donc d'un état juste, sans rien avoir à rejouer.
+ * Open, it counts as a presence; closed, it removes it. The first message
+ * (`hello`) gives the complete state — who is there, how many unread messages —
+ * then only changes come. A tab that reconnects therefore starts again from a
+ * correct state, without having anything to replay.
  *
- * Ce qu'un événement révèle suit les permissions de la session : l'activité
- * du journal ne part qu'à qui peut lire le journal. Les signaux d'écran, eux,
- * ne portent qu'un sujet — la page se relit avec ses propres droits. Un compte
- * sans aucune permission n'est pas encore de l'équipe : il ne reçoit que ces
- * signaux, ni la discussion ni la présence, et personne ne le voit en ligne.
+ * What an event reveals follows the session's permissions: the log's activity
+ * only goes to whoever can read the log. The screen signals, for their part, only
+ * carry a topic — the page reads itself again with its own rights. An account
+ * without any permission is not part of the team yet: it only receives these
+ * signals, neither the chat nor the presence, and nobody sees it online.
  */
 export const GET = apiRoute(async (request) => {
   const auth = await requireSession(request);
@@ -41,7 +41,7 @@ export const GET = apiRoute(async (request) => {
   let closed = false;
   let unsubscribe: (() => void) | null = null;
   let heartbeat: NodeJS.Timeout | null = null;
-  /** Fermeture unique : l'abandon du client et `cancel()` arrivent souvent tous les deux. */
+  /** A single closing: the client's abort and `cancel()` often both arrive. */
   let cleanup: () => Promise<void> = async () => undefined;
 
   const stream = new ReadableStream<Uint8Array>({
@@ -65,16 +65,16 @@ export const GET = apiRoute(async (request) => {
         try {
           controller.close();
         } catch {
-          // Déjà fermé côté client.
+          // Already closed on the client side.
         }
         if (!member) return;
         await presenceDisconnected(auth.userId).catch((error: unknown) => {
-          logger.warn({ err: error }, 'présence non retirée');
+          logger.warn({ err: error }, 'presence not removed');
         });
       };
 
-      // S'abonner avant de compter la présence : sa propre arrivée fait partie
-      // de ce que l'onglet doit voir.
+      // Subscribe before counting the presence: one's own arrival is part of what the
+      // tab must see.
       unsubscribe = onRealtime((event: RealtimeEvent) => {
         if (event.type === 'activity' && !canReadAudit) return;
         if (!member && event.type !== 'live') return;
@@ -95,7 +95,7 @@ export const GET = apiRoute(async (request) => {
           send('hello', { me: auth.userId, presence: {}, unread: 0, mentions: 0, choice: null });
         }
       } catch (error) {
-        logger.error({ err: error }, 'flux temps réel indisponible');
+        logger.error({ err: error }, 'real-time stream unavailable');
         send('error', { code: 'unavailable' });
         await cleanup();
         return;
@@ -104,14 +104,14 @@ export const GET = apiRoute(async (request) => {
       let beats = 0;
       heartbeat = setInterval(() => {
         beats += 1;
-        // Un reverse proxy coupe une connexion muette : le commentaire la garde ouverte.
+        // A reverse proxy cuts a silent connection: the comment keeps it open.
         write(': heartbeat\n\n');
         if (member) void presenceTouched(auth.userId).catch(() => undefined);
         if (beats % SESSION_RECHECK_EVERY === 0) {
           requireSession(request).then(
             (fresh) => {
-              // Un rôle donné ou retiré change ce que le flux peut porter : on
-              // le ferme, l'onglet se recharge et en rouvre un à ses droits.
+              // A role given or removed changes what the stream may carry: we close it, the tab
+              // reloads and opens a new one with its rights.
               if (isTeamMember(fresh) === member) return;
               send('bye', { reason: 'role' });
               void cleanup();

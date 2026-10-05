@@ -21,16 +21,15 @@ import { visibleCoverage } from '@/lib/maintenance';
 import type { AuthContext } from '@/lib/rbac';
 
 /**
- * Les lectures de la vue d'ensemble, partagées avec la coquille.
+ * The overview's reads, shared with the shell.
  *
- * Le rail affiche ce que la vue d'ensemble calcule — le nombre de points qui
- * demandent une intervention, un déploiement en vol, les incidents ouverts.
- * Les deux lisent donc les mêmes sources, et `cache()` garantit qu'une même
- * requête HTTP ne les lit qu'une fois : sur `/`, le layout et la page
- * partagent chaque lecture.
+ * The rail shows what the overview computes — the number of points that require
+ * an intervention, a deployment in flight, the open incidents. Both therefore
+ * read the same sources, and `cache()` guarantees that one HTTP request only reads
+ * them once: on `/`, the layout and the page share each read.
  */
 
-/** Profondeur de la chronique des déploiements, en jours. */
+/** The depth of the deployments chronicle, in days. */
 export const CHRONICLE_DAYS = 7;
 
 export const loadTargets = cache(() => listTargets());
@@ -55,7 +54,7 @@ export type AttentionItem = {
 
 type T = Translate<typeof dashboard.fr>;
 
-/** Les points d'attention d'une session, lus uniquement dans ce qu'elle a le droit de voir. */
+/** A session's attention points, read only in what it is allowed to see. */
 export const attentionFor = cache(async (auth: AuthContext): Promise<AttentionItem[]> => {
   const t = await getT(dashboard);
   const canReadTargets = auth.can('target:read');
@@ -84,16 +83,16 @@ export const attentionFor = cache(async (auth: AuthContext): Promise<AttentionIt
   });
 });
 
-/** Ce qui est en maintenance : ses points restent listés, marqués et sans alarme rouge. */
+/** What is under maintenance: its points stay listed, marked and without a red alarm. */
 export type MaintenanceMarks = { targets: ReadonlySet<string>; monitors: ReadonlySet<string> };
 
 /**
- * Rassemble les anomalies des sources qui peuvent en produire.
+ * Gathers the anomalies of the sources that can produce some.
  *
- * Une même panne ne doit apparaître qu'une fois : une cible injoignable rend
- * ses applications injoignables, et lister les deux ferait croire à deux
- * incidents. Les cibles muettes sont donc relevées d'abord, et leurs
- * applications écartées ensuite.
+ * The same outage must only appear once: an unreachable target makes its
+ * applications unreachable, and listing both would suggest two incidents. The
+ * silent targets are therefore noted first, and their applications set aside
+ * next.
  */
 export function collectAttention({
   targets,
@@ -106,9 +105,9 @@ export function collectAttention({
   t,
 }: {
   /**
-   * Les cibles et les sondes en maintenance. Une panne y est souvent voulue :
-   * le point reste — il faut bien le voir revenir —, mais en avertissement,
-   * avec la mention, et non en rouge.
+   * The targets and probes under maintenance. An outage there is often intended:
+   * the point stays — one must see it come back —, but as a warning, with the
+   * mention, and not in red.
    */
   maintenance?: MaintenanceMarks;
   targets: readonly PublicTarget[];
@@ -191,8 +190,8 @@ export function collectAttention({
     });
   }
 
-  // Un déploiement raté d'une application qui tourne encore est déjà relevé
-  // ci-dessus, avec plus de contexte. On ne garde ici que les échecs orphelins.
+  // A failed deployment of an application that still runs is already noted above,
+  // with more context. We only keep the orphan failures here.
   const covered = new Set(running.map((app) => app.lastFailedUpdate?.deploymentId).filter(Boolean));
   for (const item of recent) {
     if (item.status !== 'failed' || covered.has(item.id)) continue;
@@ -209,11 +208,11 @@ export function collectAttention({
   }
 
   /*
-    Un repli n'est pas un échec — le garde-fou a fait son travail — mais c'est
-    une version qu'on a voulu livrer et qui n'a pas tenu. Elle mérite d'être vue
-    une fois, pas de disparaître dans un compteur. On ne relève que les replis
-    de la fenêtre courte : celui d'il y a six jours a déjà été traité ou ne le
-    sera jamais, et l'écran des anomalies n'est pas un journal.
+    A rollback is not a failure — the guardrail did its job — but it is a version
+    one wanted to ship and that did not hold. It deserves to be seen once, not to
+    disappear into a counter. We only note the rollbacks of the short window: the
+    one from six days ago has already been dealt with or never will be, and the
+    anomalies screen is not a log.
   */
   if (chronicle) {
     const recentEnough = Date.now() - 24 * 3600 * 1000;
@@ -236,10 +235,10 @@ export function collectAttention({
   }
 
   /*
-    Le seul endroit du produit où un chiffre rassurant en recouvre un qui ne
-    l'est pas : une analyse conclut « conforme » parce que le seuil de blocage
-    est réglé sur « aucun », pendant qu'elle rapporte des failles critiques.
-    Rien dans l'écran ne le disait — on lisait « scan : conforme » et on passait.
+    The only place in the product where a reassuring figure covers one that is
+    not: an analysis concludes "compliant" because the blocking threshold is set
+    to "none", while it reports critical vulnerabilities. Nothing in the screen
+    said so — one read "scan: compliant" and moved on.
   */
   if (posture && posture.passedWithSevere > 0 && posture.bySeverity.critical > 0) {
     items.push({

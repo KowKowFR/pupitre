@@ -33,9 +33,9 @@ const BAR_COLOR = {
 } as const;
 
 /**
- * Une page de statut, à partir de son modèle — sur la page publique comme dans
- * l'aperçu de l'éditeur. Ce composant ne connaît que des libellés, des états
- * et des dates : c'est `buildStatusPageModel()` qui a décidé de ce qui sort.
+ * A status page, from its model — on the public page as in the editor's
+ * preview. This component only knows labels, states and dates: it is
+ * `buildStatusPageModel()` that decided what goes out.
  */
 export function StatusPageView({
   model,
@@ -44,7 +44,7 @@ export function StatusPageView({
 }: {
   model: StatusPageModel;
   format: FormatSettings;
-  /** Dans l'aperçu de l'éditeur : moins de marges. */
+  /** In the editor's preview: smaller margins. */
   compact?: boolean;
 }) {
   const t = useT(messages);
@@ -302,7 +302,7 @@ function Block({
   }
 }
 
-/** Le fil des annonces d'un sujet, la plus récente d'abord. */
+/** A subject's announcements thread, the most recent first. */
 function Updates({
   updates,
   when,

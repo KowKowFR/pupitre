@@ -2,17 +2,17 @@ import type { UiLanguage } from '../i18n.js';
 import type { AppSpecInput } from '../spec/index.js';
 
 /**
- * Le catalogue — des applications prêtes à l'emploi, décrites en AppSpec.
+ * The catalog — ready-to-use applications, described as AppSpecs.
  *
- * Un modèle n'est **pas** un `compose.yml` recopié d'un README : c'est une
- * fonction qui rend une AppSpec neutre, validée par le même schéma que celles
- * qu'on écrit à la main ou que l'IA propose. Elle ne connaît ni Docker ni
- * Kubernetes, et se déploie donc sur les deux runtimes.
+ * A template is **not** a `compose.yml` copied from a README: it is a function
+ * that returns a neutral AppSpec, validated by the same schema as those written
+ * by hand or proposed by the AI. It knows neither Docker nor Kubernetes, and
+ * therefore deploys on both runtimes.
  *
- * Ce que l'AppSpec ne sait pas dire, le catalogue ne le dit pas non plus : pas
- * de commande de démarrage, pas d'interpolation de variables, pas de socket
- * Docker monté. Une image qui en a besoin (MinIO, Keycloak, Portainer…) n'y
- * entre pas — l'y faire entrer demanderait un champ runtime-spécifique.
+ * What the AppSpec cannot say, the catalog does not say either: no start
+ * command, no variable interpolation, no mounted Docker socket. An image that
+ * needs one (MinIO, Keycloak, Portainer…) does not get in — letting it in would
+ * require a runtime-specific field.
  */
 
 export const CATALOG_CATEGORIES = [
@@ -28,41 +28,41 @@ export const CATALOG_CATEGORIES = [
 ] as const;
 export type CatalogCategory = (typeof CATALOG_CATEGORIES)[number];
 
-/** Ce que l'opérateur choisit au moment d'installer. */
+/** What the operator chooses at install time. */
 export type CatalogParams = {
-  /** Nom de l'application : son slug, et le `name` de l'AppSpec. */
+  /** The application's name: its slug, and the AppSpec's `name`. */
   name: string;
-  /** Domaine public. Absent : le driver publie sur un port alloué de la cible. */
+  /** Public domain. Absent: the driver publishes on an allocated port of the target. */
   host: string | null;
   tls: boolean;
-  /** Adresse de la personne qui installe, pour les images qui veulent un e-mail d'admin. */
+  /** Address of the person installing, for images that want an admin email. */
   email: string;
 };
 
 export type CatalogText = Record<UiLanguage, string>;
 
 export type CatalogTemplate = {
-  /** Identifiant stable, en kebab-case — il sert d'URL et de nom par défaut. */
+  /** Stable identifier, in kebab-case — it serves as URL and default name. */
   id: string;
-  /** Nom du produit, tel que son éditeur l'écrit. */
+  /** The product's name, as its publisher writes it. */
   name: string;
   category: CatalogCategory;
   website: string;
   summary: CatalogText;
   /**
-   * Ce qu'il faut faire au premier accès : terminer un assistant, créer le
-   * premier compte. Dit avant l'installation, pas découvert après.
+   * What must be done at first access: finish a wizard, create the first account.
+   * Said before installing, not discovered afterwards.
    */
   firstRun: CatalogText;
   /**
-   * Secrets que l'opérateur saisit à l'installation : ceux dont il aura besoin
-   * pour se connecter. Les autres sont générés, et un secret généré ne se
-   * relit jamais — un mot de passe d'administration généré serait perdu.
+   * Secrets the operator enters at install time: those they will need to sign in.
+   * The others are generated, and a generated secret is never read back — a
+   * generated administration password would be lost.
    */
   askedSecrets: readonly string[];
   /**
-   * L'application ne fonctionne correctement que derrière son domaine (liens
-   * absolus, cookies, callbacks). Sans lui, elle démarre mais se comporte mal.
+   * The application only works properly behind its domain (absolute links,
+   * cookies, callbacks). Without it, it starts but misbehaves.
    */
   wantsHost: boolean;
   build(params: CatalogParams): AppSpecInput;

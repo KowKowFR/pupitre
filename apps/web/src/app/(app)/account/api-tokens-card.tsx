@@ -11,9 +11,9 @@ import type { PermissionGroup } from '../admin/roles/roles-editor';
 import { NewTokenDrawer } from './new-token-drawer';
 
 /**
- * « Jetons d'API » sur « Mon compte » : ceux de la personne, et de quoi en
- * créer un. Comme le mot de passe et les sessions, c'est une affaire de soi —
- * mais un jeton ne délègue que les permissions qu'on a.
+ * "API tokens" on "My account": the person's own, and what it takes to create
+ * one. Like the password and the sessions, it is a matter of one's own — but a
+ * token only delegates the permissions one has.
  */
 export function ApiTokensCard({
   rows,

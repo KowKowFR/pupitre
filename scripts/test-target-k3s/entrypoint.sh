@@ -1,63 +1,63 @@
 #!/bin/sh
-# Démarre le serveur K3s, attend qu'il soit réellement utilisable, puis sshd.
+# Starts the K3s server, waits until it is really usable, then sshd.
 #
-# Même forme que l'entrypoint de la cible Docker : on ne rend la main à sshd
-# qu'une fois le runtime prêt. Sinon le preflight se connecte, trouve `kubectl`,
-# et rapporte « cluster non joignable » pour une raison de calendrier plutôt
-# que de configuration.
+# The same shape as the Docker target's entrypoint: control is only given to sshd
+# once the runtime is ready. Otherwise the preflight connects, finds `kubectl`,
+# and reports "cluster unreachable" for a scheduling reason rather than a
+# configuration one.
 set -eu
 
 KUBECONFIG_PATH=/etc/rancher/k3s/k3s.yaml
 
-# ── Cgroups : libérer la racine avant de lancer quoi que ce soit ────────────
+# ── Cgroups: free the root before starting anything ─────────────────────────
 #
-# En cgroup v2, un cgroup qui contient des processus ne peut pas déléguer ses
-# contrôleurs à ses enfants (« no internal process constraint »). La racine du
-# conteneur contient sshd et ce script : `runc` échoue alors à créer le cgroup
-# de chaque pod, sur « cannot enter cgroupv2 /sys/fs/cgroup/k8s.io with domain
-# controllers ». Le symptôme se voit côté Kubernetes — des pods bloqués en
-# `ContainerCreating` — et n'a rien à voir avec Kubernetes.
+# With cgroup v2, a cgroup that contains processes cannot delegate its
+# controllers to its children ("no internal process constraint"). The
+# container's root contains sshd and this script: `runc` then fails to create
+# each pod's cgroup, on "cannot enter cgroupv2 /sys/fs/cgroup/k8s.io with domain
+# controllers". The symptom shows on the Kubernetes side — pods stuck in
+# `ContainerCreating` — and has nothing to do with Kubernetes.
 #
-# La manœuvre est celle de kind : déplacer les processus existants dans un
-# sous-groupe `/init`, puis activer les contrôleurs sur la racine devenue vide.
+# The maneuver is kind's: move the existing processes into an `/init` subgroup,
+# then enable the controllers on the root, now empty.
 if [ -w /sys/fs/cgroup/cgroup.procs ]; then
   mkdir -p /sys/fs/cgroup/init
   while read -r pid; do
     echo "$pid" > /sys/fs/cgroup/init/cgroup.procs 2>/dev/null || true
   done < /sys/fs/cgroup/cgroup.procs
 
-  # `+cpu +memory …` sur `subtree_control` : sans cela les enfants n'héritent
-  # d'aucun contrôleur et kubelet refuse de démarrer pour une autre raison.
+  # `+cpu +memory …` on `subtree_control`: without that the children inherit no
+  # controller and kubelet refuses to start for another reason.
   if [ -r /sys/fs/cgroup/cgroup.controllers ]; then
     sed 's/\([a-z]*\)/+\1/g' /sys/fs/cgroup/cgroup.controllers \
       > /sys/fs/cgroup/cgroup.subtree_control 2>/dev/null || true
   fi
-  echo "[k3s-target] cgroups délégués — type de racine : $(cat /sys/fs/cgroup/cgroup.type 2>/dev/null || echo inconnu)"
+  echo "[k3s-target] cgroups delegated — root type: $(cat /sys/fs/cgroup/cgroup.type 2>/dev/null || echo unknown)"
 fi
 
-echo "[k3s-target] démarrage du serveur K3s"
+echo "[k3s-target] starting the K3s server"
 
-# `--write-kubeconfig-mode 644` n'est pas cosmétique : le driver lit le
-# kubeconfig **sans sudo** (`[ -r /etc/rancher/k3s/k3s.yaml ]`). En 0600 root,
-# le cluster serait joignable pour root et invisible pour le compte de
-# déploiement — panne incompréhensible côté panel.
+# `--write-kubeconfig-mode 644` is not cosmetic: the driver reads the kubeconfig
+# **without sudo** (`[ -r /etc/rancher/k3s/k3s.yaml ]`). As 0600 root, the
+# cluster would be reachable for root and invisible for the deployment account —
+# an incomprehensible outage on the panel side.
 #
-# Traefik reste EN PLACE, contrairement au réflexe habituel en conteneur : le
-# rendu K3s publie en ClusterIP et expose par un Ingress. Sans contrôleur
-# d'ingress, une application déployée n'aurait aucune URL, et le test de parité
-# ne prouverait rien.
+# Traefik stays IN PLACE, unlike the usual reflex in a container: the K3s
+# rendering publishes as ClusterIP and exposes through an Ingress. Without an
+# ingress controller, a deployed application would have no URL, and the parity
+# test would prove nothing.
 #
-# `metrics-server` est retiré : il ne sert à rien ici et consomme de la mémoire.
-# `cgroups-per-qos=false` et `enforce-node-allocatable=` : kubelet renonce à
-# créer la hiérarchie `/kubepods`. Dans un conteneur, la racine cgroup v2 est en
-# état « domain threaded » et refuse un sous-groupe de type domaine — kubelet
-# échoue alors au démarrage sur « cannot enter cgroupv2 /sys/fs/cgroup/kubepods
-# with domain controllers ». On peut réarranger les cgroups à la main comme le
-# fait kind, ou simplement ne pas les demander.
+# `metrics-server` is removed: it is useless here and consumes memory.
+# `cgroups-per-qos=false` and `enforce-node-allocatable=`: kubelet gives up
+# creating the `/kubepods` hierarchy. In a container, the cgroup v2 root is in
+# the "domain threaded" state and refuses a domain-type subgroup — kubelet then
+# fails at startup on "cannot enter cgroupv2 /sys/fs/cgroup/kubepods with domain
+# controllers". One can rearrange the cgroups by hand as kind does, or simply not
+# ask for them.
 #
-# Ce qu'on y perd : les limites de ressources ne sont plus appliquées par
-# classe de qualité de service. Sans importance ici — cette cible sert à
-# vérifier qu'une AppSpec se déploie sur K3s, pas à mesurer l'ordonnancement.
+# What is lost: the resource limits are no longer applied per quality of service
+# class. Unimportant here — this target serves to check that an AppSpec deploys
+# on K3s, not to measure scheduling.
 k3s server \
   --write-kubeconfig-mode 644 \
   --disable metrics-server \
@@ -66,9 +66,9 @@ k3s server \
   --kubelet-arg=enforce-node-allocatable= \
   > /var/log/k3s.log 2>&1 &
 
-# Le nœud doit être `Ready` ET l'espace de noms par défaut utilisable. Les deux
-# arrivent à quelques secondes d'écart, et n'attendre que le premier laisse
-# passer des `kubectl apply` qui échouent sur un cluster à moitié levé.
+# The node must be `Ready` AND the default namespace usable. Both arrive a few
+# seconds apart, and only waiting for the first lets through `kubectl apply`s
+# that fail on a half-raised cluster.
 ready=0
 for _ in $(seq 1 120); do
   if [ -r "$KUBECONFIG_PATH" ] \
@@ -81,28 +81,28 @@ for _ in $(seq 1 120); do
 done
 
 if [ "$ready" -ne 1 ]; then
-  echo "[k3s-target] le cluster n'est pas prêt après 240 s :"
+  echo "[k3s-target] the cluster is not ready after 240 s:"
   tail -30 /var/log/k3s.log || true
   exit 1
 fi
 
-echo "[k3s-target] cluster prêt — $(KUBECONFIG=$KUBECONFIG_PATH kubectl version -o json 2>/dev/null | sed -n 's/.*"gitVersion": *"\([^"]*\)".*/\1/p' | head -1)"
+echo "[k3s-target] cluster ready — $(KUBECONFIG=$KUBECONFIG_PATH kubectl version -o json 2>/dev/null | sed -n 's/.*"gitVersion": *"\([^"]*\)".*/\1/p' | head -1)"
 
-# Le contrôleur d'ingress arrive après le nœud. On l'attend sans en faire une
-# condition bloquante : un cluster sans Traefik reste testable pour tout ce qui
-# ne passe pas par une URL, et l'échec doit se lire dans le déploiement, pas
-# ici sous forme d'un conteneur qui refuse de démarrer.
+# The ingress controller arrives after the node. We wait for it without making
+# it a blocking condition: a cluster without Traefik stays testable for
+# everything that does not go through a URL, and the failure must read in the
+# deployment, not here as a container that refuses to start.
 if KUBECONFIG="$KUBECONFIG_PATH" kubectl -n kube-system rollout status \
      deploy/traefik --timeout=120s >/dev/null 2>&1; then
-  echo "[k3s-target] contrôleur d'ingress Traefik prêt"
+  echo "[k3s-target] Traefik ingress controller ready"
 else
-  echo "[k3s-target] AVERTISSEMENT : Traefik n'est pas prêt — les Ingress ne répondront pas"
+  echo "[k3s-target] WARNING: Traefik is not ready — the Ingresses will not answer"
 fi
 
-# Le compte de déploiement doit trouver le cluster sans rien exporter : le
-# driver ne positionne `KUBECONFIG` que s'il est vide, et lit ce chemin.
+# The deployment account must find the cluster without exporting anything: the
+# driver only sets `KUBECONFIG` if it is empty, and reads this path.
 echo "export KUBECONFIG=$KUBECONFIG_PATH" > /etc/profile.d/k3s.sh
 chmod 644 /etc/profile.d/k3s.sh
 
-echo "[k3s-target] démarrage de sshd"
+echo "[k3s-target] starting sshd"
 exec /usr/sbin/sshd -D -e

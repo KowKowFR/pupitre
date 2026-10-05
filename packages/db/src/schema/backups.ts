@@ -12,13 +12,13 @@ import { deployments } from './deployments.js';
 import { applications, targets } from './infra.js';
 
 /**
- * Où vont les sauvegardes. Une seule destination active à la fois — la table
- * en admet plusieurs pour qu'en changer ne soit pas une migration.
+ * Where backups go. A single active destination at a time — the table allows
+ * several so that changing it is not a migration.
  *
- * `config` porte ce qui se montre (point de terminaison, bucket, hôte, chemin) ;
- * `encrypted_secrets` ce qui ne se montre jamais (clés d'accès, mot de passe,
- * clé privée), chiffré sous `MASTER_KEY` comme les credentials SSH des cibles.
- * L'API dit quels secrets sont renseignés, jamais leur valeur.
+ * `config` carries what is shown (endpoint, bucket, host, path);
+ * `encrypted_secrets` what is never shown (access keys, password, private key),
+ * encrypted under `MASTER_KEY` like the targets' SSH credentials. The API says
+ * which secrets are filled in, never their value.
  */
 export const backupDestinations = pgTable('backup_destinations', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -26,7 +26,7 @@ export const backupDestinations = pgTable('backup_destinations', {
   name: text('name').notNull(),
   config: jsonb('config').$type<Record<string, unknown>>().notNull().default({}),
   encryptedSecrets: text('encrypted_secrets'),
-  /** Champs secrets renseignés — leurs noms seulement. */
+  /** Filled-in secret fields — their names only. */
   secretFields: jsonb('secret_fields').$type<string[]>().notNull().default([]),
   enabled: boolean('enabled').notNull().default(true),
   lastCheckedAt: timestamp('last_checked_at', { withTimezone: true }),
@@ -36,8 +36,8 @@ export const backupDestinations = pgTable('backup_destinations', {
 });
 
 /**
- * Comment une application est sauvegardée. Absente : rien n'est fait — c'est
- * l'opérateur qui l'active, au premier déploiement ou plus tard.
+ * How an application is backed up. Absent: nothing is done — it is the operator
+ * who enables it, at the first deployment or later.
  */
 export const backupPolicies = pgTable('backup_policies', {
   applicationId: uuid('application_id')
@@ -53,14 +53,14 @@ export const backupPolicies = pgTable('backup_policies', {
 });
 
 /**
- * L'historique des sauvegardes — ce qui a été déposé, où, et ce que c'était.
+ * The backup history — what was placed, where, and what it was.
  *
- * La destination fait foi pour le contenu : chaque sauvegarde y est rangée
- * avec son manifeste, et se relit sans cette table. La ligne d'ici est
- * l'index du panel : ce qu'il montre, ce que la rétention efface.
+ * The destination is authoritative for the content: each backup is stored there
+ * with its manifest, and can be read without this table. The row here is the
+ * panel's index: what it shows, what retention erases.
  *
- * Une application supprimée laisse ses sauvegardes (`set null`) : effacer une
- * application n'est pas effacer ce qui permettrait de la faire revenir.
+ * A deleted application leaves its backups (`set null`): erasing an application
+ * is not erasing what would allow bringing it back.
  */
 export const backups = pgTable(
   'backups',
@@ -70,7 +70,7 @@ export const backups = pgTable(
     applicationId: uuid('application_id').references(() => applications.id, {
       onDelete: 'set null',
     }),
-    /** Le slug, conservé : il nomme encore la sauvegarde d'une application supprimée. */
+    /** The slug, kept: it still names a deleted application's backup. */
     applicationSlug: text('application_slug'),
     targetId: uuid('target_id').references(() => targets.id, { onDelete: 'set null' }),
     deploymentId: uuid('deployment_id').references(() => deployments.id, {
@@ -82,7 +82,7 @@ export const backups = pgTable(
     trigger: backupTriggerEnum('trigger').notNull(),
     mode: backupModeEnum('mode'),
     status: backupStatusEnum('status').notNull().default('running'),
-    /** Le dossier de la sauvegarde sur la destination, relatif à son préfixe. */
+    /** The backup's folder on the destination, relative to its prefix. */
     location: text('location').notNull(),
     manifest: jsonb('manifest').$type<BackupManifest>(),
     bytes: bigint('bytes', { mode: 'number' }).notNull().default(0),

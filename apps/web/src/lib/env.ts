@@ -2,7 +2,7 @@ import 'server-only';
 import { assertMasterKey, secretWeakness } from '@pupitre/core';
 import { z } from 'zod';
 
-/** Dans un `.env`, une variable déclarée mais vide vaut « non renseignée ». */
+/** In a `.env`, a variable declared but empty counts as "not set". */
 const optional = <T extends z.ZodTypeAny>(schema: T) =>
   z.preprocess((value) => (value === '' ? undefined : value), schema.optional());
 
@@ -17,31 +17,31 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   DATABASE_URL: z.string().url(),
   REDIS_URL: z.string().url(),
-  /** Validée en profondeur par `assertMasterKey()` : hex 32 octets ou passphrase ≥ 32 octets. */
-  // i18n-ignore — refus au démarrage, lu dans la console par un opérateur.
-  // Aucune session, aucune base : la langue de l'instance n'existe pas encore.
-  MASTER_KEY: z.string().min(32, 'MASTER_KEY doit faire au moins 32 octets'),
+  /** Validated in depth by `assertMasterKey()`: 32 hex bytes or a passphrase ≥ 32 bytes. */
+  // i18n-ignore — a refusal at startup, read in the console by an operator. No
+  // session, no database: the instance's language does not exist yet.
+  MASTER_KEY: z.string().min(32, 'MASTER_KEY must be at least 32 bytes'),
   BETTER_AUTH_SECRET: z.string().min(32),
   BETTER_AUTH_URL: z.string().url().default('http://localhost:3000'),
   /**
-   * Inscription publique. Toujours autorisée tant qu'aucun utilisateur n'existe,
-   * afin de pouvoir créer le premier administrateur.
+   * Public sign-up. Always allowed as long as no user exists, so that the first
+   * administrator can be created.
    */
   ALLOW_SIGNUP: booleanish,
   OPENROUTER_API_KEY: optional(z.string().min(1)),
   /**
-   * Modèle OpenRouter. Vide = le défaut de `@pupitre/core/ai`, choisi pour sa
-   * fiabilité en sortie structurée.
+   * The OpenRouter model. Empty = `@pupitre/core/ai`'s default, chosen for its
+   * reliability in structured output.
    */
   OPENROUTER_MODEL: optional(z.string().min(1)),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
   /**
-   * Plages internes que les sondes de supervision ont le droit d'atteindre, en
-   * CIDR séparés par des virgules. Vide = adresses publiques uniquement.
+   * The internal ranges the monitoring probes are allowed to reach, as
+   * comma-separated CIDRs. Empty = public addresses only.
    *
-   * Le panel la lit pour **refuser une URL à la création**, avec un message
-   * utile ; le worker la relit pour refuser à chaque saut de redirection. Les
-   * deux doivent porter la même valeur — c'est le `.env` partagé qui l'assure.
+   * The panel reads it to **refuse a URL at creation**, with a useful message; the
+   * worker reads it again to refuse at each redirect hop. Both must carry the same
+   * value — it is the shared `.env` that ensures it.
    */
   MONITOR_ALLOWED_CIDRS: z.string().default(''),
 });
@@ -51,37 +51,37 @@ export type Env = z.infer<typeof envSchema>;
 let cached: Env | null = null;
 
 /**
- * Validation paresseuse : au premier accès à l'exécution, jamais à l'import.
- * `next build` ne doit pas exiger un environnement complet.
+ * Lazy validation: at the first access at run time, never at import. `next build`
+ * must not require a complete environment.
  */
 export function getEnv(): Env {
   if (cached) return cached;
   const parsed = envSchema.safeParse(process.env);
   if (!parsed.success) {
     const details = JSON.stringify(z.flattenError(parsed.error).fieldErrors);
-    throw new Error(`Configuration invalide : ${details}`);
+    throw new Error(`Invalid configuration: ${details}`);
   }
-  // Refuse de servir avec une MASTER_KEY inutilisable.
+  // Refuses to serve with an unusable MASTER_KEY.
   const weakKey = assertMasterKey();
   if (weakKey) {
-    // `getEnv()` est mise en cache : cet avertissement ne sort donc qu'une fois
-    // par processus, au premier appel — pas à chaque requête.
+    // `getEnv()` is cached: this warning therefore only comes out once per process,
+    // at the first call — not at each request.
     console.warn(
-      `[panel] ${weakKey} — MASTER_KEY est la valeur d'exemple ou une valeur ` +
-        'devinable. Les identifiants SSH chiffrés en base ne sont pas protégés. ' +
-        'Générer : openssl rand -hex 32, puis rechiffrer les cibles.',
+      `[panel] ${weakKey} — MASTER_KEY is the example value or a guessable ` +
+        'one. The SSH credentials encrypted in the database are not protected. ' +
+        'Generate one: openssl rand -hex 32, then encrypt the targets again.',
     );
   }
-  // Même jugement pour le secret de Better Auth : il signe les cookies de
-  // session, et chiffre le secret TOTP et les codes de secours de chaque
-  // compte. Avertir seulement — le changer déconnecte tout le monde et rend
-  // illisible le second facteur déjà armé, qu'il faudra réinitialiser.
+  // The same judgment for Better Auth's secret: it signs the session cookies, and
+  // encrypts each account's TOTP secret and backup codes. Only warn — changing it
+  // signs everyone out and makes the already armed second factor unreadable, which
+  // will have to be reset.
   const weakAuthSecret = secretWeakness(parsed.data.BETTER_AUTH_SECRET, 'BETTER_AUTH_SECRET');
   if (weakAuthSecret) {
     console.warn(
-      `[panel] ${weakAuthSecret} — BETTER_AUTH_SECRET est la valeur d'exemple ou une valeur ` +
-        'devinable. Générer : openssl rand -base64 32. En changer déconnecte tous les comptes ' +
-        'et oblige à réinitialiser le second facteur de ceux qui en ont un.',
+      `[panel] ${weakAuthSecret} — BETTER_AUTH_SECRET is the example value or a guessable ` +
+        'one. Generate one: openssl rand -base64 32. Changing it signs out every account ' +
+        'and requires resetting the second factor of those that have one.',
     );
   }
   cached = parsed.data;

@@ -8,18 +8,18 @@ import { judgeRouteProbe, type Probed, type ProbeSignatures } from './probe.js';
 import type { ProxyRoute, RouteProbe } from './types.js';
 
 /**
- * La sonde d'une route **depuis le panel**, pour un proxy que Pupitre ne
- * pilote pas en SSH. Même principe que celle de `probe.ts` : on s'adresse au
- * proxy lui-même — l'adresse où il reçoit les visiteurs —, avec le nom demandé
- * en en-tête `Host` et en SNI. Le DNS public n'intervient pas : on éprouve le
- * proxy et sa configuration, pas la propagation d'un enregistrement.
+ * A route's probe **from the panel**, for a proxy Pupitre does not drive over
+ * SSH. The same principle as the one in `probe.ts`: we address the proxy itself
+ * — the address where it receives visitors —, with the requested name as the
+ * `Host` header and SNI. Public DNS does not come into play: we test the proxy
+ * and its configuration, not a record's propagation.
  */
 
-/** Où le proxy reçoit les visiteurs. */
+/** Where the proxy receives visitors. */
 export type ProxyEntrypoint = { host: string; httpPort: number; httpsPort: number };
 
 const REQUEST_TIMEOUT_MS = 10_000;
-/** Assez pour reconnaître la page « domaine inconnu » d'un proxy. */
+/** Enough to recognize a proxy's "unknown domain" page. */
 const BODY_LIMIT = 64 * 1024;
 
 type Answer = { code: number; body: string; certificate: RouteCertificate | null };
@@ -32,7 +32,7 @@ function name(fields: Record<string, string | string[] | undefined> | undefined)
   return parts.length > 0 ? parts.join(', ') : null;
 }
 
-/** Le certificat présenté, tel que `parseCertificate()` le rendrait. */
+/** The presented certificate, as `parseCertificate()` would return it. */
 export function readPeerCertificate(
   socket: TLSSocket,
   signatures: Pick<ProbeSignatures, 'placeholderCertificate'>,
@@ -72,7 +72,8 @@ function ask(
       method: 'GET',
       headers: { Host: hostname, 'User-Agent': 'pupitre-probe', Connection: 'close' },
       timeout: REQUEST_TIMEOUT_MS,
-      // Le certificat se juge à part : on veut la réponse, même s'il n'est pas bon.
+      // The certificate is judged separately: we want the response, even if it is not
+      // valid.
       ...(scheme === 'https' ? { servername: hostname, rejectUnauthorized: false } : {}),
     };
     const request = (scheme === 'http' ? http : https).request(options, (response) => {
@@ -97,13 +98,13 @@ function ask(
       );
     });
     request.on('timeout', () => request.destroy(new Error('timeout')));
-    // Rien n'a répondu — ou le proxy a refusé la poignée de main TLS pour ce nom.
+    // Nothing answered — or the proxy refused the TLS handshake for this name.
     request.on('error', () => resolve({ code: 0, body: '', certificate }));
     request.end();
   });
 }
 
-/** Une requête HTTP à travers le proxy, pour un nom : son code (`0` : rien) et son corps. */
+/** An HTTP request through the proxy, for a name: its code (`0`: nothing) and its body. */
 export async function requestThrough(
   entrypoint: ProxyEntrypoint,
   hostname: string,
@@ -149,9 +150,9 @@ export async function probeDirect(
 }
 
 /**
- * Le proxy reçoit-il, là où il le doit ? Le code HTTP d'un nom qu'il ne connaît
- * pas (`0` : rien), et si son port HTTPS s'ouvre — sans nom connu, un proxy
- * peut refuser la poignée de main TLS : on n'en demande pas davantage.
+ * Does the proxy receive, where it must? The HTTP code of a name it does not
+ * know (`0`: nothing), and whether its HTTPS port opens — without a known name, a
+ * proxy may refuse the TLS handshake: we ask for no more.
  */
 export async function entrypointAnswers(
   entrypoint: ProxyEntrypoint,

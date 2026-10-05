@@ -7,22 +7,22 @@ import { formatDateTimeWith, type FormatSettings } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 /**
- * Les deux figures de la supervision.
+ * The two figures of monitoring.
  *
- * Parti pris de lecture, et il vaut d'être écrit : les couleurs employées ici
- * sont les **couleurs d'état** du panel (`--ok`, `--warn`, `--danger`), jamais
- * une palette catégorielle. Elles signifient bien/mal, pas « série 1 / série 2 »,
- * et elles ne servent à rien d'autre dans l'écran.
+ * A reading choice, and it is worth writing down: the colors used here are the
+ * panel's **state colors** (`--ok`, `--warn`, `--danger`), never a categorical
+ * palette. They mean good/bad, not "series 1 / series 2", and they serve no other
+ * purpose in the screen.
  *
- * L'état n'est donc jamais porté par la seule couleur :
- *   — chaque barre de la frise porte une infobulle qui nomme son verdict ;
- *   — une légende nomme les trois couleurs sous la frise ;
- *   — le voyant `HealthDot` et le taux chiffré, à côté, redisent la même chose
- *     en toutes lettres ;
- *   — et le détail d'une sonde contient la table complète des mesures, qui est
- *     l'équivalent lisible sans couleur.
+ * The state is therefore never carried by color alone:
+ *   — each bar of the strip carries a tooltip that names its verdict;
+ *   — a legend names the three colors under the strip;
+ *   — the `HealthDot` indicator and the figure next to it say the same thing
+ *     again in words;
+ *   — and a probe's detail contains the complete table of measurements, which is
+ *     the equivalent readable without color.
  *
- * Aucune valeur n'est enfermée derrière un survol.
+ * No value is locked behind a hover.
  */
 
 export type OutcomePoint = {
@@ -32,19 +32,19 @@ export type OutcomePoint = {
 };
 
 /**
- * L'heure d'un point, dans la locale de l'instance.
+ * A point's time, in the instance's locale.
  *
- * Les composantes — jour, mois, heure, minute — sont imposées par la figure :
- * un axe n'a pas la place d'une date complète. La **locale**, elle, ne l'est
- * pas : elle vient de `settings.locale`, telle quelle (`fr-FR`, `en-GB`,
- * `en-US`), et descend par props comme partout ailleurs. Le raccourci d'avant
- * — `language === 'fr' ? 'fr-FR' : 'en-GB'` — donnait des dates britanniques à
- * une instance réglée sur `en-US`, et ignorait le réglage qu'elle avait posé.
+ * The components — day, month, hour, minute — are imposed by the figure: an axis
+ * does not have room for a complete date. The **locale**, on the other hand, is
+ * not: it comes from `settings.locale`, as is (`fr-FR`, `en-GB`, `en-US`), and
+ * comes down through props as everywhere else. The shortcut of before —
+ * `language === 'fr' ? 'fr-FR' : 'en-GB'` — gave British dates to an instance set
+ * to `en-US`, and ignored the setting it had made.
  *
- * Le fuseau n'est **pas** imposé ici : le faire déplacerait l'heure affichée
- * sur toute instance dont le process ne tourne pas déjà dans le fuseau de
- * l'instance — et les conteneurs de ce projet tournent en UTC. C'est un
- * changement de rendu, pas une traduction ; il appartient à un autre commit.
+ * The time zone is **not** imposed here: doing so would move the displayed time
+ * on any instance whose process does not already run in the instance's time zone
+ * — and this project's containers run in UTC. It is a rendering change, not a
+ * translation; it belongs to another commit.
  */
 function formatClock(iso: string, format: FormatSettings): string {
   return formatDateTimeWith(iso, format, {
@@ -55,9 +55,9 @@ function formatClock(iso: string, format: FormatSettings): string {
   });
 }
 
-// ─── frise des verdicts ───────────────────────────────────────────────────────
+// ─── verdicts strip ───────────────────────────────────────────────────────────
 
-/** La classe `.strip` de chaque verdict : vert par défaut, puis ambre, rouge, gris. */
+/** Each verdict's `.strip` class: green by default, then amber, red, gray. */
 const STRIP_CLASS: Record<string, string> = {
   healthy: '',
   unhealthy: 'w',
@@ -66,11 +66,11 @@ const STRIP_CLASS: Record<string, string> = {
 };
 
 /**
- * Une barre par mesure, de la plus ancienne à la plus récente.
+ * One bar per measurement, from the oldest to the most recent.
  *
- * Deux pixels de fond entre les barres, jamais de bordure : c'est le fond qui
- * sépare, pas un trait. Une frise sans mesure ne s'affiche pas — elle dirait
- * « tout va bien » sur du vide.
+ * Two pixels of background between the bars, never a border: it is the
+ * background that separates, not a line. A strip without a measurement does not
+ * show — it would say "all is well" about nothing.
  */
 export function OutcomeStrip({
   points,
@@ -79,8 +79,8 @@ export function OutcomeStrip({
   height = 22,
 }: {
   points: readonly OutcomePoint[];
-  /** Locale et fuseau de l'instance. Par props : le serveur et le client
-   *  doivent lire la même valeur, sinon l'hydratation diverge. */
+  /** The instance's locale and time zone. Through props: the server and the client
+   *  must read the same value, otherwise hydration diverges. */
   format: FormatSettings;
   className?: string;
   height?: number;
@@ -125,7 +125,7 @@ export function OutcomeStrip({
   );
 }
 
-/** L'axe sous une frise : le premier passage à gauche, maintenant à droite. */
+/** The axis under a strip: the first pass on the left, now on the right. */
 export function StripAxis({
   points,
   format,
@@ -133,7 +133,7 @@ export function StripAxis({
 }: {
   points: readonly OutcomePoint[];
   format: FormatSettings;
-  /** Nombre de repères, extrémités comprises. */
+  /** Number of ticks, ends included. */
   ticks?: number;
 }) {
   const t = useT(messages);
@@ -156,7 +156,7 @@ function clockOf(iso: string, format: FormatSettings): string {
   return formatDateTimeWith(iso, format, { hour: '2-digit', minute: '2-digit' });
 }
 
-// ─── courbe de latence ────────────────────────────────────────────────────────
+// ─── latency curve ────────────────────────────────────────────────────────────
 
 type Plotted = { x: number; y: number; point: OutcomePoint };
 
@@ -171,7 +171,7 @@ function buildGeometry(
   const values = points
     .map((point) => point.latencyMs)
     .filter((value): value is number => value !== null);
-  // Un plancher à 1 ms évite une courbe écrasée sur une sonde très rapide.
+  // A 1 ms floor avoids a flattened curve on a very fast probe.
   const max = Math.max(1, ...values);
   const usable = height - padTop - padBottom;
 
@@ -190,7 +190,7 @@ function buildGeometry(
   return { plotted, gaps, max, step };
 }
 
-/** Découpe en segments continus : une mesure sans latence coupe le trait. */
+/** Splits into continuous segments: a measurement without latency cuts the line. */
 function segmentsOf(points: readonly OutcomePoint[], plotted: Plotted[]): Plotted[][] {
   const byAt = new Map(plotted.map((entry) => [entry.point.at, entry]));
   const runs: Plotted[][] = [];
@@ -209,13 +209,11 @@ function segmentsOf(points: readonly OutcomePoint[], plotted: Plotted[]): Plotte
 }
 
 /**
- * Courbe compacte des latences récentes — une seule série, donc pas de légende :
- * la colonne la nomme. Une aire pâle sous le trait, comme les autres courbes
- * du panel.
+ * A compact curve of the recent latencies — a single series, hence no legend: the
+ * column names it. A pale area under the line, like the panel's other curves.
  *
- * Les mesures sans latence — rien n'a répondu — coupent le trait. Un trait qui
- * relierait les deux côtés d'une panne raconterait une continuité qui n'a pas
- * eu lieu.
+ * The measurements without latency — nothing answered — cut the line. A line
+ * joining both sides of an outage would tell a continuity that did not happen.
  */
 export function LatencySparkline({
   points,
@@ -227,7 +225,7 @@ export function LatencySparkline({
   points: readonly OutcomePoint[];
   width?: number;
   height?: number;
-  /** La teinte du trait : l'outremer, ou le danger quand la sonde est en panne. */
+  /** The line's tint: ultramarine, or danger when the probe is down. */
   tone?: string;
   className?: string;
 }) {
@@ -279,14 +277,14 @@ export function LatencySparkline({
   );
 }
 
-// ─── courbe détaillée, avec réticule ──────────────────────────────────────────
+// ─── detailed curve, with crosshair ───────────────────────────────────────────
 
 /**
- * La même série, en grand, avec un réticule au survol.
+ * The same series, large, with a crosshair on hover.
  *
- * Pas d'axe des ordonnées : la valeur survolée s'affiche en clair, et la table
- * des mesures, plus bas dans l'écran, contient toutes les valeurs. Les mesures
- * sans réponse se regroupent en bandes hachurées rouges, bordées d'un pointillé.
+ * No y-axis: the hovered value shows plainly, and the measurements table, lower
+ * on the screen, contains all the values. The measurements without an answer
+ * group into hatched red bands, edged with a dotted line.
  */
 export function LatencyChart({
   points,
@@ -311,7 +309,7 @@ export function LatencyChart({
   const { plotted, step } = buildGeometry(points, width, height, padTop, padBottom);
   const runs = segmentsOf(points, plotted);
 
-  // Les trous consécutifs deviennent une seule bande, du trou au suivant.
+  // Consecutive gaps become a single band, from the gap to the next one.
   const bands: Array<{ from: number; to: number }> = [];
   points.forEach((point, index) => {
     if (point.latencyMs !== null) return;

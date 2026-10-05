@@ -23,49 +23,48 @@ import { requirePermission } from '@/lib/rbac';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-/** Le fournisseur a 60 s ; la route s'accorde un peu plus pour rendre l'échec. */
+/** The provider has 60 s; the route gives itself a little more to return the failure. */
 export const maxDuration = 90;
 
 /**
- * Génération d'une AppSpec à partir d'une description.
+ * Generating an AppSpec from a description.
  *
- * Ce que cette route ne fait PAS, et c'est délibéré : elle **ne persiste rien**
- * et **ne déploie rien**. Elle rend une AppSpec, que l'utilisateur relit,
- * corrige dans l'éditeur, puis soumet à `POST /api/applications` comme
- * n'importe quelle autre. Une IA qui écrirait directement en base retirerait à
- * l'opérateur le seul moment où il peut dire non.
+ * What this route does NOT do, and it is deliberate: it **persists nothing** and
+ * **deploys nothing**. It returns an AppSpec, which the user reviews, corrects in
+ * the editor, then submits to `POST /api/applications` like any other. An AI
+ * writing directly to the database would take away from the operator the only
+ * moment they can say no.
  *
- * Elle reste synchrone, à rebours de la règle « toute opération longue passe par
- * BullMQ » : ce n'est pas une opération d'infrastructure, rien ne survit à
- * l'appel, et personne n'a besoin de la reprendre après un redémarrage. Ce qui
- * justifie la queue — reprise, journal d'étapes, exécution distante — est ici
- * sans objet. Le garde-fou est ailleurs : un timeout, une limite de débit et
- * une taille de prompt bornée.
+ * It stays synchronous, against the rule "every long-running operation goes
+ * through BullMQ": it is not an infrastructure operation, nothing survives the
+ * call, and nobody needs to resume it after a restart. What justifies the queue —
+ * resuming, a steps log, remote execution — is irrelevant here. The guardrail is
+ * elsewhere: a timeout, a rate limit and a bounded prompt size.
  *
- * C'est le même arbitrage que `GET /api/targets/[id]/metrics`, tranché pour les
- * mêmes raisons : un relevé borné, sans effet de bord, dont le résultat meurt
- * avec la réponse, n'a rien à faire dans une queue. Passer par BullMQ coûterait
- * ici un job, une table d'état et un canal de suivi pour rendre au client
- * exactement ce qu'un appel de soixante secondes lui rend déjà — et rendrait
- * *plus* difficile le seul cas qui compte, l'abandon par l'opérateur.
+ * It is the same trade-off as `GET /api/targets/[id]/metrics`, settled for the
+ * same reasons: a bounded reading, without side effects, whose result dies with
+ * the response, has no business in a queue. Going through BullMQ would cost here
+ * a job, a state table and a follow-up channel to give the client exactly what a
+ * sixty-second call already gives it — and would make *harder* the only case that
+ * matters, the operator abandoning.
  */
 
 export const POST = apiRoute(async (request) => {
   const auth = await requirePermission(request, 'application:create');
 
-  // Le corps est validé AVANT de regarder la configuration : une requête mal
-  // formée est mal formée sur tous les panels, avec ou sans clé. L'inverse
-  // rendrait la réponse dépendante du déploiement — un client ne pourrait plus
-  // distinguer « ma requête est fausse » de « ce panel n'a pas d'IA ».
+  // The body is validated BEFORE looking at the configuration: a malformed request
+  // is malformed on every panel, with or without a key. The reverse would make the
+  // response depend on the deployment — a client could no longer tell "my request
+  // is wrong" from "this panel has no AI".
   const input = await readJsonBody(request, generateAppSpecInputSchema);
 
-  // Les paramètres d'instance priment sur l'environnement : c'est le réglage
-  // qu'un opérateur vient de poser depuis l'écran Paramètres. L'environnement
-  // reste le filet pour un panel provisionné sans que personne l'ouvre.
-  // `getEnv()` valide la configuration du panel ; les clés des fournisseurs d'IA
-  // ne sont pas dans son schéma, et c'est délibéré : quelle variable lire est
-  // une propriété du fournisseur, décrite dans son descripteur. Ajouter un
-  // quatrième fournisseur ne doit pas obliger à toucher `env.ts`.
+  // The instance settings take precedence over the environment: it is the setting
+  // an operator just made from the Settings screen. The environment stays the
+  // safety net for a panel provisioned without anyone opening it. `getEnv()`
+  // validates the panel's configuration; the AI providers' keys are not in its
+  // schema, and that is deliberate: which variable to read is a property of the
+  // provider, described in its descriptor. Adding a fourth provider must not
+  // require touching `env.ts`.
   getEnv();
   const { settings } = await getAppSettings();
   const ai = resolveAiConfig({
@@ -75,16 +74,16 @@ export const POST = apiRoute(async (request) => {
   });
 
   const providerLabel = aiProviderDescriptor(ai.provider).label;
-  // Le même avertissement que celui de `resolveAiConfig()`, mais rendu dans la
-  // langue de l'instance : celui-ci finit dans un message d'erreur lu à l'écran.
+  // The same warning as `resolveAiConfig()`'s, but rendered in the instance's
+  // language: this one ends up in an error message read on screen.
   const uiLanguage = await currentLanguage();
   const modelWarning = aiModelMismatch(ai.provider, ai.model, {
     baseUrl: ai.baseUrl,
     language: uiLanguage,
   });
 
-  // Le renvoi vers la variable d'environnement s'insère DANS la phrase :
-  // il ne peut pas attendre la sérialisation, la clé qui le porte, si.
+  // The reference to the environment variable goes INTO the sentence: it cannot
+  // wait for serialization, the key that carries it can.
   const descriptor = aiProviderDescriptor(ai.provider);
   const noKey = () =>
     new NotImplementedError(
@@ -106,22 +105,22 @@ export const POST = apiRoute(async (request) => {
 
   const modelName = ai.model;
 
-  // Un modèle qui n'a pas la forme d'un identifiant du fournisseur ne produit
-  // pas une erreur de configuration mais un 404 du fournisseur, une minute plus
-  // tard. On le dit ici, avant l'appel, et on le rappelle si l'appel échoue.
+  // A model that does not have the shape of a provider identifier does not produce
+  // a configuration error but a 404 from the provider, a minute later. We say so
+  // here, before the call, and repeat it if the call fails.
   if (ai.modelWarning) {
     logger.warn(
       { provider: ai.provider, model: ai.model },
-      'modèle IA incohérent avec le fournisseur configuré',
+      'AI model inconsistent with the configured provider',
     );
   }
 
-  // Par utilisateur : la route coûte de l'argent, et la session est obligatoire.
+  // Per user: the route costs money, and the session is required.
   await enforceRateLimit(APPSPEC_GENERATION_RULE, auth.userId);
 
-  // Le modèle vient avec les options que son fournisseur exige — le mode strict
-  // des sorties structurées, notamment, qu'OpenAI refuse d'appliquer à un
-  // schéma portant un `oneOf`. La route ne les interprète pas : elle les relaie.
+  // The model comes with the options its provider requires — the strict mode of
+  // structured outputs, notably, which OpenAI refuses to apply to a schema carrying
+  // a `oneOf`. The route does not interpret them: it relays them.
   let configured;
   try {
     configured = createModel({
@@ -146,13 +145,13 @@ export const POST = apiRoute(async (request) => {
     language: uiLanguage,
   });
 
-  // Le message d'un fournisseur n'est pas un texte de confiance : OpenAI y
-  // recopie la clé refusée, partiellement masquée — donc partiellement en
-  // clair. Il est nettoyé ici, une fois, avant l'audit ET avant la réponse.
+  // A provider's message is not trusted text: OpenAI copies into it the refused
+  // key, partially masked — hence partially in clear. It is cleaned here, once,
+  // before the audit AND before the response.
   const failureMessage = result.ok ? '' : redactApiKey(result.message, ai.apiKey, uiLanguage);
 
-  // Une seule entrée d'audit, quel que soit le verdict : c'est la même action.
-  // Le prompt y figure — c'est tout l'intérêt de la trace — mais jamais la clé.
+  // A single audit entry, whatever the verdict: it is the same action. The prompt
+  // is in it — that is the whole point of the trace — but never the key.
   await logAudit({
     actorId: auth.userId,
     action: result.ok ? 'application.generated' : 'application.generation.failed',
@@ -161,8 +160,8 @@ export const POST = apiRoute(async (request) => {
     after: {
       prompt: input.prompt,
       hints: input.hints ?? null,
-      // Le fournisseur est une information d'exploitation, pas un secret ; la
-      // clé, elle, n'entre jamais ici — ni sous son nom, ni sous sa longueur.
+      // The provider is operating information, not a secret; the key, for its part,
+      // never comes in here — neither under its name nor under its length.
       provider: ai.provider,
       model: result.model,
       durationMs: result.durationMs,
@@ -188,16 +187,16 @@ export const POST = apiRoute(async (request) => {
         message: failureMessage,
         issues: result.issues,
       },
-      "génération d'AppSpec en échec",
+      'AppSpec generation failed',
     );
-    // 422 : le modèle a répondu, sa réponse n'est pas une AppSpec valide.
-    // 502 : le fournisseur n'a pas répondu du tout. Deux pannes différentes.
+    // 422: the model answered, its answer is not a valid AppSpec.
+    // 502: the provider did not answer at all. Two different failures.
     throw new HttpError(
       result.reason === 'provider' ? 502 : 422,
       `generation_${result.reason}`,
-      // Une panne du fournisseur alors que le modèle ne lui ressemble pas : la
-      // cause est probablement là, et le message doit le dire plutôt que de
-      // laisser lire un 404 brut.
+      // A provider outage while the model does not look like one of its own: the cause
+      // is probably there, and the message must say so rather than let a raw 404 be
+      // read.
       result.reason === 'provider' && modelWarning
         ? `${failureMessage} — ${modelWarning}`
         : failureMessage,
@@ -210,9 +209,9 @@ export const POST = apiRoute(async (request) => {
     );
   }
 
-  // Le slug est déduit de `appSpec.name` : on prévient tout de suite s'il est
-  // déjà pris, plutôt que de laisser l'utilisateur découvrir le 409 après avoir
-  // relu la spec.
+  // The slug is derived from `appSpec.name`: we warn right away if it is already
+  // taken, rather than let the user discover the 409 after having reviewed the
+  // spec.
   const existing = await getApplicationBySlug(result.appSpec.name);
 
   return NextResponse.json({

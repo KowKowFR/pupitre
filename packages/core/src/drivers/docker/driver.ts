@@ -53,46 +53,46 @@ import { driverSay } from '../messages.js';
 import { dockerSay } from './messages.js';
 
 /**
- * Driver Docker Compose.
+ * Docker Compose driver.
  *
- * Il n'importe rien de `packages/db`, rien de `apps/web`, rien de Redis. Tout
- * arrive par `DriverContext` — y compris la réservation de ports, qui passe par
- * l'interface `PortAllocator` dont l'implémentation vit ailleurs.
+ * It imports nothing from `packages/db`, nothing from `apps/web`, nothing from
+ * Redis. Everything arrives through `DriverContext` — port reservation
+ * included, which goes through the `PortAllocator` interface implemented
+ * elsewhere.
  *
- * Isolation : un projet Compose par application, préfixé `app-{slug}`, avec son
- * propre réseau bridge et ses propres volumes nommés.
+ * Isolation: one Compose project per application, prefixed `app-{slug}`, with
+ * its own bridge network and its own named volumes.
  */
 
 const BUILD_TIMEOUT_MS = 20 * 60_000;
-/** Tentatives d'allocation avant d'admettre que la plage est inutilisable. */
+/** Allocation attempts before admitting the range cannot be used. */
 const ATTEMPTS_PORT = 20;
 const UP_TIMEOUT_MS = 10 * 60_000;
 const SHORT_TIMEOUT_MS = 30_000;
-/** Lignes de logs remontées par service quand le healthcheck échoue. */
+/** Log lines brought back per service when the healthcheck fails. */
 const DIAGNOSTIC_LINES = 200;
 const DIAGNOSTIC_TIMEOUT_MS = 60_000;
-/** Tirer une image peut prendre plusieurs minutes sur un lien lent. */
+/** Pulling an image can take several minutes on a slow link. */
 const PULL_TIMEOUT_MS = 10 * 60_000;
 const REMOVE_TIMEOUT_MS = 2 * 60_000;
 /**
- * Délai laissé à un conteneur pour se fermer proprement avant le SIGKILL.
- * Le défaut de Compose est de 10 s, trop court pour une base de données qui
- * vide ses tampons : un arrêt volontaire ne doit pas corrompre ce que le
- * contrat promet de conserver.
+ * Time given to a container to shut down cleanly before SIGKILL. Compose's
+ * default is 10 s, too short for a database flushing its buffers: a deliberate
+ * stop must not corrupt what the contract promises to keep.
  */
 const STOP_GRACE_SECONDS = 30;
-/** Sépare deux sorties dans une même invocation shell. */
+/** Separates two outputs in a single shell invocation. */
 const SENTINEL = '---tp-workloads---';
 
 export class DockerComposeDriver implements DeploymentDriver {
   readonly runtime = 'docker' as const;
 
-  /** Le projet Compose sous lequel l'application est regroupée sur la cible. */
+  /** The Compose project under which the application is grouped on the target. */
   workspaceName(appSlug: string): string {
     return projectName(appSlug);
   }
 
-  /** Le décalque exact de `destroy()`, à passer à la main sur la machine. */
+  /** The exact copy of `destroy()`, to run by hand on the machine. */
   manualCleanup(appSlug: string, rootPath: string): string[] {
     const appPath = `${rootPath}/apps/${appSlug}`;
     return [
@@ -101,7 +101,7 @@ export class DockerComposeDriver implements DeploymentDriver {
     ];
   }
 
-  /** Ce que le driver dit, dans la langue de l'instance. */
+  /** What the driver says, in the instance's language. */
   private say(ctx: TargetContext) {
     return dockerSay(ctx.language);
   }
@@ -111,12 +111,12 @@ export class DockerComposeDriver implements DeploymentDriver {
     return `${ctx.target.rootPath}/apps/${ctx.appSlug}`;
   }
 
-  /** `/opt/bootstrap/apps/{slug}/{version}-r{numéro}` — voir `releaseName()`. */
+  /** `/opt/bootstrap/apps/{slug}/{version}-r{number}` — see `releaseName()`. */
   private releasePath(ctx: DriverContext): string {
     return `${this.appPath(ctx)}/${releaseName(ctx.deployment)}`;
   }
 
-  /** L'étiquette des images que cette release construit : la release même. */
+  /** The tag of the images this release builds: the release itself. */
   private imageTag(ctx: DriverContext, service: string): string {
     return buildImageTag(ctx.appSlug, service, releaseName(ctx.deployment));
   }
@@ -126,17 +126,17 @@ export class DockerComposeDriver implements DeploymentDriver {
   }
 
   /**
-   * `docker compose` exécuté dans le répertoire d'une release — toujours sur
-   * **son** fichier et **son** projet, nommés : sans `-f`, Compose fusionnerait
-   * un `compose.override.yml` trouvé là ; sans `-p`, un `.env` pourrait lui
-   * donner un autre nom de projet, et un `down -v` viserait une autre
-   * application. La release n'est faite que de ce que Pupitre y dépose, mais
-   * une release d'avant `source/` portait encore le code d'un dépôt à sa racine.
+   * `docker compose` run in a release's directory — always on **its** file and
+   * **its** project, named: without `-f`, Compose would merge a
+   * `compose.override.yml` found there; without `-p`, a `.env` could give it
+   * another project name, and a `down -v` would aim at another application. The
+   * release is only made of what Pupitre places in it, but a release from before
+   * `source/` still carried a repository's code at its root.
    */
   private compose(ctx: DriverContext, args: string, releaseDir?: string): string {
-    // Une application déployée avant le nommage `-r{numéro}` vit encore sous
-    // la seule version : ses journaux, sa santé, ses redémarrages doivent
-    // continuer de marcher jusqu'à son prochain déploiement.
+    // An application deployed before the `-r{number}` naming still lives under the
+    // version alone: its logs, its health, its restarts must keep working until its
+    // next deployment.
     const into = releaseDir
       ? `cd ${shellQuote(releaseDir)}`
       : `{ cd ${shellQuote(this.releasePath(ctx))} 2>/dev/null || ` +
@@ -175,8 +175,8 @@ export class DockerComposeDriver implements DeploymentDriver {
       detail: composeVersion ?? firstLine(compose.stderr) ?? `code ${compose.code}`,
     });
 
-    // `df` sur le parent existant le plus proche : la racine du driver peut ne
-    // pas encore exister sur une cible neuve.
+    // `df` on the closest existing parent: the driver's root may not exist yet on a
+    // new target.
     const disk = await exec(
       ctx.sshSession,
       `df -Pk ${shellQuote(ctx.target.rootPath)} 2>/dev/null || df -Pk /`,
@@ -211,12 +211,11 @@ export class DockerComposeDriver implements DeploymentDriver {
   }
 
   /**
-   * Garantit que la racine du driver est écrivable par le compte de déploiement.
+   * Makes sure the driver's root is writable by the deployment account.
    *
-   * `/opt` appartient à root sur une machine standard : le premier passage a
-   * besoin d'une élévation pour créer l'arborescence et la donner au compte.
-   * Les suivants n'en ont plus besoin, et une cible déjà provisionnée n'en a
-   * jamais besoin.
+   * `/opt` belongs to root on a standard machine: the first run needs elevation
+   * to create the tree and give it to the account. The following ones no longer
+   * need it, and an already provisioned target never does.
    */
   private async ensureWorkdir(
     ctx: DriverContext,
@@ -229,8 +228,8 @@ export class DockerComposeDriver implements DeploymentDriver {
     );
     if (direct.code === 0) return { ok: true, detail: appPath };
 
-    // L'identité doit être résolue AVANT l'élévation : sous `sudo`, `id -u`
-    // répondrait 0 et le chown donnerait l'arborescence à root.
+    // The identity must be resolved BEFORE elevation: under `sudo`, `id -u` would
+    // answer 0 and the chown would give the tree to root.
     const identity = await exec(ctx.sshSession, 'id -u; id -g', {
       timeout: SHORT_TIMEOUT_MS,
     });
@@ -254,8 +253,8 @@ export class DockerComposeDriver implements DeploymentDriver {
       };
     }
 
-    // On revérifie plutôt que de faire confiance au code de retour : c'est
-    // l'écriture qui compte, pas le succès apparent du chown.
+    // We check again rather than trust the exit code: writing is what counts, not
+    // the chown's apparent success.
     const confirmed = await exec(ctx.sshSession, `test -w ${shellQuote(appPath)}`, {
       timeout: SHORT_TIMEOUT_MS,
     });
@@ -267,15 +266,15 @@ export class DockerComposeDriver implements DeploymentDriver {
   // ─── allocatePort ───────────────────────────────────────────────────────────
 
   /**
-   * L'unicité entre applications du panel est portée par la contrainte
-   * `(target_id, port)` en base. Le driver ne teste rien là-dessus : il
-   * demande, la base tranche.
+   * Uniqueness between the panel's applications is held by the
+   * `(target_id, port)` constraint in the database. The driver tests nothing about
+   * it: it asks, the database decides.
    *
-   * Reste ce que la base ne peut pas savoir — un service installé à la main sur
-   * la cible qui écoute déjà sur le port tiré. On le constate après coup, on
-   * déclare l'allocation morte, et on reprend en excluant ce port. Une
-   * réservation déjà acquise par cette application n'est jamais remise en
-   * cause : le port est occupé, oui, mais par nous.
+   * What remains is what the database cannot know — a service installed by hand
+   * on the target, already listening on the drawn port. We notice it afterwards,
+   * declare the allocation dead, and start again excluding that port. A
+   * reservation already held by this application is never questioned: the port
+   * is taken, yes, but by us.
    */
   async allocatePort(ctx: DriverContext, onLog?: LogSink): Promise<number | null> {
     const say = this.say(ctx);
@@ -295,8 +294,8 @@ export class DockerComposeDriver implements DeploymentDriver {
       max: ctx.portRange?.max ?? PORT_RANGE_MAX,
     };
 
-    // Une seule sonde pour toute la boucle : l'état des ports de la cible ne
-    // change pas pendant les quelques millisecondes d'un retry.
+    // A single probe for the whole loop: the target's port state does not change
+    // during the few milliseconds of a retry.
     const inUse = await listeningPorts(ctx);
     if (inUse === null) {
       log(say('port.noProbe'));
@@ -314,9 +313,9 @@ export class DockerComposeDriver implements DeploymentDriver {
         return port;
       }
 
-      // Réservation morte : la base nous l'a accordée, la cible dit le
-      // contraire. On la relâche pour ne pas immobiliser un port dont nous ne
-      // ferons rien, et on l'écarte du prochain tirage.
+      // Dead reservation: the database granted it, the target says otherwise. We
+      // release it so as not to tie up a port we will do nothing with, and set it
+      // aside from the next draw.
       log(say('port.busy', { port, target: ctx.target.name }));
       await allocator.release(key);
       dead.push(port);
@@ -335,17 +334,17 @@ export class DockerComposeDriver implements DeploymentDriver {
     );
   }
 
-  // ─── pare-feu ───────────────────────────────────────────────────────────────
+  // ─── firewall ───────────────────────────────────────────────────────────────
 
   /**
-   * Ouvre le port sur UFW.
+   * Opens the port on UFW.
    *
-   * Le `DockerComposeDriver` publie sur une interface de la machine : le
-   * pare-feu la concerne. Le `K3sDriver`, lui, n'implémente pas ces méthodes du
-   * tout — l'exposition y passe par l'Ingress. Le pipeline appelle si la
-   * méthode existe, sans jamais regarder de quel runtime il s'agit.
+   * `DockerComposeDriver` publishes on an interface of the machine: the firewall
+   * concerns it. `K3sDriver` does not implement these methods at all — exposure
+   * goes through the Ingress there. The pipeline calls them if the method exists,
+   * without ever looking at which runtime it is.
    */
-  /** Le port publié sur la machine : un proxy local le joint par la boucle locale. */
+  /** The port published on the machine: a local proxy reaches it through the loopback. */
   upstream(_ctx: DriverContext, publishedPort: number | null): ProxyUpstream | null {
     return publishedPort === null ? null : { kind: 'port', port: publishedPort };
   }
@@ -353,14 +352,13 @@ export class DockerComposeDriver implements DeploymentDriver {
   async openFirewall(ctx: DriverContext, port: number, onLog?: LogSink): Promise<void> {
     const exposure = ctx.exposure;
     if (exposure?.bindAddress && (isLoopback(exposure.bindAddress) || !exposure.byPort)) {
-      // Publié pour le proxy de la machine seulement — sur la boucle locale, ou
-      // sur la passerelle Docker qu'un proxy en conteneur joint : personne
-      // d'autre n'y arrive, rien à ouvrir.
+      // Published for the machine's proxy only — on the loopback, or on the Docker
+      // gateway a container proxy reaches: nobody else gets there, nothing to open.
       onLog?.(this.say(ctx)('firewall.localOnly', { port, address: exposure.bindAddress }));
       return;
     }
     if (exposure?.allowFrom) {
-      // Un proxy distant : le port ne s'ouvre qu'à lui.
+      // A remote proxy: the port only opens to it.
       await ufwAllowPort(
         ctx,
         port,
@@ -381,7 +379,7 @@ export class DockerComposeDriver implements DeploymentDriver {
 
   async render(ctx: DriverContext): Promise<RenderedArtifacts> {
     const publishedPort = await this.resolvePublishedPort(ctx);
-    // Les racines seulement : un alias n'a pas de valeur propre à demander.
+    // Roots only: an alias has no value of its own to ask for.
     const secretNames = storedSecretNames(ctx.spec);
     const secretValues = ctx.resolveSecrets ? await ctx.resolveSecrets(secretNames) : {};
 
@@ -400,9 +398,9 @@ export class DockerComposeDriver implements DeploymentDriver {
   }
 
   /**
-   * Compose ne sait pas répartir un port publié entre plusieurs répliques.
-   * Au-delà d'une réplique, l'exposition doit passer par le proxy : le driver
-   * ne publie alors aucun port et le dit.
+   * Compose cannot spread a published port across several replicas. Beyond one
+   * replica, exposure must go through the proxy: the driver then publishes no
+   * port and says so.
    */
   private async resolvePublishedPort(ctx: DriverContext): Promise<number | null> {
     const exposed = exposedService(ctx.spec);
@@ -439,9 +437,9 @@ export class DockerComposeDriver implements DeploymentDriver {
     }
     await this.run(ctx, `mkdir -p ${shellQuote(release)}`, onLog, 'upload');
 
-    // Le code d'un dépôt lié va dans `source/`, à part. Le `.env` d'un
-    // déploiement précédent de la même version ne doit pas survivre à un rendu
-    // qui n'en a plus : il est réécrit s'il y a lieu.
+    // The code of a linked repository goes into `source/`, apart. The `.env` of a
+    // previous deployment of the same version must not survive a render that no
+    // longer has one: it is rewritten if needed.
     if (ctx.sourceArchive) {
       await extractSourceArchive(
         ctx.sshSession,
@@ -464,7 +462,7 @@ export class DockerComposeDriver implements DeploymentDriver {
 
   // ─── build ──────────────────────────────────────────────────────────────────
 
-  /** `null` quand aucun service ne se construit : l'étape est alors `skipped`. */
+  /** `null` when no service is built: the step is then `skipped`. */
   async build(ctx: DriverContext, onLog: LogSink): Promise<string[] | null> {
     const buildable = ctx.spec.services.filter(
       (service) => service.source.type === 'dockerfile',
@@ -480,8 +478,8 @@ export class DockerComposeDriver implements DeploymentDriver {
   // ─── images ─────────────────────────────────────────────────────────────────
 
   /**
-   * Déduite de l'AppSpec, pas de la cible : la liste doit être connue avant que
-   * quoi que ce soit ne tourne, pour que les scanners puissent l'analyser.
+   * Derived from the AppSpec, not from the target: the list must be known before
+   * anything runs, so the scanners can analyze it.
    */
   async images(ctx: DriverContext): Promise<string[]> {
     return ctx.spec.services.map((service) =>
@@ -489,7 +487,7 @@ export class DockerComposeDriver implements DeploymentDriver {
     );
   }
 
-  /** Le démon Docker, que l'utilisateur SSH joint par le groupe `docker`. */
+  /** The Docker daemon, which the SSH user reaches through the `docker` group. */
   imageStore(_ctx: DriverContext): ImageStore {
     return { kind: 'docker' };
   }
@@ -501,8 +499,8 @@ export class DockerComposeDriver implements DeploymentDriver {
     const publishedPort = await this.resolvePublishedPort(ctx);
 
     onLog('docker compose pull');
-    // Un échec de pull n'est pas fatal : l'image peut déjà être sur la cible,
-    // et une image construite localement n'existe dans aucun registry.
+    // A failed pull is not fatal: the image may already be on the target, and an
+    // image built locally exists in no registry.
     await this.stream(
       ctx,
       this.compose(ctx, 'pull --ignore-pull-failures'),
@@ -525,7 +523,7 @@ export class DockerComposeDriver implements DeploymentDriver {
       throw await this.upFailure(ctx, error);
     }
 
-    // Marque la release courante : `rollback()` et `destroy()` s'en servent.
+    // Marks the current release: `rollback()` and `destroy()` use it.
     await this.run(
       ctx,
       `ln -sfn ${shellQuote(release)} ${shellQuote(`${this.appPath(ctx)}/current`)}`,
@@ -533,10 +531,9 @@ export class DockerComposeDriver implements DeploymentDriver {
       'link',
     );
 
-    // Ménage des anciennes versions, une fois `current` à jour : c'est le seul
-    // moment où l'on sait laquelle ne doit surtout pas partir. Leurs images
-    // construites partent avec elles : une étiquette par release, sans ménage,
-    // le disque de la cible se remplirait.
+    // Cleanup of old versions, once `current` is up to date: it is the only moment
+    // we know which one must above all not go. Their built images go with them: one
+    // tag per release, without cleanup, the target's disk would fill up.
     const pruned = await pruneReleases(ctx, this.appPath(ctx), onLog);
     await this.removeBuiltImages(ctx, pruned, onLog);
 
@@ -549,15 +546,14 @@ export class DockerComposeDriver implements DeploymentDriver {
   }
 
   /**
-   * Ce que dit vraiment un `up --wait` en échec.
+   * What a failed `up --wait` really says.
    *
-   * Compose remplace les conteneurs **puis** attend leur santé : quand
-   * l'attente échoue, l'ancienne version ne tourne déjà plus. Un conteneur qui
-   * porte le répertoire de cette release — l'étiquette `working_dir` que
-   * Compose pose sur chacun — en est la preuve : l'échec est alors celui d'une
-   * version malsaine, et le pipeline revient à la précédente. Sans un tel
-   * conteneur, `up` s'est arrêté avant de rien remplacer : l'erreur reste la
-   * sienne.
+   * Compose replaces the containers **then** waits for their health: when the
+   * wait fails, the old version is already no longer running. A container that
+   * carries this release's directory — the `working_dir` label Compose sets on
+   * each one — is the proof: the failure is then that of an unhealthy version,
+   * and the pipeline goes back to the previous one. Without such a container,
+   * `up` stopped before replacing anything: the error stays its own.
    */
   private async upFailure(ctx: DriverContext, error: unknown): Promise<unknown> {
     if (!(error instanceof DriverError)) return error;
@@ -599,7 +595,7 @@ export class DockerComposeDriver implements DeploymentDriver {
     );
   }
 
-  /** URL par laquelle l'application doit répondre. */
+  /** URL through which the application must answer. */
   private buildUrl(ctx: DriverContext, publishedPort: number | null): string | null {
     const ingress = ctx.spec.ingress;
     if (ingress?.host) {
@@ -610,8 +606,8 @@ export class DockerComposeDriver implements DeploymentDriver {
   }
 
   /**
-   * Un service à construire exige que son contexte de build ait été déposé.
-   * Le driver ne va pas le chercher : il vérifie et échoue clairement.
+   * A service to build requires its build context to have been placed. The
+   * driver does not go and fetch it: it checks and fails clearly.
    */
   private async assertBuildContexts(
     ctx: DriverContext,
@@ -665,7 +661,7 @@ export class DockerComposeDriver implements DeploymentDriver {
         'prepare',
       );
     }
-    // Le contenu n'est jamais journalisé : `.env` porte les secrets.
+    // The content is never logged: `.env` carries the secrets.
     onLog(this.say(ctx)('upload.deposited', { path: file.path, bytes: file.content.length }));
   }
 
@@ -703,8 +699,8 @@ export class DockerComposeDriver implements DeploymentDriver {
 
     const publishedPort = await this.resolvePublishedPort(ctx);
     if (publishedPort === null) {
-      // Sans port publié, la sonde HTTP depuis l'hôte n'a pas de cible :
-      // on s'en remet à l'état des conteneurs, tenu par leur propre healthcheck.
+      // Without a published port, the HTTP probe from the host has no target: we rely
+      // on the containers' state, held by their own healthcheck.
       const unhealthy = await exec(
         ctx.sshSession,
         this.compose(ctx, "ps --format '{{.Health}}' | grep -c unhealthy || true"),
@@ -723,10 +719,10 @@ export class DockerComposeDriver implements DeploymentDriver {
           });
     }
 
-    // Le port a pu être publié sur une seule adresse — celle que joint un
-    // proxy distant — : il n'écoute alors que là, et c'est là qu'on le sonde.
-    // Compose le dit lui-même, ce qui vaut aussi pour la sonde périodique, qui
-    // ne sait rien de la façon dont l'application a été publiée.
+    // The port may have been published on a single address — the one a remote
+    // proxy reaches —: it then only listens there, and that is where it is probed.
+    // Compose says so itself, which also holds for the periodic probe, which knows
+    // nothing of how the application was published.
     const bound = await exec(
       ctx.sshSession,
       this.compose(ctx, `port ${shellQuote(service.name)} ${service.port} 2>/dev/null | head -n 1`),
@@ -745,8 +741,8 @@ export class DockerComposeDriver implements DeploymentDriver {
       );
 
       const status = Number.parseInt(firstLine(probe.stdout) ?? '', 10);
-      // `curl` écrit « 000 » quand il n'a rien obtenu : ce n'est pas un code
-      // HTTP, c'est l'absence de réponse.
+      // `curl` writes "000" when it got nothing: it is not an HTTP code, it is the
+      // absence of an answer.
       lastStatus = Number.isNaN(status) || status === 0 ? null : status;
       lastOutcome = lastStatus === null ? 'unreachable' : 'unhealthy';
       lastDetail =
@@ -781,11 +777,11 @@ export class DockerComposeDriver implements DeploymentDriver {
   }
 
   /**
-   * Construit le résultat d'échec **après avoir capturé la scène**.
+   * Builds the failure result **after capturing the scene**.
    *
-   * L'ordre compte : un rollback automatique redémarre la version précédente et
-   * efface l'état qui expliquait l'échec. Le diagnostic doit donc être pris
-   * avant que la sonde ne rende la main, pas au moment où quelqu'un le lira.
+   * The order matters: an automatic rollback restarts the previous version and
+   * wipes the state that explained the failure. The diagnosis must therefore be
+   * taken before the probe returns, not when someone reads it.
    */
   private async unhealthy(
     ctx: DriverContext,
@@ -798,7 +794,7 @@ export class DockerComposeDriver implements DeploymentDriver {
     };
   }
 
-  /** `docker compose ps` + les 200 dernières lignes de logs de chaque service. */
+  /** `docker compose ps` + the last 200 log lines of each service. */
   private async diagnose(ctx: DriverContext): Promise<string | null> {
     const sections: string[] = [];
 
@@ -826,10 +822,10 @@ export class DockerComposeDriver implements DeploymentDriver {
   }
 
   /**
-   * Les images construites des releases qu'on vient d'effacer. Celles des
-   * services tirés d'un registre ne sont pas à nous : on n'y touche pas. Une
-   * image encore utilisée (un conteneur l'emploie) est refusée par Docker :
-   * c'est le comportement voulu, et pas une erreur.
+   * The built images of the releases just deleted. Those of services pulled from
+   * a registry are not ours: we do not touch them. An image still in use (a
+   * container uses it) is refused by Docker: that is the intended behavior, not
+   * an error.
    */
   private async removeBuiltImages(
     ctx: DriverContext,
@@ -858,8 +854,8 @@ export class DockerComposeDriver implements DeploymentDriver {
       throw new DriverError(say('rollback.previousMissing'), this.runtime, 'rollback');
     }
 
-    // La release précédente, par son nom ; à défaut, sous le nom d'avant
-    // `-r{numéro}` — une release déposée avant la mise à jour.
+    // The previous release, by its name; otherwise, under the name from before
+    // `-r{number}` — a release placed before the update.
     let target: string | null = null;
     for (const name of releaseCandidates(previous)) {
       const candidate = `${this.appPath(ctx)}/${name}`;
@@ -901,7 +897,7 @@ export class DockerComposeDriver implements DeploymentDriver {
 
   // ─── destroy ────────────────────────────────────────────────────────────────
 
-  /** Rétention des versions : voir `DeploymentDriver.pruneReleases`. */
+  /** Version retention: see `DeploymentDriver.pruneReleases`. */
   async pruneReleases(ctx: DriverContext, onLog: LogSink, keep?: number): Promise<string[]> {
     return pruneReleases(ctx, this.appPath(ctx), onLog, keep);
   }
@@ -911,12 +907,12 @@ export class DockerComposeDriver implements DeploymentDriver {
     const appPath = this.appPath(ctx);
     const key = { targetId: ctx.target.id, applicationId: ctx.applicationId };
 
-    // Lu avant toute destruction : après `release()`, plus personne ne sait
-    // quel port refermer.
+    // Read before any destruction: after `release()`, nobody knows which port to
+    // close anymore.
     const port = ctx.portAllocator ? await ctx.portAllocator.current(key) : null;
 
     onLog('→ docker compose down -v');
-    // `|| true` : détruire une app déjà absente doit rester idempotent.
+    // `|| true`: destroying an app already gone must stay idempotent.
     await this.stream(
       ctx,
       `cd ${shellQuote(appPath)}/current 2>/dev/null && ` +
@@ -927,10 +923,10 @@ export class DockerComposeDriver implements DeploymentDriver {
       false,
     );
 
-    // Les images construites pour l'application, toutes releases confondues :
-    // `down` ne les retire pas, et elles s'accumuleraient sur le disque. Une
-    // même image peut porter plusieurs étiquettes de release — d'où `-f`, sans
-    // risque : le motif ne désigne que les images de cette application.
+    // The images built for the application, all releases together: `down` does not
+    // remove them, and they would pile up on the disk. The same image can carry
+    // several release tags — hence `-f`, safely: the pattern only designates this
+    // application's images.
     const images = `${this.project(ctx)}/*`;
     onLog(say('destroy.images', { images }));
     await this.run(
@@ -964,8 +960,8 @@ export class DockerComposeDriver implements DeploymentDriver {
       ctx.sshSession,
       this.compose(ctx, 'logs -f --no-color --tail 200'),
       (line) => onLine(line),
-      // Un suivi de logs n'a pas de fin naturelle : c'est l'appelant qui coupe
-      // la session quand il a fini.
+      // A log follow has no natural end: it is the caller that cuts the session when
+      // it is done.
       { timeout: null, logOutput: false },
     );
   }
@@ -973,8 +969,8 @@ export class DockerComposeDriver implements DeploymentDriver {
   // ─── supervision ────────────────────────────────────────────────────────────
 
   /**
-   * `docker compose ps --format json` sort tantôt un tableau, tantôt un objet
-   * par ligne selon la version de Compose. On accepte les deux.
+   * `docker compose ps --format json` outputs either an array or one object per
+   * line depending on the Compose version. We accept both.
    */
   async status(ctx: DriverContext): Promise<AppStatus> {
     const result = await exec(ctx.sshSession, this.compose(ctx, 'ps -a --format json'), {
@@ -995,19 +991,19 @@ export class DockerComposeDriver implements DeploymentDriver {
   }
 
   /**
-   * `docker compose stop` : les conteneurs restent créés, à l'état `exited`.
+   * `docker compose stop`: the containers stay created, in the `exited` state.
    *
-   * Ni `down` (qui supprime les conteneurs et le réseau) ni `pause` (qui laisse
-   * les processus en mémoire et garde le port lié, donc réservé pour rien) :
-   * `stop` est le seul des trois à rendre les ressources d'exécution en gardant
-   * intacts les volumes, le réseau et la configuration.
+   * Neither `down` (which deletes the containers and the network) nor `pause`
+   * (which leaves the processes in memory and keeps the port bound, hence
+   * reserved for nothing): `stop` is the only one of the three that gives back the
+   * execution resources while keeping volumes, network and configuration intact.
    *
-   * Le port hôte se libère avec le conteneur — mesuré : `docker compose ps`
-   * n'affiche plus aucune liaison après l'arrêt. La réservation en base, elle,
-   * reste : elle est ce qui garantit que personne ne prendra ce port pendant
-   * que l'application est arrêtée, et que `start()` la retrouvera.
+   * The host port is freed with the container — measured: `docker compose ps`
+   * shows no binding anymore after the stop. The reservation in the database
+   * stays: it is what guarantees nobody takes that port while the application is
+   * stopped, and that `start()` finds it again.
    *
-   * Idempotent : sur un projet déjà arrêté, Compose sort en 0 sans rien faire.
+   * Idempotent: on a project already stopped, Compose exits with 0 doing nothing.
    */
   async stop(ctx: DriverContext, onLog: LogSink): Promise<void> {
     onLog(`docker compose stop --timeout ${STOP_GRACE_SECONDS}`);
@@ -1022,20 +1018,19 @@ export class DockerComposeDriver implements DeploymentDriver {
   }
 
   /**
-   * `docker compose start`, avec un filet.
+   * `docker compose start`, with a safety net.
    *
-   * Mesuré sur la cible de test : quand plus aucun conteneur du projet
-   * n'existe — un `docker system prune` est passé par là, ou quelqu'un a fait
-   * le ménage à la main —, `start` échoue en code 1 sur « no container found
-   * for project ». Il n'y a alors rien à redémarrer, mais il y a tout ce qu'il
-   * faut pour le recréer : le `compose.yml` de la version en service est
-   * toujours sur la cible.
+   * Measured on the test target: when no container of the project exists anymore
+   * — a `docker system prune` went by, or someone cleaned up by hand —, `start`
+   * fails with code 1 on "no container found for project". There is then nothing
+   * to restart, but there is everything needed to recreate it: the in-service
+   * version's `compose.yml` is still on the target.
    *
-   * D'où le repli sur `up -d`, sans `pull` et sans `build` : on remonte
-   * exactement le fichier déjà déposé, avec les volumes nommés qui, eux,
-   * n'avaient pas disparu. C'est le seul moyen de tenir la promesse du
-   * contrat — « remettre en marche ce que `deploy()` avait posé » — dans un cas
-   * où l'ordre littéral ne le peut plus.
+   * Hence the fallback to `up -d`, without `pull` and without `build`: we bring
+   * up exactly the file already placed, with the named volumes, which had not
+   * disappeared. It is the only way to keep the contract's promise — "put back in
+   * service what `deploy()` had set up" — in a case where the literal command no
+   * longer can.
    */
   async start(ctx: DriverContext, onLog: LogSink): Promise<void> {
     onLog('docker compose start');
@@ -1057,10 +1052,10 @@ export class DockerComposeDriver implements DeploymentDriver {
       return;
     }
 
-    // `start` rend la main dès que le conteneur est lancé, pas quand il est
-    // sain. `up -d --wait` sur un projet déjà démarré ne recrée rien et attend
-    // les sondes : c'est la façon la moins chère d'honorer « rend la main quand
-    // les services sont prêts ».
+    // `start` returns as soon as the container is launched, not when it is healthy.
+    // `up -d --wait` on an already started project recreates nothing and waits for
+    // the probes: it is the cheapest way to honor "returns when the services are
+    // ready".
     await this.stream(
       ctx,
       this.compose(ctx, 'up -d --remove-orphans --wait --wait-timeout 300'),
@@ -1071,32 +1066,31 @@ export class DockerComposeDriver implements DeploymentDriver {
     onLog(this.say(ctx)('start.done'));
   }
 
-  // ─── charges de la cible ────────────────────────────────────────────────────
+  // ─── the target's workloads ─────────────────────────────────────────────────
 
   /**
-   * Tout ce qui tourne sur la machine, panel compris.
+   * Everything running on the machine, the panel included.
    *
-   * Deux commandes en une seule session : `docker ps` pour la formulation
-   * humaine de l'état (« Up 2 hours »), que seul lui produit, et `docker inspect`
-   * pour le reste. Les labels ne sont lus que dans `inspect` : le `{{.Labels}}`
-   * de `docker ps` les aplatit en une liste séparée par des virgules, or une
-   * valeur de label peut en contenir — `maintainer=NGINX Docker Maintainers`
-   * suffit à casser le découpage.
+   * Two commands in a single session: `docker ps` for the human wording of the
+   * state ("Up 2 hours"), which only it produces, and `docker inspect` for the
+   * rest. Labels are only read from `inspect`: `docker ps`'s `{{.Labels}}`
+   * flattens them into a comma-separated list, but a label value can contain
+   * commas — `maintainer=NGINX Docker Maintainers` is enough to break the split.
    */
   async listWorkloads(ctx: TargetContext): Promise<Workload[]> {
     const script = [
       "docker ps -a --no-trunc --format '{{.ID}} {{.Status}}'",
       `echo "${SENTINEL}"`,
-      // `docker inspect` sans argument est une erreur : le cas « aucun
-      // conteneur » doit produire un tableau vide, pas un code de retour.
+      // `docker inspect` without an argument is an error: the "no container" case
+      // must produce an empty array, not an exit code.
       'ids=$(docker ps -aq --no-trunc)',
       'if [ -n "$ids" ]; then docker inspect $ids; else echo "[]"; fi',
     ].join('\n');
 
     const result = await exec(ctx.sshSession, script, {
       timeout: SHORT_TIMEOUT_MS,
-      // La sortie porte les variables d'environnement des conteneurs : elle
-      // n'entre jamais dans un journal.
+      // The output carries the containers' environment variables: it never goes into
+      // a log.
       logOutput: false,
     });
 
@@ -1118,18 +1112,17 @@ export class DockerComposeDriver implements DeploymentDriver {
   }
 
   /**
-   * Supprime un conteneur.
+   * Deletes a container.
    *
-   * `docker rm -f` et rien de plus : pas de `-v`. Les volumes anonymes d'un
-   * conteneur étranger au panel peuvent porter des données que personne ici
-   * n'est en mesure d'évaluer — les effacer serait un choix pris à la place de
-   * leur propriétaire.
+   * `docker rm -f` and nothing more: no `-v`. The anonymous volumes of a container
+   * foreign to the panel may carry data nobody here is able to assess — deleting
+   * them would be a choice made in their owner's place.
    */
   async removeWorkload(ctx: TargetContext, ref: WorkloadRef, onLog: LogSink): Promise<void> {
     const { raw, workload } = await this.findWorkload(ctx, ref, 'workload.remove');
 
-    // Second verrou, après celui de la route : un driver ne fait pas confiance
-    // à son appelant pour une opération irréversible.
+    // A second lock, after the route's: a driver does not trust its caller for an
+    // irreversible operation.
     if (workload.managed) {
       throw new DriverError(
         managedWorkloadRefusal(workload, ctx.language),
@@ -1152,22 +1145,21 @@ export class DockerComposeDriver implements DeploymentDriver {
   }
 
   /**
-   * Mettre à jour, en Docker, veut dire exactement ceci :
+   * Updating, in Docker, means exactly this:
    *
-   *   1. `docker pull` de l'image que le conteneur exécute, à son tag actuel ;
-   *   2. relecture de sa configuration effective (`docker inspect`) ;
-   *   3. recréation d'un conteneur neuf, même nom, même configuration, sur
-   *      l'image fraîchement tirée.
+   *   1. `docker pull` of the image the container runs, at its current tag;
+   *   2. reading its effective configuration again (`docker inspect`);
+   *   3. recreating a new container, same name, same configuration, on the
+   *      freshly pulled image.
    *
-   * « Même configuration » se lit par différence avec l'image que le conteneur
-   * exécutait : seules les valeurs que quelqu'un a explicitement posées à la
-   * création sont reportées. Recopier l'environnement complet reviendrait à
-   * figer les défauts de l'ancienne image dans le conteneur neuf, et donc à
-   * annuler une partie de la mise à jour qu'on vient de tirer.
+   * "Same configuration" is read as a difference with the image the container was
+   * running: only the values someone explicitly set at creation are carried
+   * over. Copying the full environment would freeze the old image's defaults in
+   * the new container, and therefore cancel part of the update just pulled.
    *
-   * L'ancien conteneur est renommé et arrêté plutôt que supprimé : si la
-   * création échoue, il est remis en place sous son nom et redémarré. Une mise
-   * à jour ratée ne doit pas laisser la machine avec un service en moins.
+   * The old container is renamed and stopped rather than deleted: if the creation
+   * fails, it is put back under its name and restarted. A failed update must not
+   * leave the machine with one service fewer.
    */
   async updateWorkload(ctx: TargetContext, ref: WorkloadRef, onLog: LogSink): Promise<void> {
     const say = this.say(ctx);
@@ -1190,8 +1182,8 @@ export class DockerComposeDriver implements DeploymentDriver {
       );
     }
 
-    // Défauts de l'image **que ce conteneur exécute**, désignée par son digest :
-    // le tag, lui, va changer sous nos pieds au `pull` suivant.
+    // Defaults of the image **this container runs**, designated by its digest: the
+    // tag will change underfoot at the next `pull`.
     const previousImageId = raw.Image ?? image;
     const defaults = await this.imageDefaults(ctx, previousImageId);
 
@@ -1270,14 +1262,14 @@ export class DockerComposeDriver implements DeploymentDriver {
         await this.run(ctx, `docker start ${shellQuote(name)}`, onLog, 'workload.update');
         onLog(say('workload.update.restarted'));
       } else {
-        // Une charge arrêtée le reste : la mise à jour ne décide pas à la place
-        // de celui qui l'avait arrêtée.
+        // A stopped workload stays stopped: the update does not decide in place of
+        // whoever stopped it.
         onLog(say('workload.update.leftStopped'));
       }
     } catch (error) {
       onLog(say('workload.update.rollingBack'));
-      // Le nettoyage ne doit pas masquer l'échec d'origine : il est tenté au
-      // mieux, et c'est l'erreur initiale qui remonte.
+      // Cleanup must not hide the original failure: it is attempted on a best-effort
+      // basis, and the initial error is the one that comes up.
       await this.tryQuietly(ctx, `docker rm -f ${shellQuote(name)}`);
       await this.tryQuietly(ctx, `docker rename ${shellQuote(backup)} ${shellQuote(name)}`);
       if (wasRunning) await this.tryQuietly(ctx, `docker start ${shellQuote(name)}`);
@@ -1288,12 +1280,12 @@ export class DockerComposeDriver implements DeploymentDriver {
     onLog(say('workload.update.oldRemoved'));
   }
 
-  /** Relit une charge sur la machine, et refuse d'agir à l'aveugle. */
+  /** Reads a workload again on the machine, and refuses to act blindly. */
   /**
-   * Par le label du projet plutôt que par `docker compose ps` : la release peut
-   * avoir été élaguée, le projet, lui, existe tant que ses conteneurs existent.
-   * Les conteneurs arrêtés comptent — leur image est toujours celle déployée.
-   * `RepoDigests` porte le digest de l'index quand l'image a été tirée par tag.
+   * By the project label rather than `docker compose ps`: the release may have
+   * been pruned, the project exists as long as its containers do. Stopped
+   * containers count — their image is still the deployed one. `RepoDigests`
+   * carries the index digest when the image was pulled by tag.
    */
   async runningImages(ctx: DriverContext): Promise<RunningImage[]> {
     const containers = await exec(
@@ -1329,7 +1321,7 @@ export class DockerComposeDriver implements DeploymentDriver {
     }));
   }
 
-  /** Le nom Docker réel d'un volume de l'application : Compose le préfixe du projet. */
+  /** The real Docker name of an application volume: Compose prefixes it with the project. */
   private async dockerVolume(ctx: DriverContext, service: string, volume: string): Promise<string> {
     const key = volumeName(ctx.appSlug, service, volume);
     const result = await exec(
@@ -1349,7 +1341,7 @@ export class DockerComposeDriver implements DeploymentDriver {
     return name;
   }
 
-  /** Le conteneur en marche d'un service de l'application. */
+  /** The running container of an application service. */
   private async serviceContainer(ctx: DriverContext, service: string): Promise<string> {
     const result = await exec(
       ctx.sshSession,
@@ -1391,9 +1383,9 @@ export class DockerComposeDriver implements DeploymentDriver {
   }
 
   /**
-   * Un conteneur `busybox` éphémère, sans réseau, monte le volume en lecture
-   * seule et en écrit l'archive : le volume se lit même application arrêtée,
-   * et l'image de l'application n'a pas besoin d'avoir `tar`.
+   * An ephemeral `busybox` container, without network, mounts the volume
+   * read-only and writes its archive: the volume can be read even with the
+   * application stopped, and the application's image does not need `tar`.
    */
   async exportVolume(
     ctx: DriverContext,
@@ -1460,9 +1452,9 @@ export class DockerComposeDriver implements DeploymentDriver {
   }
 
   /**
-   * `docker start`, `docker stop`, `docker restart` — le conteneur lui-même,
-   * rien de recréé, rien de supprimé. L'arrêt laisse vingt secondes au
-   * processus pour finir proprement avant le SIGKILL, comme `compose down`.
+   * `docker start`, `docker stop`, `docker restart` — the container itself,
+   * nothing recreated, nothing deleted. The stop gives the process twenty seconds
+   * to finish cleanly before SIGKILL, like `compose down`.
    */
   async controlWorkload(
     ctx: TargetContext,
@@ -1507,8 +1499,8 @@ export class DockerComposeDriver implements DeploymentDriver {
     onLine: LogSink,
   ): Promise<void> {
     await this.findWorkload(ctx, ref, 'workload.logs');
-    // `2>&1` : un conteneur écrit autant sur stderr que sur stdout, et le
-    // journal se lit dans l'ordre où il a été écrit.
+    // `2>&1`: a container writes as much to stderr as to stdout, and the log reads
+    // in the order it was written.
     await this.stream(
       ctx,
       `docker logs --timestamps --tail ${Math.max(1, Math.floor(tail))} ${shellQuote(ref.id)} 2>&1`,
@@ -1559,7 +1551,7 @@ export class DockerComposeDriver implements DeploymentDriver {
     return { raw, workload: toWorkload(raw, new Map()) };
   }
 
-  /** Configuration par défaut d'une image, pour distinguer l'explicite du hérité. */
+  /** An image's default configuration, to tell the explicit from the inherited. */
   private async imageDefaults(ctx: TargetContext, imageId: string): Promise<ImageDefaults> {
     const result = await exec(ctx.sshSession, `docker image inspect ${shellQuote(imageId)}`, {
       timeout: SHORT_TIMEOUT_MS,
@@ -1568,16 +1560,16 @@ export class DockerComposeDriver implements DeploymentDriver {
     return result.code === 0 ? parseImageDefaults(result.stdout) : EMPTY_IMAGE_DEFAULTS;
   }
 
-  /** Rattrapage d'urgence : on tente, on n'échoue pas dessus. */
+  /** Emergency recovery: we try, we do not fail on it. */
   private async tryQuietly(ctx: TargetContext, command: string): Promise<void> {
     try {
       await exec(ctx.sshSession, command, { timeout: SHORT_TIMEOUT_MS, logOutput: false });
     } catch {
-      // Rien à sauver : l'erreur qui compte est celle qui nous a menés ici.
+      // Nothing to save: the error that counts is the one that led us here.
     }
   }
 
-  // ─── exécution ──────────────────────────────────────────────────────────────
+  // ─── execution ──────────────────────────────────────────────────────────────
 
   private async run(
     ctx: TargetContext,
@@ -1628,9 +1620,9 @@ export class DockerComposeDriver implements DeploymentDriver {
   }
 }
 
-// ─── utilitaires ──────────────────────────────────────────────────────────────
+// ─── helpers ──────────────────────────────────────────────────────────────────
 
-/** Dernière ligne non vide — là où un outil dit pourquoi il s'arrête. */
+/** Last non-empty line — where a tool says why it stops. */
 function lastLine(value: string): string | null {
   const lines = value
     .split('\n')
@@ -1640,12 +1632,12 @@ function lastLine(value: string): string | null {
 }
 
 /**
- * L'image des opérations de sauvegarde sur la cible : de quoi lancer `tar`,
- * rien d'autre. Tirée une fois, quelques centaines de kilo-octets.
+ * The image of backup operations on the target: what it takes to run `tar`,
+ * nothing else. Pulled once, a few hundred kilobytes.
  */
 const BACKUP_HELPER_IMAGE = 'busybox:1.37';
 
-/** Vide le volume — fichiers cachés compris —, puis y extrait l'archive lue sur l'entrée. */
+/** Empties the volume — hidden files included —, then extracts the archive read on stdin. */
 const CLEAR_AND_EXTRACT = 'cd /data && rm -rf -- * .[!.]* ..?* 2>/dev/null; tar xzf - -C /data';
 
 function sleep(ms: number): Promise<void> {
@@ -1653,7 +1645,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 
-/** Quatrième colonne de `df -Pk`, convertie en Mio. */
+/** Fourth column of `df -Pk`, converted to MiB. */
 function parseAvailableMi(output: string): number | null {
   const lines = output.trim().split('\n');
   const row = lines[lines.length - 1];
@@ -1664,7 +1656,7 @@ function parseAvailableMi(output: string): number | null {
   return Number.isNaN(availableKb) ? null : Math.floor(availableKb / 1024);
 }
 
-/** `docker compose ps --format json` : un objet par ligne, ou un tableau. */
+/** `docker compose ps --format json`: one object per line, or an array. */
 function countRunning(output: string): number {
   const trimmed = output.trim();
   if (trimmed.length === 0) return 0;
@@ -1673,13 +1665,13 @@ function countRunning(output: string): number {
     const parsed: unknown = JSON.parse(trimmed);
     if (Array.isArray(parsed)) return parsed.length;
   } catch {
-    // Format « JSON Lines » selon la version de Compose.
+    // "JSON Lines" format depending on the Compose version.
   }
 
   return trimmed.split('\n').filter((line) => line.trim().startsWith('{')).length;
 }
 
-/** États remontés par Compose, ramenés au vocabulaire neutre de la supervision. */
+/** States reported by Compose, brought back to monitoring's neutral vocabulary. */
 function toServiceState(raw: string): ServiceState {
   const value = raw.toLowerCase();
   if (value.includes('running')) return 'running';
@@ -1708,7 +1700,7 @@ type ComposePsRow = {
   Publishers?: unknown;
 };
 
-/** Accepte le tableau JSON comme le « JSON Lines », selon la version de Compose. */
+/** Accepts the JSON array as well as "JSON Lines", depending on the Compose version. */
 function parseComposePs(output: string): ServiceStatus[] {
   const trimmed = output.trim();
   if (trimmed.length === 0) return [];
@@ -1725,7 +1717,7 @@ function parseComposePs(output: string): ServiceStatus[] {
       try {
         rows.push(JSON.parse(candidate) as ComposePsRow);
       } catch {
-        // Ligne tronquée : on la saute plutôt que d'échouer sur tout le lot.
+        // Truncated line: we skip it rather than fail on the whole batch.
       }
     }
   }
@@ -1750,42 +1742,42 @@ function parseComposePs(output: string): ServiceStatus[] {
       health: toHealth(typeof row.Health === 'string' && row.Health ? row.Health : status),
       since: status.length > 0 ? status : null,
       image: typeof row.Image === 'string' ? row.Image : null,
-      // Dédoublonnés : Compose déclare une publication par famille d'adresses,
-      // si bien qu'un unique `30004:80` sort deux fois — une pour 0.0.0.0, une
-      // pour ::. L'écran affichait « 30004→80, 30004→80 », ce qui se lit comme
-      // deux publications alors qu'il n'y en a qu'une.
+      // Deduplicated: Compose declares one publication per address family, so that a
+      // single `30004:80` comes out twice — once for 0.0.0.0, once for ::. The screen
+      // showed "30004→80, 30004→80", which reads as two publications when there is
+      // only one.
       ports: [...new Set(ports)],
     };
   });
 }
 
-/** Type guard pour la spec, utile aux appelants. */
+/** Type guard for the spec, useful to callers. */
 export function hasBuildableService(spec: AppSpec): boolean {
   return spec.services.some((service) => service.source.type === 'dockerfile');
 }
 
-// ─── charges de la cible : lecture de Docker ──────────────────────────────────
+// ─── the target's workloads: reading Docker ───────────────────────────────────
 
 /**
- * Labels que le rendu Compose pose sur chaque service (`docker/render.ts`).
- * Redéclarés ici plutôt qu'importés : ce sont les *empreintes* que le driver
- * cherche sur la machine, pas les valeurs qu'il écrit.
+ * Labels the Compose render sets on each service (`docker/render.ts`).
+ * Declared again here rather than imported: they are the *fingerprints* the
+ * driver looks for on the machine, not the values it writes.
  */
 const MANAGED_LABEL = 'pupitre.managed-by';
 const MANAGED_VALUE = 'pupitre';
 
 /**
- * L'empreinte d'avant le renommage, toujours lue.
+ * The fingerprint from before the renaming, still read.
  *
- * Un conteneur déployé hier porte `tp.managed-by: bootstrap-tp-v2` et tourne
- * encore. Ne reconnaître que la nouvelle empreinte le ferait passer pour une
- * charge étrangère : l'écran des charges cesserait de dire « gérée par le
- * panel », et proposerait de la supprimer à la main. Un renommage ne doit pas
- * faire perdre au panel la trace de ce qu'il a lui-même posé.
+ * A container deployed yesterday carries `tp.managed-by: bootstrap-tp-v2` and
+ * is still running. Only recognizing the new fingerprint would make it pass for
+ * a foreign workload: the workloads screen would stop saying "managed by the
+ * panel", and would offer to delete it by hand. A renaming must not make the
+ * panel lose track of what it set up itself.
  *
- * Ces deux constantes disparaîtront quand plus aucune cible ne portera de
- * conteneur d'avant le renommage — c'est-à-dire jamais de façon vérifiable, et
- * c'est pourquoi elles restent.
+ * These two constants will go away when no target carries a container from
+ * before the renaming anymore — that is, never in a verifiable way, which is why
+ * they stay.
  */
 const LEGACY_MANAGED_LABEL = 'tp.managed-by';
 const LEGACY_MANAGED_VALUE = 'bootstrap-tp-v2';
@@ -1836,7 +1828,7 @@ type DockerInspect = {
   Mounts?: Array<{ Type?: string; Name?: string; Destination?: string; RW?: boolean }>;
 };
 
-/** Ce que l'image apporte d'elle-même, et qu'il ne faut donc pas recopier. */
+/** What the image brings by itself, and which must therefore not be copied. */
 type ImageDefaults = {
   env: string[];
   labels: Record<string, string>;
@@ -1864,7 +1856,7 @@ function sameList(a: readonly string[] | null, b: readonly string[] | null): boo
   return a.length === b.length && a.every((value, index) => value === b[index]);
 }
 
-/** `docker ps -a --no-trunc --format '{{.ID}} {{.Status}}'` → id → « Up 2 hours ». */
+/** `docker ps -a --no-trunc --format '{{.ID}} {{.Status}}'` → id → "Up 2 hours". */
 function parsePsStatuses(output: string): Map<string, string> {
   const statuses = new Map<string, string>();
   for (const line of output.split('\n')) {
@@ -1877,7 +1869,7 @@ function parsePsStatuses(output: string): Map<string, string> {
   return statuses;
 }
 
-/** `docker inspect` : un tableau JSON, précédé du bruit éventuel de la session. */
+/** `docker inspect`: a JSON array, preceded by the session's possible noise. */
 function parseInspect(output: string): DockerInspect[] {
   const start = output.indexOf('[');
   if (start < 0) return [];
@@ -1924,12 +1916,12 @@ function publishedPorts(raw: DockerInspect): string[] {
 }
 
 /**
- * Conteneur inspecté → charge neutre.
+ * Inspected container → neutral workload.
  *
- * `managed` a trois sources et c'est voulu : l'empreinte courante que le panel
- * pose lui-même, celle d'avant le renommage en Pupitre, et le préfixe de projet
- * `app-` qui rattrape les conteneurs posés par une version antérieure du rendu.
- * Un faux négatif ici autoriserait la suppression d'une application vivante.
+ * `managed` has three sources, on purpose: the current fingerprint the panel
+ * sets itself, the one from before the renaming to Pupitre, and the `app-`
+ * project prefix that catches containers set up by an earlier version of the
+ * render. A false negative here would allow deleting a live application.
  */
 function toWorkload(raw: DockerInspect, statuses: Map<string, string>): Workload {
   const id = raw.Id ?? '';
@@ -1947,9 +1939,9 @@ function toWorkload(raw: DockerInspect, statuses: Map<string, string>): Workload
     runtime: 'docker',
     id,
     name: (raw.Name ?? '').replace(/^\//, '') || shortId(id),
-    // Une **clé**, pas un mot : « conteneur » ici figeait la langue du panel
-    // dans une donnée produite par le driver. Le libellé se choisit à la
-    // lecture, dans l'écran qui l'affiche.
+    // A **key**, not a word: "container" here froze the panel's language into data
+    // produced by the driver. The label is chosen on reading, in the screen that
+    // shows it.
     kind: 'container',
     scope: project,
     image: raw.Config?.Image ?? null,
@@ -1969,10 +1961,9 @@ function toWorkload(raw: DockerInspect, statuses: Map<string, string>): Workload
 }
 
 /**
- * Ce qu'un conteneur accepte dans son état : `docker stop` sur un conteneur
- * arrêté ne fait rien d'utile, `docker restart` sur un conteneur en pause
- * échoue. Une charge du panel ne fait que redémarrer — son arrêt appartient
- * à l'application.
+ * What a container accepts in its state: `docker stop` on a stopped container
+ * does nothing useful, `docker restart` on a paused container fails. A panel
+ * workload can only restart — stopping it belongs to the application.
  */
 export function containerControls(state: ServiceState, managed: boolean): WorkloadControlAction[] {
   const controls: WorkloadControlAction[] =
@@ -1985,9 +1976,8 @@ export function containerControls(state: ServiceState, managed: boolean): Worklo
 }
 
 /**
- * Options de création que la ligne de commande ne sait pas reproduire
- * fidèlement. Les détecter et refuser vaut mieux que recréer une charge
- * silencieusement diminuée.
+ * Creation options the command line cannot reproduce faithfully. Detecting and
+ * refusing them beats silently recreating a diminished workload.
  */
 function unreproducibleOptions(
   raw: DockerInspect,
@@ -2008,13 +1998,13 @@ function unreproducibleOptions(
   if (Object.keys(host.Tmpfs ?? {}).length > 0) out.push('--tmpfs');
 
   const mode = host.NetworkMode ?? '';
-  // Un conteneur qui partage la pile réseau d'un autre dépend d'un identifiant
-  // qui aura peut-être disparu : on ne le recrée pas au jugé.
+  // A container that shares another one's network stack depends on an identifier
+  // that may have disappeared: we do not recreate it by guesswork.
   if (mode.startsWith('container:')) out.push('--network container:…');
 
   const entrypoint = raw.Config?.Entrypoint ?? null;
-  // `--entrypoint` ne prend qu'un seul mot : une forme exec à plusieurs
-  // éléments n'a pas d'équivalent en ligne de commande.
+  // `--entrypoint` takes a single word: an exec form with several elements has no
+  // command-line equivalent.
   if (entrypoint && entrypoint.length > 1 && !sameList(entrypoint, defaults.entrypoint)) {
     out.push(execEntrypoint);
   }
@@ -2022,7 +2012,7 @@ function unreproducibleOptions(
   return out;
 }
 
-/** Montages à reporter : les binds déclarés, plus les volumes nommés ou anonymes. */
+/** Mounts to carry over: the declared binds, plus named or anonymous volumes. */
 function volumeArgs(raw: DockerInspect): string[] {
   const out = [...(raw.HostConfig?.Binds ?? [])];
 
@@ -2031,15 +2021,15 @@ function volumeArgs(raw: DockerInspect): string[] {
     const destination = mount.Destination;
     const covered = out.some((bind) => bind.split(':')[1] === destination);
     if (covered) continue;
-    // Un volume anonyme porte des données que la recréation perdrait si on le
-    // laissait de côté : on le rattache explicitement par son nom.
+    // An anonymous volume carries data the re-creation would lose if it were left
+    // aside: we reattach it explicitly by its name.
     out.push(`${mount.Name}:${destination}${mount.RW === false ? ':ro' : ''}`);
   }
 
   return out;
 }
 
-/** Réseau principal du conteneur, tel que `docker create --network` l'attend. */
+/** The container's main network, as `docker create --network` expects it. */
 function primaryNetwork(raw: DockerInspect): string {
   const mode = raw.HostConfig?.NetworkMode ?? 'default';
   return mode === 'default' ? 'bridge' : mode;
@@ -2051,9 +2041,9 @@ function extraNetworkNames(raw: DockerInspect): string[] {
 }
 
 /**
- * Arguments d'un `docker create` reproduisant la configuration **explicite**
- * du conteneur : tout ce qui égale la valeur par défaut de l'image en est
- * absent, pour que l'image fraîchement tirée puisse imposer la sienne.
+ * Arguments of a `docker create` reproducing the container's **explicit**
+ * configuration: everything equal to the image's default value is absent, so
+ * that the freshly pulled image can impose its own.
  */
 function renderCreateArgs(raw: DockerInspect, defaults: ImageDefaults, name: string): string[] {
   const config = raw.Config ?? {};
@@ -2103,15 +2093,15 @@ function renderCreateArgs(raw: DockerInspect, defaults: ImageDefaults, name: str
 
   args.push(config.Image ?? '');
 
-  // La commande n'est reportée que si quelqu'un l'a posée : sinon c'est le
-  // `CMD` de la nouvelle image qui doit s'appliquer.
+  // The command is only carried over if someone set it: otherwise the new image's
+  // `CMD` must apply.
   const cmd = config.Cmd ?? null;
   if (cmd && !sameList(cmd, defaults.cmd)) args.push(...cmd);
 
   return args;
 }
 
-/** `sha256:<id> ["nginx@sha256:…"]` par ligne → identifiant d'image → digests. */
+/** `sha256:<id> ["nginx@sha256:…"]` per line → image identifier → digests. */
 export function parseRepoDigests(output: string): Map<string, string[]> {
   const digests = new Map<string, string[]>();
   for (const line of output.split('\n')) {
@@ -2140,9 +2130,9 @@ function isLoopback(address: string): boolean {
 }
 
 /**
- * L'adresse à sonder pour un port publié, d'après `docker compose port` :
- * `172.21.0.6:30001` → `172.21.0.6`. Publié partout (`0.0.0.0`, `[::]`) ou
- * illisible : la boucle locale.
+ * The address to probe for a published port, from `docker compose port`:
+ * `172.21.0.6:30001` → `172.21.0.6`. Published everywhere (`0.0.0.0`, `[::]`)
+ * or unreadable: the loopback.
  */
 export function probeHostOf(binding: string | null): string {
   const host = binding?.replace(/:\d+$/, '').replace(/^\[|\]$/g, '') ?? '';

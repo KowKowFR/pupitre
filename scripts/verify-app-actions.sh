@@ -1,38 +1,38 @@
 #!/usr/bin/env bash
 #
-# Les gestes d'exploitation d'une application en marche, sur les DEUX runtimes.
+# The operating gestures of a running application, on BOTH runtimes.
 #
-#   1. Arrêter    → les processus s'arrêtent, rien n'est démonté : les données
-#                   du volume survivent, le port reste réservé, l'adresse cesse
-#                   de répondre. En Compose les conteneurs restent `exited` ; en
-#                   K3s les Deployments passent à zéro réplique et les PVC,
-#                   Service et Ingress restent en place.
-#   2. Démarrer   → la même version repart, le port est repris, les données sont
-#                   toujours là, la santé redevient `healthy`.
-#   3. Les refus  → arrêter deux fois, démarrer ce qui tourne, redémarrer ce qui
-#                   est arrêté, revenir en arrière sans version précédente :
-#                   quatre 409 qui nomment la raison, pas quatre boutons morts.
-#   4. Le RBAC    → un observateur reçoit 403 sur `deployment:restart`, et le
-#                   refus est dans le journal d'activité.
-#   5. L'audit    → `app.stop.requested`, `app.stopped`, `app.start.requested`,
-#                   `app.started` avec l'acteur et l'IP.
-#   6. Détruire   → depuis l'écran de l'application, c'est la route du
-#                   déploiement qui est appelée : plus rien sur la machine, port
-#                   rendu, namespace disparu.
+#   1. Stop       → the processes stop, nothing is taken down: the volume's data
+#                   survives, the port stays reserved, the address stops
+#                   answering. On Compose the containers stay `exited`; on K3s
+#                   the Deployments go to zero replicas and the PVCs, Service and
+#                   Ingress stay in place.
+#   2. Start      → the same version starts again, the port is taken back, the
+#                   data is still there, the health becomes `healthy` again.
+#   3. Refusals   → stopping twice, starting what runs, restarting what is
+#                   stopped, rolling back without a previous version: four 409s
+#                   that name the reason, not four dead buttons.
+#   4. RBAC       → a viewer gets 403 on `deployment:restart`, and the refusal is
+#                   in the activity log.
+#   5. Audit      → `app.stop.requested`, `app.stopped`, `app.start.requested`,
+#                   `app.started` with the actor and the IP.
+#   6. Destroy    → from the application screen, it is the deployment's route
+#                   that is called: nothing left on the machine, port given back,
+#                   namespace gone.
 #
-# Le script emprunte exactement les mêmes routes que l'interface.
+# The script takes exactly the same routes as the interface.
 #
-# Prérequis : une cible Docker et une cible K3s déployables.
-#   ./scripts/setup-test-target.sh   provisionne la première
-#   docs/getting-started.md          explique la seconde
+# Prerequisites: a deployable Docker target and K3s target.
+#   ./scripts/setup-test-target.sh   provisions the first one
+#   docs/getting-started.md          explains the second one
 #
-# Usage :
+# Usage:
 #   ./scripts/verify-app-actions.sh
 #   BASE_URL=http://localhost:3006 ./scripts/verify-app-actions.sh
-#   ONLY=docker ./scripts/verify-app-actions.sh      # un seul runtime
+#   ONLY=docker ./scripts/verify-app-actions.sh      # a single runtime
 #
-# Relançable : les applications de test sont détruites en fin de course, et
-# recréées à chaque passage.
+# Rerunnable: the test applications are destroyed at the end of the run, and
+# recreated at each pass.
 #
 set -euo pipefail
 
@@ -43,14 +43,14 @@ VIEWER_EMAIL="${VIEWER_EMAIL:-viewer@example.test}"
 VIEWER_PASSWORD="${VIEWER_PASSWORD:-motdepasse-tres-long}"
 DOCKER_TARGET="${DOCKER_TARGET:-cible-de-verification}"
 K3S_TARGET="${K3S_TARGET:-cible-k3s}"
-# Conteneurs portant les cibles de test : servent aux contrôles « au plus près »,
-# ceux qui regardent la machine et non la base du panel.
+# Containers carrying the test targets: used for the "closest" checks, those
+# that look at the machine and not at the panel's database.
 DOCKER_CONTAINER="${DOCKER_CONTAINER:-pupitre-ssh-target-1}"
 K3S_CONTAINER="${K3S_CONTAINER:-pupitre-k3s-target-1}"
-# Port par lequel le poste joint l'Ingress de la cible K3s.
+# Port through which the workstation reaches the K3s target's Ingress.
 K3S_HTTP_PORT="${K3S_HTTP_PORT:-8080}"
 CLIENT_IP="${CLIENT_IP:-198.51.100.77}"
-# `docker`, `k3s`, ou vide pour les deux.
+# `docker`, `k3s`, or empty for both.
 ONLY="${ONLY:-}"
 
 WORK="$(mktemp -d)"
@@ -59,7 +59,7 @@ VIEWER_JAR="$WORK/viewer.jar"
 BODY="$WORK/body.json"
 trap 'rm -rf "$WORK"' EXIT
 
-command -v jq >/dev/null || { echo "jq est requis"; exit 1; }
+command -v jq >/dev/null || { echo "jq is required"; exit 1; }
 
 pass() { printf '  \033[32m✓\033[0m %s\n' "$1"; }
 fail() { printf '  \033[31m✗\033[0m %s\n' "$1"; exit 1; }
@@ -76,7 +76,7 @@ req() {
   curl "${args[@]}"
 }
 
-# ─── connexion ────────────────────────────────────────────────────────────────
+# ─── sign-in ──────────────────────────────────────────────────────────────────
 
 login() {
   local code
@@ -89,19 +89,19 @@ login() {
       *)
         code=$(req POST /api/auth/sign-up/email \
           "{\"name\":\"Admin\",\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}")
-        [ "$code" = "200" ] || fail "connexion impossible (HTTP $code) : $(cat "$BODY")"
+        [ "$code" = "200" ] || fail "sign-in failed (HTTP $code): $(cat "$BODY")"
         break
         ;;
     esac
   done
   [ "$(jq -r '.user.role // empty' "$BODY")" = "admin" ] \
-    || fail "« $ADMIN_EMAIL » n'est pas administrateur — relancez avec un compte admin"
+    || fail "\"$ADMIN_EMAIL\" is not an administrator — rerun with an admin account"
 }
 
-# ─── helpers métier ───────────────────────────────────────────────────────────
+# ─── domain helpers ───────────────────────────────────────────────────────────
 
-# AppSpec minimale, avec un volume : c'est lui qui prouve que l'arrêt ne perd
-# rien. `ingress_host` vide = exposition par port publié (Docker).
+# Minimal AppSpec, with a volume: it is what proves that stopping loses nothing.
+# Empty `ingress_host` = exposure through a published port (Docker).
 spec_json() {
   local name="$1" ingress_host="$2"
   jq -n --arg n "$name" --arg h "$ingress_host" '
@@ -128,14 +128,14 @@ upsert_app() {
   if [ -n "$id" ]; then
     jq -n --argjson spec "$spec" '{appSpec:$spec}' > "$WORK/patch.json"
     code=$(req PATCH "/api/applications/$id" "@$WORK/patch.json")
-    [ "$code" = "200" ] || fail "PATCH /api/applications/$id → HTTP $code : $(cat "$BODY")"
+    [ "$code" = "200" ] || fail "PATCH /api/applications/$id → HTTP $code: $(cat "$BODY")"
     printf '%s' "$id"
     return
   fi
 
   jq -n --argjson spec "$spec" '{appSpec:$spec}' > "$WORK/create.json"
   code=$(req POST /api/applications "@$WORK/create.json")
-  [ "$code" = "201" ] || fail "POST /api/applications → HTTP $code : $(cat "$BODY")"
+  [ "$code" = "201" ] || fail "POST /api/applications → HTTP $code: $(cat "$BODY")"
   jq -r .id "$BODY"
 }
 
@@ -143,7 +143,7 @@ deploy_and_wait() {
   local app_id="$1" target_id="$2" runtime="$3" code id status
   code=$(req POST /api/deployments \
     "{\"applicationId\":\"$app_id\",\"targetId\":\"$target_id\",\"runtime\":\"$runtime\",\"proxy\":\"traefik\",\"autoRollback\":false}")
-  [ "$code" = "202" ] || fail "POST /api/deployments → HTTP $code : $(cat "$BODY")"
+  [ "$code" = "202" ] || fail "POST /api/deployments → HTTP $code: $(cat "$BODY")"
   id=$(jq -r .id "$BODY")
 
   for _ in $(seq 1 180); do
@@ -154,7 +154,7 @@ deploy_and_wait() {
       success|failed|rolled_back|destroyed) printf '%s %s' "$id" "$status"; return ;;
     esac
   done
-  fail "le déploiement $id n'a pas abouti en 6 minutes (statut « $status »)"
+  fail "deployment $id did not complete in 6 minutes (status \"$status\")"
 }
 
 deployment_log() {
@@ -162,22 +162,22 @@ deployment_log() {
   jq -r '[.steps[].log] | join("")' "$BODY"
 }
 
-# État lu par la même route que l'écran : `GET /api/apps/:id/state`.
+# State read through the same route as the screen: `GET /api/apps/:id/state`.
 app_state() {
   local code
   code=$(req GET "/api/apps/$1/state")
-  [ "$code" = "200" ] || fail "GET /api/apps/$1/state → HTTP $code : $(cat "$BODY")"
+  [ "$code" = "200" ] || fail "GET /api/apps/$1/state → HTTP $code: $(cat "$BODY")"
 }
 
-# Enfile un geste, puis attend que l'état bascule.
+# Queues a gesture, then waits for the state to switch.
 #
-# Plusieurs essais sont prévus, et c'est un aveu assumé : en développement, deux
-# arbres de travail peuvent faire tourner chacun leur worker sur le même Redis,
-# et celui qui ne connaît pas le nom de la tâche la refuse au lieu de la rendre.
-# Avec un seul worker — le cas normal —, le premier essai suffit toujours.
+# Several attempts are planned, and it is an assumed admission: in development,
+# two worktrees can each run their worker on the same Redis, and the one that
+# does not know the job's name refuses it instead of giving it back. With a
+# single worker — the normal case —, the first attempt is always enough.
 #
-# Un 409 en cours de route n'est pas un échec : c'est la preuve qu'un essai
-# précédent a fini par prendre. On revérifie l'état avant de conclure.
+# A 409 along the way is not a failure: it is the proof that an earlier attempt
+# ended up taking. The state is checked again before concluding.
 GESTURE_ATTEMPTS="${GESTURE_ATTEMPTS:-4}"
 
 gesture_and_wait() {
@@ -187,34 +187,34 @@ gesture_and_wait() {
     if [ "$code" = "409" ]; then
       app_state "$deployment_id"
       jq -e "$expect" "$BODY" >/dev/null && return 0
-      fail "POST /api/apps/$deployment_id/$path → 409 : $(jq -r '.error.message' "$BODY")"
+      fail "POST /api/apps/$deployment_id/$path → 409: $(jq -r '.error.message' "$BODY")"
     fi
-    [ "$code" = "202" ] || fail "POST /api/apps/$deployment_id/$path → HTTP $code : $(cat "$BODY")"
+    [ "$code" = "202" ] || fail "POST /api/apps/$deployment_id/$path → HTTP $code: $(cat "$BODY")"
 
     for _ in $(seq 1 25); do
       sleep 2
       app_state "$deployment_id"
       if jq -e "$expect" "$BODY" >/dev/null; then return 0; fi
     done
-    warn "« $path » sans effet en 50 s (essai $attempt) — on redemande"
+    warn "\"$path\" without effect in 50 s (attempt $attempt) — asking again"
   done
-  fail "le geste « $path » n'a rien changé : $(jq -c '{stoppedAt,status}' "$BODY")"
+  fail "the \"$path\" gesture changed nothing: $(jq -c '{stoppedAt,status}' "$BODY")"
 }
 
-# Refus attendu : le code ET le motif, parce qu'un 409 muet ne vaut rien.
+# Expected refusal: the code AND the reason, because a mute 409 is worth nothing.
 expect_conflict() {
   local method="$1" path="$2" needle="$3" code
   code=$(req "$method" "$path")
-  [ "$code" = "409" ] || fail "$method $path : attendu 409, reçu $code — $(cat "$BODY")"
+  [ "$code" = "409" ] || fail "$method $path: expected 409, got $code — $(cat "$BODY")"
   jq -e --arg n "$needle" '.error.message | test($n)' "$BODY" >/dev/null \
-    || fail "$method $path : message inattendu — $(jq -r '.error.message' "$BODY")"
+    || fail "$method $path: unexpected message — $(jq -r '.error.message' "$BODY")"
   pass "409 — $(jq -r '.error.message' "$BODY")"
 }
 
-# Code HTTP, ou 000 quand rien ne répond. `curl -w` imprime déjà « 000 » sur une
-# connexion refusée, mais il sort en erreur : sans ce garde-fou, `set -e`
-# arrêterait le script au moment précis où l'absence de réponse est le résultat
-# attendu.
+# HTTP code, or 000 when nothing answers. `curl -w` already prints "000" on a
+# refused connection, but it exits with an error: without this guard, `set -e`
+# would stop the script at the very moment when the lack of an answer is the
+# expected result.
 http_code() {
   local url="$1" host="${2:-}" out
   local args=(-s -o /dev/null -w '%{http_code}' --max-time 10 "$url")
@@ -226,23 +226,23 @@ http_code() {
 on_docker() { docker exec "$DOCKER_CONTAINER" sh -c "$1"; }
 on_k3s() { docker exec "$K3S_CONTAINER" sh -c "$1"; }
 
-# Le journal se filtre par action côté serveur ; le tri par ressource se fait
-# ici, `auditQuerySchema` n'exposant pas `resourceId`.
+# The log is filtered by action on the server side; the sorting by resource is
+# done here, `auditQuerySchema` not exposing `resourceId`.
 audit_count() {
   local action="$1" resource="$2" code
   code=$(req GET "/api/audit-logs?action=$action&pageSize=100")
-  [ "$code" = "200" ] || fail "GET /api/audit-logs → HTTP $code : $(cat "$BODY")"
+  [ "$code" = "200" ] || fail "GET /api/audit-logs → HTTP $code: $(cat "$BODY")"
   jq -r --arg r "$resource" '[.items[] | select(.resourceId == $r)] | length' "$BODY"
 }
 
-# ─── 0. Contexte ──────────────────────────────────────────────────────────────
+# ─── 0. Context ───────────────────────────────────────────────────────────────
 
-step "0. Le panel répond, et l'on s'y connecte"
+step "0. The panel answers, and we sign in"
 code=$(req GET /api/health)
 [ "$code" = "200" ] || fail "GET /api/health → HTTP $code"
 pass "/api/health → $(jq -c '{status,db,redis}' "$BODY")"
 login
-pass "connecté en tant que $ADMIN_EMAIL"
+pass "signed in as $ADMIN_EMAIL"
 
 req GET /api/targets >/dev/null
 DOCKER_TARGET_ID=$(jq -r --arg n "$DOCKER_TARGET" '.items[] | select(.name == $n) | .id' "$BODY")
@@ -250,17 +250,17 @@ K3S_TARGET_ID=$(jq -r --arg n "$K3S_TARGET" '.items[] | select(.name == $n) | .i
 
 RUNTIMES=""
 if [ "$ONLY" = "" ] || [ "$ONLY" = "docker" ]; then
-  [ -n "$DOCKER_TARGET_ID" ] || fail "cible « $DOCKER_TARGET » introuvable"
+  [ -n "$DOCKER_TARGET_ID" ] || fail "target \"$DOCKER_TARGET\" not found"
   RUNTIMES="docker"
-  pass "cible Docker « $DOCKER_TARGET » — $DOCKER_TARGET_ID"
+  pass "Docker target \"$DOCKER_TARGET\" — $DOCKER_TARGET_ID"
 fi
 if [ "$ONLY" = "" ] || [ "$ONLY" = "k3s" ]; then
-  [ -n "$K3S_TARGET_ID" ] || fail "cible « $K3S_TARGET » introuvable"
+  [ -n "$K3S_TARGET_ID" ] || fail "target \"$K3S_TARGET\" not found"
   RUNTIMES="$RUNTIMES k3s"
-  pass "cible K3s « $K3S_TARGET » — $K3S_TARGET_ID"
+  pass "K3s target \"$K3S_TARGET\" — $K3S_TARGET_ID"
 fi
 
-# ─── la même séquence, sur chaque runtime ─────────────────────────────────────
+# ─── the same sequence, on each runtime ───────────────────────────────────────
 
 for RUNTIME in $RUNTIMES; do
   if [ "$RUNTIME" = "docker" ]; then
@@ -272,110 +272,110 @@ for RUNTIME in $RUNTIMES; do
   fi
   NAMESPACE="app-$SLUG"
 
-  step "── $RUNTIME ──  1. Une application en marche sur « $TARGET_NAME »"
+  step "── $RUNTIME ──  1. A running application on \"$TARGET_NAME\""
   APP_ID=$(upsert_app "$SLUG" "$(spec_json "$SLUG" "$INGRESS_HOST")")
   read -r DEPLOY_ID STATUS <<< "$(deploy_and_wait "$APP_ID" "$TARGET_ID" "$RUNTIME")"
   [ "$STATUS" = "success" ] \
-    || fail "$SLUG : statut « $STATUS » — $(deployment_log "$DEPLOY_ID" | tail -c 800)"
+    || fail "$SLUG: status \"$STATUS\" — $(deployment_log "$DEPLOY_ID" | tail -c 800)"
 
   app_state "$DEPLOY_ID"
   PORT=$(jq -r '.publishedPort // empty' "$BODY")
-  jq -e '.stoppedAt == null' "$BODY" >/dev/null || fail "une application neuve est déclarée arrêtée"
-  pass "$SLUG déployée — déploiement $DEPLOY_ID${PORT:+, port $PORT}"
+  jq -e '.stoppedAt == null' "$BODY" >/dev/null || fail "a new application is declared stopped"
+  pass "$SLUG deployed — deployment $DEPLOY_ID${PORT:+, port $PORT}"
 
-  # Une marque écrite dans le volume : c'est elle qui dira, après l'arrêt et le
-  # redémarrage, si les données ont survécu. Un décompte de conteneurs ne le
-  # prouve pas.
+  # A mark written in the volume: it is what will tell, after the stop and the
+  # restart, whether the data survived. A count of containers does not prove
+  # it.
   MARK="marque-$(date +%s)"
   if [ "$RUNTIME" = "docker" ]; then
     CONTAINER=$(on_docker "docker ps -q --filter label=com.docker.compose.project=$NAMESPACE" | head -1)
-    [ -n "$CONTAINER" ] || fail "aucun conteneur pour le projet $NAMESPACE"
+    [ -n "$CONTAINER" ] || fail "no container for the $NAMESPACE project"
     on_docker "docker exec $CONTAINER sh -c 'echo $MARK > /data/marque'" >/dev/null
   else
     on_k3s "kubectl -n $NAMESPACE exec deploy/web -- sh -c 'echo $MARK > /data/marque'" >/dev/null
   fi
-  pass "marque « $MARK » écrite dans le volume"
+  pass "mark \"$MARK\" written in the volume"
 
   if [ "$RUNTIME" = "docker" ]; then
     HTTP=$(http_code "http://127.0.0.1:$PORT")
     [ "$HTTP" = "200" ] || fail "http://127.0.0.1:$PORT → HTTP $HTTP"
-    pass "l'adresse répond — HTTP 200 sur le port $PORT"
+    pass "the address answers — HTTP 200 on port $PORT"
   else
     HTTP=$(http_code "http://127.0.0.1:$K3S_HTTP_PORT/" "$INGRESS_HOST")
     if [ "$HTTP" = "200" ]; then
-      pass "l'Ingress répond — HTTP 200 sur $INGRESS_HOST"
+      pass "the Ingress answers — HTTP 200 on $INGRESS_HOST"
     else
-      warn "l'Ingress répond HTTP $HTTP depuis le poste — contrôle reporté sur les pods"
+      warn "the Ingress answers HTTP $HTTP from the workstation — check deferred to the pods"
     fi
   fi
 
-  # ─── 2. Arrêter ─────────────────────────────────────────────────────────────
+  # ─── 2. Stop ────────────────────────────────────────────────────────────────
 
-  step "── $RUNTIME ──  2. Arrêter"
+  step "── $RUNTIME ──  2. Stop"
   gesture_and_wait "$DEPLOY_ID" stop '.stoppedAt != null'
-  pass "arrêtée — stoppedAt = $(jq -r .stoppedAt "$BODY")"
+  pass "stopped — stoppedAt = $(jq -r .stoppedAt "$BODY")"
 
   jq -e '.status == "success"' "$BODY" >/dev/null \
-    || fail "le statut du déploiement a bougé : $(jq -r .status "$BODY") — un arrêt n'est pas une issue"
-  pass "le statut du déploiement reste « success » : arrêter n'est pas défaire"
+    || fail "the deployment status moved: $(jq -r .status "$BODY") — a stop is not an outcome"
+  pass "the deployment status stays \"success\": stopping is not undoing"
 
   if [ "$RUNTIME" = "docker" ]; then
     STATES=$(on_docker "docker ps -a --filter label=com.docker.compose.project=$NAMESPACE --format '{{.State}}'" | tr '\n' ' ')
     printf '%s' "$STATES" | grep -q 'exited' \
-      || fail "les conteneurs de $NAMESPACE ne sont pas à l'arrêt : « $STATES »"
+      || fail "the $NAMESPACE containers are not stopped: \"$STATES\""
     printf '%s' "$STATES" | grep -q 'running' \
-      && fail "un conteneur de $NAMESPACE tourne encore : « $STATES »"
-    pass "conteneurs à l'état « exited » — ils ne sont pas supprimés"
+      && fail "a $NAMESPACE container still runs: \"$STATES\""
+    pass "containers in the \"exited\" state — they are not deleted"
 
     VOLUMES=$(on_docker "docker volume ls -q --filter label=com.docker.compose.project=$NAMESPACE" | wc -l | tr -d ' ')
-    [ "$VOLUMES" -ge 1 ] || fail "les volumes de $NAMESPACE ont disparu"
-    pass "$VOLUMES volume(s) toujours en place"
+    [ "$VOLUMES" -ge 1 ] || fail "the $NAMESPACE volumes disappeared"
+    pass "$VOLUMES volume(s) still in place"
 
     HTTP=$(http_code "http://127.0.0.1:$PORT")
-    [ "$HTTP" = "000" ] || fail "le port $PORT répond encore (HTTP $HTTP) après l'arrêt"
-    pass "le port $PORT ne répond plus — la liaison est rendue avec le conteneur"
+    [ "$HTTP" = "000" ] || fail "port $PORT still answers (HTTP $HTTP) after the stop"
+    pass "port $PORT no longer answers — the binding is given back with the container"
   else
     REPLICAS=$(on_k3s "kubectl -n $NAMESPACE get deploy -o jsonpath='{.items[*].spec.replicas}'" | tr -d ' ')
-    [ "$REPLICAS" = "0" ] || fail "les Deployments ne sont pas à zéro réplique : « $REPLICAS »"
-    pass "Deployments à zéro réplique"
+    [ "$REPLICAS" = "0" ] || fail "the Deployments are not at zero replicas: \"$REPLICAS\""
+    pass "Deployments at zero replicas"
 
     PODS=$(on_k3s "kubectl -n $NAMESPACE get pods --no-headers 2>/dev/null | wc -l" | tr -d ' ')
-    [ "$PODS" = "0" ] || fail "$PODS pod(s) subsistent dans $NAMESPACE"
-    pass "plus aucun pod dans $NAMESPACE"
+    [ "$PODS" = "0" ] || fail "$PODS pod(s) remain in $NAMESPACE"
+    pass "no pod left in $NAMESPACE"
 
     KEPT=$(on_k3s "kubectl -n $NAMESPACE get pvc,svc,ingress --no-headers 2>/dev/null | wc -l" | tr -d ' ')
-    [ "$KEPT" -ge 3 ] || fail "PVC, Service ou Ingress ont disparu (il en reste $KEPT)"
-    pass "PVC, Service et Ingress conservés ($KEPT objets)"
+    [ "$KEPT" -ge 3 ] || fail "PVC, Service or Ingress disappeared ($KEPT left)"
+    pass "PVC, Service and Ingress kept ($KEPT objects)"
 
     HTTP=$(http_code "http://127.0.0.1:$K3S_HTTP_PORT/" "$INGRESS_HOST")
-    [ "$HTTP" != "200" ] || fail "l'Ingress sert encore l'application après l'arrêt"
-    pass "l'Ingress ne sert plus l'application (HTTP $HTTP) — l'objet reste, la charge est partie"
+    [ "$HTTP" != "200" ] || fail "the Ingress still serves the application after the stop"
+    pass "the Ingress no longer serves the application (HTTP $HTTP) — the object stays, the workload is gone"
   fi
 
-  # Le port reste réservé : personne d'autre ne doit pouvoir le prendre.
+  # The port stays reserved: nobody else must be able to take it.
   if [ "$RUNTIME" = "docker" ]; then
     req GET "/api/targets/$TARGET_ID/ports" >/dev/null
     jq -e --argjson p "$PORT" --arg s "$SLUG" \
       '[.allocations[] | select(.port == $p and .applicationSlug == $s)] | length == 1' "$BODY" \
-      >/dev/null || fail "la réservation du port $PORT a été rendue pendant l'arrêt"
-    pass "le port $PORT reste réservé à « $SLUG » pendant l'arrêt"
+      >/dev/null || fail "the reservation of port $PORT was given back during the stop"
+    pass "port $PORT stays reserved for \"$SLUG\" during the stop"
   fi
 
-  step "── $RUNTIME ──  3. Les refus"
-  expect_conflict POST "/api/apps/$DEPLOY_ID/stop" 'déjà arrêtée'
-  expect_conflict POST "/api/apps/$DEPLOY_ID/restart" 'démarrez-la'
+  step "── $RUNTIME ──  3. The refusals"
+  expect_conflict POST "/api/apps/$DEPLOY_ID/stop" 'déjà arrêtée|been stopped since'
+  expect_conflict POST "/api/apps/$DEPLOY_ID/restart" 'démarrez-la|start it rather'
 
-  # ─── 4. Démarrer ────────────────────────────────────────────────────────────
+  # ─── 4. Start ───────────────────────────────────────────────────────────────
 
-  step "── $RUNTIME ──  4. Démarrer"
+  step "── $RUNTIME ──  4. Start"
   gesture_and_wait "$DEPLOY_ID" start '.stoppedAt == null'
-  pass "démarrée — stoppedAt de nouveau nul"
+  pass "started — stoppedAt null again"
 
-  expect_conflict POST "/api/apps/$DEPLOY_ID/start" "n'est pas arrêtée"
+  expect_conflict POST "/api/apps/$DEPLOY_ID/start" "n'est pas arrêtée|is not stopped"
 
   if [ "$RUNTIME" = "docker" ]; then
     CONTAINER=$(on_docker "docker ps -q --filter label=com.docker.compose.project=$NAMESPACE" | head -1)
-    [ -n "$CONTAINER" ] || fail "aucun conteneur en marche après le démarrage"
+    [ -n "$CONTAINER" ] || fail "no running container after the start"
     READ_BACK=$(on_docker "docker exec $CONTAINER cat /data/marque" | tr -d '\r\n')
     HTTP=$(http_code "http://127.0.0.1:$PORT")
   else
@@ -384,28 +384,28 @@ for RUNTIME in $RUNTIMES; do
   fi
 
   [ "$READ_BACK" = "$MARK" ] \
-    || fail "la marque du volume a été perdue : « $READ_BACK » au lieu de « $MARK »"
-  pass "la marque « $MARK » est intacte — l'arrêt n'a rien perdu"
+    || fail "the volume's mark was lost: \"$READ_BACK\" instead of \"$MARK\""
+  pass "the mark \"$MARK\" is intact — the stop lost nothing"
 
   if [ "$HTTP" = "200" ]; then
-    pass "l'adresse répond de nouveau — HTTP 200"
+    pass "the address answers again — HTTP 200"
   elif [ "$RUNTIME" = "k3s" ]; then
-    warn "l'Ingress répond HTTP $HTTP depuis le poste"
+    warn "the Ingress answers HTTP $HTTP from the workstation"
   else
-    fail "le port $PORT ne répond pas après le démarrage (HTTP $HTTP)"
+    fail "port $PORT does not answer after the start (HTTP $HTTP)"
   fi
 
   app_state "$DEPLOY_ID"
   jq -e --argjson p "${PORT:-null}" '.publishedPort == $p' "$BODY" >/dev/null \
-    || fail "le port publié a changé : $(jq -r .publishedPort "$BODY")"
-  pass "même version, même port : le démarrage n'a rien redéployé"
+    || fail "the published port changed: $(jq -r .publishedPort "$BODY")"
+  pass "same version, same port: the start redeployed nothing"
 
   # ─── 5. L'audit ─────────────────────────────────────────────────────────────
 
-  step "── $RUNTIME ──  5. Le journal d'activité"
-  # L'entrée d'audit est écrite par le worker **après** le geste et sa sonde de
-  # santé : elle arrive quelques secondes après la bascule d'état que l'on a
-  # attendue. On lui laisse ce délai plutôt que de courser le worker.
+  step "── $RUNTIME ──  5. The activity log"
+  # The audit entry is written by the worker **after** the gesture and its
+  # health probe: it arrives a few seconds after the state switch we waited
+  # for. We leave it that delay rather than racing the worker.
   for action in app.stop.requested app.stopped app.start.requested app.started; do
     COUNT=0
     for _ in $(seq 1 15); do
@@ -413,104 +413,104 @@ for RUNTIME in $RUNTIMES; do
       [ "$COUNT" -ge 1 ] && break
       sleep 2
     done
-    [ "$COUNT" -ge 1 ] || fail "aucune entrée « $action » pour $DEPLOY_ID"
-    pass "$action — $COUNT entrée(s)"
+    [ "$COUNT" -ge 1 ] || fail "no \"$action\" entry for $DEPLOY_ID"
+    pass "$action — $COUNT entry(ies)"
   done
   req GET "/api/audit-logs?action=app.stopped&pageSize=100" >/dev/null
   jq -e --arg r "$DEPLOY_ID" --arg ip "$CLIENT_IP" \
     '[.items[] | select(.resourceId == $r)][0] | .ip == $ip and .actorEmail != null' "$BODY" \
-    >/dev/null || fail "l'acteur ou son IP manquent dans l'audit : $(jq -c '.items[0]' "$BODY")"
-  pass "l'acteur et son IP sont tracés — $(jq -rc --arg r "$DEPLOY_ID" '[.items[] | select(.resourceId == $r)][0] | {actorEmail, ip, action}' "$BODY")"
+    >/dev/null || fail "the actor or their IP is missing from the audit: $(jq -c '.items[0]' "$BODY")"
+  pass "the actor and their IP are traced — $(jq -rc --arg r "$DEPLOY_ID" '[.items[] | select(.resourceId == $r)][0] | {actorEmail, ip, action}' "$BODY")"
 
-  # ─── 6. Revenir en arrière, sans version précédente ─────────────────────────
+  # ─── 6. Rolling back, without a previous version ────────────────────────────
 
-  step "── $RUNTIME ──  6. Revenir à la version précédente, quand il n'y en a pas"
+  step "── $RUNTIME ──  6. Going back to the previous version, when there is none"
   app_state "$DEPLOY_ID"
   if jq -e '.previous == null' "$BODY" >/dev/null; then
-    expect_conflict POST "/api/deployments/$DEPLOY_ID/rollback" 'nulle part où revenir'
+    expect_conflict POST "/api/deployments/$DEPLOY_ID/rollback" 'nulle part où revenir|nowhere to go back'
   else
-    info "cette application a une version précédente ($(jq -r .previous.version "$BODY")) — refus non applicable"
+    info "this application has a previous version ($(jq -r .previous.version "$BODY")) — refusal not applicable"
   fi
 
-  # ─── 7. Détruire ────────────────────────────────────────────────────────────
+  # ─── 7. Destroy ─────────────────────────────────────────────────────────────
 
-  step "── $RUNTIME ──  7. Détruire"
+  step "── $RUNTIME ──  7. Destroy"
   code=$(req DELETE "/api/deployments/$DEPLOY_ID")
-  [ "$code" = "202" ] || fail "DELETE /api/deployments/$DEPLOY_ID → HTTP $code : $(cat "$BODY")"
+  [ "$code" = "202" ] || fail "DELETE /api/deployments/$DEPLOY_ID → HTTP $code: $(cat "$BODY")"
   for _ in $(seq 1 90); do
     sleep 2
     req GET "/api/deployments/$DEPLOY_ID" >/dev/null
     [ "$(jq -r .status "$BODY")" = "destroyed" ] && break
   done
-  [ "$(jq -r .status "$BODY")" = "destroyed" ] || fail "le déploiement n'a pas été détruit"
-  pass "déploiement détruit"
+  [ "$(jq -r .status "$BODY")" = "destroyed" ] || fail "the deployment was not destroyed"
+  pass "deployment destroyed"
 
   if [ "$RUNTIME" = "docker" ]; then
     LEFT=$(on_docker "docker ps -aq --filter label=com.docker.compose.project=$NAMESPACE | wc -l" | tr -d ' ')
-    [ "$LEFT" = "0" ] || fail "$LEFT conteneur(s) subsistent pour $NAMESPACE"
+    [ "$LEFT" = "0" ] || fail "$LEFT container(s) remain for $NAMESPACE"
     VOL_LEFT=$(on_docker "docker volume ls -q --filter label=com.docker.compose.project=$NAMESPACE | wc -l" | tr -d ' ')
-    [ "$VOL_LEFT" = "0" ] || fail "$VOL_LEFT volume(s) subsistent pour $NAMESPACE"
-    pass "plus aucun conteneur ni volume pour $NAMESPACE"
+    [ "$VOL_LEFT" = "0" ] || fail "$VOL_LEFT volume(s) remain for $NAMESPACE"
+    pass "no container nor volume left for $NAMESPACE"
 
     req GET "/api/targets/$TARGET_ID/ports" >/dev/null
     jq -e --argjson p "$PORT" '[.allocations[] | select(.port == $p)] | length == 0' "$BODY" \
-      >/dev/null || fail "le port $PORT est toujours réservé après la destruction"
-    pass "le port $PORT est rendu à la réserve"
+      >/dev/null || fail "port $PORT is still reserved after the destruction"
+    pass "port $PORT is given back to the pool"
   else
     NS_LEFT=$(on_k3s "kubectl get ns $NAMESPACE --no-headers 2>/dev/null | wc -l" | tr -d ' ')
-    [ "$NS_LEFT" = "0" ] || fail "le namespace $NAMESPACE existe encore"
-    pass "le namespace $NAMESPACE a disparu"
+    [ "$NS_LEFT" = "0" ] || fail "the $NAMESPACE namespace still exists"
+    pass "the $NAMESPACE namespace is gone"
   fi
 
-  # Une application détruite n'a plus de gestes : la route le dit.
+  # A destroyed application has no gestures left: the route says so.
   code=$(req POST "/api/apps/$DEPLOY_ID/stop")
-  [ "$code" = "409" ] || fail "arrêter un déploiement détruit : attendu 409, reçu $code"
+  [ "$code" = "409" ] || fail "stopping a destroyed deployment: expected 409, got $code"
   pass "409 — $(jq -r '.error.message' "$BODY")"
 done
 
 # ─── 8. RBAC ──────────────────────────────────────────────────────────────────
 
-step "8. RBAC : un observateur ne peut pas arrêter"
+step "8. RBAC: a viewer cannot stop"
 code=$(req POST /api/admin/users \
   "{\"name\":\"Vera Viewer\",\"email\":\"$VIEWER_EMAIL\",\"password\":\"$VIEWER_PASSWORD\",\"role\":\"viewer\"}")
 case "$code" in
   201|409) : ;;
-  *) fail "POST /api/admin/users → HTTP $code : $(cat "$BODY")" ;;
+  *) fail "POST /api/admin/users → HTTP $code: $(cat "$BODY")" ;;
 esac
 
 req GET /api/admin/users >/dev/null
 VIEWER_ACCOUNT_ID=$(jq -r --arg e "$VIEWER_EMAIL" '.items[] | select(.email == $e) | .id' "$BODY" | head -1)
-[ -n "$VIEWER_ACCOUNT_ID" ] || fail "compte « $VIEWER_EMAIL » introuvable"
-# Un autre script a pu lui donner un autre rôle : on réaligne, sinon le test ne
-# prouve rien.
+[ -n "$VIEWER_ACCOUNT_ID" ] || fail "account \"$VIEWER_EMAIL\" not found"
+# Another script may have given it another role: we realign, otherwise the test
+# proves nothing.
 code=$(req PATCH "/api/admin/users/$VIEWER_ACCOUNT_ID/role" '{"role":"viewer"}')
-[ "$code" = "200" ] || fail "réalignement du rôle → HTTP $code : $(cat "$BODY")"
+[ "$code" = "200" ] || fail "realigning the role → HTTP $code: $(cat "$BODY")"
 
 code=$(req POST /api/auth/sign-in/email \
   "{\"email\":\"$VIEWER_EMAIL\",\"password\":\"$VIEWER_PASSWORD\"}" "$VIEWER_JAR")
-[ "$code" = "200" ] || fail "connexion viewer → HTTP $code : $(cat "$BODY")"
+[ "$code" = "200" ] || fail "viewer sign-in → HTTP $code: $(cat "$BODY")"
 VIEWER_ID=$(jq -r '.user.id' "$BODY")
-pass "connecté en observateur — $VIEWER_ID"
+pass "signed in as a viewer — $VIEWER_ID"
 
-# L'identifiant n'a pas besoin d'exister : le RBAC tranche avant la base.
+# The identifier does not need to exist: RBAC decides before the database.
 PROBE_ID="00000000-0000-4000-8000-000000000000"
 for path in stop start; do
   code=$(req POST "/api/apps/$PROBE_ID/$path" "" "$VIEWER_JAR")
-  [ "$code" = "403" ] || fail "viewer sur /$path : attendu 403, reçu $code — $(cat "$BODY")"
+  [ "$code" = "403" ] || fail "viewer on /$path: expected 403, got $code — $(cat "$BODY")"
   jq -e '.error.details.permission == "deployment:restart"' "$BODY" >/dev/null \
-    || fail "la permission refusée n'est pas `deployment:restart` : $(cat "$BODY")"
-  pass "403 sur /$path — permission « deployment:restart »"
+    || fail "the refused permission is not \"deployment:restart\": $(cat "$BODY")"
+  pass "403 on /$path — permission \"deployment:restart\""
 done
 
-# En lecture, l'observateur voit l'état : c'est `deployment:read`, comme la page.
+# Reading, the viewer sees the state: it is `deployment:read`, like the page.
 code=$(req GET "/api/apps/$PROBE_ID/state" "" "$VIEWER_JAR")
-[ "$code" = "404" ] || fail "viewer sur /state : attendu 404 (permission accordée), reçu $code"
-pass "l'observateur lit l'état (404 sur un identifiant inconnu, pas 403)"
+[ "$code" = "404" ] || fail "viewer on /state: expected 404 (permission granted), got $code"
+pass "the viewer reads the state (404 on an unknown identifier, not 403)"
 
-step "9. Le refus est dans le journal d'activité"
+step "9. The refusal is in the activity log"
 code=$(req GET "/api/audit-logs?action=permission.denied&actorId=$VIEWER_ID&pageSize=1")
 [ "$code" = "200" ] || fail "GET /api/audit-logs → HTTP $code"
-jq -e '.items | length >= 1' "$BODY" >/dev/null || fail "aucun refus tracé pour l'observateur"
+jq -e '.items | length >= 1' "$BODY" >/dev/null || fail "no refusal traced for the viewer"
 pass "permission.denied — $(jq -rc '.items[0] | {actorEmail, action, ip}' "$BODY")"
 
-printf '\n\033[32m✓ tous les contrôles sont passés\033[0m\n'
+printf '\n\033[32m✓ all checks passed\033[0m\n'

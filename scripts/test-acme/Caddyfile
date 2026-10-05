@@ -1,8 +1,8 @@
-# Relais de test : se présente sous les noms de Let's Encrypt et relaie vers
-# Pebble. Pour un proxy qui n'accepte d'autre autorité que Let's Encrypt
-# (BunkerWeb), `pnpm test:proxy --proxy bunkerweb` fait pointer ces noms ici,
-# dans le conteneur de test seulement, et lui fait reconnaître l'autorité
-# interne de Caddy. Rien de cela n'existe hors de l'environnement de test.
+# Test relay: it presents itself under Let's Encrypt's names and relays to
+# Pebble. For a proxy that accepts no other authority than Let's Encrypt
+# (BunkerWeb), `pnpm test:proxy --proxy bunkerweb` points these names here, in the
+# test container only, and makes it recognize Caddy's internal authority. None
+# of this exists outside the test environment.
 {
 	local_certs
 	skip_install_trust
@@ -10,10 +10,10 @@
 
 acme-staging-v02.api.letsencrypt.org, acme-v02.api.letsencrypt.org {
 	tls internal
-	# Pebble sert son annuaire sur /dir ; Let's Encrypt, sur /directory.
+	# Pebble serves its directory on /dir; Let's Encrypt, on /directory.
 	rewrite /directory /dir
 	reverse_proxy https://pebble:14000 {
-		# Pebble bâtit ses URL avec l'hôte demandé : elles repassent par ici.
+		# Pebble builds its URLs with the requested host: they come back through here.
 		header_up Host {host}
 		transport http {
 			tls_insecure_skip_verify

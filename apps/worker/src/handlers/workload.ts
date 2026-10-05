@@ -23,26 +23,26 @@ import { logger } from '../logger.js';
 import { getPublisher } from '../redis.js';
 
 /**
- * Charges d'une machine cible : inventaire, suppression, mise à jour, cycle
- * de vie, journal, commandes.
+ * A target machine's workloads: inventory, deletion, update, life cycle, log,
+ * commands.
  *
- * Sept tâches, un seul fichier, parce qu'elles partagent tout : l'ouverture de
- * la session SSH, le choix du driver, et surtout le fait qu'aucune ne sait ce
- * qu'est un conteneur. Le worker demande au driver du runtime, le driver
- * répond ; il n'y a nulle part ici de branche sur `docker` ou `k3s`.
+ * Seven jobs, a single file, because they share everything: opening the SSH
+ * session, choosing the driver, and above all the fact that none knows what a
+ * container is. The worker asks the runtime's driver, the driver answers; there
+ * is no branch on `docker` or `k3s` anywhere here.
  */
 
 /**
- * Inventaire des charges de la cible, tous runtimes confondus.
+ * The target's workload inventory, all runtimes together.
  *
- * Une cible peut annoncer Docker **et** K3s : on interroge alors les deux et on
- * concatène. Chaque charge porte son runtime, ce qui suffit à la renvoyer plus
- * tard au bon driver — le panel n'a jamais à en décider.
+ * A target can announce Docker **and** K3s: we then query both and concatenate.
+ * Each workload carries its runtime, which is enough to send it back later to
+ * the right driver — the panel never has to decide.
  *
- * Le résultat voyage par la valeur de retour BullMQ, pas par la base : un
- * inventaire est vrai à la seconde où il est pris et périmé juste après. Le
- * stocker demanderait une table, une migration, et une politique de fraîcheur
- * pour une donnée qui n'a pas d'histoire.
+ * The result travels through the BullMQ return value, not through the database:
+ * an inventory is true at the second it is taken and stale right after. Storing
+ * it would require a table, a migration, and a freshness policy for data that
+ * has no history.
  */
 export async function handleWorkloadList(
   job: Job<unknown, WorkloadListJobResult>,
@@ -61,17 +61,17 @@ export async function handleWorkloadList(
         items.push(...found);
         runtimes.push({ runtime, ok: true, error: null, count: found.length });
       } catch (error) {
-        // Un runtime muet ne doit pas emporter l'autre : une cible qui fait
-        // tourner Docker et un K3s cassé a quand même des conteneurs à montrer.
+        // A silent runtime must not take the other down: a target running Docker and a
+        // broken K3s still has containers to show.
         const message = error instanceof Error ? error.message : String(error);
-        log.warn({ runtime, err: error }, 'inventaire impossible pour ce runtime');
+        log.warn({ runtime, err: error }, 'inventory failed for this runtime');
         runtimes.push({ runtime, ok: false, error: message, count: 0 });
       }
     }
 
     log.info(
       { count: items.length, managed: items.filter((item) => item.managed).length },
-      'inventaire des charges terminé',
+      'workloads inventory completed',
     );
 
     return {
@@ -86,21 +86,21 @@ export async function handleWorkloadList(
 }
 
 /**
- * L'enveloppe commune des gestes sur une charge : la session, le flux temps
- * réel, le journal d'audit. Chaque geste ne fournit que son verbe sur le
- * driver, et le nom de ses lignes d'audit.
+ * The common envelope of the gestures on a workload: the session, the real-time
+ * stream, the audit log. Each gesture only provides its verb on the driver, and
+ * the name of its audit lines.
  */
 type Outcome = { exitCode: number | null; timedOut?: boolean; truncated?: boolean };
 
 type Operation = {
-  /** Ce que le driver fait. Rend le code de sortie d'une commande, rien sinon. */
+  /** What the driver does. Returns a command's exit code, nothing otherwise. */
   run: (
     driver: ReturnType<typeof getDriver>,
     ctx: TargetContext,
     onLog: (line: string) => void,
   ) => Promise<Outcome>;
   audit: { ok: string; failed: string } | null;
-  /** Ce que le journal d'audit retient en plus — la commande, son code. */
+  /** What the audit log keeps on top — the command, its code. */
   details?: (outcome: Outcome) => Record<string, unknown>;
 };
 
@@ -121,8 +121,8 @@ async function runWorkloadOperation(
   const publisher = getPublisher();
   const emit = (message: WorkloadMessage) => {
     publisher.publish(channel, JSON.stringify(message)).catch((error: unknown) => {
-      // L'opération ne doit pas échouer parce que personne ne regarde.
-      log.warn({ err: error }, 'publication de la progression impossible');
+      // The operation must not fail because nobody is watching.
+      log.warn({ err: error }, 'progress could not be published');
     });
   };
   const lifecycle = (
@@ -182,7 +182,7 @@ async function runWorkloadOperation(
         ip: data.ip,
       });
     }
-    log.info({ action: data.action, lines }, 'action sur charge terminée');
+    log.info({ action: data.action, lines }, 'workload action completed');
     return {
       targetId: data.targetId,
       ref: encoded,
@@ -194,9 +194,9 @@ async function runWorkloadOperation(
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     lifecycle('failed', detail);
-    // Un refus du driver — charge du panel, namespace système, options non
-    // reproductibles — est une décision, pas un incident : il se trace comme le
-    // succès, sinon le journal ne raconte qu'une moitié de l'histoire.
+    // A refusal from the driver — panel workload, system namespace, options that
+    // cannot be reproduced — is a decision, not an incident: it is recorded like
+    // success, otherwise the log only tells half the story.
     if (operation.audit) {
       await logAudit({
         actorId: data.actorId,
@@ -213,7 +213,7 @@ async function runWorkloadOperation(
   }
 }
 
-/** Suppression ou mise à jour d'une charge. */
+/** Deleting or updating a workload. */
 export async function handleWorkloadAction(
   job: Job<unknown, WorkloadActionJobResult>,
 ): Promise<WorkloadActionJobResult> {
@@ -237,7 +237,7 @@ const CONTROL_AUDIT = {
   restart: { ok: 'workload.restarted', failed: 'workload.restart.failed' },
 } as const;
 
-/** Démarrer, arrêter, redémarrer une charge. */
+/** Starting, stopping, restarting a workload. */
 export async function handleWorkloadControl(
   job: Job<unknown, WorkloadActionJobResult>,
 ): Promise<WorkloadActionJobResult> {
@@ -252,11 +252,10 @@ export async function handleWorkloadControl(
 }
 
 /**
- * Les dernières lignes du journal d'une charge, vers l'écran qui les a
- * demandées — par le canal temps réel, jamais par la base ni par la valeur de
- * retour de la tâche : un journal peut porter des secrets, il ne se stocke pas.
- * La lecture est tracée : lire le journal d'un conteneur, c'est voir ce qu'il
- * écrit.
+ * A workload's last log lines, to the screen that asked for them — through the
+ * real-time channel, never through the database or the job's return value: a
+ * log can carry secrets, it is not stored. Reading is recorded: reading a
+ * container's log is seeing what it writes.
  */
 export async function handleWorkloadLogs(
   job: Job<unknown, WorkloadActionJobResult>,
@@ -273,9 +272,9 @@ export async function handleWorkloadLogs(
 }
 
 /**
- * Une commande dans une charge. Le journal d'audit garde la commande et son
- * code de sortie — c'est le prix d'un geste aussi puissant —, jamais sa
- * sortie, qui ne va qu'à l'écran.
+ * A command in a workload. The audit log keeps the command and its exit code —
+ * it is the price of such a powerful gesture —, never its output, which only
+ * goes to the screen.
  */
 export async function handleWorkloadExec(
   job: Job<unknown, WorkloadActionJobResult>,

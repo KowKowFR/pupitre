@@ -1,21 +1,20 @@
 /**
- * Le nom sous lequel une application est regroupée sur une machine cible :
- * projet Compose côté Docker, namespace côté K3s. Convention CLAUDE.md —
- * `app-{slug}` — et c'est la **même** pour les deux runtimes.
+ * The name under which an application is grouped on a target machine: Compose
+ * project on the Docker side, namespace on the K3s side. CLAUDE.md convention —
+ * `app-{slug}` — and it is the **same** for both runtimes.
  *
- * ── Pourquoi cette fonction est à la racine de `@pupitre/core` ─────────────────────
- * L'autorité reste le driver : `DeploymentDriver.workspaceName()` est ce que le
- * worker interroge, et un driver futur pourrait légitimement nommer autrement.
- * Mais le panel Next ne peut pas appeler un driver — `@pupitre/core/drivers` est
- * délibérément hors de son graphe pour que `ssh2` n'y entre pas —, et l'écran
- * de confirmation doit pourtant **nommer** le projet Compose qu'un forçage
- * abandonnerait. Sans ce point commun, il l'aurait recomposé à la main, et le
- * `'app-'` en dur se serait retrouvé dans du TSX.
+ * ── Why this function is at the root of `@pupitre/core` ─────────────────────
+ * The authority stays the driver: `DeploymentDriver.workspaceName()` is what the
+ * worker queries, and a future driver could legitimately name differently. But
+ * the Next panel cannot call a driver — `@pupitre/core/drivers` is deliberately
+ * outside its graph so that `ssh2` does not get in —, and the confirmation
+ * screen must nevertheless **name** the Compose project a forced action would
+ * abandon. Without this common point, it would have rebuilt it by hand, and the
+ * hard-coded `'app-'` would have ended up in TSX.
  *
- * Les deux drivers en dérivent leurs propres préfixes : il n'y a qu'une
- * définition de la convention, ici, et deux vocabulaires qui la reprennent.
- * Rien n'exécute quoi que ce soit dans ce fichier — même règle que `ports.ts`
- * et `scan.ts`.
+ * Both drivers derive their own prefixes from it: there is only one definition
+ * of the convention, here, and two vocabularies that reuse it. Nothing in this
+ * file runs anything — the same rule as `ports.ts` and `scan.ts`.
  */
 export const WORKSPACE_PREFIX = 'app-';
 

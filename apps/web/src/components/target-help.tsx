@@ -24,18 +24,18 @@ import { useT } from '@/i18n/client';
 import { targetHelp } from '@/i18n/messages/target-help';
 
 /**
- * Aide sur les machines cibles — contenu statique, aucune donnée serveur.
+ * Help on target machines — static content, no server data.
  *
- * Un tiroir du kit d'aide (`components/help-drawer.tsx`) : il s'ouvre à côté
- * du formulaire qu'il explique. Chaque commande citée est celle des scripts du
- * dépôt (`scripts/setup-test-target.sh`, `scripts/test-target/`), et chaque
- * contrôle décrit est celui de `packages/core/src/ssh/preflight.ts` — dans son
- * ordre d'exécution réel. Les messages d'erreur sont recopiés depuis
- * `packages/core/src/ssh/{client,errors}.ts` et les `DriverError` des drivers.
+ * A help kit drawer (`components/help-drawer.tsx`): it opens next to the form it
+ * explains. Each quoted command is the repository scripts'
+ * (`scripts/setup-test-target.sh`, `scripts/test-target/`), and each described
+ * check is `packages/core/src/ssh/preflight.ts`'s — in its real execution order.
+ * The error messages are copied from `packages/core/src/ssh/{client,errors}.ts`
+ * and the drivers' `DriverError`s.
  *
- * Le texte vit dans `i18n/messages/target-help.ts` ; ce fichier n'en garde que
- * la structure, les teintes, et les deux blocs shell, qui sont du code à
- * copier, pas de la prose.
+ * The text lives in `i18n/messages/target-help.ts`; this file only keeps its
+ * structure, the tints, and the two shell blocks, which are code to copy, not
+ * prose.
  */
 
 type Props = {
@@ -43,7 +43,7 @@ type Props = {
   className?: string;
 };
 
-/** Ce que fait chaque côté. C'est la confusion la plus fréquente. */
+/** What each side does. It is the most frequent confusion. */
 const ROLES = ['role', 'code', 'wire', 'reach', 'down'] as const;
 
 const FIELDS = [
@@ -58,7 +58,7 @@ const FIELDS = [
   'labels',
 ] as const;
 
-/** Dans l'ordre où `runPreflight()` les exécute. 15 s de délai par contrôle. */
+/** In the order `runPreflight()` runs them. A 15 s timeout per check. */
 const CHECKS = [
   'ssh',
   'os',
@@ -97,7 +97,7 @@ const TUTORIAL = [
   'deploy',
 ] as const;
 
-/** Les puces de la section « plage de ports », dans l'ordre de lecture. */
+/** The bullets of the "port range" section, in reading order. */
 const PORT_NOTES = ['collision', 'blind', 'firewall', 'workerRange', 'narrow'] as const;
 
 export function TargetHelp({ label, className }: Props) {
@@ -221,36 +221,35 @@ export function TargetHelp({ label, className }: Props) {
 }
 
 /*
- * Les deux blocs suivants sont du shell, pas de la prose : ils se copient tels
- * quels dans un terminal. Ni les commandes ni leurs commentaires ne se
- * traduisent — un `# 1 — a dedicated account` dans un panel anglais donnerait
- * un script qui ne correspond plus à celui du dépôt.
+ * The two following blocks are shell, not prose: they are copied as is into a
+ * terminal. Neither the commands nor their comments are translated — a localized
+ * comment would give a script that no longer matches the repository's.
  */
 
-// i18n-ignore — du shell à copier-coller, commentaires compris : c'est un
-// fichier, pas une phrase. Voir le commentaire ci-dessus.
-const PREPARE_SCRIPT = `# 1 — un compte dédié pour le panel
+// i18n-ignore — shell to copy and paste, comments included: it is a file, not a
+// sentence. See the comment above.
+const PREPARE_SCRIPT = `# 1 — a dedicated account for the panel
 sudo adduser --disabled-password --gecos '' deploy
 
-# 2 — Docker, et surtout : le compte parle au démon SANS sudo
-curl -fsSL https://get.docker.com | sh        # script officiel Docker
-sudo usermod -aG docker deploy                # ← indispensable
-#    ou, pour une cible Kubernetes :
+# 2 — Docker, and above all: the account talks to the daemon WITHOUT sudo
+curl -fsSL https://get.docker.com | sh        # official Docker script
+sudo usermod -aG docker deploy                # ← essential
+#    or, for a Kubernetes target:
 curl -sfL https://get.k3s.io | \\
   INSTALL_K3S_EXEC="--write-kubeconfig-mode 644" sh -
-#    644 n'est pas cosmétique : le driver lit /etc/rancher/k3s/k3s.yaml
-#    sans sudo, et K3s l'écrit en 0600 root par défaut.
+#    644 is not cosmetic: the driver reads /etc/rancher/k3s/k3s.yaml
+#    without sudo, and K3s writes it as 0600 root by default.
 
-# 3 — sudo sans mot de passe (création de /opt/bootstrap, règles UFW)
+# 3 — passwordless sudo (creating /opt/bootstrap, UFW rules)
 echo 'deploy ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/deploy
 sudo chmod 0440 /etc/sudoers.d/deploy
 
-# 4 — le pare-feu. L'ORDRE COMPTE : autoriser 22 AVANT d'activer.
+# 4 — the firewall. ORDER MATTERS: allow 22 BEFORE enabling.
 sudo ufw allow 22/tcp
-sudo ufw allow 30000:32767/tcp                # la plage que vous déclarerez
+sudo ufw allow 30000:32767/tcp                # the range you will declare
 sudo ufw --force enable
 
-# 5 — se reconnecter, puis vérifier ce que le preflight vérifiera
+# 5 — reconnect, then check what the preflight will check
 exit
 ssh -i ~/.ssh/pupitre-deploy deploy@10.0.0.12 '
   sudo -n true && echo "sudo   : nopasswd ok"
@@ -258,21 +257,21 @@ ssh -i ~/.ssh/pupitre-deploy deploy@10.0.0.12 '
   docker compose version --short
 '`;
 
-// i18n-ignore — même raison que `PREPARE_SCRIPT` : du shell, pas de la prose.
-const KEY_SCRIPT = `# sur VOTRE poste — une paire dédiée, sans passphrase (-N '')
+// i18n-ignore — same reason as `PREPARE_SCRIPT`: shell, not prose.
+const KEY_SCRIPT = `# on YOUR workstation — a dedicated pair, without a passphrase (-N '')
 ssh-keygen -t ed25519 -N '' -C 'pupitre' -f ~/.ssh/pupitre-deploy
 
-# la publique part sur la cible
+# the public one goes to the target
 ssh-copy-id -i ~/.ssh/pupitre-deploy.pub deploy@10.0.0.12
 
-# … ou à la main, avec les permissions exactes qu'exige sshd
+# … or by hand, with the exact permissions sshd requires
 #   mkdir -p ~/.ssh && chmod 700 ~/.ssh
-#   cat >> ~/.ssh/authorized_keys        # coller pupitre-deploy.pub
+#   cat >> ~/.ssh/authorized_keys        # paste pupitre-deploy.pub
 #   chmod 600 ~/.ssh/authorized_keys
 #   chown -R deploy:deploy ~/.ssh
 
-# vérifier AVANT de remplir le formulaire
-ssh -i ~/.ssh/pupitre-deploy deploy@10.0.0.12 true && echo 'clé acceptée'
+# check BEFORE filling in the form
+ssh -i ~/.ssh/pupitre-deploy deploy@10.0.0.12 true && echo 'key accepted'
 
-# c'est le contenu de CE fichier-ci que l'on colle dans le formulaire
+# it is THIS file's content that is pasted into the form
 cat ~/.ssh/pupitre-deploy`;

@@ -30,7 +30,7 @@ import type { SourceMode, SourceView } from './application-sources';
 type ApiError = { error?: { message?: string } };
 type Runtime = 'docker' | 'k3s';
 
-/** Une cible dont le preflight a vu au moins un runtime exploitable. */
+/** A target whose preflight saw at least one usable runtime. */
 export type DeployTarget = { id: string; name: string; runtimes: Runtime[] };
 
 const MODES: readonly SourceMode[] = ['auto_unless_infra', 'auto', 'manual'];
@@ -39,13 +39,12 @@ type DeployTo = SourceView['deployTo'];
 const DEPLOY_TO: readonly DeployTo[] = ['none', 'running', 'targets'];
 
 /**
- * Relier un dépôt, ou modifier une liaison, dans un tiroir au-dessus de la
- * fiche.
+ * Linking a repository, or changing a link, in a drawer above the record.
  *
- * Le partage des rôles se lit dans l'ordre des champs : le dépôt et son
- * `pupitre.json` disent **quoi** déployer ; le tiroir dit **où** (les cibles,
- * et leur runtime) et **quand** (le mode). Le dépôt ne choisit jamais sa
- * cible — c'est ce qui permet de lui faire confiance.
+ * The division of roles reads in the fields' order: the repository and its
+ * `pupitre.json` say **what** to deploy; the drawer says **where** (the targets,
+ * and their runtime) and **when** (the mode). The repository never chooses its
+ * target — that is what makes it trustworthy.
  */
 export function SourceDrawer({
   open,
@@ -58,10 +57,10 @@ export function SourceDrawer({
   open: boolean;
   onClose: () => void;
   applicationId: string;
-  /** `null` : une nouvelle liaison. */
+  /** `null`: a new link. */
   source: SourceView | null;
   targets: DeployTarget[];
-  /** GitHub : où donner à l'App l'accès à un dépôt. `null` sans GitHub. */
+  /** GitHub: where to give the App access to a repository. `null` without GitHub. */
   githubInstallUrl: string | null;
 }) {
   const t = useT(messages);
@@ -125,7 +124,7 @@ function SourceForm({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Le dépôt d'une liaison ne change pas : la liste n'est utile qu'à la création.
+  // A link's repository does not change: the list is only useful at creation.
   useEffect(() => {
     if (source) return;
     let cancelled = false;
@@ -144,7 +143,7 @@ function SourceForm({
       };
       if (cancelled) return;
       setRepositories(body.items);
-      // Un fournisseur muet n'empêche pas de choisir chez les autres : on le dit.
+      // A silent provider does not prevent choosing from the others: we say so.
       if (body.errors?.length) {
         setLoadError(
           body.errors.map((entry) => `${entry.provider} : ${entry.message}`).join(' · '),
@@ -156,8 +155,8 @@ function SourceForm({
     };
   }, [source, tc]);
 
-  // Une cible liée qui n'est plus prête reste visible : la décocher est un
-  // choix, pas un oubli silencieux.
+  // A linked target that is no longer ready stays visible: unchecking it is a
+  // choice, not a silent omission.
   const offered: DeployTarget[] = [
     ...targets,
     ...(source?.targets ?? [])
@@ -171,7 +170,7 @@ function SourceForm({
 
   const keyOf = (repo: SourceRepository) =>
     `${repo.provider}:${repo.installationId ?? ''}:${repo.fullName}`;
-  // Le fournisseur ne se lit à côté du nom que s'il y en a plusieurs.
+  // The provider only reads next to the name if there are several.
   const providers = new Set((repositories ?? []).map((repo) => repo.provider));
   const repository = repositories?.find((repo) => keyOf(repo) === repoKey) ?? null;
 
@@ -214,8 +213,8 @@ function SourceForm({
       mode,
       deployTo,
       enabled,
-      // Les cibles ne valent que pour « sur des cibles choisies » ; ailleurs,
-      // c'est l'instant du commit qui dit où elle tourne.
+      // The targets only hold for "on chosen targets"; elsewhere, it is the commit's
+      // instant that says where it runs.
       targets:
         deployTo === 'targets'
           ? Object.entries(chosen).map(([targetId, runtime]) => ({ targetId, runtime }))

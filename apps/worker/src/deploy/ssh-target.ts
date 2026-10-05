@@ -8,20 +8,21 @@ import {
 } from '@pupitre/db';
 
 /**
- * La connexion SSH d'une cible, telle que la base la décrit : identifiants
- * déchiffrés, et clé d'hôte attendue.
+ * A target's SSH connection, as the database describes it: credentials
+ * decrypted, and expected host key.
  *
- * Le seul endroit du worker qui en fabrique une — ouverture de session,
- * déploiement, preflight, relevé de métriques passent tous par ici —, pour
- * qu'aucune connexion à une cible ne parte sans vérifier sa clé.
+ * The only place in the worker that builds one — opening a session, deployment,
+ * preflight, metrics reading all go through here —, so that no connection to a
+ * target goes out without checking its key.
  *
- *   - jamais jointe : la clé présentée est retenue, et c'est écrit au journal ;
- *   - une autre clé que la retenue : la connexion est refusée (`SshHostKeyError`)
- *     et la clé présentée est notée, en attente d'une décision sur la page de
- *     la cible. Le journal — donc une notification — ne le dit qu'une fois par
- *     clé inattendue, pas à chaque relevé de métriques qui suit.
+ *   - never reached: the presented key is recorded, and it is written to the log;
+ *   - another key than the recorded one: the connection is refused
+ *     (`SshHostKeyError`) and the presented key is noted, waiting for a decision
+ *     on the target's page. The log — hence a notification — only says it once
+ *     per unexpected key, not at each metrics reading that follows.
  *
- * Le credential déchiffré ne quitte pas l'objet rendu, qui n'entre dans aucun log.
+ * The decrypted credential does not leave the returned object, which goes into
+ * no log.
  */
 export function sshTargetOf(record: {
   target: PublicTarget;

@@ -1,10 +1,10 @@
 import { translator, type Translate, type Translated, type UiLanguage } from '../i18n.js';
 
 /**
- * Ce que dit la couche SSH — erreurs de connexion, preflight d'une cible,
- * relevé de ses métriques —, dans la langue de l'instance. La session la garde
- * (`SshSession.language`) : une commande qui dépasse son délai le dit dans la
- * langue de qui l'a ouverte.
+ * What the SSH layer says — connection errors, a target's preflight, reading its
+ * metrics —, in the instance's language. The session keeps it
+ * (`SshSession.language`): a command that exceeds its timeout says so in the
+ * language of whoever opened it.
  */
 const fr = {
   'auth.refused':

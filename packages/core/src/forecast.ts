@@ -2,20 +2,20 @@ import { z } from 'zod';
 import { defineMessages, renderMessage, type UiLanguage } from './i18n.js';
 
 /**
- * Les prévisions : ce qui va casser, avant que ça casse.
+ * Forecasts: what is going to break, before it breaks.
  *
- * **Sans IA, et c'est voulu.** Chaque prévision est un calcul qu'on peut
- * refaire à la main — une pente, une médiane, un compte — à partir de ce que
- * la base garde déjà : 30 jours de relevés machine, 30 jours de mesures des
- * sondes, les certificats, les sauvegardes, les déploiements. Une prévision
- * dit donc toujours **pourquoi** : « le disque gagne 2,1 points par jour ».
+ * **Without AI, and on purpose.** Each forecast is a computation that can be
+ * redone by hand — a slope, a median, a count — from what the database already
+ * keeps: 30 days of machine readings, 30 days of probe measurements, the
+ * certificates, the backups, the deployments. A forecast therefore always says
+ * **why**: "the disk gains 2.1 points per day".
  *
- * **Prudente plutôt que bavarde.** Une pente ne vaut que si elle est nette
- * (coefficient de détermination), tenue sur assez de temps, et si elle mène
- * au mur dans un horizon où l'on peut encore agir. Une fausse alerte de
- * prévision use la confiance plus vite qu'une vraie panne.
+ * **Cautious rather than chatty.** A slope only counts if it is clear
+ * (coefficient of determination), held over enough time, and if it leads to the
+ * wall within a horizon where one can still act. A false forecast alert wears
+ * down trust faster than a real outage.
  *
- * Ce module est pur : le worker lui passe des séries, il rend des constats.
+ * This module is pure: the worker passes it series, it returns findings.
  */
 
 export const FORECAST_KINDS = [
@@ -33,7 +33,7 @@ export type ForecastKind = (typeof FORECAST_KINDS)[number];
 export const FORECAST_SUBJECTS = ['target', 'monitor', 'route', 'application'] as const;
 export type ForecastSubjectType = (typeof FORECAST_SUBJECTS)[number];
 
-/** `soon` : à traiter dans les trois jours. `watch` : à surveiller. */
+/** `soon`: to handle within three days. `watch`: to keep an eye on. */
 export const FORECAST_SEVERITIES = ['soon', 'watch'] as const;
 export type ForecastSeverity = (typeof FORECAST_SEVERITIES)[number];
 
@@ -45,22 +45,21 @@ export const forecastSchema = z.object({
     name: z.string(),
   }),
   severity: z.enum(FORECAST_SEVERITIES),
-  /** Quand le mur est atteint, si la prévision en a un. */
+  /** When the wall is reached, if the forecast has one. */
   etaAt: z.string().nullable(),
-  /** Les chiffres qui justifient le constat, pour la phrase et pour l'audit. */
+  /** The figures that justify the finding, for the sentence and for the audit log. */
   detail: z.record(z.string(), z.union([z.number(), z.string(), z.null()])),
 });
 export type Forecast = z.infer<typeof forecastSchema>;
 
 const DAY_MS = 86_400_000;
 
-/** Un point d'une série : un instant (ms) et une valeur. */
+/** A point of a series: an instant (ms) and a value. */
 export type SeriesPoint = { t: number; v: number };
 
 /**
- * La droite des moindres carrés d'une série : sa pente **par jour**, et son
- * coefficient de détermination (1 : la série est une droite ; 0 : aucune
- * tendance).
+ * The least-squares line of a series: its slope **per day**, and its
+ * coefficient of determination (1: the series is a line; 0: no trend).
  */
 export function fitLine(points: readonly SeriesPoint[]): {
   slopePerDay: number;
@@ -89,18 +88,17 @@ export function fitLine(points: readonly SeriesPoint[]): {
 }
 
 export type FillForecast = {
-  /** La dernière valeur, lissée par la droite. */
+  /** The last value, smoothed by the line. */
   current: number;
   slopePerDay: number;
   r2: number;
-  /** Jours avant d'atteindre la limite. */
+  /** Days before reaching the limit. */
   etaDays: number;
 };
 
 /**
- * Quand une série qui monte atteindra-t-elle `limit` ? `null` si elle ne
- * monte pas assez, pas assez nettement, pas depuis assez longtemps, ou si le
- * mur est au-delà de l'horizon.
+ * When will a rising series reach `limit`? `null` if it does not rise enough,
+ * clearly enough, for long enough, or if the wall is beyond the horizon.
  */
 export function forecastFill(
   points: readonly SeriesPoint[],
@@ -115,7 +113,7 @@ export function forecastFill(
   if (fit.slopePerDay < options.minSlopePerDay || fit.r2 < options.minR2) return null;
   const lastT = sorted[sorted.length - 1]!.t / DAY_MS;
   const current = fit.intercept + fit.slopePerDay * lastT;
-  // Déjà au mur : c'est un dépassement de seuil, plus une prévision.
+  // Already at the wall: it is a threshold breach, no longer a forecast.
   if (current >= limit) return null;
   const etaDays = (limit - current) / fit.slopePerDay;
   if (etaDays > options.horizonDays) return null;
@@ -131,7 +129,7 @@ const round1 = (value: number) => Math.round(value * 10) / 10;
 
 type Subject = Forecast['subject'];
 
-/** Le disque d'une machine, vers 95 % — une pente tenue sur deux jours au moins, dans les 14 jours. */
+/** A machine's disk, toward 95% — a slope held for at least two days, within 14 days. */
 export function forecastDisk(
   subject: Subject,
   points: readonly SeriesPoint[],
@@ -160,8 +158,8 @@ export function forecastDisk(
 }
 
 /**
- * La mémoire qui monte sans redescendre : une fuite probable. Pente nette
- * (r² ≥ 0,8) sur un jour au moins, vers 95 % dans la semaine.
+ * Memory that rises without coming down: a probable leak. A clear slope
+ * (r² ≥ 0.8) over at least a day, toward 95% within the week.
  */
 export function forecastMemory(
   subject: Subject,
@@ -188,7 +186,7 @@ export function forecastMemory(
   };
 }
 
-/** La charge qui monte de jour en jour vers le seuil de la machine, dans la semaine. */
+/** Load rising day after day toward the machine's threshold, within the week. */
 export function forecastLoad(
   subject: Subject,
   points: readonly SeriesPoint[],
@@ -217,9 +215,9 @@ export function forecastLoad(
 }
 
 /**
- * Une sonde qui ralentit : la médiane des dernières 24 h contre celle des six
- * jours d'avant. Il faut assez de mesures des deux côtés, une hausse d'au moins
- * moitié, et d'au moins 100 ms — 40 ms qui deviennent 70 ms ne disent rien.
+ * A probe slowing down: the median of the last 24 h against that of the six
+ * days before. It takes enough measurements on both sides, a rise of at least
+ * half, and of at least 100 ms — 40 ms turning into 70 ms says nothing.
  */
 export function forecastLatency(
   subject: Subject,
@@ -249,8 +247,8 @@ export function forecastLatency(
 }
 
 /**
- * Une sonde qui bascule sans arrêt entre en ligne et en panne : le signe d'un
- * service fragile, avant la panne franche. Six bascules ou plus en 24 h.
+ * A probe that keeps flipping between up and down: the sign of a fragile
+ * service, before the outright outage. Six flips or more in 24 h.
  */
 export function forecastFlapping(subject: Subject, flips: number): Forecast | null {
   if (flips < 6) return null;
@@ -263,7 +261,7 @@ export function forecastFlapping(subject: Subject, flips: number): Forecast | nu
   };
 }
 
-/** Combien de fois une suite de verdicts change de camp (sain ↔ pas sain). */
+/** How many times a sequence of verdicts switches sides (healthy ↔ not healthy). */
 export function countFlips(outcomes: readonly string[]): number {
   let flips = 0;
   for (let i = 1; i < outcomes.length; i += 1) {
@@ -273,9 +271,9 @@ export function countFlips(outcomes: readonly string[]): number {
 }
 
 /**
- * Un certificat qui aurait dû être renouvelé : Let's Encrypt (et Traefik) le
- * font à 30 jours de l'échéance. À moins de 20 jours, le renouvellement est
- * en retard — il reste du temps pour comprendre pourquoi.
+ * A certificate that should have been renewed: Let's Encrypt (and Traefik) do
+ * it 30 days before expiry. With less than 20 days left, the renewal is late —
+ * there is still time to understand why.
  */
 export function forecastCertificate(
   subject: Subject,
@@ -295,9 +293,8 @@ export function forecastCertificate(
 }
 
 /**
- * Une application sauvegardée qui ne l'a pas été depuis deux jours (ou jamais,
- * deux jours après l'activation) : la sauvegarde dont on aura besoin n'existe
- * peut-être pas.
+ * A backed-up application that has not been backed up for two days (or never,
+ * two days after enabling): the backup we will need may not exist.
  */
 export function forecastBackup(
   subject: Subject,
@@ -319,8 +316,8 @@ export function forecastBackup(
 }
 
 /**
- * Une machine où les déploiements échouent en série : les trois derniers de la
- * semaine, en échec ou revenus en arrière. Le suivant échouera sans doute aussi.
+ * A machine where deployments fail one after the other: the week's last three,
+ * failed or rolled back. The next one will probably fail too.
  */
 export function forecastDeploys(
   subject: Subject,
@@ -341,12 +338,12 @@ export function forecastDeploys(
   };
 }
 
-// ─── Les mots d'une prévision ─────────────────────────────────────────────────
+// ─── A forecast's words ───────────────────────────────────────────────────────
 
 /**
- * Les phrases d'une prévision, dans les deux langues. Elles vivent à côté du
- * calcul parce que deux lecteurs s'en servent : l'écran (« À venir ») et la
- * notification, composée par le worker sans personne devant l'écran.
+ * A forecast's sentences, in both languages. They live next to the computation
+ * because two readers use them: the screen ("Upcoming") and the notification,
+ * composed by the worker with nobody in front of the screen.
  */
 export const forecastMessages = defineMessages({
   fr: {
@@ -417,7 +414,7 @@ export const forecastMessages = defineMessages({
 
 type ForecastMessageKey = keyof (typeof forecastMessages)['fr'] & string;
 
-/** La phrase d'une prévision, dans la langue demandée — nombres compris. */
+/** A forecast's sentence, in the requested language — numbers included. */
 export function describeForecast(
   forecast: Pick<Forecast, 'kind' | 'subject' | 'detail'>,
   language: UiLanguage,
@@ -432,7 +429,7 @@ export function describeForecast(
   const eta = (() => {
     const days = typeof d.etaDays === 'number' ? d.etaDays : null;
     if (days === null) return '?';
-    // Sous deux jours, « ~1 jour » arrondirait 34 heures à 24 : les heures disent mieux.
+    // Under two days, "~1 day" would round 34 hours to 24: hours say it better.
     if (days < 2) return t('eta.hours', { count: Math.max(1, Math.round(days * 24)) });
     return t('eta.days', { count: Math.round(days) });
   })();
@@ -506,9 +503,8 @@ export function describeForecast(
 }
 
 /**
- * Où lire le sujet d'une prévision : le tiroir de sa cible, de sa sonde, de
- * son domaine, de son application. Le même lien dans l'écran et dans la
- * notification.
+ * Where to read a forecast's subject: the drawer of its target, its probe, its
+ * domain, its application. The same link in the screen and in the notification.
  */
 export function forecastSubjectPath(subject: { type: ForecastSubjectType; id: string }): string {
   switch (subject.type) {
@@ -523,7 +519,7 @@ export function forecastSubjectPath(subject: { type: ForecastSubjectType; id: st
   }
 }
 
-/** Le mot d'une sévérité de prévision. */
+/** The word for a forecast severity. */
 export function forecastSeverityLabel(severity: ForecastSeverity, language: UiLanguage): string {
   return renderMessage(forecastMessages, language, `severity.${severity}`);
 }

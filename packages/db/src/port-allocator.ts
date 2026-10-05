@@ -12,14 +12,14 @@ import { deployments, portAllocations } from './schema/deployments.js';
 import { applications, targets } from './schema/infra.js';
 
 /**
- * Implémentation de `PortAllocator` adossée à `port_allocations`.
+ * Implementation of `PortAllocator` backed by `port_allocations`.
  *
- * L'unicité vient de la contrainte `(target_id, port)`, pas d'un test en
- * TypeScript : deux workers qui visent le même port au même instant produisent
- * une violation `23505`, et celui qui perd rejoue. C'est la base qui tranche.
+ * Uniqueness comes from the `(target_id, port)` constraint, not from a test in
+ * TypeScript: two workers aiming at the same port at the same instant produce a
+ * `23505` violation, and the loser retries. The database decides.
  */
 
-/** Violation de contrainte d'unicité côté PostgreSQL. */
+/** Uniqueness constraint violation on the PostgreSQL side. */
 const UNIQUE_VIOLATION = '23505';
 
 function isUniqueViolation(error: unknown): boolean {
@@ -53,7 +53,7 @@ export function createPortAllocator(db: Database = getDb()): PortAllocator {
     const excluded = new Set(request.exclude ?? []);
 
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
-      // Relu à chaque tentative : une autre transaction a pu réserver entre-temps.
+      // Read again at each attempt: another transaction may have reserved meanwhile.
       const taken = new Set(
         (
           await db
@@ -65,24 +65,23 @@ export function createPortAllocator(db: Database = getDb()): PortAllocator {
 
       const free: number[] = [];
       for (let port = request.min; port <= request.max; port += 1) {
-        // `excluded` : ports que l'appelant a constatés occupés sur la machine
-        // elle-même. La base ne peut pas le savoir — elle ne connaît que les
-        // réservations du panel.
+        // `excluded`: ports the caller observed taken on the machine itself. The
+        // database cannot know it — it only knows the panel's reservations.
         if (!taken.has(port) && !excluded.has(port)) free.push(port);
       }
       if (free.length === 0) {
         throw new PortExhaustedError(request.targetId, request.min, request.max);
       }
 
-      // Tirage aléatoire : deux workers simultanés ne visent pas le même port,
-      // ce qui rend la collision rare plutôt que systématique.
+      // Random draw: two simultaneous workers do not aim at the same port, which
+      // makes collision rare rather than systematic.
       const candidate = free[Math.floor(Math.random() * free.length)];
       if (candidate === undefined) continue;
 
       try {
-        // Une transaction pour l'écriture : l'INSERT *est* le test d'unicité.
-        // Un SELECT suivi d'un INSERT laisserait une fenêtre entre les deux, et
-        // c'est exactement la fenêtre que deux workers simultanés trouveraient.
+        // A transaction for the write: the INSERT *is* the uniqueness test. A SELECT
+        // followed by an INSERT would leave a window between the two, and it is exactly
+        // the window two simultaneous workers would find.
         const row = await db.transaction(async (tx) => {
           const [inserted] = await tx
             .insert(portAllocations)
@@ -98,8 +97,8 @@ export function createPortAllocator(db: Database = getDb()): PortAllocator {
         if (row) return row.port;
       } catch (error) {
         if (isUniqueViolation(error)) {
-          // Quelqu'un a pris ce port — ou cette application vient d'en obtenir
-          // un par une autre transaction. On relit avant de retenter.
+          // Someone took this port — or this application just got one through another
+          // transaction. We read again before retrying.
           const raced = await current(request);
           if (raced !== null) return raced;
           continue;
@@ -126,12 +125,12 @@ export function createPortAllocator(db: Database = getDb()): PortAllocator {
 }
 
 /**
- * Réservations d'une application, toutes cibles confondues.
+ * An application's reservations, all targets together.
  *
- * `port_allocations` est indexée par (cible, application) et non par
- * déploiement : c'est donc **ici** qu'on lit ce qu'une suppression rendra, et
- * pas en additionnant les `published_port` des déploiements — un couple peut
- * tenir une réservation sans qu'aucun déploiement n'ait abouti.
+ * `port_allocations` is indexed by (target, application) and not by deployment:
+ * it is therefore **here** that we read what a deletion will give back, and not
+ * by adding up the deployments' `published_port` — a pair can hold a
+ * reservation without any deployment having succeeded.
  */
 export async function listApplicationPortAllocations(
   applicationId: string,
@@ -149,14 +148,14 @@ export async function listApplicationPortAllocations(
     .orderBy(asc(portAllocations.port));
 }
 
-// ─── vue d'ensemble ───────────────────────────────────────────────────────────
+// ─── overview ─────────────────────────────────────────────────────────────────
 
-/** Une réservation, telle que l'API et l'UI la présentent. */
+/** A reservation, as the API and the UI present it. */
 export type PortAllocationView = {
   port: number;
   applicationId: string;
   applicationSlug: string;
-  /** Dernier déploiement de cette application sur cette cible, s'il existe. */
+  /** This application's last deployment on this target, if it exists. */
   deploymentId: string | null;
   deploymentStatus: string | null;
   url: string | null;
@@ -167,14 +166,14 @@ export type TargetPortReport = {
   targetId: string;
   targetName: string;
   range: PortRange;
-  /** Ports de la plage, tous usages confondus. */
+  /** The range's ports, all uses together. */
   capacity: number;
   used: number;
   free: number;
   allocations: PortAllocationView[];
   /**
-   * Premiers ports libres, à titre indicatif. La liste est tronquée : montrer
-   * les 2 768 ports libres d'une plage par défaut n'apprendrait rien.
+   * First free ports, as an indication. The list is truncated: showing the 2,768
+   * free ports of a default range would teach nothing.
    */
   freeSample: number[];
 };
@@ -182,10 +181,10 @@ export type TargetPortReport = {
 const FREE_SAMPLE = 20;
 
 /**
- * État de l'allocation de ports d'une cible.
+ * A target's port allocation state.
  *
- * La plage vient de la cible elle-même : c'est elle qui sait ce que son
- * pare-feu laisse passer.
+ * The range comes from the target itself: it is the one that knows what its
+ * firewall lets through.
  */
 export async function getTargetPortReport(
   targetId: string,
@@ -217,8 +216,8 @@ export async function getTargetPortReport(
 
   const allocations: PortAllocationView[] = [];
   for (const row of rows) {
-    // Le déploiement le plus récent de cette application sur cette cible :
-    // c'est lui qui occupe le port réservé.
+    // This application's most recent deployment on this target: it is the one
+    // occupying the reserved port.
     const [deployment] = await db
       .select({
         id: deployments.id,
@@ -248,9 +247,9 @@ export async function getTargetPortReport(
 
   const range: PortRange = { min: target.min, max: target.max };
   const capacity = portRangeSize(range);
-  // Une réservation hors plage reste une réservation : la plage a pu être
-  // resserrée après coup. Elle compte comme occupée, elle ne compte pas dans la
-  // capacité.
+  // A reservation outside the range is still a reservation: the range may have
+  // been narrowed afterwards. It counts as taken, it does not count in the
+  // capacity.
   const usedInRange = allocations.filter(
     (allocation) => allocation.port >= range.min && allocation.port <= range.max,
   ).length;

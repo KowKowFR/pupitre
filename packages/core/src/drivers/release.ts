@@ -1,19 +1,17 @@
 import type { DriverDeployment } from './types.js';
 
 /**
- * Le nom d'une release sur la cible : la version de l'AppSpec **et** le numéro
- * du déploiement — `1.0.0-r12`. Il nomme son répertoire et l'étiquette des
- * images qu'elle construit.
+ * A release's name on the target: the AppSpec's version **and** the
+ * deployment's number — `1.0.0-r12`. It names its directory and the tag of the
+ * images it builds.
  *
- * La version seule ne suffisait pas : un commit de code ne change pas la
- * version de l'AppSpec. Deux déploiements de `1.0.0` partageaient alors le même
- * répertoire et la même étiquette — le second écrasait le premier, et revenir à
- * la version précédente relançait le nouveau code. Le numéro est propre à
- * l'application et ne revient jamais : une release ne se confond plus avec une
- * autre.
+ * The version alone was not enough: a code commit does not change the AppSpec's
+ * version. Two deployments of `1.0.0` then shared the same directory and the
+ * same tag — the second overwrote the first, and going back to the previous
+ * version started the new code again. The number is specific to the application
+ * and never comes back: a release can no longer be confused with another.
  *
- * Les caractères qu'une étiquette d'image refuse (le `+` d'une version semver)
- * deviennent `-`.
+ * Characters an image tag refuses (the `+` of a semver version) become `-`.
  */
 export function releaseName(deployment: Pick<DriverDeployment, 'version' | 'sequence'>): string {
   return `${deployment.version}-r${deployment.sequence}`
@@ -22,8 +20,8 @@ export function releaseName(deployment: Pick<DriverDeployment, 'version' | 'sequ
 }
 
 /**
- * Où chercher une release : son nom, puis celui d'avant ce nommage — la seule
- * version —, pour revenir à une release déposée avant la mise à jour.
+ * Where to look for a release: its name, then the one from before this naming —
+ * the version alone —, to go back to a release placed before the update.
  */
 export function releaseCandidates(
   deployment: Pick<DriverDeployment, 'version' | 'sequence'>,

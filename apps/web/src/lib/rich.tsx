@@ -3,11 +3,11 @@ import { Fragment, type ReactNode } from 'react';
 const SLOT = '\u0000';
 
 /**
- * Insère un nœud React dans une phrase traduite, à la place d'une variable.
+ * Inserts a React node into a translated sentence, in place of a variable.
  *
- * On traduit la phrase avec un marqueur à l'emplacement de la variable, puis
- * on la coupe sur ce marqueur : l'ordre des mots reste celui de la langue, et
- * la valeur garde sa mise en forme (un port en mono, un nom en gras).
+ * We translate the sentence with a marker at the variable's place, then cut it on
+ * this marker: the word order stays the language's, and the value keeps its
+ * formatting (a port in mono, a name in bold).
  */
 export function withSlot(render: (slot: string) => string, node: ReactNode): ReactNode {
   const [before, ...rest] = render(SLOT).split(SLOT);

@@ -12,19 +12,19 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const querySchema = z.object({
-  /** Le fournisseur du dépôt ; GitHub quand rien n'est dit. */
+  /** The repository's provider; GitHub when nothing is said. */
   provider: z.enum(SOURCE_PROVIDER_KINDS).default('github'),
   repository: sourceRepositorySchema,
-  /** GitHub : l'installation de l'App. Rien chez Gitea ni GitLab. */
+  /** GitHub: the App's installation. Nothing at Gitea or GitLab. */
   installationId: z.coerce.number().int().positive().optional(),
-  /** Absente : la branche par défaut du dépôt. */
+  /** Absent: the repository's default branch. */
   branch: z.string().trim().min(1).max(255).optional(),
 });
 
 /**
- * Les `pupitre.json` d'une branche, pour créer une application depuis son
- * dépôt sans avoir à taper leur chemin. Avec le commit lu : c'est lui que la
- * création prendra.
+ * A branch's `pupitre.json` files, to create an application from its repository
+ * without having to type their path. With the commit read: it is the one the
+ * creation will take.
  */
 export const GET = apiRoute(async (request) => {
   await requirePermission(request, 'application:create');

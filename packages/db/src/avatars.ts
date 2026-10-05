@@ -6,9 +6,9 @@ import { users } from './schema/auth.js';
 import { userAvatars } from './schema/avatars.js';
 
 /**
- * Les photos de profil. L'URL rangée dans `users.image` porte une version tirée
- * du contenu : une nouvelle photo, une nouvelle URL, et l'ancienne peut rester
- * en cache sans jamais être resservie à tort.
+ * Profile pictures. The URL stored in `users.image` carries a version drawn from
+ * the content: a new picture, a new URL, and the old one can stay in cache
+ * without ever being served again wrongly.
  */
 
 export function avatarUrl(userId: string, data: Buffer): string {
@@ -33,7 +33,7 @@ export async function setUserAvatar(
   return url;
 }
 
-/** Retire la photo. Rend `false` s'il n'y en avait pas. */
+/** Removes the picture. Returns `false` if there was none. */
 export async function removeUserAvatar(userId: string, db: Database = getDb()): Promise<boolean> {
   return db.transaction(async (tx) => {
     const removed = await tx
@@ -45,7 +45,7 @@ export async function removeUserAvatar(userId: string, db: Database = getDb()): 
   });
 }
 
-/** Les octets de la photo, pour la route qui la sert — et elle seule. */
+/** The picture's bytes, for the route that serves it — and that route alone. */
 export async function getUserAvatar(
   userId: string,
   db: Database = getDb(),

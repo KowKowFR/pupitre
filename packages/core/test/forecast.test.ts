@@ -20,7 +20,7 @@ const DAY = 24 * HOUR;
 const NOW = Date.parse('2026-10-03T12:00:00Z');
 const subject = { type: 'target' as const, id: 't1', name: 'prod-1' };
 
-/** Une série horaire sur `days` jours qui finit maintenant. */
+/** An hourly series over `days` days that ends now. */
 function series(days: number, value: (dayIndex: number, hour: number) => number): SeriesPoint[] {
   const points: SeriesPoint[] = [];
   const hours = days * 24;
@@ -30,15 +30,15 @@ function series(days: number, value: (dayIndex: number, hour: number) => number)
   return points;
 }
 
-describe('prévisions', () => {
-  it('trace une droite et dit sa netteté', () => {
+describe('forecasts', () => {
+  it('draws a line and says how clear it is', () => {
     const fit = fitLine(series(3, (d) => 50 + 2 * d));
     assert.ok(Math.abs(fit.slopePerDay - 2) < 0.01);
     assert.ok(fit.r2 > 0.99);
   });
 
-  it('prévoit un disque plein, avec la date et le rythme', () => {
-    // 70 % aujourd'hui, +3 points par jour, un peu de bruit : plein à 95 % dans ~8 jours.
+  it('forecasts a full disk, with the date and the rate', () => {
+    // 70% today, +3 points per day, a bit of noise: full at 95% in ~8 days.
     const points = series(7, (d, h) => 49 + 3 * d + ((h * 7) % 5) / 10);
     const forecast = forecastDisk(subject, points, NOW, 200);
     assert.ok(forecast);
@@ -51,7 +51,7 @@ describe('prévisions', () => {
     assert.ok(Math.abs(Number(forecast.detail.gibPerDay) - 6) < 0.3);
   });
 
-  it('se tait sur un disque stable, bruyant, ou trop loin du mur', () => {
+  it('keeps quiet on a stable, noisy disk, or one too far from the wall', () => {
     assert.equal(
       forecastDisk(
         subject,
@@ -70,7 +70,7 @@ describe('prévisions', () => {
         200,
       ),
       null,
-      'bruit sans tendance nette',
+      'noise without a clear trend',
     );
     assert.equal(
       forecastDisk(
@@ -80,7 +80,7 @@ describe('prévisions', () => {
         200,
       ),
       null,
-      'mur dans 150 jours',
+      'wall in 150 days',
     );
     assert.equal(
       forecastDisk(
@@ -90,11 +90,11 @@ describe('prévisions', () => {
         200,
       ),
       null,
-      'pas assez de recul',
+      'not enough history',
     );
   });
 
-  it('dit « bientôt » quand le mur est à trois jours', () => {
+  it('says “soon” when the wall is three days away', () => {
     const forecast = forecastDisk(
       subject,
       series(4, (d) => 74 + 4 * d),
@@ -106,7 +106,7 @@ describe('prévisions', () => {
     assert.equal(forecast.detail.gibPerDay, null);
   });
 
-  it('voit une fuite de mémoire, pas une mémoire qui respire', () => {
+  it('sees a memory leak, not a memory that breathes', () => {
     assert.ok(
       forecastMemory(
         subject,
@@ -124,7 +124,7 @@ describe('prévisions', () => {
     );
   });
 
-  it('voit une charge qui monte vers le seuil de la machine', () => {
+  it('sees a load rising toward the machine’s threshold', () => {
     const forecast = forecastLoad(
       subject,
       series(5, (d) => 40 + 6 * d),
@@ -135,7 +135,7 @@ describe('prévisions', () => {
     assert.equal(forecast.detail.limit, 85);
   });
 
-  it('voit une sonde qui ralentit, pas un écart insignifiant', () => {
+  it('sees a probe slowing down, not an insignificant gap', () => {
     const monitor = { type: 'monitor' as const, id: 'm1', name: 'API' };
     assert.ok(
       forecastLatency(monitor, {
@@ -163,28 +163,28 @@ describe('prévisions', () => {
         baselineCount: 500,
       }),
       null,
-      'trop peu de mesures',
+      'too few readings',
     );
   });
 
-  it('compte les bascules d’une sonde instable', () => {
+  it('counts an unstable probe’s flips', () => {
     assert.equal(countFlips(['healthy', 'unhealthy', 'healthy', 'unreachable', 'unhealthy']), 3);
     assert.equal(forecastFlapping(subject, 5), null);
     assert.equal(forecastFlapping(subject, 12)?.severity, 'soon');
   });
 
-  it('signale un certificat que personne n’a renouvelé', () => {
+  it('reports a certificate nobody renewed', () => {
     const route = { type: 'route' as const, id: 'r1', name: 'blog.exemple.fr' };
     assert.ok(forecastCertificate(route, new Date(NOW + 12 * DAY).toISOString(), NOW));
     assert.equal(forecastCertificate(route, new Date(NOW + 45 * DAY).toISOString(), NOW), null);
     assert.equal(
       forecastCertificate(route, new Date(NOW - DAY).toISOString(), NOW),
       null,
-      'déjà échu',
+      'already expired',
     );
   });
 
-  it('signale une sauvegarde qui ne tourne plus', () => {
+  it('reports a backup that no longer runs', () => {
     const app = { type: 'application' as const, id: 'a1', name: 'blog' };
     const since = new Date(NOW - 10 * DAY).toISOString();
     assert.ok(forecastBackup(app, new Date(NOW - 3 * DAY).toISOString(), since, NOW));
@@ -195,7 +195,7 @@ describe('prévisions', () => {
     );
   });
 
-  it('signale des déploiements qui échouent en série', () => {
+  it('reports deployments failing one after the other', () => {
     const recent = (statuses: string[]) =>
       statuses.map((status, index) => ({
         status,
@@ -206,7 +206,7 @@ describe('prévisions', () => {
     assert.equal(forecastDeploys(subject, recent(['failed', 'failed']), NOW), null);
   });
 
-  it('dit une prévision en phrase, nombres dans la langue', () => {
+  it('says a forecast as a sentence, numbers in the language', () => {
     const forecast = forecastDisk(
       subject,
       series(7, (d) => 49 + 3 * d),

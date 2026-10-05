@@ -1,4 +1,4 @@
-import { exposedService, type AppSpec } from '@pupitre/core';
+import { exposedService, type AppSpec, type UiLanguage } from '@pupitre/core';
 import type {
   DeploymentDriver,
   DriverContext,
@@ -30,27 +30,27 @@ import { getSupervisionQueue } from '../queue.js';
 import { withProxy, type OpenProxy } from './connect.js';
 
 /**
- * Les domaines d'une application sur une cible, côté worker : les poser sur le
- * proxy, les éprouver à travers lui, et retenir ce qu'ils donnent.
+ * An application's domains on a target, worker side: set them on the proxy,
+ * test them through it, and keep what they give.
  *
- * Partagé par l'étape `proxy` du pipeline, par « Appliquer » (des domaines
- * changés sans redéploiement), par la destruction et par la sonde périodique.
- * Aucun runtime n'est nommé ici : l'amont vient du driver, la route du proxy.
+ * Shared by the pipeline's `proxy` step, by "Apply" (domains changed without a
+ * redeploy), by destruction and by the periodic probe. No runtime is named here:
+ * the upstream comes from the driver, the route from the proxy.
  */
 
 /**
- * Ce qui distingue cette machine chez un proxy qui en sert plusieurs. Absent
- * pour la machine du proxy : ses objets gardent le nom de l'application, comme
- * avant que le proxy central n'existe.
+ * What tells this machine apart at a proxy that serves several. Absent for the
+ * proxy's machine: its objects keep the application's name, as before the
+ * central proxy existed.
  */
 function scopeOf(serving: ServingProxy, targetId: string): string | undefined {
   return serving.link ? `t${targetId.slice(0, 8)}` : undefined;
 }
 
 /**
- * Par où le proxy joint l'application : ce que le driver annonce, plus, pour
- * le proxy d'une autre machine ou un proxy distant, l'adresse de celle-ci — il
- * ne joint qu'un port publié.
+ * How the proxy reaches the application: what the driver announces, plus, for
+ * another machine's proxy or a remote proxy, this machine's address — it only
+ * reaches a published port.
  */
 function upstreamOf(
   serving: ServingProxy,
@@ -61,9 +61,7 @@ function upstreamOf(
   const upstream = driver.upstream(ctx, publishedPort);
   if (!serving.link || !upstream) return upstream;
   if (upstream.kind !== 'port') {
-    throw new Error(
-      "l'application ne publie aucun port que le proxy distant puisse joindre — redéployez-la pour qu'elle en publie un",
-    );
+    throw new Error(workerSay(ctx.language)('proxy.remoteNeedsPort'));
   }
   return { ...upstream, host: serving.link.address };
 }
@@ -77,7 +75,7 @@ function toProxyRoute(route: RouteView): ProxyRoute {
   };
 }
 
-/** Le chemin de santé du service routé — celui que l'on interroge à travers le proxy. */
+/** The routed service's health path — the one queried through the proxy. */
 function routedHealthPath(spec: AppSpec): string {
   const name = spec.ingress?.targetService ?? exposedService(spec).name;
   const service =
@@ -90,48 +88,54 @@ function routeUrl(route: Pick<RouteView, 'hostname' | 'tls'>): string {
 }
 
 /**
- * Au premier déploiement d'une application sur une cible, le domaine de son
- * AppSpec devient une route — c'est sa valeur par défaut. Ensuite, c'est la
- * liste des domaines de la cible qui fait foi : un domaine retiré à la main ne
- * revient pas au déploiement suivant.
+ * At an application's first deployment on a target, its AppSpec's domain becomes
+ * a route — it is its default value. Afterwards, it is the target's list of
+ * domains that is authoritative: a domain removed by hand does not come back at
+ * the next deployment.
  */
 export async function seedRouteFromSpec(
   applicationId: string,
   targetId: string,
   spec: AppSpec,
+  language: UiLanguage,
   onLog: LogSink,
 ): Promise<void> {
   const host = spec.ingress?.host;
   if (!host) return;
   const existing = await listRoutes({ applicationId, targetId });
   if (existing.length > 0) return;
+  const say = workerSay(language);
   try {
     const tls = spec.ingress?.tls ?? false;
     await replaceRoutes(applicationId, targetId, [
-      // La protection par défaut : celle d'un proxy qui est un WAF, ignorée sinon.
+      // The default protection: that of a proxy that is a WAF, ignored otherwise.
       { hostname: host.toLowerCase(), tls, redirectHttps: tls, waf: 'block' },
     ]);
-    onLog(`domaine de l'AppSpec retenu : ${host}`);
+    onLog(say('proxy.seeded', { hostname: host }));
   } catch (error) {
-    if (error instanceof RouteTakenError) onLog(`⚠ ${error.message} — il n'est pas repris`);
-    else throw error;
+    if (!(error instanceof RouteTakenError)) throw error;
+    onLog(
+      error.application
+        ? say('proxy.seedTakenBy', { hostname: error.hostname, application: error.application })
+        : say('proxy.seedTaken', { hostname: error.hostname }),
+    );
   }
 }
 
 /**
- * Comment publier l'application, au vu de ses domaines et de qui les sert :
- *   proxy de la machine  → sur la boucle locale, s'il la joint par là ;
- *   proxy d'une autre    → un port publié (un NodePort en K3s), sur l'adresse
- *                          privée que joint le proxy si elle est à cette
- *                          machine, et le pare-feu ouvert à lui seul.
- * `undefined` : pas de domaine, ou pas de proxy — la publication habituelle.
+ * How to publish the application, given its domains and who serves them:
+ *   the machine's proxy  → on loopback, if it reaches it that way;
+ *   another's proxy      → a published port (a NodePort on K3s), on the private
+ *                          address the proxy reaches if it belongs to this
+ *                          machine, and the firewall opened to it alone.
+ * `undefined`: no domain, or no proxy — the usual publication.
  */
 export async function exposureFor(
   applicationId: string,
   targetId: string,
 ): Promise<DriverExposure | undefined> {
   const serving = await resolveServingProxy(targetId);
-  // Un proxy en cours d'installation n'a pas encore sa configuration.
+  // A proxy being installed does not have its configuration yet.
   if (!serving || serving.proxy.status === 'installing') return undefined;
   const routes = await listRoutes({ applicationId, targetId });
   if (routes.length === 0) return undefined;
@@ -147,13 +151,13 @@ export async function exposureFor(
 }
 
 /**
- * Retient ce qu'une sonde a donné, et le dit quand ça change pour de bon.
+ * Keeps what a probe gave, and says so when it changes for good.
  *
- * `confirm` : une première sonde en échec sur une route qui marchait est mise
- * de côté — l'erreur est notée, la route reste active ; la seconde de suite la
- * fait tomber et prévient. Un redémarrage de proxy ou un déploiement en cours
- * ne réveille personne. Le pipeline, lui, tranche tout de suite : il vient de
- * tout poser et il a déjà réessayé.
+ * `confirm`: a first failed probe on a route that worked is set aside — the
+ * error is noted, the route stays active; the second in a row brings it down and
+ * warns. A proxy restart or a deployment in progress wakes nobody up. The
+ * pipeline decides right away: it just set everything up and has already
+ * retried.
  */
 async function recordProbe(
   route: RouteView,
@@ -164,8 +168,8 @@ async function recordProbe(
     hostname: route.hostname,
     application: route.applicationSlug,
     targetName: route.targetName,
-    // Ce qui permet de retenir l'alerte quand la machine est en maintenance :
-    // l'entrée est au nom de l'application, la route et sa cible sont ici.
+    // What allows holding the alert when the machine is under maintenance: the entry
+    // is in the application's name, the route and its target are here.
     routeId: route.id,
     targetId: route.targetId,
   };
@@ -205,9 +209,9 @@ async function recordProbe(
 }
 
 /**
- * L'échéance du certificat, vue à chaque sonde : une alerte quand il entre dans
- * ses quatorze derniers jours — son renouvellement n'a pas abouti —, une seule
- * par certificat, et l'annonce de son renouvellement.
+ * The certificate's expiry, seen at each probe: one alert when it enters its
+ * last fourteen days — its renewal did not succeed —, only one per certificate,
+ * and the announcement of its renewal.
  */
 async function watchCertificate(
   route: RouteView,
@@ -236,17 +240,17 @@ async function watchCertificate(
 }
 
 export type AppliedRoutes = {
-  /** Pourquoi rien n'a été posé, quand rien ne l'a été. */
+  /** Why nothing was set, when nothing was. */
   skipped: string | null;
-  /** L'URL à retenir pour l'application : son premier domaine qui répond. */
+  /** The URL to keep for the application: its first domain that answers. */
   url: string | null;
-  /** Les domaines qui ne répondent pas, avec la raison. */
+  /** The domains that do not answer, with the reason. */
   problems: string[];
 };
 
 /**
- * Pose sur le proxy l'ensemble des domaines du couple, puis les éprouve.
- * Une liste vide retire ce que le proxy portait pour l'application.
+ * Sets the pair's whole set of domains on the proxy, then tests them. An empty
+ * list removes what the proxy carried for the application.
  */
 export async function applyCoupleRoutes(input: {
   applicationId: string;
@@ -291,9 +295,8 @@ export async function applyCoupleRoutes(input: {
       return { skipped: say('proxy.noDomain'), url: null, problems: [] };
     }
 
-    // Un proxy relit sa configuration en une ou deux secondes ; un contrôleur
-    // d'ingress, parfois davantage. On réessaie un temps raisonnable avant de
-    // conclure.
+    // A proxy reads its configuration again in one or two seconds; an ingress
+    // controller, sometimes more. We retry for a reasonable time before concluding.
     const path = routedHealthPath(ctx.spec);
     const problems: string[] = [];
     let url: string | null = null;
@@ -320,8 +323,8 @@ export async function applyCoupleRoutes(input: {
       else problems.push(say('proxy.problem', { hostname: route.hostname, detail: probe.detail }));
       if (probe.certificate.status === 'pending') certificatePending = true;
     }
-    // Un certificat s'obtient en quelques secondes, la tournée passe toutes les
-    // dix minutes : on relit ce couple bientôt, pour que l'écran le voie émis.
+    // A certificate is obtained in a few seconds, the round goes every ten minutes:
+    // we read this pair again soon, so that the screen sees it issued.
     if (certificatePending) {
       for (const delay of CERTIFICATE_RECHECK_DELAYS_MS) {
         await getSupervisionQueue().add(
@@ -341,8 +344,8 @@ export async function applyCoupleRoutes(input: {
 }
 
 /**
- * La sonde périodique : éprouve sans rien poser, et prévient des changements.
- * `proxy` : le proxy ouvert — c'est à travers lui qu'on sonde.
+ * The periodic probe: tests without setting anything, and warns of changes.
+ * `proxy`: the open proxy — it is through it that we probe.
  */
 export async function probeCoupleRoutes(input: {
   applicationId: string;
@@ -363,9 +366,9 @@ export async function probeCoupleRoutes(input: {
 }
 
 /**
- * À la destruction du déploiement en service : retirer ses routes du proxy, et
- * libérer ses domaines. Un proxy injoignable ne bloque pas la destruction — il
- * est dit, la base est nettoyée quand même.
+ * At the destruction of the deployment in service: remove its routes from the
+ * proxy, and release its domains. An unreachable proxy does not block the
+ * destruction — it is said, the database is cleaned up anyway.
  */
 export async function removeCoupleRoutes(input: {
   applicationId: string;
@@ -386,7 +389,7 @@ export async function removeCoupleRoutes(input: {
               ? { scope: scopeOf(serving, input.targetId)! }
               : {}),
             routes: [],
-            // L'amont ne sert ici qu'à retrouver où les routes ont été posées.
+            // The upstream is only used here to find where the routes were set.
             upstream: (() => {
               try {
                 return upstreamOf(serving, input.driver, input.ctx, input.publishedPort);

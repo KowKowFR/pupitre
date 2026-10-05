@@ -4,10 +4,10 @@ import { BrandMark, Wordmark } from '@/components/brand-mark';
 import { cn } from '@/lib/utils';
 
 /**
- * La coquille des écrans hors panel — accès, page introuvable, accès refusé :
- * une grille de 48 px estompée en ellipse, la tuile et le mot-symbole, une
- * colonne de 400 px. Un décor, pas un motif : il dit « vous êtes chez
- * Pupitre » sans rien demander.
+ * The shell of the screens outside the panel — access, page not found, access
+ * refused: a 48 px grid faded into an ellipse, the tile and the wordmark, a
+ * 400 px column. A setting, not a pattern: it says "you are at Pupitre's" without
+ * asking anything.
  */
 export function AccessShell({
   tagline,
@@ -58,11 +58,11 @@ export function AccessShell({
 }
 
 /**
- * La carte de ces écrans : rayon 14, ombre marquée, 28 px de marge. Un titre,
- * une phrase qui dit ce qu'on attend, puis le formulaire — ou l'état qui le
- * remplace (« envoyé », « périmé », « fait ») dans la même carte.
+ * These screens' card: radius 14, marked shadow, 28 px of margin. A title, a
+ * sentence that says what is expected, then the form — or the state that
+ * replaces it ("sent", "expired", "done") in the same card.
  *
- * `tone` borde la carte d'une couleur d'état : un refus en rouge.
+ * `tone` edges the card with a state color: a refusal in red.
  */
 export function AccessCard({
   title,

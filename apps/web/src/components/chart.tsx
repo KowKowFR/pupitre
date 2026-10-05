@@ -6,38 +6,37 @@ import { formatDateTimeWith, type FormatSettings } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 /**
- * Le vocabulaire graphique du pupitre — la planche CompCharts.
+ * Pupitre's chart vocabulary — the CompCharts board.
  *
- * ── Pourquoi du SVG à la main plutôt qu'une bibliothèque ────────────────────
- * Recharts pèse 7,4 Mo décompressés et tire une pile de gestion d'état
- * complète ; Chart.js 6,2 Mo, ApexCharts 21,5 Mo. Surtout, toutes rendent dans
- * le navigateur : chaque figure deviendrait un composant client, et un tableau
- * de bord entièrement rendu sur le serveur se mettrait à hydrater. Les figures
- * ci-dessous sont des composants serveur ; le SVG arrive fini dans la page.
+ * ── Why hand-written SVG rather than a library ──────────────────────────────
+ * Recharts weighs 7.4 MB unpacked and pulls a complete state management stack;
+ * Chart.js 6.2 MB, ApexCharts 21.5 MB. Above all, they all render in the browser:
+ * each figure would become a client component, and a dashboard entirely rendered
+ * on the server would start hydrating. The figures below are server components;
+ * the SVG arrives finished in the page.
  *
- * ── Des pistes sur un axe partagé ───────────────────────────────────────────
- * Le kit pose les figures en pistes : le nom et ce qu'elles mesurent dans une
- * colonne à gauche, la figure à droite, et un seul axe du temps sous la pile.
- * Pas de graduation verticale : le chiffre qui compte est dans les relevés
- * au-dessus, et chaque marque porte un `title` qui la dit en toutes lettres.
- * Aucun texte n'est dans le SVG, qui s'étire (`preserveAspectRatio="none"`) :
- * un `<text>` y serait écrasé.
+ * ── Tracks on a shared axis ─────────────────────────────────────────────────
+ * The kit lays the figures out as tracks: the name and what they measure in a
+ * column on the left, the figure on the right, and a single time axis under the
+ * stack. No vertical scale: the figure that counts is in the readouts above, and
+ * each mark carries a `title` that spells it out. No text is in the SVG, which
+ * stretches (`preserveAspectRatio="none"`): a `<text>` would be squashed there.
  *
- * ── La règle qui gouverne ces figures ───────────────────────────────────────
- * **Un seau sans mesure ne se dessine pas comme un zéro.** Il reçoit une trame
- * pâle, et il est compté à part. Un seau qui ne porte qu'une ou deux mesures
- * est hachuré : son taux vaut 0 % ou 100 % et rien entre les deux, ce n'est pas
- * une valeur, c'est un tirage.
+ * ── The rule that governs these figures ─────────────────────────────────────
+ * **A bucket without a measurement is not drawn as a zero.** It gets a pale
+ * pattern, and it is counted apart. A bucket that only carries one or two
+ * measurements is hatched: its rate is 0% or 100% and nothing in between, it is
+ * not a value, it is a draw.
  *
- * ── Accessibilité ───────────────────────────────────────────────────────────
- * Les couleurs sont les couleurs d'état, jamais une palette catégorielle ;
- * chaque figure est un `role="img"` avec un résumé ; une légende nomme les
- * teintes des barres ; aucune valeur n'est enfermée derrière un survol seul.
+ * ── Accessibility ───────────────────────────────────────────────────────────
+ * The colors are the state colors, never a categorical palette; each figure is a
+ * `role="img"` with a summary; a legend names the bars' tints; no value is locked
+ * behind a hover alone.
  */
 
 const VIEW = 1000;
 
-/** Sous ce nombre de mesures, un taux n'est qu'un tirage. */
+/** Under this number of measurements, a rate is only a draw. */
 const THIN_SAMPLES = 3;
 
 export type Bucket = { at: string; samples: number };
@@ -45,8 +44,8 @@ export type Bucket = { at: string; samples: number };
 export type Verdict = 'none' | 'sparse' | 'ok';
 
 /**
- * Assez de données pour dessiner ? `none` : rien ; `sparse` : moins d'un quart
- * des seaux couverts — on dessine, mais on le dit ; `ok` : on dessine.
+ * Enough data to draw? `none`: nothing; `sparse`: less than a quarter of the
+ * buckets covered — we draw, but we say so; `ok`: we draw.
  */
 export function densityOf(buckets: readonly Bucket[]): {
   verdict: Verdict;
@@ -83,17 +82,17 @@ function dayClock(iso: string, format: FormatSettings): string {
 
 const HATCH = 'repeating-linear-gradient(45deg, var(--surface-3) 0 3px, transparent 3px 6px)';
 
-// ─── barres de taux ───────────────────────────────────────────────────────────
+// ─── rate bars ────────────────────────────────────────────────────────────────
 
 export type RatioBucket = Bucket & {
-  /** Mesures « bonnes » dans le seau (sondes saines, par exemple). */
+  /** "Good" measurements in the bucket (healthy probes, for instance). */
   hits: number;
 };
 
 /**
- * Une barre par seau, haute de sa part de mesures saines. Vert quand tout est
- * sain, rouge quand rien ne l'est, ambre entre les deux ; hachurée sous
- * `THIN_SAMPLES` mesures, trame pâle sans mesure.
+ * One bar per bucket, as high as its share of healthy measurements. Green when
+ * everything is healthy, red when nothing is, amber in between; hatched under
+ * `THIN_SAMPLES` measurements, pale pattern without a measurement.
  */
 export async function RatioBars({
   buckets,
@@ -102,7 +101,7 @@ export async function RatioBars({
   unit,
   format,
 }: {
-  /** Conservé pour l'API : les barres sont en HTML, sans motif SVG à nommer. */
+  /** Kept for the API: the bars are HTML, without an SVG pattern to name. */
   id?: string;
   buckets: readonly RatioBucket[];
   height?: number;
@@ -165,14 +164,14 @@ export async function RatioBars({
   );
 }
 
-// ─── courbe ───────────────────────────────────────────────────────────────────
+// ─── curve ────────────────────────────────────────────────────────────────────
 
 export type SeriesBucket = Bucket & { value: number | null };
 
 /**
- * Une valeur par seau, en courbe à aire douce, avec un point sur la dernière
- * mesure. Un seau sans mesure coupe la courbe — une moyenne n'enjambe pas un
- * trou — et reçoit une trame pâle. `threshold` trace un seuil en tirets ambre.
+ * One value per bucket, as a soft area curve, with a dot on the last measurement.
+ * A bucket without a measurement cuts the curve — an average does not straddle a
+ * gap — and gets a pale pattern. `threshold` draws a threshold as amber dashes.
  */
 export async function SeriesLine({
   buckets,
@@ -301,7 +300,7 @@ export async function SeriesLine({
           ),
         )}
       </svg>
-      {/* Le point final est en HTML : dans un SVG étiré, un cercle devient une ellipse. */}
+      {/* The end dot is HTML: in a stretched SVG, a circle becomes an ellipse. */}
       {lastPoint ? (
         <span
           aria-hidden
@@ -317,7 +316,7 @@ export async function SeriesLine({
   );
 }
 
-// ─── rail d'événements ────────────────────────────────────────────────────────
+// ─── events rail ──────────────────────────────────────────────────────────────
 
 export type TimelineEvent = {
   key: string;
@@ -335,7 +334,7 @@ const EVENT_COLOR: Record<TimelineEvent['tone'], string> = {
   hollow: 'var(--n400)',
 };
 
-/** Du plus anodin au plus grave — sert à colorer un amas par son pire élément. */
+/** From the most harmless to the most serious — serves to color a cluster by its worst element. */
 const TONE_RANK: Record<TimelineEvent['tone'], number> = {
   hollow: 0,
   idle: 0,
@@ -346,15 +345,15 @@ const TONE_RANK: Record<TimelineEvent['tone'], number> = {
 };
 
 /**
- * Deux événements plus proches que ce ratio de la fenêtre fusionnent : sur
- * 24 h, 1,2 % fait un peu plus de 17 minutes.
+ * Two events closer than this ratio of the window merge: over 24 h, 1.2% is a
+ * little more than 17 minutes.
  */
 const CLUSTER_RATIO = 0.012;
 
 /**
- * Les événements posés à leur instant exact sur une ligne. Chacun est une
- * pastille cerclée à la couleur de son issue, avec une info-bulle ; un amas
- * porte son effectif et prend la couleur de son pire membre.
+ * The events placed at their exact instant on a line. Each one is a chip ringed
+ * in its outcome's color, with a tooltip; a cluster carries its count and takes
+ * its worst member's color.
  */
 export async function EventRail({
   events,
@@ -450,12 +449,12 @@ export async function EventRail({
   );
 }
 
-// ─── axe ──────────────────────────────────────────────────────────────────────
+// ─── axis ─────────────────────────────────────────────────────────────────────
 
 /**
- * L'axe du temps partagé par une pile de pistes, en temps relatif : « −24 h »,
- * « −18 h »… « maintenant ». On lit une distance à l'instant, pas une heure
- * d'horloge à convertir.
+ * The time axis shared by a stack of tracks, in relative time: "−24 h",
+ * "−18 h"… "now". One reads a distance to the instant, not a clock time to
+ * convert.
  */
 export async function TimeAxis({
   from,
@@ -465,12 +464,12 @@ export async function TimeAxis({
   from: string;
   to: string;
   ticks?: number;
-  /** Conservé pour l'API : l'axe relatif n'a plus d'heure à formater. */
+  /** Kept for the API: the relative axis no longer has a time to format. */
   format?: FormatSettings;
 }) {
   const t = await getT(chrome);
   const hours = (Date.parse(to) - Date.parse(from)) / 3_600_000;
-  // Au-delà de trois jours on compte en jours entiers, une graduation par jour.
+  // Beyond three days we count in whole days, one tick per day.
   const inDays = hours >= 72;
   const marks = inDays ? Math.round(hours / 24) + 1 : ticks;
   const labels = Array.from({ length: marks }, (_, index) => {
@@ -489,9 +488,9 @@ export async function TimeAxis({
   );
 }
 
-// ─── états sans données ───────────────────────────────────────────────────────
+// ─── states without data ──────────────────────────────────────────────────────
 
-/** Pas assez d'historique : on le dit, et on dit depuis quand on regarde. */
+/** Not enough history: we say so, and say since when we have been looking. */
 export async function NotEnoughHistory({
   covered,
   buckets,
@@ -522,11 +521,11 @@ export async function NotEnoughHistory({
   );
 }
 
-// ─── petites formes ───────────────────────────────────────────────────────────
+// ─── small shapes ─────────────────────────────────────────────────────────────
 
 /**
- * Mini-jauge d'une ressource : « mém ▬ 62 % ». Graphite au repos, ambre au
- * seuil. Le chiffre est toujours écrit ; sans mesure, un tiret.
+ * A resource's mini gauge: "mem ▬ 62%". Graphite at rest, amber at the
+ * threshold. The figure is always written; without a measurement, a dash.
  */
 export async function MiniGauge({
   value,
@@ -536,7 +535,7 @@ export async function MiniGauge({
   value: number | null;
   label: string;
   warn?: boolean;
-  /** Conservé pour l'API : la teinte suit désormais `warn`. */
+  /** Kept for the API: the tint now follows `warn`. */
   tone?: string;
 }) {
   const t = await getT(chrome);

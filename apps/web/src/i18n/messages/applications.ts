@@ -1,24 +1,24 @@
 import type { Translated } from '@pupitre/core';
 
 /**
- * Le catalogue d'applications — la liste, la fiche, ses secrets, sa timeline de
- * versions, la création (formulaire et génération), la suppression en cascade,
- * et les refus de toutes ces routes.
+ * The applications catalog — the list, the record, its secrets, its versions
+ * timeline, the creation (form and generation), the cascading deletion, and the
+ * refusals of all these routes.
  *
- * ── Ce qui n'est pas traduit, et pourquoi ───────────────────────────────────
- * `AppSpec` est un nom propre : il ne se traduit ni ne se met au pluriel. Les
- * **noms de champs** du format (`services`, `env`, `secrets`, `ingress`) sont
- * des clés JSON, pas des mots — les traduire produirait une spec que Zod
- * refuserait. Les noms de secrets, de services, d'images et de fournisseurs
- * viennent des données : ils s'affichent tels quels.
+ * ── What is not translated, and why ─────────────────────────────────────────
+ * `AppSpec` is a proper noun: it is neither translated nor pluralized. The
+ * format's **field names** (`services`, `env`, `secrets`, `ingress`) are JSON
+ * keys, not words — translating them would produce a spec Zod would refuse. The
+ * names of secrets, services, images and providers come from the data: they
+ * show as is.
  *
- * Certaines phrases sont coupées en deux clés (`.before` / `.after`) : ce sont
- * celles qui entourent un `<code>` ou un `<strong>` dans le JSX. Une clé par
- * fragment est laide mais honnête — l'alternative, du balisage dans le
- * dictionnaire, obligerait le traducteur à écrire du HTML.
+ * Some sentences are cut into two keys (`.before` / `.after`): they are those
+ * surrounding a `<code>` or a `<strong>` in the JSX. One key per fragment is ugly
+ * but honest — the alternative, markup in the dictionary, would force the
+ * translator to write HTML.
  */
 const fr = {
-  // ── Liste ───────────────────────────────────────────────────────────────
+  // ── List ────────────────────────────────────────────────────────────────
   'page.title': 'Applications',
   'page.description':
     'Une application est une AppSpec : une description neutre, qui ne connaît ni Docker ni Kubernetes. Le driver la traduit en compose.yml ou en manifests au moment du déploiement.',
@@ -127,7 +127,7 @@ const fr = {
   'action.sending': 'Envoi…',
 
 
-  // ── Suppression ─────────────────────────────────────────────────────────
+  // ── Deletion ────────────────────────────────────────────────────────────
   'delete.title': 'Supprimer « {slug} » ?',
   'delete.title.cascade': 'Détruire et supprimer « {slug} » ?',
   'delete.live': 'Déploiements vivants',
@@ -177,7 +177,7 @@ const fr = {
   'delete.action.force': 'Forcer l’effacement',
   'delete.action.cascade': 'Détruire et supprimer',
 
-  // ── Fiche ───────────────────────────────────────────────────────────────
+  // ── Record ──────────────────────────────────────────────────────────────
   'detail.spec.byPort': 'exposition par port alloué',
 
   'versions.empty':
@@ -196,7 +196,7 @@ const fr = {
   'redeploy.impossible': 'Aucune AppSpec figée sur ce déploiement : rien à rejouer.',
 
   // ── Secrets ─────────────────────────────────────────────────────────────
-  /** Le titre exact que cherchent les vérifications d'intégration. */
+  /** The exact title the integration checks look for. */
   'secrets.title': 'Secrets',
   'secrets.description.1':
     "L'AppSpec ne déclare que des noms ; les valeurs vivent chiffrées en base, sous",
@@ -232,7 +232,7 @@ const fr = {
   'secrets.regenerate.label': 'Régénérer {name}',
   'secrets.delete.label': 'Supprimer {name}',
 
-  // ── Création ────────────────────────────────────────────────────────────
+  // ── Creation ────────────────────────────────────────────────────────────
   'new.description':
     "Rien n'est touché sur une machine tant qu'aucune cible n'est choisie. Le prompt et la spec générée sont conservés avec l'application.",
   'new.card.title': 'AppSpec',
@@ -317,7 +317,7 @@ const fr = {
   'form.submit.save': "Enregistrer l'application",
   'form.submit.empty': "Écrivez, collez ou générez d'abord une spec.",
 
-  // ── Relecture de la spec, avant enregistrement ──────────────────────────
+  // ── Reviewing the spec, before saving ───────────────────────────────────
   'review.unnamed': '(sans nom)',
   'review.services': { one: '{count} service', other: '{count} services' },
   'review.exposed': 'exposé',
@@ -350,7 +350,7 @@ const fr = {
   'review.declaredSecrets.tail':
     ' sont dans la spec. À l’enregistrement, Pupitre génère une valeur pour chacun, chiffrée et jamais réaffichée ; un alias reprend la valeur de son secret. Une valeur venue d’ailleurs se saisit ensuite sur la fiche de l’application.',
 
-  // ── Refus des routes ────────────────────────────────────────────────────
+  // ── Route refusals ──────────────────────────────────────────────────────
   'error.notFound': 'Application « {id} » introuvable',
   'row.imagesOutdated': {
     one: '{count} image à mettre à jour',
@@ -428,7 +428,7 @@ const fr = {
   'error.versionNoSpec':
     "Le déploiement #{version} n'a pas d'AppSpec figée : il a été enregistré avant que le panel ne conserve la spec de chaque run, et il n'y a donc rien à rejouer. Déployez la version courante de l'application à la place.",
   'error.targetNotFound': 'Cible « {id} » introuvable',
-  /** Voir `deployments.ts` : « aucun » est une clé, pas une variable. */
+  /** See `deployments.ts`: "none" is a key, not a variable. */
   'error.versionRuntimeUnavailable':
     "Le runtime « {runtime} » de cette version n'est pas disponible sur « {target} ». Runtimes exploitables : {available}.",
   'error.versionRuntimeUnavailable.none':

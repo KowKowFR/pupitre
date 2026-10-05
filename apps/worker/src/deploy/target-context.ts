@@ -16,11 +16,11 @@ export type OpenedTarget = {
 };
 
 /**
- * Ouvre une session SSH vers une cible, sans aucun déploiement en tête.
+ * Opens an SSH session to a target, without any deployment in mind.
  *
- * Pendant de `openDeploymentContext()`, pour le contexte de cible. Comme lui,
- * c'est un des rares endroits où un credential est déchiffré, et il ne quitte
- * pas la portée de cette fonction.
+ * The counterpart of `openDeploymentContext()`, for the target context. Like it,
+ * it is one of the rare places where a credential is decrypted, and it does not
+ * leave this function's scope.
  */
 export async function openTargetContext(targetId: string): Promise<OpenedTarget> {
   const language = await instanceLanguage();

@@ -18,24 +18,24 @@ const paramsSchema = z.object({ id: z.string().uuid() });
 type Context = { params: Promise<{ id: string }> };
 
 /**
- * Débloque un déploiement figé : le statut « en cours » devient « échoué ».
+ * Unblocks a stuck deployment: the "in progress" status becomes "failed".
  *
- * ── Pourquoi `deployment:purge` ──────────────────────────────────────────────
- * Le geste ne touche pas la machine — il corrige un enregistrement que le panel
- * a laissé mentir. C'est exactement le partage que pose le vocabulaire RBAC :
- * « Détruire retire l'application de la machine ; purger efface la trace en
- * base. Deux gestes différents, deux permissions. » Débloquer est du côté de la
- * base. Et c'est littéralement l'acte qui lève un refus de purge : la purge
- * refuse un déploiement `in_progress`, et rien d'autre ne pouvait le sortir de
- * cet état. Exiger `deployment:destroy` aurait laissé croire qu'on va démonter
- * quelque chose ; on ne démonte rien, on cesse de mentir.
+ * ── Why `deployment:purge` ───────────────────────────────────────────────────
+ * The gesture does not touch the machine — it fixes a record the panel left
+ * lying. It is exactly the split the RBAC vocabulary sets: "Destroying removes
+ * the application from the machine; purging erases the trace in the database. Two
+ * different gestures, two permissions." Unblocking is on the database's side. And
+ * it is literally the act that lifts a purge refusal: the purge refuses an
+ * `in_progress` deployment, and nothing else could take it out of that state.
+ * Requiring `deployment:destroy` would have suggested something was going to be
+ * dismantled; nothing is dismantled, we stop lying.
  *
- * ── Pourquoi aucune reprise ──────────────────────────────────────────────────
- * Rien n'est réenfilé. Rejouer un pipeline dont on ignore où il s'est arrêté
- * redéploierait par-dessus un état inconnu. Le déploiement est arrêté sur un
- * échec qui **nomme ce qui reste à vérifier sur la cible** ; c'est ensuite la
- * destruction — un geste explicite, avec sa propre permission — qui remet la
- * machine à plat.
+ * ── Why no resumption ────────────────────────────────────────────────────────
+ * Nothing is queued again. Replaying a pipeline without knowing where it stopped
+ * would redeploy on top of an unknown state. The deployment is stopped on a
+ * failure that **names what remains to check on the target**; it is then the
+ * destruction — an explicit gesture, with its own permission — that wipes the
+ * machine clean.
  */
 export const POST = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'deployment:purge');
@@ -49,7 +49,7 @@ export const POST = apiRoute<Context>(async (request, context) => {
   }
 
   const verdict = await inspectDeployment(getOpsQueue(), id);
-  // Conclu entre les deux lectures : le worker a rendu son verdict tout seul.
+  // Concluded between the two reads: the worker gave its verdict on its own.
   if (!verdict) {
     throw new ConflictError(msg(messages, 'error.settledWhileChecking'));
   }
@@ -61,8 +61,8 @@ export const POST = apiRoute<Context>(async (request, context) => {
     });
   }
 
-  // Le verdict est écrit une fois dans l'erreur du déploiement et y reste,
-  // comme le journal du déploiement : dans la langue de l'instance ce jour-là.
+  // The verdict is written once into the deployment's error and stays there, like
+  // the deployment's log: in the instance's language that day.
   const language = await currentLanguage();
   const report = await abandonDeployment(id, {
     cause: renderMessage(messages, language, 'unblock.cause'),
@@ -85,17 +85,17 @@ export const POST = apiRoute<Context>(async (request, context) => {
       applicationSlug: report.applicationSlug,
       targetName: report.targetName,
       error: report.error,
-      // i18n-ignore — charge utile du journal d'activité, pas de l'interface :
-      // elle est relue par un humain qui enquête, des mois plus tard, et le
-      // journal est dans la langue du projet comme les noms d'action.
-      detectedBy: 'aucune tâche exécutable dans la file « ops »',
+      // i18n-ignore — activity log payload, not interface: it is read back by a human
+      // investigating, months later, and the log is in the project's language like
+      // the action names.
+      detectedBy: 'no runnable job in the "ops" queue',
     },
     ip: auth.ip,
   });
 
   logger.warn(
     { deploymentId: id, failedStep: report.failedStep },
-    'déploiement figé débloqué à la main',
+    'stuck deployment unblocked by hand',
   );
 
   return NextResponse.json({

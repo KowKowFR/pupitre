@@ -8,13 +8,13 @@ import { cn } from '@/lib/utils';
 import { Tooltip } from './tooltip';
 
 /**
- * Une aide repliée dans une info-bulle : une petite icône à côté d'un
- * intitulé, l'explication au survol comme au focus. Pour les écrans denses,
- * où chaque champ portait deux lignes de prose qu'on ne lit qu'une fois.
+ * A help folded into a tooltip: a small icon next to a label, the explanation on
+ * hover as on focus. For dense screens, where each field carried two lines of
+ * prose one only reads once.
  *
- * Un bouton, pour être atteint au clavier ; posé dans un `<label>`, il ne
- * coche ni ne focalise rien — un clic sur un élément interactif n'active pas
- * le libellé qui le contient.
+ * A button, to be reached with the keyboard; placed in a `<label>`, it neither
+ * checks nor focuses anything — a click on an interactive element does not
+ * activate the label containing it.
  */
 export function HelpTip({
   children,
@@ -22,7 +22,7 @@ export function HelpTip({
   className,
 }: {
   children: React.ReactNode;
-  /** Nom accessible du bouton ; « Aide » par défaut. */
+  /** The button's accessible name; "Help" by default. */
   label?: string;
   className?: string;
 }) {

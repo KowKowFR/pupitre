@@ -15,27 +15,27 @@ import { chat as messages } from '@/i18n/messages/chat';
 import { toast } from '@/lib/toast';
 
 /**
- * Le temps réel, côté navigateur.
+ * Real time, browser side.
  *
- * ── Un flux pour tous les onglets ───────────────────────────────────────────
- * En HTTP/1.1 — le panel en développement, ou derrière un proxy qui ne parle
- * pas HTTP/2 — un navigateur n'ouvre que six connexions par origine. Un flux
- * SSE par onglet, et le septième onglet ne chargerait plus rien. Les onglets
- * élisent donc un **meneur** (Web Locks) : lui seul ouvre le flux et relaie ce
- * qu'il reçoit aux autres (BroadcastChannel). Il ferme, un autre prend la
- * main. Sans ces API, chaque onglet ouvre le sien — le cas dégradé d'avant.
+ * ── One stream for all the tabs ─────────────────────────────────────────────
+ * Over HTTP/1.1 — the panel in development, or behind a proxy that does not speak
+ * HTTP/2 — a browser only opens six connections per origin. One SSE stream per
+ * tab, and the seventh tab would no longer load anything. The tabs therefore
+ * elect a **leader** (Web Locks): it alone opens the stream and relays what it
+ * receives to the others (BroadcastChannel). It closes, another takes over.
+ * Without these APIs, each tab opens its own — the degraded case of before.
  *
- * ── La présence ─────────────────────────────────────────────────────────────
- * Chaque onglet signale les interactions (clavier, souris, retour au premier
- * plan), au plus une fois par minute. C'est le serveur qui en déduit
- * l'absence : aucun onglet n'a à décider seul que la personne est partie.
+ * ── Presence ────────────────────────────────────────────────────────────────
+ * Each tab signals the interactions (keyboard, mouse, back to the foreground), at
+ * most once a minute. It is the server that deduces absence from them: no tab
+ * has to decide alone that the person left.
  */
 
 type Hello = {
   me: string;
   presence: Record<string, PresenceStatus>;
   unread: number;
-  /** Parmi les non-lus, ceux qui s'adressent à la personne (mention, réponse). */
+  /** Among the unread ones, those addressed to the person (mention, reply). */
   mentions: number;
   choice: PresenceChoice | null;
 };
@@ -62,9 +62,9 @@ type RealtimeValue = {
   setChoice: (choice: PresenceChoice | null) => Promise<void>;
   unread: number;
   mentions: number;
-  /** Tous les onglets remettent les compteurs à zéro. */
+  /** All the tabs reset the counters. */
   clearUnread: () => void;
-  /** La discussion est ouverte dans cet onglet : visible, elle vaut lecture. */
+  /** The chat is open in this tab: visible, it counts as read. */
   chatOpen: boolean;
   setChatOpen: (open: boolean) => void;
   subscribe: <T extends RealtimeEventType>(
@@ -110,7 +110,7 @@ export function RealtimeProvider({
   const handlers = React.useRef(new Map<RealtimeEventType, Set<Handler>>());
   const bus = React.useRef<BroadcastChannel | null>(null);
   const reading = React.useRef(false);
-  // Ce que le meneur rediffuse à un onglet qui arrive.
+  // What the leader broadcasts again to an arriving tab.
   const state = React.useRef<Hello>({
     me,
     presence: {},
@@ -139,18 +139,18 @@ export function RealtimeProvider({
     try {
       sessionStorage.setItem('pupitre.chat.open', open ? '1' : '0');
     } catch {
-      // Stockage indisponible (navigation privée) : l'état ne survit pas au rechargement.
+      // Storage unavailable (private browsing): the state does not survive a reload.
     }
   }, []);
 
-  // Rouverte après un rechargement si elle l'était : on ne perd pas le fil.
-  // Au cadre suivant, pas au rendu : le serveur, lui, l'a rendue fermée.
+  // Reopened after a reload if it was open: the thread is not lost. At the next
+  // frame, not at render: the server rendered it closed.
   React.useEffect(() => {
     let reopen = false;
     try {
       reopen = sessionStorage.getItem('pupitre.chat.open') === '1';
     } catch {
-      // Rien à restaurer.
+      // Nothing to restore.
     }
     if (!reopen) return;
     const frame = requestAnimationFrame(() => setChatOpen(true));
@@ -196,14 +196,14 @@ export function RealtimeProvider({
         try {
           handler(event);
         } catch {
-          // Un écran en erreur ne doit pas couper le flux des autres.
+          // A screen in error must not cut the others' stream.
         }
       }
     },
     [me, setChatOpen],
   );
 
-  // ── Transport : un meneur, des suiveurs ─────────────────────────────────
+  // ── Transport: a leader, followers ──────────────────────────────────────
   React.useEffect(() => {
     const channel = 'BroadcastChannel' in window ? new BroadcastChannel(BUS) : null;
     bus.current = channel;
@@ -211,8 +211,8 @@ export function RealtimeProvider({
     let source: EventSource | null = null;
     let leading = false;
 
-    // Après le démontage, plus rien ne part : le canal est fermé, et un
-    // message tardif lèverait une erreur.
+    // After unmounting, nothing goes out any more: the channel is closed, and a late
+    // message would throw an error.
     const post = (message: BusMessage) => {
       if (stop.signal.aborted) return;
       channel?.postMessage(message);
@@ -242,7 +242,7 @@ export function RealtimeProvider({
         post({ kind: 'connected', connected: true });
       };
       source.onerror = () => {
-        // EventSource se reconnecte seul ; le `hello` suivant remettra tout d'aplomb.
+        // EventSource reconnects on its own; the next `hello` will set everything right.
         setConnected(false);
         post({ kind: 'connected', connected: false });
       };
@@ -252,7 +252,7 @@ export function RealtimeProvider({
         post({ kind: 'hello', hello });
       });
       source.addEventListener('bye', () => {
-        // Session révoquée : la page se recharge et part vers la connexion.
+        // Session revoked: the page reloads and goes to sign-in.
         source?.close();
         window.location.reload();
       });
@@ -275,9 +275,9 @@ export function RealtimeProvider({
           { signal: stop.signal },
           () =>
             new Promise<void>((resolve) => {
-              // Le verrou peut arriver après le démontage (StrictMode monte,
-              // démonte, remonte) : on le rend aussitôt, sinon ce montage mort
-              // le garderait et plus aucun onglet ne mènerait.
+              // The lock may arrive after unmounting (StrictMode mounts, unmounts, mounts
+              // again): we give it back right away, otherwise this dead mount would keep it
+              // and no tab would lead any more.
               if (stop.signal.aborted) {
                 resolve();
                 return;
@@ -287,7 +287,7 @@ export function RealtimeProvider({
             }),
         )
         .catch(() => undefined);
-      // Suiveur : on demande l'état courant au meneur, s'il y en a un.
+      // Follower: we ask the leader for the current state, if there is one.
       post({ kind: 'sync' });
     } else {
       lead();
@@ -301,7 +301,7 @@ export function RealtimeProvider({
     };
   }, [applyHello, receive]);
 
-  // ── Activité : clavier, souris, premier plan ─────────────────────────────
+  // ── Activity: keyboard, mouse, foreground ────────────────────────────────
   React.useEffect(() => {
     let last = Date.now();
     const signal = () => {
@@ -370,11 +370,11 @@ export function RealtimeProvider({
 
 export function useRealtime(): RealtimeValue {
   const value = React.useContext(RealtimeContext);
-  if (!value) throw new Error('useRealtime() hors de <RealtimeProvider>');
+  if (!value) throw new Error('useRealtime() outside of <RealtimeProvider>');
   return value;
 }
 
-/** Le même, sans exiger le fournisseur — pour les composants partagés avec l'assistant. */
+/** The same, without requiring the provider — for the components shared with the assistant. */
 export function useOptionalRealtime(): RealtimeValue | null {
   return React.useContext(RealtimeContext);
 }

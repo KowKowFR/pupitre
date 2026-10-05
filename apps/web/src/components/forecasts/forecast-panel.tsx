@@ -8,15 +8,15 @@ import type { ForecastView } from '@/lib/forecasts';
 import { cn } from '@/lib/utils';
 
 /**
- * « À venir » : ce qui va casser si rien ne change. Le pendant du bloc
- * d'attention, qui dit ce qui est cassé maintenant.
+ * "Coming up": what will break if nothing changes. The counterpart of the
+ * attention block, which says what is broken now.
  *
- * Une ligne par prévision : le voyant (orange quand c'est pour bientôt), le
- * sujet, la phrase qui dit pourquoi — une pente, une médiane, un compte —, et
- * le lien vers la fiche du sujet. Rien quand il n'y a rien : un écran sans
- * nuage n'a pas besoin d'une carte pour le dire.
+ * One row per forecast: the indicator (orange when it is soon), the subject, the
+ * sentence that says why — a slope, a median, a count —, and the link to the
+ * subject's record. Nothing when there is nothing: a screen without a cloud does
+ * not need a card to say so.
  *
- * `compact` : dans la fiche d'un sujet, le sujet va sans dire.
+ * `compact`: in a subject's record, the subject goes without saying.
  */
 export async function ForecastPanel({
   items,

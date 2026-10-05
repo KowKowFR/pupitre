@@ -12,9 +12,9 @@ export type NavMeta =
   | { kind: 'inflight'; label: string };
 
 /**
- * Entrée de rail — 32 px. Active : fond de surface, ombre `sm`, icône en
- * outremer. À droite, une méta : un compteur (rouge pour une anomalie), ou un
- * voyant qui pulse tant qu'un déploiement est en vol.
+ * A rail entry — 32 px. Active: surface background, `sm` shadow, ultramarine
+ * icon. On the right, a meta: a counter (red for an anomaly), or an indicator
+ * that pulses while a deployment is in flight.
  */
 export function NavItem({
   section,

@@ -18,19 +18,18 @@ import { instanceLanguage } from '../language.js';
 import { workerSay } from '../messages.js';
 
 /**
- * Un proxy prêt à servir, où qu'il tourne. Le worker ne fait que cela avec un
- * proxy — poser des routes, les sonder, le tester, éprouver une liaison — et
- * n'a pas à savoir s'il passe par SSH (un proxy sur une machine) ou par une
- * API (un proxy distant) : c'est décidé ici, sur le placement du genre, une
- * fois pour toutes.
+ * A proxy ready to serve, wherever it runs. The worker only does this with a
+ * proxy — set routes, probe them, test it, test a link — and does not have to
+ * know whether it goes through SSH (a proxy on a machine) or through an API (a
+ * remote proxy): it is decided here, on the kind's placement, once and for all.
  */
 export type OpenProxy = {
-  /** Pour les messages : la machine du proxy, ou le nom de la connexion distante. */
+  /** For the messages: the proxy's machine, or the remote connection's name. */
   name: string;
   apply(set: ProxyRouteSet, onLog: LogSink): Promise<void>;
   probe(route: ProxyRoute, path: string): Promise<RouteProbe>;
   check(onLog: LogSink): Promise<ProxyCheck>;
-  /** D'où éprouver le chemin vers une machine servie (`checkReach()`). */
+  /** Where to test the path to a served machine from (`checkReach()`). */
   reachOrigin(onLog?: LogSink): ReachOrigin;
   close(): Promise<void>;
 };
@@ -40,13 +39,13 @@ export function proxyContextOf(proxy: ProxyView, host: TargetContext): ProxyCont
 }
 
 /**
- * Ouvre le proxy. `local` : une session déjà ouverte — reprise si c'est celle
- * de la machine du proxy, sinon on ouvre la sienne le temps du geste.
+ * Opens the proxy. `local`: a session already open — reused if it is the proxy
+ * machine's, otherwise we open its own for the duration of the gesture.
  */
 export async function openProxy(proxy: ProxyView, local?: TargetContext): Promise<OpenProxy> {
   if (proxyPlacement(proxy.kind) === 'remote') {
     const provider = getRemoteProxyProvider(proxy.kind);
-    // Les identifiants de l'API, déchiffrés ici et nulle part ailleurs.
+    // The API credentials, decrypted here and nowhere else.
     const ctx = {
       config: proxy.config,
       secrets: await resolveProxySecrets(proxy.id),
@@ -59,7 +58,7 @@ export async function openProxy(proxy: ProxyView, local?: TargetContext): Promis
       check: (onLog) => provider.check(ctx, onLog),
       reachOrigin: (onLog = () => {}) => ({
         name: proxy.name,
-        // Un proxy distant ne dit pas sa table de routage : seule la connexion compte.
+        // A remote proxy does not tell its routing table: only the connection counts.
         routeSource: async () => undefined,
         connect: (address, port, token) => provider.reach(ctx, { address, port, token }, onLog),
       }),
@@ -85,7 +84,7 @@ export async function openProxy(proxy: ProxyView, local?: TargetContext): Promis
   };
 }
 
-/** Le temps d'un geste : le proxy ouvert, puis refermé quoi qu'il arrive. */
+/** For the duration of a gesture: the proxy opened, then closed whatever happens. */
 export async function withProxy<T>(
   proxy: ProxyView,
   local: TargetContext | undefined,

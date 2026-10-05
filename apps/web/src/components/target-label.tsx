@@ -1,60 +1,59 @@
 import { cn } from '@/lib/utils';
 
 /**
- * Étiquettes de cible — pastilles clé/valeur à couleur dérivée.
+ * Target labels — key/value chips with a derived color.
  *
- * ## Pourquoi la couleur n'est pas choisie par l'utilisateur
+ * ## Why the color is not chosen by the user
  *
- * Le modèle en base est resté `Record<string, string>` : des paires
- * `clé=valeur`, comme Kubernetes. Passer à des étiquettes nommées de premier
- * ordre (nom + couleur choisie) aurait apporté un argument — pouvoir décréter
- * « rouge = production » — et trois coûts : une table, un écran de gestion, et
- * surtout la capacité de peindre une étiquette en rouge ou en vert. Or dans ce
- * panel le rouge dit « injoignable » et le vert dit « opérationnelle ». Offrir
- * le nuancier, c'est offrir la contradiction : « prod » en rouge à côté d'un
- * voyant vert se lit comme une alerte, pas comme une catégorie.
+ * The database model stayed `Record<string, string>`: `key=value` pairs, like
+ * Kubernetes. Moving to first-class named labels (name + chosen color) would have
+ * brought one argument — being able to decree "red = production" — and three
+ * costs: a table, a management screen, and above all the ability to paint a
+ * label red or green. Yet in this panel red says "unreachable" and green says
+ * "operational". Offering the color chart is offering the contradiction: "prod"
+ * in red next to a green indicator reads as an alert, not as a category.
  *
- * La couleur est donc **dérivée du texte** : stable partout dans le panel,
- * gratuite, sans écran de gestion, et structurellement incapable d'emprunter
- * une teinte d'état puisque la rampe `--tag-*` est confinée à l'arc
- * bleu-violet → magenta (voir `globals.css`).
+ * The color is therefore **derived from the text**: stable everywhere in the
+ * panel, free, without a management screen, and structurally unable to borrow a
+ * state tint since the `--tag-*` ramp is confined to the blue-violet → magenta
+ * arc (see `globals.css`).
  *
- * ## La deuxième défense : la forme
+ * ## The second defense: the shape
  *
- * La teinte seule ne suffirait pas — un violet reste une couleur vive posée à
- * côté d'un état. Les deux objets sont donc de familles différentes : une
- * pastille d'**état** est en Instrument Sans et dit un mot (« opérationnelle »),
- * une pastille d'**étiquette** est en Geist Mono et dit une paire `clé=valeur`,
- * la clé atténuée. Fond, liseré et encre sont dérivés de la teinte par
- * mélange (`.tag`), dosé différemment selon le thème.
+ * The tint alone would not be enough — a violet stays a bright color set next to
+ * a state. The two objects are therefore of different families: a **state** chip
+ * is in Instrument Sans and says a word ("operational"), a **label** chip is in
+ * Geist Mono and says a `key=value` pair, the key dimmed. Background, border and
+ * ink are derived from the tint by mixing (`.tag`), dosed differently depending
+ * on the theme.
  */
 
-/** Nombre de teintes de la rampe `--tag-*`. Doit suivre `globals.css`. */
+/** The number of tints of the `--tag-*` ramp. Must follow `globals.css`. */
 const TAG_TONE_COUNT = 6;
 
 /**
- * Hachage FNV-1a 32 bits.
+ * 32-bit FNV-1a hashing.
  *
- * Choisi pour être court, sans dépendance et surtout **pur** : le serveur et le
- * client doivent produire exactement la même teinte, sans quoi React signale
- * une erreur d'hydratation sur chaque étiquette de la page.
+ * Chosen for being short, dependency-free and above all **pure**: the server and
+ * the client must produce exactly the same tint, otherwise React reports a
+ * hydration error on each label of the page.
  */
 function fnv1a(text: string): number {
   let hash = 0x811c9dc5;
   for (let i = 0; i < text.length; i += 1) {
     hash ^= text.charCodeAt(i);
-    // Multiplication par le nombre premier FNV, en arithmétique 32 bits.
+    // Multiplication by the FNV prime, in 32-bit arithmetic.
     hash = Math.imul(hash, 0x01000193) >>> 0;
   }
   return hash;
 }
 
 /**
- * Teinte d'une étiquette, sous forme de référence au jeton.
+ * A label's tint, as a reference to the token.
  *
- * Le hachage porte sur la paire entière et non sur la seule clé : c'est
- * `env=prod` que l'on cherche du regard dans une liste, pas « la dimension
- * env ». Deux valeurs différentes d'une même clé doivent donc se distinguer.
+ * The hash covers the whole pair and not the key alone: it is `env=prod` that one
+ * looks for in a list, not "the env dimension". Two different values of the same
+ * key must therefore be told apart.
  */
 function tagToneOf(key: string, value: string): string {
   const index = (fnv1a(`${key}=${value}`) % TAG_TONE_COUNT) + 1;
@@ -79,19 +78,19 @@ export type TargetLabelChipProps = {
   value: string;
   className?: string;
   /**
-   * Rend la pastille comme un bouton bascule de filtre. Absent : simple
-   * affichage, et l'élément n'est ni focusable ni annoncé comme actionnable.
+   * Renders the chip as a filter toggle button. Absent: a mere display, and the
+   * element is neither focusable nor announced as actionable.
    */
   onToggle?: () => void;
   active?: boolean;
   /**
-   * Libellé de survol du bouton bascule, fourni par l'appelant.
+   * The toggle button's hover label, provided by the caller.
    *
-   * Ce module est rendu des deux côtés de la frontière : la fiche d'une cible
-   * l'appelle depuis un composant serveur, la table depuis un composant
-   * client. Il ne peut donc appeler ni `getT` ni `useT`. Or seul l'appelant
-   * qui passe `onToggle` a un titre à afficher — et celui-là est toujours un
-   * composant client, qui a son `t`.
+   * This module is rendered on both sides of the boundary: a target's record calls
+   * it from a server component, the table from a client component. It can
+   * therefore call neither `getT` nor `useT`. Yet only the caller that passes
+   * `onToggle` has a title to show — and that one is always a client component,
+   * which has its `t`.
    */
   titleOf?: (active: boolean) => string;
 };
@@ -104,7 +103,7 @@ export function TargetLabelChip({
   active,
   titleOf,
 }: TargetLabelChipProps) {
-  // Une seule variable pilote fond, liseré et encre : voir `.tag`.
+  // A single variable drives background, border and ink: see `.tag`.
   const style = { '--tg': tagToneOf(labelKey, value) } as React.CSSProperties;
 
   if (!onToggle) {
@@ -120,8 +119,8 @@ export function TargetLabelChip({
       type="button"
       onClick={onToggle}
       aria-pressed={active}
-      // `aria-pressed` porte l'état pour les lecteurs d'écran ; la coche le
-      // porte pour l'œil. La couleur ne le porte jamais seule.
+      // `aria-pressed` carries the state for screen readers; the check mark carries it
+      // for the eye. Color never carries it alone.
       title={titleOf?.(active ?? false)}
       className={cn(CHIP_BASE, 'gap-1', className)}
       style={style}
@@ -135,28 +134,28 @@ export function TargetLabelChip({
 export type TargetLabelListProps = {
   labels: Record<string, string>;
   /**
-   * Au-delà, les étiquettes en trop sont résumées par un « +N ».
+   * Beyond this, the extra labels are summed up as a "+N".
    *
-   * Une ligne de tableau ne peut pas s'étirer indéfiniment ; une fiche, si.
-   * D'où le réglage plutôt qu'une valeur en dur dans le composant.
+   * A table row cannot stretch indefinitely; a record can. Hence the setting
+   * rather than a value hard-coded in the component.
    */
   max?: number;
   className?: string;
-  /** Rend chaque pastille cliquable. Reçoit la paire sous forme `clé=valeur`. */
+  /** Makes each chip clickable. Receives the pair as `key=value`. */
   onToggle?: (pair: string) => void;
-  /** Paires actuellement filtrées, sous forme `clé=valeur`. */
+  /** The currently filtered pairs, as `key=value`. */
   activePairs?: ReadonlySet<string>;
-  /** Libellé de survol d'une pastille bascule. Voir `TargetLabelChipProps`. */
+  /** A toggle chip's hover label. See `TargetLabelChipProps`. */
   titleOf?: (pair: string, active: boolean) => string;
 };
 
 /**
- * Ordre d'affichage : par clé, alphabétique.
+ * Display order: by key, alphabetical.
  *
- * `Object.entries` suit l'ordre d'insertion du JSON, qui dépend de l'ordre de
- * saisie dans le formulaire — la même cible réaffichait donc ses étiquettes
- * dans un ordre différent après réédition. Un tri rend la position stable, et
- * une position stable est ce qui permet de repérer une étiquette sans la lire.
+ * `Object.entries` follows the JSON's insertion order, which depends on the input
+ * order in the form — the same target therefore showed its labels again in a
+ * different order after editing. Sorting makes the position stable, and a stable
+ * position is what allows spotting a label without reading it.
  */
 export function sortedLabelEntries(labels: Record<string, string>): [string, string][] {
   return Object.entries(labels).sort(([a], [b]) => a.localeCompare(b, 'fr'));
@@ -194,8 +193,8 @@ export function TargetLabelList({
       {hidden > 0 ? (
         <span
           className="mono text-[11.5px] text-text-3"
-          // Le survol donne le détail : masquer n'est acceptable que si
-          // l'information reste atteignable sans changer de page.
+          // Hovering gives the detail: hiding is only acceptable if the information stays
+          // reachable without changing page.
           title={entries
             .slice(shown.length)
             .map(([key, value]) => `${key}=${value}`)

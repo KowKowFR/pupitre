@@ -49,16 +49,16 @@ export * from './spec/index.js';
 export * from './supervision.js';
 export * from './workloads.js';
 
-// Ni la couche SSH, ni les drivers, ni les scanners, ni la sonde HTTP, ni le
-// client des registres d'images ne sont réexportés ici : ils vivent sous
+// Neither the SSH layer, nor the drivers, nor the scanners, nor the HTTP probe,
+// nor the image registries client are re-exported here: they live under
 // `@pupitre/core/ssh`, `@pupitre/core/drivers`, `@pupitre/core/scanners`,
-// `@pupitre/core/probe`, `@pupitre/core/images` et `@pupitre/core/backup`,
-// pour que `ssh2` reste hors du graphe de dépendances du panel Next.
-// Seuls leurs *types* (`preflight.ts`, `ports.ts`, `scan.ts`) sont ici, parce
-// que l'UI en a besoin et qu'ils n'exécutent rien.
+// `@pupitre/core/probe`, `@pupitre/core/images` and `@pupitre/core/backup`, so
+// that `ssh2` stays out of the Next panel's dependency graph. Only their *types*
+// (`preflight.ts`, `ports.ts`, `scan.ts`) are here, because the UI needs them
+// and they run nothing.
 
-// Les canaux de notification suivent la même règle : leurs *implémentations*
-// vivent sous `@pupitre/core/notifications` (`nodemailer` n'a rien à faire dans le
-// graphe du panel), mais leur catalogue, le message neutre, la table des
-// événements et le contrat `NotificationChannel` sont ici — l'écran, les routes
-// et `@pupitre/db` en ont besoin et rien de tout cela n'exécute quoi que ce soit.
+// Notification channels follow the same rule: their *implementations* live under
+// `@pupitre/core/notifications` (`nodemailer` has no business in the panel's
+// graph), but their catalog, the neutral message, the events table and the
+// `NotificationChannel` contract are here — the screen, the routes and
+// `@pupitre/db` need them and none of it runs anything.

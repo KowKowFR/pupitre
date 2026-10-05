@@ -19,8 +19,8 @@ import { common } from '@/i18n/messages/common';
 import type { ShellSection } from './shell-provider';
 
 /**
- * L'aide des raccourcis, ouverte par `?`. Elle ne liste que les sections que
- * la session peut ouvrir : un raccourci vers une page interdite n'existe pas.
+ * The shortcuts help, opened by `?`. It only lists the sections the session can
+ * open: a shortcut to a forbidden page does not exist.
  */
 export function ShortcutsDialog({
   open,

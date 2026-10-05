@@ -11,35 +11,33 @@ import {
 } from '@pupitre/db';
 
 /**
- * L'état du cycle de vie d'un compte — **déduit**, jamais stocké.
+ * An account's life-cycle state — **deduced**, never stored.
  *
- * Vit dans `lib/` et non dans le Route Handler parce que les deux le lisent :
- * l'API pour le rendre en JSON, l'écran `/admin/users` pour l'afficher. Une
- * page qui importerait un fichier `route.ts` marcherait, mais brouillerait la
- * frontière entre ce qui est une route et ce qui est du code partagé.
+ * Lives in `lib/` and not in the Route Handler because both read it: the API to
+ * return it as JSON, the `/admin/users` screen to show it. A page importing a
+ * `route.ts` file would work, but would blur the boundary between what is a route
+ * and what is shared code.
  */
 
 /**
- * Où en est un compte dans son cycle de vie.
+ * Where an account stands in its life cycle.
  *
- *   `invited`   créé, sans mot de passe, un lien d'invitation encore valable
- *   `expired`   créé, sans mot de passe, plus aucun lien valable
- *   `active`    la personne a choisi son mot de passe
+ *   `invited`   created, without a password, an invitation link still valid
+ *   `expired`   created, without a password, no valid link any more
+ *   `active`    the person chose their password
  *
- * Ce n'est pas une colonne : c'est une **lecture** de deux faits qui existent
- * déjà — l'existence d'une ligne `accounts` de type `credential`, et celle d'un
- * jeton vivant dans `verifications`. Ajouter une colonne `status` créerait une
- * troisième vérité à tenir d'accord avec les deux autres, et c'est elle qui
- * finirait par mentir.
+ * It is not a column: it is a **reading** of two facts that already exist — the
+ * existence of an `accounts` row of type `credential`, and that of a live token
+ * in `verifications`. Adding a `status` column would create a third truth to keep
+ * in agreement with the two others, and it is the one that would end up lying.
  */
 export type AccountState = 'invited' | 'expired' | 'active';
 
 /**
- * L'état de tous les comptes, en deux requêtes.
+ * The state of all the accounts, in two queries.
  *
- * Pas une par utilisateur : la liste des utilisateurs faisait déjà un
- * `getUserGrants()` par ligne, et en ajouter deux de plus rendrait l'écran
- * quadratique pour un renseignement d'affichage.
+ * Not one per user: the users list already made a `getUserGrants()` per row, and
+ * adding two more would make the screen quadratic for a display detail.
  */
 export async function accountStates(
   db: Database = getDb(),

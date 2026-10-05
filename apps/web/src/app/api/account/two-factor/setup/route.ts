@@ -13,13 +13,13 @@ export const dynamic = 'force-dynamic';
 const bodySchema = z.object({ password: z.string().min(1) });
 
 /**
- * Première moitié de l'activation : Better Auth génère un secret et des codes
- * de secours, mais laisse la ligne `two_factors` en `verified = false`. Le
- * second facteur n'est pas encore armé — il le sera à `/activate`, une fois un
- * code valide fourni.
+ * The first half of the activation: Better Auth generates a secret and backup
+ * codes, but leaves the `two_factors` row at `verified = false`. The second
+ * factor is not armed yet — it will be at `/activate`, once a valid code is
+ * provided.
  *
- * C'est la SEULE réponse du panel qui porte le secret TOTP et les codes de
- * secours. Ils ne repassent ni par le journal d'audit, ni par les logs.
+ * It is the ONLY panel response that carries the TOTP secret and the backup
+ * codes. They go through neither the audit log nor the logs.
  */
 export const POST = apiRoute(async (request) => {
   const auth = await requireSession(request);
@@ -60,7 +60,7 @@ export const POST = apiRoute(async (request) => {
     action: 'account.2fa.setup_started',
     resourceType: 'user',
     resourceId: auth.userId,
-    // Le secret n'a rien à faire ici. On ne trace que le fait et la méthode.
+    // The secret has no business here. We only trace the fact and the method.
     after: { method: 'totp', backupCodeCount: backupCodes.length },
     ip: auth.ip,
   });

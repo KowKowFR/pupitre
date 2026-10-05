@@ -18,21 +18,20 @@ export default async function LoginPage({
   searchParams: Promise<{ next?: string; error?: string }>;
 }) {
   const { next, error } = await searchParams;
-  // Un fournisseur éteint au démarrage du panel est retenté ici, au plus une
-  // fois par minute : le bouton revient de lui-même.
+  // A provider that was off when the panel started is retried here, at most once a
+  // minute: the button comes back by itself.
   await currentSso();
-  // Ne redirige que vers un chemin interne : pas de redirection ouverte.
+  // Only redirects to an internal path: no open redirect.
   const target = next?.startsWith('/') && !next.startsWith('//') ? next : '/';
 
   /**
-   * Le lien « Mot de passe oublié » n'apparaît que si l'instance sait poster un
-   * e-mail. Proposer un parcours qui finira en silence est pire que ne rien
-   * proposer : la personne s'y engage, attend un message qui ne peut pas
-   * exister, et conclut que le panel est en panne au lieu d'aller chercher un
-   * administrateur.
+   * The "Forgot password" link only appears if the instance can post an email.
+   * Offering a journey that will end in silence is worse than offering nothing: the
+   * person engages in it, waits for a message that cannot exist, and concludes that
+   * the panel is broken instead of going to find an administrator.
    */
-  // Même règle pour l'inscription : un lien qui mène à « Inscription fermée »
-  // n'apprend rien qu'on ne puisse dire ici, en une phrase.
+  // The same rule for sign-up: a link that leads to "Sign-up closed" teaches
+  // nothing that cannot be said here, in one sentence.
   return (
     <LoginForm
       next={target}

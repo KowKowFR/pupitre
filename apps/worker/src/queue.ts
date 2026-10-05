@@ -3,13 +3,12 @@ import { Queue } from 'bullmq';
 import { createRedisConnection } from './redis.js';
 
 /**
- * Producteur côté worker.
+ * Producer on the worker side.
  *
- * Le worker n'était à l'origine que consommateur. L'ordonnancement lui donne une
- * seconde casquette : le scheduler installe des repeatable jobs, et la tâche
- * de rafraîchissement des cibles enfile un `target:preflight` par cible plutôt
- * que de dupliquer sa logique. Connexion dédiée : celle du `Worker` est
- * accaparée par des commandes bloquantes.
+ * The worker was originally only a consumer. Scheduling gives it a second hat:
+ * the scheduler installs repeatable jobs, and the targets refresh task queues a
+ * `target:preflight` per target rather than duplicate its logic. A dedicated
+ * connection: the `Worker`'s is monopolized by blocking commands.
  */
 
 let queue: Queue | null = null;
@@ -30,19 +29,19 @@ export function getOpsQueue(): Queue {
 let supervisionQueue: Queue | null = null;
 
 /**
- * Producteur sur la file de supervision.
+ * Producer on the monitoring queue.
  *
- * Le worker y installe le scheduler du balayage des sondes. Il est son propre
- * producteur pour cette tâche-là : elle n'a pas de ligne en base à réconcilier,
- * c'est une horloge, pas une donnée du domaine.
+ * The worker installs the probes sweep's scheduler there. It is its own producer
+ * for that job: it has no database row to reconcile, it is a clock, not domain
+ * data.
  */
 export function getSupervisionQueue(): Queue {
   supervisionQueue ??= new Queue(SUPERVISION_QUEUE, {
     connection: createRedisConnection(),
     defaultJobOptions: {
-      // Un balayage qui rate n'est pas rejoué : le suivant arrive dans trente
-      // secondes et les sondes sont toujours dues. Rejouer reviendrait à sonder
-      // deux fois le même site pour rien.
+      // A sweep that fails is not replayed: the next one comes in thirty seconds and
+      // the probes are still due. Replaying would mean probing the same site twice for
+      // nothing.
       attempts: 1,
       removeOnComplete: { age: 3600, count: 100 },
       removeOnFail: { age: 24 * 3600, count: 100 },
@@ -54,9 +53,9 @@ export function getSupervisionQueue(): Queue {
 let backupsQueue: Queue | null = null;
 
 /**
- * La file des sauvegardes. Une tentative : une sauvegarde ratée est notifiée,
- * pas rejouée à l'aveugle — la suivante passe la nuit prochaine, et un
- * « Sauvegarder maintenant » reste à portée.
+ * The backups queue. One attempt: a failed backup is notified, not replayed
+ * blindly — the next one runs the following night, and a "Back up now" stays
+ * within reach.
  */
 export function getBackupsQueue(): Queue {
   backupsQueue ??= new Queue(BACKUPS_QUEUE, {

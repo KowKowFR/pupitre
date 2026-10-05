@@ -22,9 +22,8 @@ import { instanceLanguage } from '../language.js';
 import { workerSay } from '../messages.js';
 
 /**
- * Ce que partagent sauvegarde et restauration : ouvrir la destination,
- * déposer un morceau chiffré, en relire un en le vérifiant, appliquer la
- * rétention.
+ * What backup and restore share: opening the destination, placing an encrypted
+ * piece, reading one back while verifying it, applying retention.
  */
 
 export class BackupError extends Error {
@@ -36,7 +35,7 @@ export class BackupError extends Error {
 
 export type OpenedStore = { id: string; name: string; store: BackupStore };
 
-/** La destination active — ou celle d'une sauvegarde existante, même désactivée depuis. */
+/** The active destination — or an existing backup's, even if disabled since. */
 export async function openStore(destinationId?: string | null): Promise<OpenedStore> {
   const language = await instanceLanguage();
   const resolved = await resolveBackupDestination(destinationId ?? null);
@@ -54,14 +53,14 @@ export async function openStore(destinationId?: string | null): Promise<OpenedSt
 }
 
 /**
- * Dépose un morceau : ce que `produce` écrit est (compressé,) chiffré, puis
- * envoyé à la destination, le tout en flux. Rend la taille et l'empreinte de ce
- * qui a été **déposé** — c'est elle que la restauration revérifie.
+ * Places a piece: what `produce` writes is (compressed,) encrypted, then sent to
+ * the destination, all as a stream. Returns the size and the hash of what was
+ * **placed** — it is the one the restore checks again.
  *
- * Trois choses avancent ensemble — la production sur la cible, le chiffrement,
- * l'envoi — et la première qui échoue arrête les deux autres : un envoi qui
- * tombe ne laisse pas la cible écrire dans le vide, une commande qui échoue ne
- * laisse pas un morceau tronqué passer pour bon.
+ * Three things move together — production on the target, encryption, upload —
+ * and the first that fails stops the other two: a failing upload does not let
+ * the target write into the void, a failing command does not let a truncated
+ * piece pass for good.
  */
 export async function storePiece(
   store: BackupStore,
@@ -81,9 +80,9 @@ export async function storePiece(
     },
   });
 
-  // La **première** erreur est la cause ; les suivantes n'en sont que l'écho —
-  // une destination injoignable ferme le tube, et la cible se plaint alors
-  // d'écrire dans un tube fermé. C'est la première qu'on rapporte.
+  // The **first** error is the cause; the following ones are only its echo — an
+  // unreachable destination closes the pipe, and the target then complains about
+  // writing into a closed pipe. It is the first one we report.
   let cause: unknown;
   const first = (error: unknown) => {
     cause ??= error;
@@ -112,9 +111,9 @@ export async function storePiece(
 }
 
 /**
- * Relit un morceau dans un fichier local, déchiffré, **vérifié** : l'empreinte
- * de ce qui a été déposé, puis l'étiquette du chiffrement. Rien n'est appliqué
- * avant que les deux concordent.
+ * Reads a piece back into a local file, decrypted, **verified**: the hash of
+ * what was placed, then the encryption's tag. Nothing is applied before both
+ * match.
  */
 export async function fetchPiece(
   store: BackupStore,
@@ -145,10 +144,10 @@ export async function fetchPiece(
   }
 }
 
-/** Combien de temps l'historique garde une sauvegarde en échec. */
+/** How long the history keeps a failed backup. */
 const FAILED_BACKUPS_KEPT_MS = 30 * 24 * 3600 * 1000;
 
-/** Efface de la destination, puis de l'index, ce que la rétention ne garde plus. */
+/** Erases from the destination, then from the index, what retention no longer keeps. */
 export async function applyRetention(
   store: BackupStore,
   scope: { kind: 'panel' } | { kind: 'application'; applicationId: string },
@@ -165,7 +164,7 @@ export async function applyRetention(
       await store.removePrefix(`${backup.location}/`);
       removed.push(backup.id);
     } catch (error) {
-      // Une suppression ratée reste dans l'index : elle sera retentée à la prochaine.
+      // A failed deletion stays in the index: it will be retried next time.
       onLog(
         say('backup.retentionFailed', { location: backup.location, error: errorMessage(error) }),
       );

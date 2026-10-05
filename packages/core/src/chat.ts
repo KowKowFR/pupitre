@@ -1,29 +1,28 @@
 import type { ChatMention } from './realtime.js';
 
 /**
- * La discussion d'équipe : le format d'un message et de ses mentions.
+ * The team chat: the format of a message and its mentions.
  *
- * Une mention n'est pas du texte « @prod-1 » qu'on recherche après coup :
- * c'est un jeton `<@target:ID>` dans le corps, posé par le compositeur quand
- * on choisit dans la liste. Renommer la machine ne casse donc pas le lien, et
- * deux objets de même nom ne se confondent pas. Le libellé du moment est gardé
- * à côté (`mentions[].label`) pour qu'un message reste lisible même quand
- * l'objet a disparu, ou que le lecteur n'a pas le droit de l'ouvrir.
+ * A mention is not "@prod-1" text searched for afterwards: it is a
+ * `<@target:ID>` token in the body, set by the composer when one picks from the
+ * list. Renaming the machine therefore does not break the link, and two objects
+ * with the same name are not confused. The label at the time is kept next to it
+ * (`mentions[].label`) so that a message stays readable even when the object has
+ * disappeared, or the reader is not allowed to open it.
  */
 
 export const CHAT_DEFAULT_CHANNEL = 'general';
 export const CHAT_MESSAGE_MAX = 4000;
 export const CHAT_PAGE_SIZE = 50;
-/** Emojis différents sur un même message : au-delà, la ligne de réactions devient illisible. */
+/** Different emojis on one message: beyond this, the reactions line becomes unreadable. */
 export const CHAT_REACTIONS_MAX = 20;
-/** Longueur de la citation d'une réponse. */
+/** Length of a reply's quote. */
 export const CHAT_QUOTE_LENGTH = 140;
 
 /**
- * Un emoji, et rien d'autre : un pictogramme, éventuellement suivi de ses
- * variations (teinte de peau, sélecteur de présentation, jonctions ZWJ,
- * drapeaux). Une réaction n'est jamais du texte libre — sinon elle devient un
- * second canal de messages, sans modération.
+ * An emoji, and nothing else: a pictogram, possibly followed by its variations
+ * (skin tone, presentation selector, ZWJ joins, flags). A reaction is never free
+ * text — otherwise it becomes a second message channel, without moderation.
  */
 const EMOJI_PATTERN =
   /^(?:\p{Extended_Pictographic}|\p{Regional_Indicator}|[#*0-9]\uFE0F?\u20E3)(?:[\u200D\uFE0F\u20E3]|\p{Extended_Pictographic}|\p{Emoji_Modifier}|\p{Regional_Indicator}|[\u{E0020}-\u{E007F}])*$/u;
@@ -46,7 +45,7 @@ export type ChatSegment =
   | { type: 'text'; text: string }
   | { type: 'mention'; kind: ChatMentionKind; id: string };
 
-/** Le corps découpé en texte et en mentions, dans l'ordre. */
+/** The body split into text and mentions, in order. */
 export function parseChatBody(body: string): ChatSegment[] {
   const segments: ChatSegment[] = [];
   let cursor = 0;
@@ -60,7 +59,7 @@ export function parseChatBody(body: string): ChatSegment[] {
   return segments;
 }
 
-/** Les objets mentionnés, sans doublon, dans l'ordre d'apparition. */
+/** The mentioned objects, without duplicates, in order of appearance. */
 export function mentionedIn(body: string): Array<{ kind: ChatMentionKind; id: string }> {
   const seen = new Set<string>();
   const found: Array<{ kind: ChatMentionKind; id: string }> = [];
@@ -75,9 +74,9 @@ export function mentionedIn(body: string): Array<{ kind: ChatMentionKind; id: st
 }
 
 /**
- * Remplace les jetons que l'auteur n'avait pas le droit de poser — un objet
- * inconnu, ou hors de ses permissions — par du texte simple. Un message ne
- * doit pas pouvoir fabriquer un lien vers ce que son auteur ne voit pas.
+ * Replaces the tokens the author was not allowed to set — an unknown object, or
+ * outside their permissions — with plain text. A message must not be able to
+ * forge a link to what its author does not see.
  */
 export function keepMentions(
   body: string,
@@ -89,7 +88,7 @@ export function keepMentions(
   });
 }
 
-/** Le texte brut, jetons remplacés par leur libellé — pour un toast, un aperçu. */
+/** The raw text, tokens replaced by their label — for a toast, a preview. */
 export function chatPlainText(body: string, mentions: readonly ChatMention[]): string {
   return body.replace(MENTION_TOKEN, (_token, kind: string, id: string) => {
     const hit = mentions.find((mention) => mention.kind === kind && mention.id === id);

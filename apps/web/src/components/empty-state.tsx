@@ -3,8 +3,8 @@ import { Inbox } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 /**
- * Écran vide. Un cartouche d'icône, ce qui manque, par où commencer — jamais
- * « aucune donnée » tout court.
+ * An empty screen. An icon cartouche, what is missing, where to start — never a
+ * bare "no data".
  */
 export function EmptyState({
   title,

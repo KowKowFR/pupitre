@@ -16,11 +16,10 @@ import { logger } from './logger';
 import { getRedis } from './redis';
 
 /**
- * Plomberie des notifications, côté panel.
+ * The notifications plumbing, panel side.
  *
- * Le panel **n'envoie rien lui-même** : `nodemailer` est délibérément tenu hors
- * de son graphe de dépendances, exactement comme `ssh2`. Il enfile, et le
- * worker délivre.
+ * The panel **sends nothing itself**: `nodemailer` is deliberately kept out of
+ * its dependency graph, exactly like `ssh2`. It queues, and the worker delivers.
  */
 
 declare global {
@@ -32,8 +31,8 @@ export function getNotificationsQueue(): Queue {
   globalThis.__tpNotificationsQueue ??= new Queue(NOTIFICATIONS_QUEUE, {
     connection: getRedis(),
     defaultJobOptions: {
-      // Une seule tentative : rejouer une distribution partiellement réussie
-      // renverrait le message aux canaux qui l'ont déjà reçu.
+      // A single attempt: replaying a partially successful distribution would send the
+      // message again to the channels that already received it.
       attempts: 1,
       removeOnComplete: { age: 24 * 3600, count: 500 },
       removeOnFail: { age: 7 * 24 * 3600 },
@@ -43,13 +42,13 @@ export function getNotificationsQueue(): Queue {
 }
 
 /**
- * Branche le journal d'audit sur la file des notifications.
+ * Plugs the audit log into the notifications queue.
  *
- * Appelé une fois, depuis `instrumentation.ts`, avant que le serveur n'accepte
- * la première requête. Le worker fait la même chose de son côté : les deux
- * processus écrivent dans `audit_logs`, les deux doivent savoir enfiler. C'est
- * le panel qui trace un changement de rôle ou une réinitialisation de second
- * facteur ; c'est le worker qui trace un déploiement en échec.
+ * Called once, from `instrumentation.ts`, before the server accepts the first
+ * request. The worker does the same on its side: both processes write to
+ * `audit_logs`, both must know how to queue. It is the panel that traces a role
+ * change or a second factor reset; it is the worker that traces a failed
+ * deployment.
  */
 export function installAuditNotifications(): void {
   setAuditObserver(
@@ -59,31 +58,31 @@ export function installAuditNotifications(): void {
           deduplication: { id: dedup.id, ttl: dedup.ttl },
         }),
       (error, event) => {
-        // Sans cette ligne, un Redis indisponible ferait disparaître les
-        // alertes sans un mot. L'action, elle, n'est jamais interrompue.
-        logger.error({ err: error, event }, 'notification non enfilée');
+        // Without this line, an unavailable Redis would make the alerts disappear
+        // without a word. The action, for its part, is never interrupted.
+        logger.error({ err: error, event }, 'notification not queued');
       },
     ),
   );
 }
 
 /**
- * Borne de l'essai déclenché depuis l'écran.
+ * The bound of the test triggered from the screen.
  *
- * Le canal lui-même se donne 15 s (`NOTIFICATION_TIMEOUT_MS`), et un essai en
- * enchaîne deux — la sonde puis l'envoi. Trente-cinq secondes couvrent donc le
- * pire cas légitime plus l'attente en file. Au-delà, ce n'est plus le
- * destinataire qui est lent, c'est le worker qui ne consomme pas, et l'appelant
- * mérite un 504 franc plutôt qu'une connexion tenue ouverte.
+ * The channel itself gives itself 15 s (`NOTIFICATION_TIMEOUT_MS`), and a test
+ * chains two — the probe then the sending. Thirty-five seconds therefore cover
+ * the worst legitimate case plus waiting in the queue. Beyond that, it is no
+ * longer the recipient that is slow, it is the worker that is not consuming, and
+ * the caller deserves a plain 504 rather than a connection held open.
  */
 const TEST_TIMEOUT_MS = 35_000;
 
 /**
- * Flux d'événements de la file, partagé.
+ * The queue's events stream, shared.
  *
- * Exporté depuis que les e-mails transactionnels de compte attendent eux aussi
- * un verdict (`@/lib/account-mail`) : deux instances de `QueueEvents` sur la
- * même file, ce sont deux abonnements Redis pour écouter la même chose.
+ * Exported since the transactional account emails also wait for a verdict
+ * (`@/lib/account-mail`): two `QueueEvents` instances on the same queue are two
+ * Redis subscriptions to listen to the same thing.
  */
 export function notificationsQueueEvents(): QueueEvents {
   return queueEvents();
@@ -97,16 +96,15 @@ function queueEvents(): QueueEvents {
 }
 
 /**
- * Essai d'un canal : la route **enfile puis attend**.
+ * A channel's test: the route **queues then waits**.
  *
- * La règle du projet est que le *travail* long n'a pas sa place dans une route
- * HTTP — pas que la route doive rendre la main avant de savoir. C'est
- * l'arbitrage déjà tranché pour le relevé de métriques d'une cible
- * (`/api/targets/[id]/metrics`), et il vaut ici pour la même raison, doublée
- * d'une contrainte : le panel n'a aucun transport SMTP. Un bouton « envoyer un
- * message d'essai » qui répondrait « c'est parti » sans dire si c'est arrivé ne
- * servirait à rien — une configuration fausse ne se découvrirait qu'au premier
- * incident, c'est-à-dire au pire moment.
+ * The project's rule is that long-running *work* has no place in an HTTP route —
+ * not that the route must give control back before knowing. It is the trade-off
+ * already settled for a target's metrics reading (`/api/targets/[id]/metrics`),
+ * and it holds here for the same reason, doubled with a constraint: the panel has
+ * no SMTP transport. A "send a test message" button that answered "it is gone"
+ * without saying whether it arrived would be useless — a wrong configuration would
+ * only be discovered at the first incident, that is at the worst moment.
  */
 export async function runChannelTest(
   channelId: string,
@@ -115,8 +113,8 @@ export async function runChannelTest(
 ): Promise<NotificationTestJobResult> {
   const data = notificationTestJobDataSchema.parse({ channelId, actorId, ip });
 
-  // Aucun identifiant de tâche personnalisé : BullMQ refuse un « Custom Id »
-  // contenant un `:`, et le nom de cette tâche en contient un.
+  // No custom job identifier: BullMQ refuses a "Custom Id" containing a `:`, and
+  // this job's name contains one.
   const job = await getNotificationsQueue().add(NOTIFICATION_TEST_JOB, data, { attempts: 1 });
 
   let raw: unknown;
@@ -124,8 +122,8 @@ export async function runChannelTest(
     raw = await job.waitUntilFinished(queueEvents(), TEST_TIMEOUT_MS);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    // `waitUntilFinished` ne distingue le dépassement du délai de l'échec de la
-    // tâche que par son message — deux situations, deux codes.
+    // `waitUntilFinished` only tells the timeout from the job's failure by its
+    // message — two situations, two codes.
     if (/timed out/i.test(message)) {
       throw new HttpError(
         504,

@@ -2,9 +2,9 @@ import type { AppSpec } from '@pupitre/core';
 import type { ApplicationRow, ServiceRow } from './applications-view';
 
 /**
- * L'AppSpec relue pour l'affichage — liste, drawer et fiche lisent la même.
- * Une spec ancienne peut ne pas porter les valeurs par défaut du schéma : on
- * les suppose ici plutôt que de laisser un écran tomber sur un `undefined`.
+ * The AppSpec read again for display — list, drawer and record read the same
+ * one. An old spec may not carry the schema's default values: they are assumed
+ * here rather than letting a screen fall on an `undefined`.
  */
 export function serviceRows(spec: AppSpec): ServiceRow[] {
   return spec.services.map((service) => ({

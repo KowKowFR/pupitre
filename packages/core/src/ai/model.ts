@@ -11,26 +11,27 @@ import { aiSay } from './messages.js';
 import { instantiateModel, type ConfiguredModel } from './providers.js';
 
 /**
- * Résolution de la configuration IA et fabrique du modèle. Une seule fonction,
- * un seul endroit où la clé est lue.
+ * Resolving the AI configuration and building the model. A single function, a
+ * single place where the key is read.
  *
- * La clé ne quitte jamais le serveur : ce module est importé par un Route
- * Handler, jamais par un composant client. Elle n'apparaît ni dans un log, ni
- * dans une entrée d'audit, ni dans la réponse HTTP.
+ * The key never leaves the server: this module is imported by a Route Handler,
+ * never by a client component. It appears neither in a log, nor in an audit
+ * entry, nor in the HTTP response.
  *
- * `@pupitre/core` n'importe ni `@pupitre/db` ni `apps/web` : la configuration effective
- * (paramètres d'instance d'un côté, variables d'environnement de l'autre) est
- * donc **passée en argument** à `resolveAiConfig()`, jamais lue ici. C'est ce
- * qui laisse la fonction utilisable depuis le panel comme depuis le worker.
+ * `@pupitre/core` imports neither `@pupitre/db` nor `apps/web`: the effective
+ * configuration (instance settings on one side, environment variables on the
+ * other) is therefore **passed as an argument** to `resolveAiConfig()`, never
+ * read here. That is what leaves the function usable from the panel as from the
+ * worker.
  *
- * Le choix du fournisseur ne se teste nulle part dans ce fichier : il traverse
- * le catalogue (`catalog.ts`) et la fabrique (`providers.ts`).
+ * The choice of provider is tested nowhere in this file: it goes through the
+ * catalog (`catalog.ts`) and the factory (`providers.ts`).
  */
 
 /**
- * Modèle par défaut historique — celui d'OpenRouter. Conservé sous son nom
- * d'origine pour les appelants qui le citent ; préférez `defaultAiModel(p)`,
- * qui dit *de quel fournisseur* on parle.
+ * Historical default model — OpenRouter's. Kept under its original name for the
+ * callers that cite it; prefer `defaultAiModel(p)`, which says *which provider*
+ * we are talking about.
  */
 export const DEFAULT_OPENROUTER_MODEL = DEFAULT_AI_MODEL;
 
@@ -40,9 +41,9 @@ export class MissingApiKeyError extends Error {
   constructor(provider: AiProvider = 'openrouter') {
     const descriptor = aiProviderDescriptor(provider);
     super(
-      `Aucune clé d'API ${descriptor.label} n'est configurée : la génération d'AppSpec ` +
-        'par IA est désactivée. Renseignez-la dans Paramètres → Intelligence ' +
-        `artificielle${descriptor.envApiKeyVar ? `, ou via ${descriptor.envApiKeyVar}` : ''}.`,
+      `No ${descriptor.label} API key is configured: AI AppSpec generation is disabled. ` +
+        'Set it under Settings → Artificial intelligence' +
+        `${descriptor.envApiKeyVar ? `, or through ${descriptor.envApiKeyVar}` : ''}.`,
     );
     this.name = 'MissingApiKeyError';
     this.provider = provider;
@@ -50,22 +51,21 @@ export class MissingApiKeyError extends Error {
 }
 
 /**
- * Identifiants de clé, dans les formes qu'ils prennent chez les fournisseurs —
- * y compris **masqués**. Constaté, pas supposé : sur une clé refusée, OpenAI
- * répond « Incorrect API key provided: sk-abcd1234***…***wxyz », soit les huit
- * premiers et les quatre derniers caractères de la clé, en clair, dans un
- * message que nous relayons ensuite dans une réponse HTTP et dans le journal
- * d'audit. Un masque du fournisseur n'est pas notre masque.
+ * Key identifiers, in the shapes they take at the providers — including
+ * **masked**. Observed, not assumed: on a refused key, OpenAI answers "Incorrect
+ * API key provided: sk-abcd1234***…***wxyz", that is the key's first eight and
+ * last four characters, in clear, in a message we then relay in an HTTP
+ * response and in the audit log. A provider's mask is not our mask.
  */
 const KEY_LIKE = /\b(?:sk|pk|rk|xai|gsk)[-_][A-Za-z0-9_*-]{6,}/gi;
 
 /**
- * Retire d'un message ce qui ressemble à une clé, avant qu'il n'atteigne une
- * réponse, un log ou une entrée d'audit.
+ * Removes from a message what looks like a key, before it reaches a response, a
+ * log or an audit entry.
  *
- * Deux passes : la clé exacte quand on l'a — c'est la seule garantie — puis
- * toute chaîne qui a la forme d'une clé, ce qui rattrape les versions
- * tronquées, masquées ou reformatées par le fournisseur.
+ * Two passes: the exact key when we have it — it is the only guarantee — then
+ * any string shaped like a key, which catches the versions truncated, masked or
+ * reformatted by the provider.
  */
 export function redactApiKey(
   text: string,
@@ -89,20 +89,20 @@ function providerOf(config: { provider?: AiProvider | undefined }): AiProvider {
   return config.provider ?? 'openrouter';
 }
 
-/** Nom du modèle effectivement utilisé, sans ouvrir de connexion. */
+/** Name of the model actually used, without opening a connection. */
 export function resolveModelName(config: ModelConfig): string {
   const name = config.model?.trim();
   return name && name.length > 0 ? name : defaultAiModel(providerOf(config));
 }
 
 /**
- * Rend le modèle **et** les options d'appel que son fournisseur exige.
+ * Returns the model **and** the call options its provider requires.
  *
- * Les deux voyagent ensemble à dessein : un modèle OpenAI sans son
- * `strictJsonSchema: false` échoue au premier appel sur un schéma que le mode
- * strict ne sait pas exprimer. Les séparer laisserait à l'appelant une
- * responsabilité qu'il n'a aucun moyen d'assumer — il ne sait pas, et ne doit
- * pas savoir, quel fournisseur lui répond.
+ * Both travel together on purpose: an OpenAI model without its
+ * `strictJsonSchema: false` fails at the first call on a schema strict mode
+ * cannot express. Separating them would leave the caller a responsibility it
+ * has no way to take on — it does not know, and must not know, which provider
+ * answers it.
  */
 export function createModel(config: ModelConfig): ConfiguredModel {
   const provider = providerOf(config);
@@ -115,15 +115,15 @@ export function createModel(config: ModelConfig): ConfiguredModel {
   });
 }
 
-// ─── Résolution paramètres / environnement ───────────────────────────────────
+// ─── Resolving settings / environment ────────────────────────────────────────
 
 /**
- * Les deux origines possibles de la configuration IA, dans l'ordre de priorité.
- * L'appelant fournit ce qu'il a : le panel lit `app_settings`, le worker peut
- * n'avoir que son environnement.
+ * The two possible origins of the AI configuration, in priority order. The
+ * caller provides what it has: the panel reads `app_settings`, the worker may
+ * only have its environment.
  */
 export type AiConfigSources = {
-  /** Réglages issus de `app_settings.value.ai`. Absents = jamais configurés. */
+  /** Settings from `app_settings.value.ai`. Absent = never configured. */
   settings?:
     | {
         enabled?: boolean | undefined;
@@ -133,31 +133,30 @@ export type AiConfigSources = {
       }
     | null
     | undefined;
-  /** Clé déchiffrée depuis `app_settings.ai_api_key_encrypted`. */
+  /** Key decrypted from `app_settings.ai_api_key_encrypted`. */
   settingsApiKey?: string | null | undefined;
   /**
-   * Environnement brut (`process.env`). On n'y lit **que** les variables que le
-   * catalogue attribue au fournisseur retenu : `OPENROUTER_API_KEY` ne doit
-   * jamais servir à joindre Anthropic. Passer l'environnement entier plutôt que
-   * deux champs nommés est ce qui permet d'ajouter un fournisseur sans toucher
-   * au schéma d'environnement du panel.
+   * Raw environment (`process.env`). We **only** read the variables the catalog
+   * assigns to the chosen provider: `OPENROUTER_API_KEY` must never be used to
+   * reach Anthropic. Passing the whole environment rather than two named fields is
+   * what allows adding a provider without touching the panel's environment schema.
    */
   env?: Record<string, string | undefined> | null | undefined;
 };
 
 export type ResolvedAiConfig = {
-  /** `false` si la génération est coupée dans les paramètres, ou sans clé. */
+  /** `false` if generation is turned off in the settings, or without a key. */
   enabled: boolean;
   provider: AiProvider;
   apiKey: string | undefined;
   model: string;
   baseUrl: string | undefined;
-  /** D'où vient la clé retenue — utile pour un diagnostic, jamais pour un log de valeur. */
+  /** Where the chosen key comes from — useful for a diagnosis, never for logging a value. */
   keySource: 'settings' | 'env' | 'none';
   modelSource: 'settings' | 'env' | 'default';
   /**
-   * Avertissement lisible quand le modèle ne ressemble pas à un identifiant du
-   * fournisseur. Non bloquant, mais affiché et joint aux échecs d'appel.
+   * Readable warning when the model does not look like an identifier of the
+   * provider. Not blocking, but shown and attached to call failures.
    */
   modelWarning: string | null;
 };
@@ -168,15 +167,15 @@ function clean(value: string | null | undefined): string | undefined {
 }
 
 /**
- * Fusionne paramètres et environnement.
+ * Merges settings and environment.
  *
- * Les paramètres d'instance gagnent quand ils sont renseignés : c'est le
- * réglage à chaud, celui qu'un opérateur vient de poser depuis l'écran. Les
- * variables d'environnement restent le filet — un panel provisionné par
- * `docker compose` fonctionne sans que personne n'ouvre l'écran Paramètres.
+ * Instance settings win when they are filled in: it is the live setting, the one
+ * an operator just set from the screen. Environment variables stay the safety
+ * net — a panel provisioned by `docker compose` works without anybody opening
+ * the Settings screen.
  *
- * Le drapeau `enabled` des paramètres coupe la génération même si une clé
- * existe : c'est un interrupteur, pas une conséquence.
+ * The settings' `enabled` flag turns generation off even if a key exists: it is
+ * a switch, not a consequence.
  */
 export function resolveAiConfig(sources: AiConfigSources): ResolvedAiConfig {
   const declared = sources.settings?.provider;

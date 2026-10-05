@@ -2,33 +2,33 @@ import { exec } from '../ssh/client.js';
 import type { TargetContext } from './types.js';
 
 /**
- * Ports déjà en écoute sur la cible.
+ * Ports already listening on the target.
  *
- * La contrainte unique `(target_id, port)` empêche **deux applications du
- * panel** de se marcher dessus. Elle ne dit rien d'un service installé à la
- * main sur la machine : un Postgres sur 30001 n'a jamais demandé la permission
- * au panel. Cette sonde est le complément — la base tranche entre nos
- * réservations, la cible tranche sur ce qu'elle héberge déjà.
+ * The unique `(target_id, port)` constraint prevents **two panel applications**
+ * from stepping on each other. It says nothing about a service installed by hand
+ * on the machine: a Postgres on 30001 never asked the panel for permission. This
+ * probe is the complement — the database decides between our reservations, the
+ * target decides on what it already hosts.
  *
- * `ss` est l'outil de référence, mais il vient d'`iproute2`, absent des images
- * minimales (Alpine, par exemple, n'a que le `netstat` de BusyBox). On tente
- * les deux, dans cet ordre, et on considère la sonde indisponible plutôt que de
- * conclure « aucun port occupé » à tort.
+ * `ss` is the reference tool, but it comes from `iproute2`, absent from minimal
+ * images (Alpine, for example, only has BusyBox's `netstat`). We try both, in
+ * that order, and consider the probe unavailable rather than wrongly conclude
+ * "no port taken".
  */
 
 const PROBE_TIMEOUT_MS = 30_000;
 
 /**
- * Ports TCP en écoute, ou `null` si la cible n'offre aucun outil pour le dire.
+ * TCP ports listening, or `null` if the target offers no tool to say so.
  *
- * `null` et « ensemble vide » ne veulent pas dire la même chose : le premier
- * signifie « je n'ai pas pu regarder », le second « j'ai regardé, il n'y a
- * rien ». Confondre les deux ferait taire la vérification.
+ * `null` and "empty set" do not mean the same thing: the first means "I could
+ * not look", the second "I looked, there is nothing". Confusing the two would
+ * silence the check.
  */
 export async function listeningPorts(ctx: TargetContext): Promise<Set<number> | null> {
-  // `ss -tlnH` : TCP, en écoute, numérique, sans en-tête.
-  // `-p` (processus) exige root et n'est qu'informatif : on ne le demande pas,
-  // pour que la sonde fonctionne aussi sans élévation.
+  // `ss -tlnH`: TCP, listening, numeric, without header.
+  // `-p` (process) requires root and is only informative: we do not ask for it,
+  // so that the probe also works without elevation.
   const ss = await exec(ctx.sshSession, 'ss -tlnH 2>/dev/null', { timeout: PROBE_TIMEOUT_MS });
   if (ss.code === 0 && ss.stdout.trim().length > 0) {
     return parseListeningPorts(ss.stdout);
@@ -45,19 +45,19 @@ export async function listeningPorts(ctx: TargetContext): Promise<Set<number> | 
 }
 
 /**
- * Extrait les ports de la colonne « adresse locale ».
+ * Extracts the ports from the "local address" column.
  *
- * Les deux outils la placent au même rang, et écrivent l'adresse sous des
- * formes variées : `0.0.0.0:30001`, `[::]:30001`, `*:30001`. Le port est
- * toujours ce qui suit le dernier `:`.
+ * Both tools put it at the same rank, and write the address in various forms:
+ * `0.0.0.0:30001`, `[::]:30001`, `*:30001`. The port is always what follows the
+ * last `:`.
  */
 export function parseListeningPorts(output: string, column = 3): Set<number> {
   const ports = new Set<number>();
 
   for (const line of output.split('\n')) {
     const columns = line.trim().split(/\s+/);
-    // `netstat` garde une ligne d'en-tête ; elle ne contient pas de `:` suivi
-    // de chiffres, donc elle tombe d'elle-même.
+    // `netstat` keeps a header line; it contains no `:` followed by digits, so it
+    // drops by itself.
     const address = columns[column] ?? columns[columns.length - 2];
     if (!address) continue;
 

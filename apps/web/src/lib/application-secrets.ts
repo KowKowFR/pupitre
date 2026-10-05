@@ -9,46 +9,46 @@ import {
 import { type PublicApplicationSecret } from '@pupitre/db';
 
 /**
- * Vue d'un secret telle que l'API a le droit de la rendre.
+ * A secret's view as the API is allowed to return it.
  *
- * Ce qu'elle dit : le nom, sa provenance, s'il est déclaré par l'AppSpec
- * courante, s'il porte une valeur, quels services le réclament, et — depuis
- * les alias — sous quels autres noms la même valeur est lue.
- * Ce qu'elle ne dit jamais : la valeur. Il n'existe aucune route qui la rende —
- * un secret se pose, se remplace, se régénère ou se supprime, il ne se lit pas.
+ * What it says: the name, its provenance, whether the current AppSpec declares
+ * it, whether it carries a value, which services require it, and — since the
+ * aliases — under which other names the same value is read. What it never says:
+ * the value. No route returns it — a secret is set, replaced, regenerated or
+ * deleted, it is not read.
  */
 export type SecretView = {
   name: string;
   origin: 'generated' | 'provided' | null;
-  /** Une valeur est enregistrée pour ce nom, ou pour celui dont il la reprend. */
+  /** A value is saved for this name, or for the one it takes the value from. */
   isSet: boolean;
-  /** L'AppSpec courante déclare encore ce nom. */
+  /** The current AppSpec still declares this name. */
   declared: boolean;
-  /** Services de l'AppSpec qui le réclament. Vide pour un secret orphelin. */
+  /** The AppSpec's services that require it. Empty for an orphan secret. */
   services: string[];
   /**
-   * Nom du secret dont celui-ci reprend la valeur. `null` s'il porte la sienne.
-   * Un alias n'a pas de ligne en base : il n'y a qu'une valeur, lue sous
-   * plusieurs noms.
+   * The name of the secret this one takes the value from. `null` if it carries its
+   * own. An alias has no database row: there is only one value, read under several
+   * names.
    */
   aliasOf: string | null;
-  /** Autres noms qui reprennent la valeur de celui-ci. */
+  /** Other names that take this one's value. */
   readAs: string[];
   updatedAt: string | null;
 };
 
 /**
- * Croise ce que la spec déclare et ce que le magasin détient.
+ * Crosses what the spec declares and what the store holds.
  *
- * Les deux ensembles se recouvrent mal, et c'est voulu : un nom présent des
- * deux côtés est le cas normal ; déclaré sans valeur ferait échouer le rendu ;
- * détenu sans être déclaré est un orphelin, conservé jusqu'à suppression
- * explicite — voir `syncApplicationSecrets()`.
+ * The two sets overlap badly, and it is on purpose: a name present on both sides
+ * is the normal case; declared without a value would fail the rendering; held
+ * without being declared is an orphan, kept until explicitly deleted — see
+ * `syncApplicationSecrets()`.
  *
- * Un alias appartient à un troisième cas : déclaré, sans ligne en base, et
- * pourtant pourvu d'une valeur. L'écran doit le montrer comme tel, sans quoi il
- * apparaîtrait « à générer » et inviterait à lui en poser une — c'est-à-dire à
- * recréer la seconde valeur que l'alias existe précisément pour éviter.
+ * An alias belongs to a third case: declared, without a database row, and yet
+ * given a value. The screen must show it as such, otherwise it would appear "to
+ * generate" and would invite setting one on it — that is, recreating the second
+ * value the alias exists precisely to avoid.
  */
 export function buildSecretViews(
   spec: AppSpec,

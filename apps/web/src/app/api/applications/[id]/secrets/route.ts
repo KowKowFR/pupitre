@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
 const paramsSchema = z.object({ id: z.string().uuid() });
 type Context = { params: Promise<{ id: string }> };
 
-/** État des secrets d'une application. Jamais leurs valeurs. */
+/** The state of an application's secrets. Never their values. */
 export const GET = apiRoute<Context>(async (request, context) => {
   await requirePermission(request, 'application:read');
   const { id } = paramsSchema.parse(await context.params);

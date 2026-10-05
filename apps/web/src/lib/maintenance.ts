@@ -16,10 +16,10 @@ import { ForbiddenError, NotFoundError, msg } from '@/lib/errors';
 import type { AuthContext } from '@/lib/rbac';
 
 /**
- * Les fenêtres de maintenance telles que l'écran et l'API les rendent : des
- * dates en ISO, la phase calculée à l'instant, et seulement les sujets que la
- * session a le droit de lire — une fenêtre qui nomme une sonde ne la montre
- * pas à qui ne voit pas les sondes, elle dit seulement qu'il y en a.
+ * The maintenance windows as the screen and the API return them: ISO dates, the
+ * phase computed at the instant, and only the subjects the session is allowed to
+ * read — a window naming a probe does not show it to whoever does not see the
+ * probes, it only says there are some.
  */
 export type MaintenanceWindowJson = {
   id: string;
@@ -30,7 +30,7 @@ export type MaintenanceWindowJson = {
   phase: MaintenancePhase;
   targets: Array<{ id: string; name: string }>;
   monitors: Array<{ id: string; name: string }>;
-  /** Sujets que la session ne peut pas lire. */
+  /** Subjects the session cannot read. */
   hiddenSubjects: number;
   held: number;
   released: number;
@@ -74,7 +74,7 @@ export function maintenanceJson(
   };
 }
 
-/** Les alertes qu'une fenêtre a retenues, pour son tiroir. */
+/** The alerts a window held, for its drawer. */
 export async function heldAlertsJson(windowId: string): Promise<HeldAlertJson[]> {
   const rows = await heldMaintenanceAlerts(windowId);
   return rows.map((row) => ({
@@ -90,10 +90,10 @@ export async function heldAlertsJson(windowId: string): Promise<HeldAlertJson[]>
 export type CoverageBrief = { id: string; title: string; endsAt: string };
 
 /**
- * Ce qui est en maintenance maintenant, vu par la session : par cible et par
- * sonde, les fenêtres qui les couvrent. Lu par qui peut lire le sujet — un
- * observateur voit qu'une machine est en maintenance sans avoir besoin du
- * droit de gérer les fenêtres.
+ * What is under maintenance now, seen by the session: per target and per probe,
+ * the windows that cover them. Read by whoever can read the subject — a viewer
+ * sees that a machine is under maintenance without needing the right to manage
+ * the windows.
  */
 export async function visibleCoverage(auth: Reader): Promise<{
   targets: Map<string, CoverageBrief[]>;
@@ -113,8 +113,8 @@ export async function visibleCoverage(auth: Reader): Promise<{
 }
 
 /**
- * Les sujets d'une fenêtre doivent exister, et la session doit pouvoir les
- * lire : on ne met pas en sourdine ce qu'on ne voit pas.
+ * A window's subjects must exist, and the session must be able to read them: one
+ * does not mute what one does not see.
  */
 export async function assertSubjects(
   auth: AuthContext,
@@ -143,7 +143,7 @@ export async function assertSubjects(
   return { targets: targetNames, monitors: monitorNames };
 }
 
-/** Les fenêtres actives qui couvrent ce sujet, vues par la session. */
+/** The active windows that cover this subject, seen by the session. */
 export async function coverageOf(
   auth: Reader,
   subject: { type: 'target' | 'monitor'; id: string },

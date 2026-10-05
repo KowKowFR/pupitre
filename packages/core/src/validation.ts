@@ -3,19 +3,19 @@ import { renderMessage, type Translated, type UiLanguage, type Vars } from './i1
 import { ssrfRefusalText, type SsrfRefusal } from './monitors/ssrf.js';
 
 /**
- * Les reproches des schémas Zod de Pupitre, dans les deux langues.
+ * Pupitre's Zod schema complaints, in both languages.
  *
- * ── Pourquoi la phrase française reste le `message` ───────────────────────
- * Un schéma est une constante : il ne connaît pas la langue de qui le lira.
- * Le reproche garde donc sa phrase française — la valeur par défaut, celle
- * que lisent les tests et la boucle de correction de l'IA, dont le prompt est
- * en français — et porte **en plus** sa clé et ses variables dans `params`.
- * L'écran le redit dans sa langue au dernier moment (`issueMessage()`,
- * `localizeZodError()`), comme le journal d'activité rend ses entrées.
+ * ── Why the French sentence stays the `message` ─────────────────────────────
+ * A schema is a constant: it does not know the language of whoever will read
+ * it. The complaint therefore keeps its French sentence — the default value, the
+ * one the tests and the AI's correction loop read, whose prompt is in French —
+ * and **also** carries its key and its variables in `params`. The screen says it
+ * again in its language at the last moment (`issueMessage()`,
+ * `localizeZodError()`), as the activity log renders its entries.
  *
- * Un contrôle intégré (`.min(1, '…')`, `.regex(…, '…')`) ne garde pas de
- * `params` : on le retrouve par sa phrase française, qui est sans variable.
- * Le transformer en `refine` aurait changé le schéma JSON envoyé à l'IA.
+ * A built-in check (`.min(1, '…')`, `.regex(…, '…')`) keeps no `params`: it is
+ * found again by its French sentence, which has no variable. Turning it into a
+ * `refine` would have changed the JSON schema sent to the AI.
  */
 const fr = {
   'spec.relativePath': 'chemin relatif attendu, sans « .. » ni « / » au début',
@@ -75,6 +75,8 @@ const fr = {
   'schedules.unreadable': 'périodicité illisible : « {value} »',
   'sources.specPath': 'chemin relatif à la racine du dépôt, sans « .. »',
   'sources.atLeastOneTarget': 'au moins une cible',
+  'sources.branch': 'nom de branche invalide',
+  'sources.targetOnce': 'une cible ne se choisit qu’une fois',
   'schedules.key': 'clé en minuscules, séparateurs `: . _ -`',
   'rbac.roleKey': 'clé en kebab-case : minuscules, chiffres et tirets',
   'backup.sftpSecret': 'mot de passe ou clé privée',
@@ -83,6 +85,27 @@ const fr = {
   'maintenance.noSubject': 'une fenêtre couvre au moins une cible ou une sonde',
   'purge.criteria':
     'Au moins un critère est requis (ids, statuses, olderThanDays, applicationId, targetId)',
+  // Built-in checks (`.regex()`, `.refine()` with a fixed sentence): found again
+  // by their French sentence, which must stay identical to the schema's.
+  'spec.slugFormat': 'nom en kebab-case : minuscules, chiffres et tirets',
+  'spec.semver': 'version semver attendue, ex. 1.4.2',
+  'spec.volumeSize': 'taille attendue, ex. 10Gi',
+  'spec.envName': 'variable en MAJUSCULES_AVEC_UNDERSCORES',
+  'secrets.name': 'nom en MAJUSCULES_AVEC_UNDERSCORES',
+  'backup.noDotDot': 'chemin sans « .. »',
+  'backup.httpOnly': 'http(s) seulement',
+  'backup.bucket': 'nom de bucket S3',
+  'backup.fingerprint': 'empreinte SHA256:…',
+  'backup.absolutePath': 'chemin absolu',
+  'catalog.domain': 'nom de domaine attendu, sans https:// ni chemin',
+  'proxy.bunkerwebAuthority': 'BunkerWeb n’accepte que Let’s Encrypt ou ZeroSSL',
+  'settings.timeZone': 'Fuseau horaire IANA inconnu',
+  'settings.httpUrl': 'adresse http(s) attendue',
+  'settings.claimPath': 'chemin de champ attendu, ex. groups ou realm_access.roles',
+  'settings.isoTimestamp': 'Horodatage ISO invalide',
+  'statusPage.slug': 'minuscules, chiffres et tirets, sans tiret au bord',
+  'statusUpdate.subject': 'sujet attendu : incident:<id> ou maintenance:<id>',
+  'schedules.missingCadence': 'cadence manquante',
 } as const;
 
 const en: Translated<typeof fr> = {
@@ -141,6 +164,8 @@ const en: Translated<typeof fr> = {
   'schedules.unreadable': 'unreadable schedule: “{value}”',
   'sources.specPath': 'path relative to the repository root, without “..”',
   'sources.atLeastOneTarget': 'at least one target',
+  'sources.branch': 'invalid branch name',
+  'sources.targetOnce': 'a target can only be chosen once',
   'schedules.key': 'lowercase key, separators `: . _ -`',
   'rbac.roleKey': 'kebab-case key: lowercase letters, digits and dashes',
   'backup.sftpSecret': 'password or private key',
@@ -149,18 +174,38 @@ const en: Translated<typeof fr> = {
   'maintenance.noSubject': 'a window covers at least one target or probe',
   'purge.criteria':
     'At least one criterion is required (ids, statuses, olderThanDays, applicationId, targetId)',
+  'spec.slugFormat': 'kebab-case name: lowercase letters, digits and dashes',
+  'spec.semver': 'semver version expected, e.g. 1.4.2',
+  'spec.volumeSize': 'size expected, e.g. 10Gi',
+  'spec.envName': 'variable in UPPERCASE_WITH_UNDERSCORES',
+  'secrets.name': 'name in UPPERCASE_WITH_UNDERSCORES',
+  'backup.noDotDot': 'path without “..”',
+  'backup.httpOnly': 'http(s) only',
+  'backup.bucket': 'S3 bucket name',
+  'backup.fingerprint': 'SHA256:… fingerprint',
+  'backup.absolutePath': 'absolute path',
+  'catalog.domain': 'domain name expected, without https:// or a path',
+  'proxy.bunkerwebAuthority': 'BunkerWeb only accepts Let’s Encrypt or ZeroSSL',
+  'settings.timeZone': 'Unknown IANA time zone',
+  'settings.httpUrl': 'http(s) address expected',
+  'settings.claimPath': 'field path expected, e.g. groups or realm_access.roles',
+  'settings.isoTimestamp': 'Invalid ISO timestamp',
+  'statusPage.slug': 'lowercase letters, digits and dashes, no dash at either end',
+  'statusUpdate.subject': 'subject expected: incident:<id> or maintenance:<id>',
+  'schedules.missingCadence': 'missing schedule',
 };
 
 export const validationCopy = { fr, en };
 
 export type ValidationKey = keyof typeof fr;
 
-/** Ce qu'un reproche porte pour être redit : sa clé, et ses variables. */
+/** What a complaint carries to be said again: its key, and its variables. */
 export type ValidationRef = { key: ValidationKey; vars?: Vars };
 
 /**
- * Le reproche d'un schéma : sa phrase française, et de quoi la redire dans une
- * autre langue. À étaler dans `ctx.addIssue({ … })` ou à passer à `.refine()`.
+ * A schema's complaint: its French sentence, and what is needed to say it again
+ * in another language. To spread into `ctx.addIssue({ … })` or pass to
+ * `.refine()`.
  */
 export function invalid(
   key: ValidationKey,
@@ -172,14 +217,14 @@ export function invalid(
   };
 }
 
-/** Les reproches sans variable, retrouvés par leur phrase française. */
+/** The complaints without a variable, found again by their French sentence. */
 const byFrenchText = new Map<string, ValidationKey>(
   (Object.entries(fr) as Array<[ValidationKey, string]>)
     .filter(([, text]) => !text.includes('{'))
     .map(([key, text]) => [text, key]),
 );
 
-/** Ce qu'un reproche dit, dans la langue demandée. Un reproche inconnu reste tel quel. */
+/** What a complaint says, in the requested language. An unknown complaint stays as is. */
 export function issueMessage(
   issue: { message: string; params?: unknown },
   language: UiLanguage,
@@ -194,8 +239,8 @@ export function issueMessage(
 }
 
 /**
- * Le même `ZodError`, ses reproches redits dans la langue demandée — à
- * appliquer juste avant de les montrer (`z.flattenError()`, une liste).
+ * The same `ZodError`, its complaints said again in the requested language — to
+ * apply just before showing them (`z.flattenError()`, a list).
  */
 export function localizeZodError<T>(error: z.ZodError<T>, language: UiLanguage): z.ZodError<T> {
   return new z.ZodError(

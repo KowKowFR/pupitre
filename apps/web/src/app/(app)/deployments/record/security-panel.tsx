@@ -51,18 +51,18 @@ import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 
 /**
- * Onglet « Sécurité » d'un déploiement.
+ * A deployment's "Security" tab.
  *
- * Aucun scanner n'est nommé en dur : les libellés viennent de `SCANNERS`, la
- * table de données de `@pupitre/core`, et le bouton de téléchargement du SBOM
- * s'affiche sur la foi de `hasSbom`, calculé côté serveur depuis le `kind`.
+ * No scanner is hard-coded: the labels come from `SCANNERS`, `@pupitre/core`'s
+ * data table, and the SBOM download button shows on the strength of `hasSbom`,
+ * computed on the server side from the `kind`.
  *
- * ── Ce qui n'est pas traduit ────────────────────────────────────────────────
- * Le contenu d'un finding — identifiant CVE, paquet, version, intitulé — vient
- * de Trivy ou de Grype, en anglais, et arrive tel quel. La **sévérité** est
- * affichée brute (`CRITICAL`, `HIGH`…) : c'est la valeur d'énumération, celle
- * que porte le filtre de l'URL et celle qu'un script cherche. Les **verdicts**,
- * eux, sont nos mots et se traduisent.
+ * ── What is not translated ──────────────────────────────────────────────────
+ * A finding's content — CVE identifier, package, version, title — comes from
+ * Trivy or Grype, in English, and arrives as is. The **severity** is shown raw
+ * (`CRITICAL`, `HIGH`…): it is the enum value, the one the URL's filter carries
+ * and the one a script looks for. The **verdicts**, on the other hand, are our
+ * words and are translated.
  */
 
 type ScanRunView = {
@@ -103,14 +103,14 @@ type FindingView = {
   fixedVersion: string | null;
   title: string | null;
   primaryUrl: string | null;
-  /** L'acceptation qui la couvre aujourd'hui, pour l'application. */
+  /** The acceptance that covers it today, for the application. */
   acceptance: AcceptanceView | null;
 };
 
 /**
- * Échelle ordinale, pas palette : la teinte descend du rouge au bleu ardoise
- * et perd de la saturation à chaque cran. Les valeurs viennent des jetons —
- * l'échelle tient donc dans les deux thèmes.
+ * An ordinal scale, not a palette: the hue goes down from red to slate blue and
+ * loses saturation at each step. The values come from the tokens — the scale
+ * therefore holds in both themes.
  */
 const SEVERITY_CLASS: Record<Severity, string> = {
   CRITICAL: 'sev-c',
@@ -120,7 +120,7 @@ const SEVERITY_CLASS: Record<Severity, string> = {
   UNKNOWN: 'sev-u',
 };
 
-/** Les sévérités affichées sur une carte, même à zéro : l'absence se lit aussi. */
+/** The severities shown on a card, even at zero: absence reads too. */
 const CARD_SEVERITIES: readonly Severity[] = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
 
 export function SecurityPanel({
@@ -128,7 +128,7 @@ export function SecurityPanel({
   refreshKey,
 }: {
   deploymentId: string;
-  /** Change à chaque transition d'état : recharge sans intervention. */
+  /** Changes at each state transition: reloads without intervention. */
   refreshKey: string;
 }) {
   const t = useT(messages);
@@ -146,7 +146,7 @@ export function SecurityPanel({
     canAccept: boolean;
   } | null>(null);
   const [accepting, setAccepting] = useState<FindingView | null>(null);
-  // Une acceptation posée ou retirée relit la liste et les comptes.
+  // An acceptance set or removed reads the list and the counts again.
   const [version, setVersion] = useState(0);
   const tv = useT(vulnerabilities);
   const [error, setError] = useState<string | null>(null);
@@ -174,7 +174,7 @@ export function SecurityPanel({
       setLoading(false);
       setSelected((current) => {
         if (current && body.items.some((run) => run.id === current)) return current;
-        // Par défaut, on ouvre l'exécution qui a le plus à dire.
+        // By default, we open the run that has the most to say.
         const withFindings = [...body.items].sort((a, b) => b.total - a.total)[0];
         return withFindings?.id ?? null;
       });
@@ -271,8 +271,8 @@ export function SecurityPanel({
   }
 
   const current = runs.find((run) => run.id === selected) ?? null;
-  // La liste appartient à l'exécution sélectionnée : on ne rend rien tant que
-  // le rechargement n'a pas répondu pour celle-ci.
+  // The list belongs to the selected run: nothing is rendered until the reload
+  // has answered for this one.
   const rows = current ? findings : [];
 
   return (
@@ -438,8 +438,9 @@ export function SecurityPanel({
 }
 
 /**
- * Accepter une faille pour l'application : un motif, une portée (ce paquet,
- * ou la CVE partout), une échéance. Elle restera listée, mais ne bloquera plus.
+ * Accepting a vulnerability for the application: a reason, a scope (this
+ * package, or the CVE everywhere), an expiry. It will stay listed, but will no
+ * longer block.
  */
 function AcceptDialog({
   finding,
@@ -566,8 +567,8 @@ function ScanRunCard({
   const descriptor = SCANNERS[run.scanner];
 
   return (
-    // La carte entière choisit l'exécution dont la liste s'affiche dessous : un
-    // vrai bouton, pour le clavier. Le lien de téléchargement vit à côté.
+    // The whole card chooses the run whose list shows below: a real button, for the
+    // keyboard. The download link lives beside it.
     <section className={cn('card flex flex-col', active && 'border-accent shadow-focus')}>
       <button
         type="button"

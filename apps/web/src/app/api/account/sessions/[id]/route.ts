@@ -15,13 +15,12 @@ const paramsSchema = z.object({ id: z.string().min(1).max(200) });
 type Context = { params: Promise<{ id: string }> };
 
 /**
- * Ferme **une** autre session de l'appelant — l'ordinateur resté allumé au
- * bureau, le téléphone perdu.
+ * Closes **one** other session of the caller — the computer left on at the
+ * office, the lost phone.
  *
- * La recherche passe par la liste de l'appelant : une session qui n'est pas
- * la sienne est introuvable, pas interdite, et la réponse n'en dit pas plus.
- * Sa propre session ne se ferme pas ici : c'est « Se déconnecter », qui nettoie
- * aussi le cookie.
+ * The lookup goes through the caller's list: a session that is not theirs is not
+ * found, not forbidden, and the response says no more. One's own session is not
+ * closed here: it is "Sign out", which also cleans the cookie.
  */
 export const DELETE = apiRoute<Context>(async (request, context) => {
   const auth = await requireSession(request);

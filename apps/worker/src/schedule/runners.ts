@@ -27,23 +27,22 @@ import type { WorkerSay } from '../messages.js';
 import { getBackupsQueue, getOpsQueue } from '../queue.js';
 
 /**
- * Les quatre tâches planifiées.
+ * The four scheduled tasks.
  *
- * Règle commune, et non négociable : **aucune n'agit**. Elles constatent,
- * enregistrent et alertent. Un scan périodique qui remonte une CRITICAL ne
- * bloque rien et ne redéploie rien ; un healthcheck qui échoue ne déclenche
- * aucun rollback. Toute action destructrice automatique est hors périmètre —
- * hormis la purge des répertoires de version, qui est explicitement demandée et
- * qui ne touche jamais la version courante.
+ * A common, non-negotiable rule: **none acts**. They observe, record and alert.
+ * A periodic scan that finds a CRITICAL blocks nothing and redeploys nothing; a
+ * failing healthcheck triggers no rollback. Any automatic destructive action is
+ * out of scope — except purging the version directories, which is explicitly
+ * requested and never touches the current version.
  *
- * Aucun `if (runtime === …)` ici : chaque tâche demande son driver à la
- * fabrique et lui parle par l'interface.
+ * No `if (runtime === …)` here: each task asks the factory for its driver and
+ * talks to it through the interface.
  */
 
 export type RunnerContext = {
   payload: Record<string, unknown>;
   onLog: (line: string) => void;
-  /** Ce que la tâche écrit à son journal, dans la langue de l'instance. */
+  /** What the task writes to its log, in the instance's language. */
   say: WorkerSay;
 };
 
@@ -51,7 +50,7 @@ export type RunnerSummary = Record<string, unknown>;
 
 export type ScheduledJobRunner = (ctx: RunnerContext) => Promise<RunnerSummary>;
 
-/** Restreint le champ d'action d'une tâche. Absent = toutes les applications. */
+/** Restricts a task's scope. Absent = every application. */
 const scopeSchema = z.object({
   applicationIds: z.array(z.string().uuid()).optional(),
   targetIds: z.array(z.string().uuid()).optional(),
@@ -67,19 +66,18 @@ function inScope(deployment: Deployment, payload: Record<string, unknown>): bool
 }
 
 /**
- * Ouvre le contexte, exécute, referme — toujours. Une session SSH laissée
- * ouverte par une tâche qui tourne toutes les cinq minutes finit par épuiser
- * `MaxStartups` sur la cible.
+ * Opens the context, runs, closes — always. An SSH session left open by a task
+ * running every five minutes ends up exhausting `MaxStartups` on the target.
  */
 async function forEachCurrentDeployment<T>(
   payload: Record<string, unknown>,
   onLog: (line: string) => void,
   action: (deployment: Deployment, opened: Awaited<ReturnType<typeof openDeploymentContext>>) => Promise<T>,
   /**
-   * Écarte un déploiement **avant** d'ouvrir sa session SSH, en disant
-   * pourquoi. Le filtre est ici et non dans l'action parce que la session est
-   * justement ce qu'on veut éviter de payer : une tâche qui tourne toutes les
-   * cinq minutes n'a pas à se connecter à une machine pour rien.
+   * Discards a deployment **before** opening its SSH session, saying why. The
+   * filter is here and not in the action because the session is precisely what we
+   * want to avoid paying for: a task running every five minutes has no business
+   * connecting to a machine for nothing.
    */
   skipWhen?: (deployment: Deployment) => string | null,
 ): Promise<{ results: T[]; skipped: number; failures: Array<{ deploymentId: string; error: string }> }> {
@@ -112,7 +110,7 @@ async function forEachCurrentDeployment<T>(
       const message = errorMessage(error);
       failures.push({ deploymentId: deployment.id, error: message });
       onLog(`✗ ${deployment.id} : ${message}`);
-      logger.warn({ err: error, deploymentId: deployment.id }, 'tâche planifiée en échec');
+      logger.warn({ err: error, deploymentId: deployment.id }, 'scheduled task failed');
     } finally {
       if (opened) await disconnect(opened.session).catch(() => {});
     }
@@ -147,8 +145,8 @@ const runScanPeriodic: ScheduledJobRunner = async ({ payload, onLog, say }) => {
     };
 
     if (config.scanners.length === 0) {
-      // Une application déployée sans scanner n'en veut pas : on ne lui en
-      // impose pas depuis une tâche de fond.
+      // An application deployed without a scanner does not want one: we do not impose
+      // one from a background task.
       withoutConfig += 1;
       return { deploymentId: deployment.id, skipped: true };
     }
@@ -167,8 +165,8 @@ const runScanPeriodic: ScheduledJobRunner = async ({ payload, onLog, say }) => {
       images,
       store: driver.imageStore(opened.ctx),
       onLog: (line) => onLog(`[${deployment.id.slice(0, 8)}] ${line}`),
-      // On EMPILE : l'intérêt d'un scan périodique est de comparer dans le temps
-      // un déploiement qui, lui, n'a pas bougé.
+      // We STACK: the point of a periodic scan is to compare over time a deployment
+      // that did not move.
       clearPrevious: false,
     });
 
@@ -177,7 +175,7 @@ const runScanPeriodic: ScheduledJobRunner = async ({ payload, onLog, say }) => {
 
     if (result.blocked) {
       alerting += 1;
-      // Alerte, et rien d'autre. Le déploiement reste en place.
+      // Alert, and nothing else. The deployment stays in place.
       onLog(
         say('schedule.scanAlert', {
           id: deployment.id,
@@ -226,16 +224,15 @@ const runHealthPeriodic: ScheduledJobRunner = async ({ payload, onLog, say }) =>
           (health.detail ? ` (${health.detail})` : ''),
       );
 
-      // Aucun rollback. Le statut informe l'opérateur ; c'est lui qui décide.
+      // No rollback. The status informs the operator; they decide.
       return { deploymentId: deployment.id, outcome: health.outcome, attempts: health.attempts };
     },
     /**
-     * Une application volontairement arrêtée n'est pas une application en
-     * panne. La sonder rapporterait `unreachable` à chaque passage, peindrait
-     * le tableau de bord en rouge et — le jour où une alerte s'y branchera —
-     * réveillerait quelqu'un pour une décision qu'il a prise lui-même. Son
-     * arrêt a déjà remis sa santé à `unknown` : c'est la seule chose vraie, et
-     * on n'y touche pas.
+     * A deliberately stopped application is not a failing application. Probing it
+     * would report `unreachable` at each pass, paint the dashboard red and — the day
+     * an alert is plugged into it — wake someone up for a decision they made
+     * themselves. Its stop already set its health back to `unknown`: it is the only
+     * true thing, and we leave it alone.
      */
     (deployment) => {
       if (deployment.stoppedAt === null) return null;
@@ -264,8 +261,8 @@ const runCleanupVersions: ScheduledJobRunner = async ({ payload, onLog }) => {
 
   const outcome = await forEachCurrentDeployment(payload, onLog, async (deployment, opened) => {
     const driver = getDriver(deployment.runtime);
-    // Le driver sait où il dépose ses releases. La tâche ne nomme aucun chemin,
-    // et ne sait pas sur quel runtime elle tourne.
+    // The driver knows where it places its releases. The task names no path, and
+    // does not know which runtime it runs on.
     const removed = await driver.pruneReleases(
       opened.ctx,
       (line) => onLog(`[${deployment.id.slice(0, 8)}] ${line}`),
@@ -298,9 +295,8 @@ const runTargetPreflight: ScheduledJobRunner = async ({ payload, onLog, say }) =
   const enqueued: string[] = [];
 
   for (const target of targets) {
-    // On réutilise la tâche de preflight plutôt que d'en dupliquer la logique :
-    // une seule implémentation du preflight, un seul endroit où un credential
-    // est déchiffré.
+    // We reuse the preflight task rather than duplicate its logic: a single
+    // preflight implementation, a single place where a credential is decrypted.
     const job = await queue.add(TARGET_PREFLIGHT_JOB, {
       targetId: target.id,
       actorId: null,
@@ -313,13 +309,13 @@ const runTargetPreflight: ScheduledJobRunner = async ({ payload, onLog, say }) =
   return { targets: targets.length, enqueued };
 };
 
-// ─── sauvegardes ─────────────────────────────────────────────────────────────
+// ─── backups ─────────────────────────────────────────────────────────────────
 
 /**
- * Enfile une sauvegarde par application dont la sauvegarde automatique est
- * activée, et par cible où elle tourne. La tâche planifiée rend la main tout de
- * suite : les sauvegardes, elles, se suivent sur la file `backups`, une à la
- * fois, et chacune a sa ligne et son verdict.
+ * Queues one backup per application whose automatic backup is enabled, and per
+ * target where it runs. The scheduled task returns right away: the backups
+ * follow one another on the `backups` queue, one at a time, and each has its row
+ * and its verdict.
  */
 const runBackupApplications: ScheduledJobRunner = async ({ payload, onLog, say }) => {
   const policies = await listScheduledBackupPolicies();
@@ -359,11 +355,11 @@ const runBackupPanel: ScheduledJobRunner = async ({ onLog, say }) => {
   return { enqueued: 1 };
 };
 
-// ─── registre ────────────────────────────────────────────────────────────────
+// ─── registry ────────────────────────────────────────────────────────────────
 
 /**
- * Une entrée par type. Ajouter une tâche planifiée = une entrée ici et une dans
- * `SCHEDULED_JOB_TYPES` ; aucun `switch` nulle part.
+ * One entry per type. Adding a scheduled task = one entry here and one in
+ * `SCHEDULED_JOB_TYPES`; no `switch` anywhere.
  */
 export const SCHEDULED_JOB_RUNNERS: Record<ScheduledJobType, ScheduledJobRunner> = {
   scan: runScanPeriodic,

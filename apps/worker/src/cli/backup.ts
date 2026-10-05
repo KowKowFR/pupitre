@@ -1,4 +1,4 @@
-/* eslint-disable no-console -- un outil en ligne de commande parle sur la console */
+/* eslint-disable no-console -- a command-line tool speaks on the console */
 import { createReadStream, createWriteStream, existsSync } from 'node:fs';
 import { PassThrough, type Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -14,22 +14,22 @@ import { env } from '../env.js';
 import { PANEL_DUMP_FILE, runPgTool } from '../backup/panel.js';
 
 /**
- * Les gestes de reprise après sinistre, hors du panel.
+ * Disaster recovery gestures, outside the panel.
  *
- *   backup decrypt <fichier.pupb> <sortie>
- *       Déchiffre un fichier de sauvegarde. Il faut la même MASTER_KEY.
+ *   backup decrypt <file.pupb> <output>
+ *       Decrypts a backup file. The same MASTER_KEY is needed.
  *
  *   backup list
- *       Les sauvegardes du panel présentes sur la destination configurée.
+ *       The panel backups present on the configured destination.
  *
- *   backup restore-panel <fichier.pupb | dossier> --yes
- *       Remplace la base du panel par une sauvegarde : un fichier téléchargé
- *       à la main depuis le NAS ou le bucket, ou un dossier (`panel/…`) lu sur
- *       la destination configurée.
+ *   backup restore-panel <file.pupb | folder> --yes
+ *       Replaces the panel's database with a backup: a file downloaded by hand
+ *       from the NAS or the bucket, or a folder (`panel/…`) read on the
+ *       configured destination.
  *
- * Dans Docker : `docker compose run --rm worker backup <commande>`, panel et
- * worker arrêtés pour une restauration — on ne remplace pas une base sous les
- * pieds de ceux qui l'écrivent.
+ * In Docker: `docker compose run --rm worker backup <command>`, panel and worker
+ * stopped for a restore — one does not replace a database under the feet of
+ * those writing it.
  */
 
 async function readStream(stream: Readable): Promise<Buffer> {
@@ -42,8 +42,8 @@ async function activeStore() {
   const resolved = await resolveBackupDestination();
   if (!resolved) {
     throw new Error(
-      'aucune destination configurée dans cette base — téléchargez le fichier panel.dump.pupb ' +
-        'depuis le NAS ou le bucket, et passez son chemin.',
+      'no destination configured in this database — download the panel.dump.pupb file ' +
+        'from the NAS or the bucket, and pass its path.',
     );
   }
   return openBackupStore(resolved.destination);
@@ -60,7 +60,7 @@ async function list(): Promise<void> {
           .map((object) => object.key.slice(0, -(PANEL_DUMP_FILE.length + 1))),
       ),
     ].sort();
-    if (folders.length === 0) console.log('aucune sauvegarde du panel sur la destination');
+    if (folders.length === 0) console.log('no panel backup on the destination');
     for (const folder of folders) console.log(folder);
   } finally {
     await store.close();
@@ -83,9 +83,8 @@ async function restorePanel(source: string): Promise<void> {
         ).toString(),
       ),
     );
-    if (manifest.kind !== 'panel')
-      throw new Error(`« ${folder} » n'est pas une sauvegarde du panel`);
-    console.log(`sauvegarde du ${manifest.createdAt}`);
+    if (manifest.kind !== 'panel') throw new Error(`"${folder}" is not a panel backup`);
+    console.log(`backup from ${manifest.createdAt}`);
     encrypted = await store.get(`${folder}/${PANEL_DUMP_FILE}`);
   }
 
@@ -106,7 +105,7 @@ async function restorePanel(source: string): Promise<void> {
         { stdin: plain },
       ),
     ]);
-    console.log('base du panel restaurée — redémarrez le panel et le worker');
+    console.log('panel database restored — restart the panel and the worker');
   } finally {
     await close();
   }
@@ -117,27 +116,27 @@ async function main(): Promise<void> {
   switch (command) {
     case 'decrypt': {
       const [input, output] = args;
-      if (!input || !output) throw new Error('usage : backup decrypt <fichier.pupb> <sortie>');
+      if (!input || !output) throw new Error('usage: backup decrypt <file.pupb> <output>');
       await pipeline(createReadStream(input), createDecryptStream(), createWriteStream(output));
-      console.log(`déchiffré : ${output}`);
+      console.log(`decrypted: ${output}`);
       return;
     }
     case 'list':
       return list();
     case 'restore-panel': {
       const source = args.find((arg) => !arg.startsWith('--'));
-      if (!source) throw new Error('usage : backup restore-panel <fichier.pupb | dossier> --yes');
+      if (!source) throw new Error('usage: backup restore-panel <file.pupb | folder> --yes');
       if (!args.includes('--yes')) {
         throw new Error(
-          'la restauration remplace TOUTE la base du panel. Arrêtez le panel et le worker, ' +
-            'puis relancez avec --yes.',
+          'the restore replaces the WHOLE panel database. Stop the panel and the worker, ' +
+            'then run again with --yes.',
         );
       }
       return restorePanel(source);
     }
     default:
       console.log(
-        'usage : backup decrypt <fichier> <sortie> | backup list | backup restore-panel <source> --yes',
+        'usage: backup decrypt <file> <output> | backup list | backup restore-panel <source> --yes',
       );
       process.exitCode = command ? 1 : 0;
   }

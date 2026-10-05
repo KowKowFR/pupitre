@@ -24,21 +24,21 @@ import { requirePermission } from '@/lib/rbac';
 import { providerError, tokenForgeConnectionView } from '@/lib/sources';
 
 /**
- * Les forges qui s'ouvrent par un jeton — Gitea / Forgejo, GitLab : une
- * adresse, un jeton essayé avant d'être rangé, chiffré, qui ne ressort jamais.
- * Les mêmes routes pour chacune (`/api/integrations/{gitea,gitlab}`) ; seule
- * diffère la question posée à la forge pour vérifier le jeton.
+ * The forges that open with a token — Gitea / Forgejo, GitLab: an address, a
+ * token tried before being stored, encrypted, which never comes out. The same
+ * routes for each (`/api/integrations/{gitea,gitlab}`); only the question asked of
+ * the forge to check the token differs.
  */
 
 export type TokenForgeKind = 'gitea' | 'gitlab';
 
 export type TokenForgeAccount = {
-  /** Le compte du jeton. */
+  /** The token's account. */
   login: string;
   version: string;
-  /** L'adresse de la forge, nettoyée. */
+  /** The forge's address, cleaned up. */
   baseUrl: string;
-  /** L'échéance du jeton (`AAAA-MM-JJ`), quand la forge la dit. */
+  /** The token's expiry (`YYYY-MM-DD`), when the forge says it. */
   expiresAt: string | null;
 };
 
@@ -63,12 +63,12 @@ const ACCOUNT: Record<
 };
 
 const tokenInputSchema = z.object({
-  /** L'adresse de la forge, telle qu'un navigateur l'ouvre : `https://codeberg.org`, `https://gitlab.com`. */
+  /** The forge's address, as a browser opens it: `https://codeberg.org`, `https://gitlab.com`. */
   url: z.string().trim().url().max(500),
   token: z.string().trim().min(8).max(500),
 });
 
-/** `GET`, `PUT` et `DELETE` de `/api/integrations/{forge}`. */
+/** `GET`, `PUT` and `DELETE` of `/api/integrations/{forge}`. */
 export function tokenForgeRoutes(kind: TokenForgeKind) {
   const label = SOURCE_PROVIDER_LABELS[kind];
 
@@ -82,11 +82,11 @@ export function tokenForgeRoutes(kind: TokenForgeKind) {
   });
 
   /**
-   * Connecter la forge — ou remplacer son jeton. Le jeton est essayé avant
-   * d'être rangé : la forge doit répondre, et dire à quel compte il ouvre.
+   * Connecting the forge — or replacing its token. The token is tried before being
+   * stored: the forge must answer, and say which account it opens to.
    *
-   * L'adresse d'une forge qui porte déjà des liaisons ne change pas : leurs
-   * dépôts vivent là-bas. On déconnecte, puis on connecte l'autre.
+   * The address of a forge that already carries links does not change: their
+   * repositories live there. One disconnects, then connects the other.
    */
   const PUT = apiRoute(async (request) => {
     const auth = await requirePermission(request, 'settings:manage');
@@ -146,7 +146,7 @@ export function tokenForgeRoutes(kind: TokenForgeKind) {
     );
   });
 
-  /** Déconnecter : la connexion et ses liaisons partent ; l'historique reste. */
+  /** Disconnecting: the connection and its links go; the history stays. */
   const DELETE = apiRoute(async (request) => {
     const auth = await requirePermission(request, 'settings:manage');
     const removed = await deleteSourceConnection(kind);
@@ -172,9 +172,9 @@ export function tokenForgeRoutes(kind: TokenForgeKind) {
 }
 
 /**
- * « Tester » : la forge répond-elle, et à quel compte ouvre le jeton ? Rien
- * n'est enregistré. Un refus de la forge n'est pas une erreur de la route :
- * il revient dans `{ ok: false, error }`, pour être dit sur l'écran.
+ * "Test": does the forge answer, and which account does the token open to?
+ * Nothing is saved. A refusal from the forge is not an error of the route: it
+ * comes back in `{ ok: false, error }`, to be said on the screen.
  */
 export function tokenForgeCheckRoute(kind: TokenForgeKind) {
   return apiRoute(async (request) => {

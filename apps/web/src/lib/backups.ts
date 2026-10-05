@@ -25,9 +25,8 @@ import { getRedis } from './redis';
 import { schedulerStates, syncScheduler } from './schedules';
 
 /**
- * Ce que les routes de sauvegarde partagent : la file, les tâches planifiées
- * qu'il faut créer au premier besoin, et la forme sous laquelle une sauvegarde
- * ou une destination sort de l'API.
+ * What the backup routes share: the queue, the scheduled tasks to create at the
+ * first need, and the shape in which a backup or a destination leaves the API.
  */
 
 declare global {
@@ -54,11 +53,10 @@ async function scheduleOf(type: BackupScheduleType): Promise<ScheduledJob | null
 }
 
 /**
- * Activer une sauvegarde automatique sans qu'il existe de tâche pour la faire
- * tourner serait une promesse creuse : la tâche est créée au premier besoin,
- * avec sa cadence par défaut — modifiable ensuite dans « Tâches », comme les
- * autres. Une tâche désactivée à la main est **réactivée** : on vient de
- * demander qu'elle tourne.
+ * Enabling an automatic backup without a task existing to run it would be a
+ * hollow promise: the task is created at the first need, with its default
+ * cadence — changeable afterwards in "Tasks", like the others. A task disabled by
+ * hand is **re-enabled**: one just asked for it to run.
  */
 export async function ensureBackupSchedule(type: BackupScheduleType): Promise<ScheduledJob> {
   const existing = await scheduleOf(type);
@@ -153,7 +151,7 @@ export function backupView(row: BackupRow): BackupView {
   };
 }
 
-/** Où une application tourne en ce moment — là où l'on peut la restaurer. */
+/** Where an application runs right now — where it can be restored. */
 export type LiveTargetView = { id: string; name: string; stopped: boolean };
 
 export type LastRestoreView = {
@@ -176,7 +174,7 @@ export function lastRestoreView(
 }
 
 export type ApplicationBackupsView = {
-  /** `null` : l'application a été supprimée, ses sauvegardes sont restées. */
+  /** `null`: the application was deleted, its backups stayed. */
   id: string | null;
   slug: string;
   name: string;
@@ -187,18 +185,17 @@ export type ApplicationBackupsView = {
 };
 
 /**
- * Le nombre de sauvegardes lues pour la vue d'ensemble. La rétention en garde
- * une vingtaine par application et les échecs partent au bout d'un mois : la
- * borne n'est là que pour qu'une instance démesurée ne rende pas une page
- * démesurée.
+ * The number of backups read for the overview. Retention keeps about twenty per
+ * application and the failures go after a month: the bound is only there so that
+ * an oversized instance does not return an oversized page.
  */
 const OVERVIEW_LIMIT = 2000;
 
 /**
- * Toutes les applications qui ont une sauvegarde ou une politique, chacune avec
- * son historique et les cibles où elle tourne. Les sauvegardes d'une
- * application supprimée y figurent aussi, regroupées par son nom : elles sont
- * toujours sur la destination, et c'est ici qu'on les retrouve.
+ * All the applications that have a backup or a policy, each with its history and
+ * the targets where it runs. A deleted application's backups are there too,
+ * grouped by its name: they are still on the destination, and this is where they
+ * are found.
  */
 export async function applicationBackupsOverview(): Promise<{
   applications: ApplicationBackupsView[];
@@ -262,7 +259,7 @@ export async function applicationBackupsOverview(): Promise<{
     });
   }
 
-  // Les noms des cibles où une sauvegarde a été prise — pas les autres.
+  // The names of the targets where a backup was taken — not the others.
   const referenced = new Set(rows.map((row) => row.targetId).filter((id) => id !== null));
   const targetNames = Object.fromEntries(
     [...referenced].map((id) => [id, nameOf.get(id) ?? id] as const),

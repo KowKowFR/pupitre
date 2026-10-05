@@ -43,16 +43,16 @@ import {
 } from './schema/monitors.js';
 
 /**
- * Persistance de la supervision de sites.
+ * Persistence of site monitoring.
  *
- * Tout ce qui décide vit dans `@pupitre/core` : la machine à états
- * (`nextMonitorState`) et la validation par type (le catalogue). Ce module
- * écrit. La seule intelligence qui reste ici est transactionnelle : une mesure,
- * l'avancement de l'état et l'ouverture — ou la fermeture — d'un incident
- * doivent tomber ensemble, ou pas du tout.
+ * Everything that decides lives in `@pupitre/core`: the state machine
+ * (`nextMonitorState`) and the per-type validation (the catalog). This module
+ * writes. The only intelligence left here is transactional: a measurement,
+ * advancing the state and opening — or closing — an incident must land
+ * together, or not at all.
  *
- * Aucun `if (type === 'http')` nulle part : le type est une donnée, son schéma
- * de configuration et sa cadence minimale viennent du catalogue.
+ * No `if (type === 'http')` anywhere: the type is data, its configuration schema
+ * and its minimum interval come from the catalog.
  */
 
 export type Monitor = typeof monitors.$inferSelect;
@@ -60,34 +60,34 @@ export type MonitorCheck = typeof monitorChecks.$inferSelect;
 export type MonitorIncident = typeof monitorIncidents.$inferSelect;
 
 /**
- * Pourquoi une configuration de sonde est refusée, **en donnée**.
+ * Why a probe configuration is refused, **as data**.
  *
- * ── Pourquoi pas une phrase, et pas un dictionnaire ici ──────────────────────
- * Ce refus s'affiche : il remonte en 422 dans le bandeau du formulaire de
- * sonde. Il devrait donc parler la langue de l'instance — mais `@pupitre/db`
- * n'en connaît pas, et n'a aucune raison de devenir un dépôt de traductions :
- * cette couche écrit en base, elle ne parle à personne.
+ * ── Why not a sentence, and not a dictionary here ───────────────────────────
+ * This refusal is shown: it comes up as a 422 in the probe form's banner. It
+ * should therefore speak the instance's language — but `@pupitre/db` knows none,
+ * and has no reason to become a translations repository: this layer writes to
+ * the database, it talks to nobody.
  *
- * Le refus voyage donc en pièces détachées — le type, le champ, la borne, la
- * valeur demandée — et c'est la route HTTP, qui a la langue sous la main, qui
- * en fait une phrase depuis `i18n/messages/monitors`. Même partage que
- * `HttpError` : la donnée en bas, les mots en haut.
+ * The refusal therefore travels in separate pieces — the type, the field, the
+ * bound, the requested value — and it is the HTTP route, which has the language
+ * at hand, that makes a sentence of it from `i18n/messages/monitors`. The same
+ * split as `HttpError`: the data at the bottom, the words at the top.
  *
- * `Error.message` reste rempli en français, comme partout ailleurs dans le
- * projet : c'est ce que voit `Error.stack` et ce que Pino journalise.
+ * `Error.message` is filled in in English, the language of the code: it is what
+ * `Error.stack` shows and what Pino logs.
  */
 export type MonitorConfigReason =
   /**
-   * La configuration ne passe pas le schéma du type. `issue` vient de Zod, en
-   * français ; `params` permet de le redire (`issueMessage()`).
+   * The configuration does not pass the type's schema. `issue` comes from Zod, in
+   * French; `params` allows saying it again (`issueMessage()`).
    */
   | { kind: 'schema'; type: MonitorType; path: string; issue: string; params?: unknown }
-  /** Une cible littérale qu'aucune liste d'autorisation n'ouvre. */
+  /** A literal target no allow list opens. */
   | { kind: 'target'; refusal: SsrfRefusal }
-  /** Une cadence sous le plancher que ce type déclare. */
+  /** An interval under the floor this type declares. */
   | { kind: 'interval'; type: MonitorType; minSeconds: number; askedSeconds: number };
 
-/** Une cadence refusée par le type, ou une configuration invalide : 422, pas 500. */
+/** An interval refused by the type, or an invalid configuration: 422, not 500. */
 export class MonitorConfigError extends Error {
   override readonly name = 'MonitorConfigError';
   constructor(
@@ -102,13 +102,12 @@ export class MonitorConfigError extends Error {
 // ─── validation ───────────────────────────────────────────────────────────────
 
 /**
- * Les plages internes que ce déploiement s'autorise à superviser.
+ * The internal ranges this deployment allows itself to monitor.
  *
- * Lue ici et pas reçue en paramètre : `resolveConfig()` est appelée par le
- * panel comme par tout appelant de la couche de persistance, et la liste est un
- * fait de déploiement, pas un choix d'appelant. Mise en cache parce qu'elle ne
- * change pas sans redémarrage — elle vient de l'environnement, comme
- * `MASTER_KEY`.
+ * Read here and not received as a parameter: `resolveConfig()` is called by the
+ * panel as by any caller of the persistence layer, and the list is a deployment
+ * fact, not a caller's choice. Cached because it does not change without a
+ * restart — it comes from the environment, like `MASTER_KEY`.
  */
 let cachedCidrs: readonly Cidr[] | null = null;
 function allowedCidrs(): readonly Cidr[] {
@@ -125,21 +124,21 @@ const intervalSchema = z
 const thresholdSchema = z.number().int().min(MONITOR_THRESHOLD_MIN).max(MONITOR_THRESHOLD_MAX);
 
 /**
- * Le corps commun. `config` reste `unknown` ici : il est validé par le schéma du
- * type, une fois le type connu — c'est `resolveConfig()` qui s'en charge, et
- * c'est le seul endroit où ça se produit.
+ * The common body. `config` stays `unknown` here: it is validated by the type's
+ * schema, once the type is known — `resolveConfig()` handles it, and it is the
+ * only place where that happens.
  */
 export const createMonitorSchema = z.object({
   name: z.string().trim().min(1).max(120),
   type: monitorTypeSchema.default('http'),
   config: z.unknown().default({}),
-  /** Absent = la cadence par défaut du type. */
+  /** Absent = the type's default interval. */
   intervalSeconds: intervalSchema.optional(),
   failureThreshold: thresholdSchema.default(MONITOR_FAILURE_THRESHOLD_DEFAULT),
   recoveryThreshold: thresholdSchema.default(MONITOR_RECOVERY_THRESHOLD_DEFAULT),
   enabled: z.boolean().default(true),
   applicationId: z.string().uuid().nullable().default(null),
-  /** `null` retire le webhook. Absent = on n'y touche pas. */
+  /** `null` removes the webhook. Absent = leave it alone. */
   webhookUrl: monitorUrlSchema.nullable().optional(),
 });
 
@@ -161,13 +160,13 @@ export const updateMonitorSchema = z
 export type UpdateMonitorInput = z.infer<typeof updateMonitorSchema>;
 
 /**
- * Valide une configuration contre le schéma de **son** type, et fait respecter
- * la cadence minimale que ce type déclare.
+ * Validates a configuration against **its** type's schema, and enforces the
+ * minimum interval that type declares.
  *
- * La cadence minimale est par type parce qu'elle est une propriété du type : ce
- * qu'il coûte à l'autre bout, et la vitesse à laquelle ce qu'il observe peut
- * changer. Une sonde HTTP à la minute est raisonnable ; interroger un registre
- * de domaines à la minute ferait du panel un nuisible.
+ * The minimum interval is per type because it is a property of the type: what it
+ * costs at the other end, and how fast what it observes can change. An HTTP probe
+ * every minute is reasonable; querying a domain registry every minute would make
+ * the panel a nuisance.
  */
 export function resolveConfig(
   type: MonitorType,
@@ -180,9 +179,9 @@ export function resolveConfig(
   if (!parsed.success) {
     const first = parsed.error.issues[0];
     const path = first?.path.join('.') ?? 'config';
-    const issue = first?.message ?? 'valeur refusée';
+    const issue = first?.message ?? 'value refused';
     throw new MonitorConfigError(
-      `configuration de sonde « ${definition.label} » invalide — ${path} : ${issue}`,
+      `invalid "${definition.label}" probe configuration — ${path}: ${issue}`,
       `config.${path}`,
       {
         kind: 'schema',
@@ -194,13 +193,13 @@ export function resolveConfig(
     );
   }
 
-  // Garde SSRF, deuxième couche : le schéma refuse ce qu'aucune liste ne
-  // débloque (le lien-local, donc les services de métadonnées), mais il est
-  // pur — il ne peut pas lire `MONITOR_ALLOWED_CIDRS`, puisqu'il est aussi
-  // évalué dans le navigateur. C'est ici, côté serveur, que le bouclage et les
-  // plages privées non listées se refusent, **à la création**, plutôt qu'au
-  // premier balayage. `checkMonitorTargetLiterals` ne connaît aucun type : il
-  // lit les champs marqués `kind: 'host' | 'url'` dans le catalogue.
+  // SSRF guard, second layer: the schema refuses what no list unlocks (link-local,
+  // hence the metadata services), but it is pure — it cannot read
+  // `MONITOR_ALLOWED_CIDRS`, since it is also evaluated in the browser. It is here,
+  // on the server side, that loopback and unlisted private ranges are refused,
+  // **at creation**, rather than at the first sweep. `checkMonitorTargetLiterals`
+  // knows no type: it reads the fields marked `kind: 'host' | 'url'` in the
+  // catalog.
   const target = checkMonitorTargetLiterals(type, parsed.data, allowedCidrs());
   if (!target.allowed) {
     throw new MonitorConfigError(target.reason, `config.${target.field}`, {
@@ -212,8 +211,8 @@ export function resolveConfig(
   const interval = intervalSeconds ?? definition.defaultIntervalSeconds;
   if (interval < definition.minIntervalSeconds) {
     throw new MonitorConfigError(
-      `une sonde « ${definition.label} » ne se lance pas plus souvent que ` +
-        `${formatCadence(definition.minIntervalSeconds)} — ${formatCadence(interval)} demandé`,
+      `a "${definition.label}" probe does not run more often than ` +
+        `${formatCadence(definition.minIntervalSeconds, 'en')} — ${formatCadence(interval, 'en')} asked`,
       'intervalSeconds',
       {
         kind: 'interval',
@@ -249,12 +248,12 @@ export async function createMonitor(
       applicationId: input.applicationId,
       webhookUrlEncrypted: input.webhookUrl ? encrypt(input.webhookUrl) : null,
       createdBy,
-      // Une sonde neuve est due tout de suite : on ne fait pas attendre une
-      // cadence entière à qui vient de la créer pour savoir si sa cible répond.
+      // A new probe is due right away: whoever just created it does not wait a whole
+      // interval to know whether its target answers.
       nextCheckAt: new Date(),
     })
     .returning();
-  if (!row) throw new Error('insertion de la sonde sans retour');
+  if (!row) throw new Error('probe insert returned nothing');
   return row;
 }
 
@@ -266,8 +265,8 @@ export async function updateMonitor(
   const current = await getMonitor(id, db);
   if (!current) return null;
 
-  // Le type ne se modifie pas : changer le type d'une sonde, c'est en créer une
-  // autre. L'historique et les incidents porteraient sur autre chose.
+  // The type cannot be changed: changing a probe's type is creating another one.
+  // The history and the incidents would be about something else.
   const type = monitorTypeSchema.parse(current.type);
 
   const values: Partial<typeof monitors.$inferInsert> = { updatedAt: new Date() };
@@ -296,23 +295,23 @@ export async function updateMonitor(
   }
   if (patch.enabled !== undefined) {
     values.enabled = patch.enabled;
-    // Une reprise à la main efface le motif de suspension automatique, et rend
-    // la sonde due immédiatement.
+    // A manual resume erases the automatic pause reason, and makes the probe due
+    // immediately.
     if (patch.enabled) {
       values.pausedReason = null;
       values.nextCheckAt = new Date();
     }
   }
 
-  // Changer ce qu'on observe change ce que l'état confirmé veut dire : il
-  // portait sur autre chose. On repart de `unknown` plutôt que d'hériter d'un
-  // verdict devenu faux.
+  // Changing what is observed changes what the confirmed state means: it was about
+  // something else. We start again from `unknown` rather than inherit a verdict
+  // that became wrong.
   //
-  // L'incident ouvert, lui, **reste ouvert** : il a été annoncé, et ceux qui
-  // l'ont reçu attendent la suite. Il se refermera — annonce comprise — quand
-  // la nouvelle cible sera confirmée saine, au seuil de rétablissement ; si
-  // elle échoue, c'est la même panne qui continue, sans seconde alerte.
-  // `applyCheck` lit l'incident en base pour le savoir.
+  // The open incident, though, **stays open**: it was announced, and those who
+  // received it are waiting for what comes next. It will close — announcement
+  // included — when the new target is confirmed healthy, at the recovery
+  // threshold; if it fails, it is the same outage going on, without a second
+  // alert. `applyCheck` reads the incident in the database to know.
   if (identityChanged) {
     values.status = 'unknown';
     values.lastOutcome = null;
@@ -322,18 +321,18 @@ export async function updateMonitor(
   }
 
   /**
-   * Et si c'est la **page** qui a changé, la référence visuelle ne vaut plus
-   * rien : elle montrerait un autre site que celui qu'on supervise désormais,
-   * et la prochaine comparaison avant/après serait un mensonge parfaitement
-   * crédible — deux images côte à côte, dont l'une n'a rien à voir.
+   * And if it is the **page** that changed, the visual reference is worth nothing
+   * anymore: it would show another site than the one now monitored, and the next
+   * before/after comparison would be a perfectly credible lie — two images side
+   * by side, one of which has nothing to do with it.
    *
-   * « La page a-t-elle changé » se demande au **catalogue** (`linkFor`), pas à
-   * un `if (type === 'http')` : relever le code attendu ou le délai
-   * d'expiration ne change pas ce qu'on photographie, changer l'URL si.
+   * "Has the page changed" is asked of the **catalog** (`linkFor`), not of an
+   * `if (type === 'http')`: raising the expected code or the timeout does not
+   * change what is photographed, changing the URL does.
    *
-   * Les références déjà **épinglées** à un incident ne bougent pas : elles
-   * documentent ce qui était supervisé à ce moment-là, et récrire le passé
-   * serait pire que de le garder.
+   * References already **pinned** to an incident do not move: they document what
+   * was monitored at that time, and rewriting the past would be worse than
+   * keeping it.
    */
   if (values.config !== undefined) {
     const pageBefore = monitorTargetLink(type, current.config);
@@ -369,40 +368,40 @@ export async function listMonitors(db: Database = getDb()): Promise<Monitor[]> {
   return db.select().from(monitors).orderBy(monitors.name);
 }
 
-/** L'URL du webhook, déchiffrée. Réservée au worker, au moment d'alerter. */
+/** The webhook's URL, decrypted. Reserved to the worker, at alert time. */
 export function monitorWebhookUrl(monitor: Monitor): string | null {
   if (!monitor.webhookUrlEncrypted) return null;
   return decrypt(monitor.webhookUrlEncrypted);
 }
 
-/** La cible d'une sonde, en une ligne. Passe par le catalogue, jamais par un `switch`. */
+/** A probe's target, in one line. Goes through the catalog, never through a `switch`. */
 export function monitorTarget(monitor: Monitor): string {
   if (!isMonitorType(monitor.type)) return '(type inconnu)';
   return describeMonitorTarget(monitor.type, monitor.config);
 }
 
-// ─── balayage ─────────────────────────────────────────────────────────────────
+// ─── sweep ────────────────────────────────────────────────────────────────────
 
 /**
- * Réclame les sondes dues et **avance leur échéance dans le même geste**.
+ * Claims the due probes and **moves their due date in the same gesture**.
  *
- * L'ordre compte : si on sondait avant d'avancer `next_check_at`, une sonde qui
- * met trente secondes à expirer serait reprise par le balayage suivant, et on
- * aurait deux requêtes en vol vers la même cible. `FOR UPDATE SKIP LOCKED`
- * permet en outre à deux workers de se partager le travail sans se marcher
- * dessus — la file `supervision` a plusieurs slots.
+ * Order matters: if we probed before moving `next_check_at`, a probe that takes
+ * thirty seconds to time out would be picked up again by the next sweep, and we
+ * would have two requests in flight toward the same target.
+ * `FOR UPDATE SKIP LOCKED` also lets two workers share the work without stepping
+ * on each other — the `supervision` queue has several slots.
  */
 export async function claimDueMonitors(limit: number, db: Database = getDb()): Promise<Monitor[]> {
-  // En deux temps, et c'est délibéré. La réclamation a besoin de SQL brut —
-  // `FOR UPDATE SKIP LOCKED` et `make_interval` n'ont pas d'équivalent dans le
-  // constructeur de requêtes — mais `RETURNING m.*` rendrait des colonnes en
-  // snake_case, que Drizzle ne remappe pas. Les champs seraient `undefined`, et
-  // `consecutiveSuccesses + 1` vaudrait `NaN` : une sonde que le balayage
-  // casserait en silence, là où « sonder maintenant » (qui passe par
-  // `getMonitor`) fonctionnerait. Le bug a existé ; il ne repassera pas.
+  // In two steps, and deliberately. The claim needs raw SQL —
+  // `FOR UPDATE SKIP LOCKED` and `make_interval` have no equivalent in the query
+  // builder — but `RETURNING m.*` would return snake_case columns, which Drizzle
+  // does not remap. The fields would be `undefined`, and
+  // `consecutiveSuccesses + 1` would be `NaN`: a probe the sweep would silently
+  // break, while "probe now" (which goes through `getMonitor`) would work. The bug
+  // existed; it will not come back.
   //
-  // L'atomicité tient quand même : c'est l'`UPDATE` qui réclame, et il n'a lieu
-  // qu'une fois. La relecture qui suit ne fait que typer ce qui est déjà à nous.
+  // Atomicity still holds: it is the `UPDATE` that claims, and it only happens
+  // once. The read that follows only types what is already ours.
   const claimed = await db.execute<{ id: string }>(sql`
     update ${monitors} as m
        set next_check_at = now() + make_interval(secs => m.interval_seconds)
@@ -423,12 +422,12 @@ export async function claimDueMonitors(limit: number, db: Database = getDb()): P
   return db.select().from(monitors).where(inArray(monitors.id, ids));
 }
 
-/** Rend une sonde due immédiatement, sans attendre son échéance. */
+/** Makes a probe due immediately, without waiting for its due date. */
 export async function markMonitorDue(id: string, db: Database = getDb()): Promise<void> {
   await db.update(monitors).set({ nextCheckAt: new Date() }).where(eq(monitors.id, id));
 }
 
-/** Suspend une sonde, avec son motif. Le panel le fait ; un humain peut la reprendre. */
+/** Pauses a probe, with its reason. The panel does it; a human can resume it. */
 export async function suspendMonitor(
   id: string,
   reason: string,
@@ -441,9 +440,9 @@ export async function suspendMonitor(
 }
 
 /**
- * `db.execute()` rend soit un tableau, soit un `{ rows }` selon le pilote.
- * Drizzle ne le type pas de façon stable entre versions : on normalise ici, une
- * fois, plutôt que de parsemer des casts.
+ * `db.execute()` returns either an array or a `{ rows }` depending on the
+ * driver. Drizzle does not type it stably across versions: we normalize here,
+ * once, rather than scatter casts.
  */
 function readRows<T>(result: unknown): T[] {
   if (Array.isArray(result)) return result as T[];
@@ -454,25 +453,25 @@ function readRows<T>(result: unknown): T[] {
   return [];
 }
 
-// ─── enregistrement d'une mesure ──────────────────────────────────────────────
+// ─── recording a measurement ──────────────────────────────────────────────────
 
 export type AppliedCheck = {
   monitor: Monitor;
   check: MonitorCheck;
   transition: MonitorTransition;
-  /** Incident ouvert ou refermé par cette mesure. `null` sans transition. */
+  /** Incident opened or closed by this measurement. `null` without a transition. */
   incident: MonitorIncident | null;
 };
 
 /**
- * Une mesure, l'état qui en découle et l'incident éventuel — dans une seule
- * transaction. Sans quoi un worker tué entre l'insertion de la mesure et
- * l'ouverture de l'incident laisserait une sonde en panne dont personne n'aurait
- * jamais été prévenu.
+ * A measurement, the resulting state and the possible incident — in a single
+ * transaction. Otherwise a worker killed between inserting the measurement and
+ * opening the incident would leave a down probe nobody would ever have been
+ * warned about.
  *
- * `CheckResult` est le contrat commun à tous les types de sonde : ce code ne
- * sait pas, et n'a pas à savoir, si la mesure venait d'une requête HTTP ou d'une
- * poignée de main TLS.
+ * `CheckResult` is the contract shared by every probe type: this code does not
+ * know, and does not have to know, whether the measurement came from an HTTP
+ * request or a TLS handshake.
  */
 export async function applyCheck(
   monitor: Monitor,
@@ -495,11 +494,11 @@ export async function applyCheck(
         metrics,
       })
       .returning();
-    if (!check) throw new Error('insertion de la mesure sans retour');
+    if (!check) throw new Error('measurement insert returned nothing');
 
-    // L'incident ouvert se lit en base, pas dans l'état : un changement de
-    // cible pendant une panne remet l'état à `unknown` et laisse l'incident
-    // ouvert (voir `updateMonitor`).
+    // The open incident is read in the database, not in the state: a target change
+    // during an outage resets the state to `unknown` and leaves the incident open
+    // (see `updateMonitor`).
     const [open] = await tx
       .select({ id: monitorIncidents.id })
       .from(monitorIncidents)
@@ -535,14 +534,14 @@ export async function applyCheck(
       })
       .where(eq(monitors.id, monitor.id))
       .returning();
-    if (!updated) throw new Error('mise à jour de la sonde sans retour');
+    if (!updated) throw new Error('probe update returned nothing');
 
     let incident: MonitorIncident | null = null;
 
     if (step.transition === 'down') {
-      // `onConflictDoNothing` s'appuie sur l'index unique partiel : même si deux
-      // workers concluaient à la panne en même temps, il n'y aurait qu'un
-      // incident, donc qu'une alerte.
+      // `onConflictDoNothing` relies on the partial unique index: even if two workers
+      // concluded an outage at the same time, there would be only one incident, hence
+      // only one alert.
       const [opened] = await tx
         .insert(monitorIncidents)
         .values({
@@ -585,7 +584,7 @@ export async function markIncidentAlerted(
   await db.update(monitorIncidents).set(values).where(eq(monitorIncidents.id, incidentId));
 }
 
-// ─── lectures d'écran ─────────────────────────────────────────────────────────
+// ─── screen reads ─────────────────────────────────────────────────────────────
 
 export async function listChecks(
   monitorId: string,
@@ -626,11 +625,11 @@ export async function openIncidentFor(
 }
 
 /**
- * Taux de disponibilité sur une fenêtre, pour plusieurs sondes d'un coup.
+ * Availability rate over a window, for several probes at once.
  *
- * Rend le **dénominateur** avec le taux : « 100 % sur 3 mesures » n'est pas
- * « 100 % sur 1 440 », et l'écran doit pouvoir le dire. Une sonde sans aucune
- * mesure dans la fenêtre rend `ratio: null` — jamais 0 %.
+ * Returns the **denominator** with the rate: "100% over 3 measurements" is not
+ * "100% over 1,440", and the screen must be able to say it. A probe without any
+ * measurement in the window returns `ratio: null` — never 0%.
  */
 export async function uptimeWindows(
   monitorIds: readonly string[],
@@ -667,7 +666,7 @@ export async function uptimeWindows(
   return out;
 }
 
-// ─── lien avec les déploiements ───────────────────────────────────────────────
+// ─── link with deployments ────────────────────────────────────────────────────
 
 export type AdoptableApp = {
   applicationId: string;
@@ -678,11 +677,12 @@ export type AdoptableApp = {
 };
 
 /**
- * Les applications déployées, joignables, et pas encore supervisées.
+ * The deployed, reachable applications that are not monitored yet.
  *
- * Le panel **connaît déjà l'URL de tout ce qu'il déploie** : c'est son avantage
- * sur un outil externe. Il ne crée pourtant pas la sonde tout seul — le
- * raisonnement est dans la route `/api/monitors`. Il propose, en un clic.
+ * The panel **already knows the URL of everything it deploys**: it is its
+ * advantage over an external tool. It does not create the probe by itself,
+ * though — the reasoning is in the `/api/monitors` route. It offers, in one
+ * click.
  */
 export async function listAdoptableApps(db: Database = getDb()): Promise<AdoptableApp[]> {
   const rows = await db.execute<AdoptableApp>(sql`
@@ -705,17 +705,18 @@ export async function listAdoptableApps(db: Database = getDb()): Promise<Adoptab
 }
 
 /**
- * Suspend les sondes dont l'application rattachée n'a plus de déploiement en
+ * Pauses the probes whose attached application no longer has a deployment in
  * service.
  *
- * Sans cela, détruire une application volontairement déclencherait une alerte
- * de panne — le pire faux positif qui soit, parce qu'il apprend à ignorer les
- * alertes. La sonde n'est pas supprimée : elle est suspendue avec son motif, et
- * se reprend d'un clic.
+ * Without this, deliberately destroying an application would trigger an outage
+ * alert — the worst false positive there is, because it teaches ignoring
+ * alerts. The probe is not deleted: it is paused with its reason, and resumes
+ * in one click.
  *
- * Le motif écrit est une **clé**, pas une phrase : cette colonne survit à la
- * suspension, et une phrase y aurait figé la langue du jour du balayage. Le
- * raisonnement complet est sur `MONITOR_PAUSE_ORPHANED`, côté `@pupitre/core`.
+ * The written reason is a **key**, not a sentence: this column outlives the
+ * pause, and a sentence would have frozen the language of the sweep's day in it.
+ * The complete reasoning is on `MONITOR_PAUSE_ORPHANED`, on the `@pupitre/core`
+ * side.
  */
 export async function suspendOrphanedMonitors(db: Database = getDb()): Promise<number> {
   const rows = await db.execute<{ id: string }>(sql`
@@ -736,15 +737,15 @@ export async function suspendOrphanedMonitors(db: Database = getDb()): Promise<n
   return readRows<{ id: string }>(rows).length;
 }
 
-// ─── rétention ────────────────────────────────────────────────────────────────
+// ─── retention ────────────────────────────────────────────────────────────────
 
 /**
- * Purge la série temporelle au-delà de la rétention.
+ * Purges the time series beyond retention.
  *
- * Par lots : un `DELETE` de plusieurs millions de lignes tiendrait la table
- * pendant toute sa durée, et la sonde suivante attendrait derrière. Les
- * **incidents ne sont jamais purgés** — ils sont rares et ce sont eux qui
- * racontent l'histoire ; une chronologie amputée ne vaut rien.
+ * In batches: a `DELETE` of several million rows would hold the table for its
+ * whole duration, and the next probe would wait behind it. **Incidents are
+ * never purged** — they are rare and they tell the story; a truncated timeline
+ * is worth nothing.
  */
 export async function pruneMonitorChecks(
   days: number,

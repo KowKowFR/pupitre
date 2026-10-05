@@ -1,24 +1,23 @@
 #!/usr/bin/env bash
 #
-# Prépare l'instance GitLab de test : un groupe et son sous-groupe, un projet
-# avec son pupitre.json, un jeton de projet. Rejouable — ce qui existe déjà est
-# repris.
+# Prepares the test GitLab instance: a group and its subgroup, a project with
+# its pupitre.json, a project token. Replayable — what already exists is reused.
 #
-#   docker compose --profile test up -d gitlab   # plusieurs minutes au premier démarrage
-#   ./scripts/test-gitlab/setup.sh               # écrit le jeton du projet sur la sortie
+#   docker compose --profile test up -d gitlab   # several minutes at first start
+#   ./scripts/test-gitlab/setup.sh               # writes the project token to the output
 #
-# Le projet `atelier/web/bonjour` — dans un sous-groupe, comme souvent chez
-# GitLab — porte une application `bonjour-gitlab` construite depuis son
-# Dockerfile (busybox httpd, port 8080) : de quoi éprouver la liaison, le
-# polling, la construction et les statuts de commit.
+# The `atelier/web/bonjour` project — in a subgroup, as often at GitLab —
+# carries a `bonjour-gitlab` application built from its Dockerfile (busybox
+# httpd, port 8080): enough to try out the link, the polling, the build and the
+# commit statuses.
 #
-# Le jeton rendu est celui que Pupitre recevrait en vrai : un jeton de projet,
-# rôle Maintainer, portée `api` — `main` est protégée, et GitLab n'y accepte un
-# statut de commit que de qui peut y pousser. Pour fabriquer tout cela, le script se sert
-# d'un jeton d'administration, créé une fois par `gitlab-rails runner` (lent :
-# plusieurs minutes sur une petite machine) puis gardé dans le volume de
-# configuration de l'instance (`/etc/gitlab/pupitre-admin-token`). Il ne sort
-# jamais de la machine ; `verify-source-gitlab.sh` le relit au même endroit.
+# The returned token is the one Pupitre would receive for real: a project token,
+# Maintainer role, `api` scope — `main` is protected, and GitLab only accepts a
+# commit status there from whoever can push to it. To make all of this, the
+# script uses an administration token, created once through `gitlab-rails
+# runner` (slow: several minutes on a small machine) then kept in the instance's
+# configuration volume (`/etc/gitlab/pupitre-admin-token`). It never leaves the
+# machine; `verify-source-gitlab.sh` reads it again at the same place.
 #
 set -euo pipefail
 
@@ -39,13 +38,13 @@ api() {
   [ -n "$data" ] && args+=(--data-binary "$data")
   curl "${args[@]}"
 }
-die() { echo "$1 : HTTP $2 $(cat "$OUT")" >&2; exit 1; }
+die() { echo "$1: HTTP $2 $(cat "$OUT")" >&2; exit 1; }
 
-# ─── Le jeton d'administration ────────────────────────────────────────────────
+# ─── The administration token ─────────────────────────────────────────────────
 ADMIN_TOKEN=$(docker compose exec -T gitlab cat "$TOKEN_FILE" 2>/dev/null || true)
 if [ -z "$ADMIN_TOKEN" ] || [ "$(api GET /user)" != "200" ]; then
   ADMIN_TOKEN="pupitre-admin-$(openssl rand -hex 16)"
-  echo "jeton d'administration : gitlab-rails runner, quelques minutes…" >&2
+  echo "administration token: gitlab-rails runner, a few minutes…" >&2
   docker compose exec -T -e PUPITRE_TOKEN="$ADMIN_TOKEN" gitlab gitlab-rails runner '
     user = User.find_by_username("root")
     user.personal_access_tokens.where(name: "pupitre-setup").each(&:revoke!)
@@ -55,11 +54,11 @@ if [ -z "$ADMIN_TOKEN" ] || [ "$(api GET /user)" != "200" ]; then
     token.save!
   ' >&2
   printf '%s' "$ADMIN_TOKEN" | docker compose exec -T gitlab sh -c "umask 077 && cat > $TOKEN_FILE"
-  [ "$(api GET /user)" = "200" ] || die "jeton d'administration refusé" "$(api GET /user)"
+  [ "$(api GET /user)" = "200" ] || die "administration token refused" "$(api GET /user)"
 fi
 
-# ─── Le groupe, le sous-groupe, le projet ─────────────────────────────────────
-namespace_id() { # chemin complet → id, vide s'il n'existe pas
+# ─── The group, the subgroup, the project ─────────────────────────────────────
+namespace_id() { # full path → id, empty if it does not exist
   local code
   code=$(api GET "/groups/$(jq -rn --arg p "$1" '$p | @uri')")
   [ "$code" = "200" ] && jq -r .id "$OUT" || true
@@ -68,14 +67,14 @@ namespace_id() { # chemin complet → id, vide s'il n'existe pas
 GROUP_ID=$(namespace_id "$GROUP")
 if [ -z "$GROUP_ID" ]; then
   code=$(api POST /groups "$(jq -n --arg p "$GROUP" '{name:$p, path:$p, visibility:"private"}')")
-  [ "$code" = "201" ] || die "groupe $GROUP" "$code"
+  [ "$code" = "201" ] || die "group $GROUP" "$code"
   GROUP_ID=$(jq -r .id "$OUT")
 fi
 SUBGROUP_ID=$(namespace_id "$GROUP/$SUBGROUP")
 if [ -z "$SUBGROUP_ID" ]; then
   code=$(api POST /groups "$(jq -n --arg p "$SUBGROUP" --argjson parent "$GROUP_ID" \
     '{name:$p, path:$p, parent_id:$parent, visibility:"private"}')")
-  [ "$code" = "201" ] || die "sous-groupe $SUBGROUP" "$code"
+  [ "$code" = "201" ] || die "subgroup $SUBGROUP" "$code"
   SUBGROUP_ID=$(jq -r .id "$OUT")
 fi
 
@@ -85,11 +84,11 @@ code=$(api GET "/projects/$ENCODED")
 if [ "$code" = "404" ]; then
   code=$(api POST /projects "$(jq -n --arg p "$PROJECT" --argjson ns "$SUBGROUP_ID" \
     '{name:$p, path:$p, namespace_id:$ns, visibility:"private", initialize_with_readme:true, default_branch:"main"}')")
-  [ "$code" = "201" ] || die "projet $FULL" "$code"
+  [ "$code" = "201" ] || die "project $FULL" "$code"
 fi
 
-# ─── Ses fichiers, en un commit ───────────────────────────────────────────────
-action_for() { # create ou update, selon que le fichier existe sur main
+# ─── Its files, in one commit ─────────────────────────────────────────────────
+action_for() { # create or update, depending on whether the file exists on main
   local code
   code=$(api GET "/projects/$ENCODED/repository/files/$(jq -rn --arg p "$1" '$p | @uri')?ref=main")
   [ "$code" = "200" ] && echo update || echo create
@@ -108,16 +107,16 @@ body=$(jq -n \
      {action:$a2, file_path:"app/Dockerfile", content:$dockerfile},
      {action:$a3, file_path:"app/index.html", content:$page}]}')
 code=$(api POST "/projects/$ENCODED/repository/commits" "$body")
-[ "$code" = "201" ] || die "commit des fichiers" "$code"
+[ "$code" = "201" ] || die "files commit" "$code"
 
-# ─── Le jeton du projet, neuf à chaque passage ────────────────────────────────
-# GitLab ne rend sa valeur qu'à la création : les anciens sont révoqués.
+# ─── The project token, new at each pass ──────────────────────────────────────
+# GitLab only returns its value at creation: the old ones are revoked.
 code=$(api GET "/projects/$ENCODED/access_tokens")
-[ "$code" = "200" ] || die "jetons du projet" "$code"
+[ "$code" = "200" ] || die "project tokens" "$code"
 for id in $(jq -r '.[] | select(.name == "pupitre-test" and .revoked == false) | .id' "$OUT"); do
   api DELETE "/projects/$ENCODED/access_tokens/$id" >/dev/null
 done
 code=$(api POST "/projects/$ENCODED/access_tokens" "$(jq -n --arg e "$(date -u -v+30d +%F 2>/dev/null || date -u -d '+30 days' +%F)" \
   '{name:"pupitre-test", scopes:["api"], access_level:40, expires_at:$e}')")
-[ "$code" = "201" ] || die "jeton du projet" "$code"
+[ "$code" = "201" ] || die "project token" "$code"
 jq -r .token "$OUT"

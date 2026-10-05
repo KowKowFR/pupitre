@@ -18,17 +18,18 @@ export { BRAND_MARK, EMAIL_COLORS, type InlineImage } from './brand.js';
 export { SmtpChannel, nodemailerTransport, smtpOptionsFrom, smtpSenderFrom } from './smtp.js';
 
 /**
- * Fabrique de canaux de notification.
+ * Notification channel factory.
  *
- * Même forme que `getDriver()`, `getScanner()` et `getAiProviderFactory()` : un
- * registre indexé par la clé, une implémentation par canal, et **aucun**
- * `if (kind === …)` ailleurs dans le projet. Le type `Record<…>` est la
- * garantie qu'un canal déclaré au catalogue sans fabrique ne compile pas.
+ * The same shape as `getDriver()`, `getScanner()` and `getAiProviderFactory()`:
+ * a registry indexed by key, one implementation per channel, and **no**
+ * `if (kind === …)` elsewhere in the project. The `Record<…>` type is the
+ * guarantee that a channel declared in the catalog without a factory does not
+ * compile.
  *
- * Les transports sont passés à la construction plutôt qu'importés par les
- * implémentations. C'est ce qui permet à un test de fournir un faux `fetch` et
- * un faux transport SMTP, donc d'exercer la forme exacte de chaque charge utile
- * sans réseau, sans serveur d'e-mail et sans jeton.
+ * Transports are passed at construction rather than imported by the
+ * implementations. That is what lets a test provide a fake `fetch` and a fake
+ * SMTP transport, hence exercise each payload's exact shape without network,
+ * without a mail server and without a token.
  */
 const registry: Record<
   NotificationChannelKind,
@@ -41,13 +42,13 @@ const registry: Record<
 };
 
 /**
- * Borne d'un appel sortant.
+ * Bound of an outgoing call.
  *
- * Quinze secondes : un serveur SMTP lent met dix à vingt secondes à accepter
- * une session, et l'essai déclenché depuis l'écran attend la réponse (voir la
- * route `/api/notifications/channels/[id]/test`). Plus court couperait des
- * serveurs légitimes ; plus long tiendrait la requête HTTP ouverte au-delà de
- * ce qu'un opérateur accepte de regarder.
+ * Fifteen seconds: a slow SMTP server takes ten to twenty seconds to accept a
+ * session, and the test triggered from the screen waits for the answer (see the
+ * `/api/notifications/channels/[id]/test` route). Shorter would cut legitimate
+ * servers; longer would keep the HTTP request open beyond what an operator
+ * accepts to watch.
  */
 export const NOTIFICATION_TIMEOUT_MS = 15_000;
 

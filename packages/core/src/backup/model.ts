@@ -3,25 +3,24 @@ import { parseImageReference } from '../images/reference.js';
 import type { AppSpec } from '../spec/index.js';
 
 /**
- * Les sauvegardes — le vocabulaire, le plan, la rétention. Rien ici n'exécute :
- * le worker fait, les drivers savent comment, ce module dit **quoi**.
+ * Backups — the vocabulary, the plan, the retention. Nothing here runs: the
+ * worker does, the drivers know how, this module says **what**.
  *
- * ── Ce qui est sauvegardé ───────────────────────────────────────────────────
- *   - la base du panel : `pg_dump` du PostgreSQL de Pupitre ;
- *   - par application, les données déclarées par son AppSpec : les volumes,
- *     et pour une base de données reconnue, un **export logique** plutôt que la
- *     copie de ses fichiers.
+ * ── What is backed up ───────────────────────────────────────────────────────
+ *   - the panel's database: `pg_dump` of Pupitre's PostgreSQL;
+ *   - per application, the data declared by its AppSpec: the volumes, and for a
+ *     recognized database, a **logical export** rather than a copy of its files.
  *
- * ── Pourquoi un export plutôt que les fichiers, pour une base ───────────────
- * Copier le répertoire de PostgreSQL pendant qu'il écrit, c'est photographier
- * une page en train d'être tournée : l'archive se restaure, la base refuse de
- * démarrer. L'export (`pg_dumpall`, `mysqldump`, `mongodump`) est cohérent par
- * construction, sans arrêter quoi que ce soit.
+ * ── Why an export rather than the files, for a database ─────────────────────
+ * Copying PostgreSQL's directory while it writes is photographing a page being
+ * turned: the archive restores, the database refuses to start. The export
+ * (`pg_dumpall`, `mysqldump`, `mongodump`) is consistent by construction,
+ * without stopping anything.
  *
- * Le mode « arrêt bref » renverse l'arbitrage : l'application est arrêtée le
- * temps de copier ses volumes — bases comprises, alors cohérentes —, puis
- * relancée. C'est la seule façon de sauvegarder proprement une base que le
- * panel ne reconnaît pas.
+ * The "brief stop" mode reverses the trade-off: the application is stopped
+ * while its volumes are copied — databases included, then consistent —, then
+ * restarted. It is the only way to cleanly back up a database the panel does not
+ * recognize.
  */
 
 export const BACKUP_MODES = ['hot', 'stop'] as const;
@@ -40,18 +39,17 @@ export const BACKUP_KINDS = ['application', 'panel'] as const;
 export const backupKindSchema = z.enum(BACKUP_KINDS);
 export type BackupKind = z.infer<typeof backupKindSchema>;
 
-// ─── bases de données reconnues ──────────────────────────────────────────────
+// ─── recognized databases ────────────────────────────────────────────────────
 
 export const BACKUP_ENGINES = ['postgres', 'mysql', 'mongo'] as const;
 export const backupEngineSchema = z.enum(BACKUP_ENGINES);
 export type BackupEngine = z.infer<typeof backupEngineSchema>;
 
 /**
- * Les images dont on connaît l'outil d'export **et** les variables
- * d'environnement d'administration. Une image de base qui n'est pas ici
- * (`bitnami/postgresql`, qui nomme ses variables autrement, par exemple) n'est
- * pas devinée : ses volumes sont copiés comme les autres, et l'écran conseille
- * l'arrêt bref.
+ * The images whose export tool **and** administration environment variables we
+ * know. A database image that is not here (`bitnami/postgresql`, which names its
+ * variables differently, for example) is not guessed: its volumes are copied
+ * like the others, and the screen advises the brief stop.
  */
 const ENGINE_REPOSITORIES: Record<string, BackupEngine> = {
   'library/postgres': 'postgres',
@@ -71,23 +69,23 @@ export function databaseEngineOf(image: string): BackupEngine | null {
 }
 
 /**
- * Les commandes, lancées **dans** le conteneur de la base, sous `sh -c` : elles
- * lisent les identifiants dans l'environnement que l'image a déjà reçu — le
- * panel ne les manipule jamais. La sortie (export) ou l'entrée (restauration)
- * est le flux brut ; le worker compresse et chiffre de son côté.
+ * The commands, run **inside** the database's container, under `sh -c`: they
+ * read the credentials from the environment the image already received — the
+ * panel never handles them. The output (export) or the input (restore) is the
+ * raw stream; the worker compresses and encrypts on its side.
  *
- * PostgreSQL : `pg_dumpall --clean` recrée bases, rôles et objets. Avant de
- * rejouer, les connexions de l'application sont coupées et les bases fermées
- * aux nouvelles — sans quoi `DROP DATABASE` échoue sur une base en usage.
+ * PostgreSQL: `pg_dumpall --clean` recreates databases, roles and objects.
+ * Before replaying, the application's connections are cut and the databases
+ * closed to new ones — otherwise `DROP DATABASE` fails on a database in use.
  *
- * MySQL / MariaDB : les bases applicatives seulement — `mysql`, `sys` et les
- * schémas d'information appartiennent au serveur, les réécrire casserait ses
- * comptes. MariaDB 11 a retiré les alias `mysql*` : on prend l'outil présent.
+ * MySQL / MariaDB: the application databases only — `mysql`, `sys` and the
+ * information schemas belong to the server, rewriting them would break its
+ * accounts. MariaDB 11 removed the `mysql*` aliases: we take the tool present.
  */
 /**
- * Les arguments d'authentification MySQL, en paramètres positionnels : un mot
- * de passe vide ne doit pas devenir `-p` tout court, qui réclamerait une saisie
- * au clavier, et un mot de passe à espaces ne doit pas être coupé en deux.
+ * MySQL authentication arguments, as positional parameters: an empty password
+ * must not become a bare `-p`, which would ask for keyboard input, and a
+ * password with spaces must not be cut in two.
  */
 const MYSQL_AUTH =
   'PW="${MARIADB_ROOT_PASSWORD:-${MYSQL_ROOT_PASSWORD:-}}"; set -- -uroot; ' +
@@ -131,7 +129,7 @@ const RESTORE_COMMANDS: Record<BackupEngine, string> = {
     'else mongorestore --quiet --archive --drop; fi',
 };
 
-/** La base accepte-t-elle des connexions ? Avant de lui rejouer un export. */
+/** Does the database accept connections? Before replaying an export into it. */
 const READY_COMMANDS: Record<BackupEngine, string> = {
   postgres: 'pg_isready -q -U "${POSTGRES_USER:-postgres}"',
   mysql: `${MYSQL_AUTH}; "$CLI" "$@" -e "SELECT 1" >/dev/null`,
@@ -154,7 +152,7 @@ export function restoreCommand(engine: BackupEngine): string {
   return RESTORE_COMMANDS[engine];
 }
 
-// ─── le plan d'une sauvegarde ────────────────────────────────────────────────
+// ─── a backup's plan ─────────────────────────────────────────────────────────
 
 export const backupPieceSchema = z.discriminatedUnion('kind', [
   z.object({
@@ -168,13 +166,12 @@ export const backupPieceSchema = z.discriminatedUnion('kind', [
 export type BackupPiece = z.infer<typeof backupPieceSchema>;
 
 /**
- * Ce qu'une sauvegarde de cette application contiendra, dans ce mode.
+ * What a backup of this application will contain, in this mode.
  *
- * À chaud : une base reconnue est exportée (et ses volumes ne sont **pas**
- * copiés — une copie incohérente donnerait une fausse assurance) ; les autres
- * volumes sont archivés. À l'arrêt : tous les volumes sont archivés, ils sont
- * alors cohérents, et rien n'est exporté — il n'y a plus de serveur à qui
- * demander.
+ * Hot: a recognized database is exported (and its volumes are **not** copied —
+ * an inconsistent copy would give false assurance); the other volumes are
+ * archived. Stopped: every volume is archived, they are then consistent, and
+ * nothing is exported — there is no server left to ask.
  */
 export function planBackup(spec: AppSpec, mode: BackupMode): BackupPiece[] {
   const pieces: BackupPiece[] = [];
@@ -199,7 +196,7 @@ export function planBackup(spec: AppSpec, mode: BackupMode): BackupPiece[] {
   return pieces;
 }
 
-/** Les services dont des volumes seront copiés à chaud sans être reconnus comme base. */
+/** The services whose volumes will be copied hot without being recognized as a database. */
 export function hotCopiedServices(spec: AppSpec): string[] {
   return spec.services
     .filter(
@@ -210,12 +207,12 @@ export function hotCopiedServices(spec: AppSpec): string[] {
     .map((service) => service.name);
 }
 
-/** Une application sans volume n'a rien à sauvegarder : tout est dans son AppSpec. */
+/** An application without a volume has nothing to back up: everything is in its AppSpec. */
 export function hasBackupData(spec: AppSpec): boolean {
   return spec.services.some((service) => service.volumes.length > 0);
 }
 
-// ─── le manifeste, rangé avec les morceaux ───────────────────────────────────
+// ─── the manifest, stored with the pieces ────────────────────────────────────
 
 export const storedPieceSchema = z.discriminatedUnion('kind', [
   z.object({
@@ -245,9 +242,9 @@ export const storedPieceSchema = z.discriminatedUnion('kind', [
 export type StoredPiece = z.infer<typeof storedPieceSchema>;
 
 /**
- * Ce qu'une sauvegarde contient, rangé **avec** elle sur la destination. Une
- * destination se relit sans la base du panel : c'est précisément ce qu'on veut
- * le jour où la base est perdue.
+ * What a backup contains, stored **with** it on the destination. A destination
+ * can be read again without the panel's database: that is precisely what we
+ * want the day the database is lost.
  */
 export const backupManifestSchema = z.object({
   format: z.literal(1),
@@ -258,7 +255,7 @@ export const backupManifestSchema = z.object({
   trigger: backupTriggerSchema,
   application: z.object({ id: z.string(), slug: z.string() }).nullable(),
   target: z.object({ id: z.string(), name: z.string(), runtime: z.string() }).nullable(),
-  /** L'AppSpec en service au moment de la sauvegarde. */
+  /** The AppSpec in service at the time of the backup. */
   spec: z.unknown().nullable(),
   pieces: z.array(storedPieceSchema),
 });
@@ -266,7 +263,7 @@ export type BackupManifest = z.infer<typeof backupManifestSchema>;
 
 export const MANIFEST_FILE = 'manifest.json.pupb';
 
-/** Le nom d'un morceau, dans le dossier de sa sauvegarde. */
+/** A piece's name, in its backup's folder. */
 export function pieceFile(piece: BackupPiece): string {
   const safe = (value: string) => value.replace(/[^a-z0-9-]/gi, '_');
   return piece.kind === 'volume'
@@ -274,7 +271,7 @@ export function pieceFile(piece: BackupPiece): string {
     : `dump-${safe(piece.service)}-${piece.engine}.gz.pupb`;
 }
 
-/** `apps/blog/2026-10-01T03-00-00Z-1a2b3c4d` — triable, lisible, unique. */
+/** `apps/blog/2026-10-01T03-00-00Z-1a2b3c4d` — sortable, readable, unique. */
 export function backupFolder(kind: BackupKind, slug: string | null, id: string, at: Date): string {
   const stamp = at
     .toISOString()
@@ -284,10 +281,10 @@ export function backupFolder(kind: BackupKind, slug: string | null, id: string, 
   return kind === 'panel' ? `panel/${leaf}` : `apps/${slug ?? 'inconnue'}/${leaf}`;
 }
 
-// ─── rétention ───────────────────────────────────────────────────────────────
+// ─── retention ───────────────────────────────────────────────────────────────
 
 export const backupRetentionSchema = z.object({
-  /** Les plus récentes, quoi qu'il arrive — un avant-déploiement survit à la nuit. */
+  /** The most recent ones, whatever happens — a pre-deployment backup survives the night. */
   keepLast: z.number().int().min(1).max(100).default(3),
   daily: z.number().int().min(0).max(365).default(7),
   weekly: z.number().int().min(0).max(104).default(4),
@@ -296,7 +293,7 @@ export const backupRetentionSchema = z.object({
 export type BackupRetention = z.infer<typeof backupRetentionSchema>;
 export const DEFAULT_BACKUP_RETENTION: BackupRetention = backupRetentionSchema.parse({});
 
-/** Lundi de la semaine ISO, en UTC : la clé d'un « seau » hebdomadaire. */
+/** Monday of the ISO week, in UTC: the key of a weekly "bucket". */
 function weekKey(date: Date): string {
   const day = (date.getUTCDay() + 6) % 7;
   const monday = new Date(
@@ -306,10 +303,10 @@ function weekKey(date: Date): string {
 }
 
 /**
- * Grand-père, père, fils : on garde les `keepLast` plus récentes, puis la plus
- * récente de chacun des `daily` derniers jours, des `weekly` dernières semaines
- * et des `monthly` derniers mois. Tout le reste est rendu — seulement des
- * sauvegardes **réussies** : un échec n'occupe aucune place et ne protège rien.
+ * Grandfather, father, son: we keep the `keepLast` most recent, then the most
+ * recent of each of the last `daily` days, the last `weekly` weeks and the last
+ * `monthly` months. All the rest is returned — only **successful** backups: a
+ * failure takes no room and protects nothing.
  */
 export function expiredBackups<T extends { id: string; createdAt: Date }>(
   backups: readonly T[],
@@ -336,13 +333,13 @@ export function expiredBackups<T extends { id: string; createdAt: Date }>(
   return sorted.filter((backup) => !keep.has(backup.id));
 }
 
-// ─── politique par application ───────────────────────────────────────────────
+// ─── policy per application ──────────────────────────────────────────────────
 
 export const backupPolicySchema = z.object({
-  /** Sauvegardée par la tâche planifiée « Sauvegardes des applications ». */
+  /** Backed up by the "Application backups" scheduled task. */
   enabled: z.boolean().default(false),
   mode: backupModeSchema.default('hot'),
-  /** Une sauvegarde avant chaque déploiement — mise à jour d'image comprise. */
+  /** A backup before each deployment — image update included. */
   beforeDeploy: z.boolean().default(false),
   retention: backupRetentionSchema.default(DEFAULT_BACKUP_RETENTION),
 });

@@ -10,7 +10,7 @@ export function findCatalogTemplate(id: string): CatalogTemplate | null {
   return CATALOG_TEMPLATES.find((template) => template.id === id) ?? null;
 }
 
-/** Un nom de domaine, sans schéma ni chemin : `outils.atelier-nord.fr`. */
+/** A domain name, without scheme or path: `tools.example.com`. */
 const hostSchema = z
   .string()
   .trim()
@@ -21,7 +21,7 @@ const hostSchema = z
     'nom de domaine attendu, sans https:// ni chemin',
   );
 
-/** Ce que la route d'installation reçoit, avant d'appeler le modèle. */
+/** What the install route receives, before calling the template. */
 export const catalogParamsSchema = z.object({
   name: slugSchema,
   host: hostSchema.nullable().default(null),
@@ -30,11 +30,11 @@ export const catalogParamsSchema = z.object({
 });
 
 /**
- * Un modèle, rendu en AppSpec **validée**.
+ * A template, rendered as a **validated** AppSpec.
  *
- * Le modèle est du code de confiance, mais il passe par le même schéma que le
- * reste : un modèle cassé échoue ici, à l'installation, avec les reproches de
- * Zod — pas au déploiement, sur une cible, trois étapes plus loin.
+ * The template is trusted code, but it goes through the same schema as the rest:
+ * a broken template fails here, at install time, with Zod's complaints — not at
+ * deployment, on a target, three steps further.
  */
 export function instantiateCatalogTemplate(
   template: CatalogTemplate,

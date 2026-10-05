@@ -14,10 +14,10 @@ import { UserMenu } from './user-menu';
 export type RailOnboarding = { done: number; total: number; next: string } | null;
 
 /**
- * Le rail — 240 px sur `bg-subtle`. En tête, l'instance et la recherche ⌘K ;
- * puis « Exploitation » et « Administration », chacun réduit à ce que la
- * session peut ouvrir ; en pied, la carte de démarrage tant que l'assistant
- * n'est pas tranché, et l'utilisateur.
+ * The rail — 240 px on `bg-subtle`. At the top, the instance and the ⌘K search;
+ * then "Operations" and "Administration", each reduced to what the session can
+ * open; at the bottom, the getting started card as long as the assistant is not
+ * settled, and the user.
  */
 export async function Rail({
   instance,

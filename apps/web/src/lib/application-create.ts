@@ -12,18 +12,18 @@ import { applications as messages } from '@/i18n/messages/applications';
 import { ConflictError, msg } from './errors';
 
 /**
- * Créer une application : la même suite de gestes quelle que soit l'origine de
- * son AppSpec — formulaire, IA, import Compose, catalogue ou dépôt GitHub. Le
- * nom libre, les secrets déclarés pourvus d'une valeur, et le journal qui dit
- * d'où elle vient.
+ * Creating an application: the same sequence of gestures whatever the origin of
+ * its AppSpec — form, AI, Compose import, catalog or GitHub repository. The free
+ * name, the declared secrets given a value, and the log that says where it comes
+ * from.
  */
 export async function createApplicationFromSpec(input: {
   appSpec: AppSpec;
   description?: string;
   generation?: GenerationOrigin;
-  /** D'où vient l'AppSpec, pour le journal ; `generation` dit l'IA à lui seul. */
+  /** Where the AppSpec comes from, for the log; `generation` says AI by itself. */
   origin: 'manual' | 'compose' | 'repository';
-  /** Ce que le journal retient en plus de l'origine (le dépôt, la branche…). */
+  /** What the log keeps on top of the origin (the repository, the branch…). */
   originDetail?: Record<string, unknown>;
   secrets: Record<string, string>;
   actorId: string;
@@ -48,11 +48,11 @@ export async function createApplicationFromSpec(input: {
     ownerId: input.actorId,
   });
 
-  // Les secrets déclarés reçoivent tout de suite une valeur générée : un
-  // déploiement ne doit jamais échouer parce que personne n'a pensé à les
-  // renseigner. Une valeur venue de l'extérieur se pose ensuite, par PUT.
+  // The declared secrets receive a generated value right away: a deployment must
+  // never fail because nobody thought of filling them in. A value from outside is
+  // set afterwards, through PUT.
   const generated = await syncApplicationSecrets(application.id, input.appSpec);
-  // Puis celles qu'on a choisies remplacent les valeurs tirées au sort.
+  // Then the chosen ones replace the randomly drawn values.
   for (const [name, value] of Object.entries(input.secrets)) {
     await setApplicationSecret(application.id, name, value, 'provided');
   }
@@ -71,12 +71,12 @@ export async function createApplicationFromSpec(input: {
             origin: 'ai',
             model: input.generation.model,
             prompt: input.generation.prompt,
-            // Une spec acceptée telle quelle et une spec retouchée ne racontent
-            // pas la même histoire : le journal doit les distinguer.
+            // A spec accepted as is and a reworked spec do not tell the same story: the log
+            // must tell them apart.
             edited: JSON.stringify(input.generation.appSpec) !== JSON.stringify(input.appSpec),
           }
         : { origin: input.origin, ...(input.originDetail ?? {}) }),
-      // Les noms, jamais les valeurs.
+      // The names, never the values.
       secretsGenerated: generated.filter((name) => !(name in input.secrets)),
       secretsProvided: Object.keys(input.secrets),
     },

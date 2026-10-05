@@ -1,8 +1,8 @@
 /**
- * `@pupitre/core/backup` — ce qui **exécute** : chiffrement en flux, accès aux
- * destinations. Hors de l'index principal, pour que `ssh2` et le réseau restent
- * hors du graphe du panel Next. Le vocabulaire pur (modèle, destinations) est,
- * lui, réexporté par l'index principal.
+ * `@pupitre/core/backup` — what **runs**: stream encryption, access to the
+ * destinations. Outside the main index, so that `ssh2` and the network stay out
+ * of the Next panel's graph. The pure vocabulary (model, destinations) is
+ * re-exported by the main index.
  */
 export * from './model.js';
 export * from './destinations.js';

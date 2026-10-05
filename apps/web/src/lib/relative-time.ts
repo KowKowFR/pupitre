@@ -2,9 +2,9 @@ import type { Translate } from '@pupitre/core';
 import type { common } from '@/i18n/messages/common';
 
 /**
- * « il y a 27 min ». Le calcul se fait côté serveur, au rendu : un composant
- * client qui lirait l'horloge pendant son rendu ne donnerait pas la même
- * chaîne que le serveur, et React le signalerait à l'hydratation.
+ * "27 min ago". The computation is done on the server side, at render time: a
+ * client component that read the clock during its render would not give the same
+ * string as the server, and React would report it at hydration.
  */
 export function relativeTime(
   date: Date | string | null,

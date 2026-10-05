@@ -25,24 +25,24 @@ import { ThresholdsDialog } from './thresholds-dialog';
 import { useHostMetrics, type MetricsEntry } from './use-host-metrics';
 
 /**
- * Les serveurs, et sous chacun ses applications.
+ * The servers, and under each one its applications.
  *
- * L'écran est bâti dans ce sens-là : une machine existe indépendamment de ce
- * qu'elle porte, alors qu'une application n'existe nulle part sans machine.
- * Lister les applications à plat obligeait à relire la colonne « Cible » ligne
- * après ligne pour reconstituer mentalement le parc.
+ * The screen is built in that direction: a machine exists independently of what
+ * it carries, whereas an application exists nowhere without a machine. Listing
+ * the applications flat forced one to read the "Target" column row after row to
+ * rebuild the fleet mentally.
  *
- * **Une machine injoignable ne fait pas disparaître ses applications.** La
- * liste des applications vient de la base, le relevé vient de la machine : ce
- * sont deux sources, et l'échec de la seconde ne doit jamais effacer la
- * première. Un serveur éteint affiche donc « injoignable » à la place de ses
- * relevés, et garde son dépliant intact — c'est précisément le moment où on a
- * besoin de savoir ce qui était censé y tourner.
+ * **An unreachable machine does not make its applications disappear.** The list
+ * of applications comes from the database, the reading comes from the machine:
+ * they are two sources, and the second one's failure must never erase the first.
+ * A server turned off therefore shows "unreachable" in place of its readings,
+ * and keeps its disclosure intact — it is precisely the moment one needs to know
+ * what was supposed to run there.
  *
- * **Et il garde aussi son passé.** L'historique est une troisième source — la
- * base, encore — rendue avec la page. Une machine qui ne répond plus affiche
- * donc « injoignable » *au-dessus* de la courbe des dernières 24 h, celle qui
- * dit peut-être pourquoi elle ne répond plus.
+ * **And it also keeps its past.** The history is a third source — the database,
+ * again — rendered with the page. A machine that no longer answers therefore
+ * shows "unreachable" *above* the curve of the last 24 h, the one that perhaps
+ * says why it no longer answers.
  */
 
 export type ServerRow = {
@@ -52,9 +52,9 @@ export type ServerRow = {
   port: number | null;
   sshUser: string | null;
   status: TargetHealth;
-  /** `null` quand la cible n'est connue que par les déploiements qui la citent. */
+  /** `null` when the target is only known through the deployments that mention it. */
   runtimes: RuntimesAvailable | null;
-  /** La cible figure dans la table `targets` et peut donc être relevée. */
+  /** The target is in the `targets` table and can therefore be read. */
   registered: boolean;
   apps: SupervisedRow[];
 };
@@ -76,9 +76,9 @@ const STATUS_TONE: Record<TargetHealth, Tone> = {
 };
 
 /**
- * Une machine est « à surveiller » quand elle-même ne va pas bien, qu'un seuil
- * est franchi en ce moment, ou qu'une de ses applications est en peine — elle
- * répond mal, ou sa dernière mise à jour a échoué.
+ * A machine is "to watch" when it is not doing well itself, a threshold is
+ * crossed right now, or one of its applications is struggling — it answers
+ * badly, or its last update failed.
  */
 function needsWatch(server: ServerRow, history: HostHistoryData | undefined): boolean {
   return (
@@ -89,7 +89,7 @@ function needsWatch(server: ServerRow, history: HostHistoryData | undefined): bo
   );
 }
 
-/** Depuis quand le relevé date. Un relevé sans âge affiché serait un relevé qu'on croit frais. */
+/** How old the reading is. A reading without a displayed age would be believed fresh. */
 function relevanceLabel(entry: MetricsEntry | undefined, t: T): string | null {
   if (entry === undefined || entry.state === 'loading') return null;
   const seconds = Math.max(0, Math.round((Date.now() - entry.at) / 1000));
@@ -116,12 +116,12 @@ function ServerCard({
 }: {
   server: ServerRow;
   entry: MetricsEntry | undefined;
-  /** Absent quand la machine n'est pas une cible enregistrée : rien à relire. */
+  /** Absent when the machine is not a registered target: nothing to read again. */
   history: HostHistoryData | undefined;
   canProbe: boolean;
   canRestart: boolean;
   canReadTargets: boolean;
-  /** `target:update` : régler un seuil, c'est décrire la machine. */
+  /** `target:update`: setting a threshold is describing the machine. */
   canTune: boolean;
   format: FormatSettings;
   onRefresh: () => void;
@@ -147,17 +147,17 @@ function ServerCard({
   );
 
   return (
-    // `data-server-id` : la seule façon de prouver le regroupement depuis
-    // l'extérieur — le script de vérification découpe la page sur cet attribut
-    // et vérifie qu'une application n'apparaît que sous sa cible.
+    // `data-server-id`: the only way to prove the grouping from the outside — the
+    // verification script cuts the page on this attribute and checks that an
+    // application only appears under its target.
     <section className="card overflow-hidden" aria-label={server.name} data-server-id={server.id}>
       <Collapsible defaultOpen>
         <div className="card-h flex-wrap gap-y-2 !px-4 !py-3">
           {hasApps ? (
             <CollapsibleTrigger className="min-w-0 gap-2.5">{identity}</CollapsibleTrigger>
           ) : (
-            // Pas de dépliant sur un serveur vide : ouvrir pour ne rien trouver
-            // est une promesse non tenue. Le badge, à côté, dit déjà tout.
+            // No disclosure on an empty server: opening it to find nothing is a broken
+            // promise. The badge, next to it, already says everything.
             <span className="flex min-w-0 items-center gap-2.5 pl-[26px]">{identity}</span>
           )}
           <State tone={STATUS_TONE[server.status]}>{t(STATUS_KEY[server.status])}</State>
@@ -233,15 +233,15 @@ export function ServersList({
   record,
 }: {
   servers: ServerRow[];
-  /** L'historique, par identifiant de cible. Vient de la base, avec la page. */
+  /** The history, per target identifier. Comes from the database, with the page. */
   history: Record<string, HostHistoryData>;
   canRestart: boolean;
-  /** Sans `target:read`, aucun relevé n'est demandé : la route le refuserait. */
+  /** Without `target:read`, no reading is requested: the route would refuse it. */
   canReadTargets: boolean;
   canTune: boolean;
-  /** Le formatage descend par props : cette liste est cliente, la locale non. */
+  /** Formatting comes down through props: this list is a client one, the locale is not. */
   format: FormatSettings;
-  /** L'application ouverte, rendue au serveur. */
+  /** The open application, rendered on the server. */
   record: RunningAppRecordView | null;
 }) {
   const t = useT(messages);
@@ -253,8 +253,8 @@ export function ServersList({
   );
   const current = apps.find((app) => app.id === drawer.selected) ?? null;
 
-  // Seules les cibles réellement enregistrées peuvent être relevées : une
-  // machine connue par le seul souvenir d'un déploiement n'a plus de credential.
+  // Only the targets really registered can be read: a machine known only through
+  // a deployment's memory no longer has a credential.
   const probeIds = canReadTargets
     ? servers.filter((server) => server.registered).map((server) => server.id)
     : [];

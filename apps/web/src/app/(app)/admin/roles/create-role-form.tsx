@@ -12,7 +12,7 @@ import { common } from '@/i18n/messages/common';
 
 type ApiError = { error?: { message?: string } };
 
-/** Dérive une clé kebab-case depuis le nom saisi, sans écraser une saisie manuelle. */
+/** Derives a kebab-case key from the typed name, without overwriting a manual entry. */
 export function toKey(label: string): string {
   return label
     .normalize('NFD')
@@ -26,9 +26,9 @@ export function toKey(label: string): string {
 export type CreatedRole = { key: string; label: string };
 
 /**
- * `onCreated` est le point d'extension de l'assistant de démarrage : même
- * route, même validation, même audit — seule la suite diffère. Absent, le
- * formulaire se comporte exactement comme avant.
+ * `onCreated` is the onboarding assistant's extension point: same route, same
+ * validation, same audit — only what follows differs. Absent, the form behaves
+ * exactly as before.
  */
 export function CreateRoleForm({
   existingKeys,
@@ -62,8 +62,8 @@ export function CreateRoleForm({
         key: effectiveKey,
         label: label.trim(),
         ...(description.trim() ? { description: description.trim() } : {}),
-        // Un rôle naît sans aucune permission : on les coche ensuite,
-        // délibérément, plutôt que d'en accorder par défaut.
+        // A role is born without any permission: they are checked afterwards,
+        // deliberately, rather than granted by default.
         permissions: [],
       }),
     });
@@ -117,9 +117,9 @@ export function CreateRoleForm({
 }
 
 /**
- * Nom, clé et description d'un rôle : les champs de l'assistant de démarrage
- * et de la première étape de « Nouveau rôle ». La clé suit le nom tant qu'on
- * ne l'a pas touchée.
+ * A role's name, key and description: the fields of the onboarding assistant
+ * and of the first step of "New role". The key follows the name as long as it
+ * has not been touched.
  */
 export function RoleIdentityFields({
   label,

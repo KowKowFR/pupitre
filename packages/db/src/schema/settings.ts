@@ -5,16 +5,16 @@ import { check, jsonb, pgTable, smallint, text, timestamp } from 'drizzle-orm/pg
 import { users } from './auth.js';
 
 /**
- * Paramètres de l'instance. **Une seule ligne**, `id = 1`.
+ * Instance settings. **A single row**, `id = 1`.
  *
- * Le singleton est tenu par la base (`primary key` + `check (id = 1)`) et non
- * par une convention en TypeScript : impossible d'insérer une seconde ligne,
- * même en SQL à la main, donc impossible d'avoir deux configurations
- * concurrentes selon l'ordre de lecture.
+ * The singleton is held by the database (`primary key` + `check (id = 1)`) and
+ * not by a TypeScript convention: impossible to insert a second row, even in SQL
+ * by hand, hence impossible to have two competing configurations depending on
+ * the read order.
  *
- * `value` est un JSONB unique plutôt qu'une colonne par réglage : ajouter un
- * paramètre ne coûte alors pas de migration. Le schéma Zod de `@pupitre/core`
- * (`appSettingsSchema`) reste la seule source de vérité sur sa forme.
+ * `value` is a single JSONB rather than one column per setting: adding a setting
+ * then costs no migration. `@pupitre/core`'s Zod schema (`appSettingsSchema`)
+ * stays the only source of truth about its shape.
  */
 export const appSettings = pgTable(
   'app_settings',
@@ -22,26 +22,25 @@ export const appSettings = pgTable(
     id: smallint('id').primaryKey(),
     value: jsonb('value').$type<AppSettings>().notNull().default(DEFAULT_APP_SETTINGS),
     /**
-     * Clé d'API du fournisseur d'IA, AES-256-GCM sous `MASTER_KEY`, format
-     * `version:iv:authTag:ciphertext` — même motif que
+     * The AI provider's API key, AES-256-GCM under `MASTER_KEY`,
+     * `version:iv:authTag:ciphertext` format — the same pattern as
      * `targets.encrypted_credential`.
      *
-     * Colonne dédiée et non un champ de `value` : un secret ne voyage pas avec
-     * de la configuration ordinaire. Le JSONB entier peut être sérialisé dans
-     * une réponse ou une entrée d'audit sans risque, précisément parce que la
-     * clé n'y est pas.
+     * A dedicated column and not a `value` field: a secret does not travel with
+     * ordinary configuration. The whole JSONB can be serialized into a response or
+     * an audit entry without risk, precisely because the key is not in it.
      */
     aiApiKeyEncrypted: text('ai_api_key_encrypted'),
     /**
-     * Secret du client OpenID Connect (connexion unique), même chiffrement et
-     * même rangement que la clé d'IA : hors de `value`, qui se lit, se rend et
-     * s'écrit au journal sans rien exposer.
+     * The OpenID Connect client secret (single sign-on), same encryption and same
+     * storage as the AI key: outside `value`, which is read, returned and written to
+     * the log without exposing anything.
      */
     ssoClientSecretEncrypted: text('sso_client_secret_encrypted'),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
     /**
-     * `text` et non `uuid` : `users.id` est un identifiant Better Auth, de type
-     * `text`. La clé étrangère impose le même type que la colonne référencée.
+     * `text` and not `uuid`: `users.id` is a Better Auth identifier, of type `text`.
+     * The foreign key imposes the same type as the referenced column.
      */
     updatedBy: text('updated_by').references(() => users.id, { onDelete: 'set null' }),
   },

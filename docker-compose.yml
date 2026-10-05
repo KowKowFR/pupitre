@@ -18,7 +18,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tp}
       POSTGRES_DB: ${POSTGRES_DB:-tp}
     ports:
-      # Loopback uniquement : ouvre le dev local (`pnpm dev`) sans exposer la base.
+      # Loopback only: opens local dev (`pnpm dev`) without exposing the database.
       - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -53,10 +53,10 @@ services:
       PORT: "3000"
       HOSTNAME: 0.0.0.0
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
-      # Garde SSRF de la supervision de sites : plages internes que les sondes
-      # ont le droit d'atteindre. Vide = adresses publiques uniquement.
-      # Le panel la lit pour refuser une cible à la création, le worker pour la
-      # refuser à chaque saut de redirection — les deux doivent avoir la même.
+      # SSRF guard of site supervision: internal ranges the probes are allowed
+      # to reach. Empty = public addresses only. The panel reads it to refuse a
+      # target at creation, the worker to refuse it at each redirect hop — both
+      # must have the same.
       MONITOR_ALLOWED_CIDRS: ${MONITOR_ALLOWED_CIDRS:-}
     ports:
       - "${WEB_PORT:-3000}:3000"
@@ -80,26 +80,26 @@ services:
       REDIS_URL: redis://redis:6379
       WORKER_ID: worker-1
       DRIVER_ROOT_PATH: ${DRIVER_ROOT_PATH:-/opt/bootstrap}
-      # Restreint la plage quand la cible n'ouvre qu'une partie des ports —
-      # c'est le cas du conteneur de test, qui n'en publie que dix.
+      # Restricts the range when the target only opens part of the ports — it is
+      # the case of the test container, which only publishes ten.
       DRIVER_PORT_RANGE: ${DRIVER_PORT_RANGE:-}
-      # Même valeur que côté panel : une garde qui diverge entre les deux
-      # laisserait créer des sondes que le worker refuserait en silence.
+      # Same value as on the panel side: a guard that diverges between the two
+      # would let probes be created that the worker would silently refuse.
       MONITOR_ALLOWED_CIDRS: ${MONITOR_ALLOWED_CIDRS:-}
       BACKUP_CONCURRENCY: ${BACKUP_CONCURRENCY:-1}
       BACKUP_TMP_DIR: ${BACKUP_TMP_DIR:-/tmp}
     volumes:
-      # Clés SSH de l'hôte, en lecture seule — utilisées pour joindre les cibles.
+      # The host's SSH keys, read-only — used to reach the targets.
       - ${SSH_KEYS_PATH:-${HOME}/.ssh}:/home/nodejs/.ssh:ro
-      # Destination de sauvegarde « Dossier monté » : le panel y écrit en
-      # `/backups`. Sans BACKUP_LOCAL_PATH, c'est un volume nommé — sur la même
-      # machine que le panel, donc pas une vraie sauvegarde : S3 ou SFTP pour ça.
+      # "Mounted folder" backup destination: the panel writes there in
+      # `/backups`. Without BACKUP_LOCAL_PATH, it is a named volume — on the same
+      # machine as the panel, so not a real backup: S3 or SFTP for that.
       - ${BACKUP_LOCAL_PATH:-backups}:/backups
-    # Le worker est le **seul** service à cheval sur les deux réseaux : lui seul
-    # pilote le navigateur de capture, en CDP. `capture` ne porte aucune route
-    # vers `postgres`, `redis` ni `panel` — c'est précisément ce qui isole le
-    # navigateur, et la raison pour laquelle cette ligne est ici et nulle part
-    # ailleurs. Voir le service `capture-browser` en bas de fichier.
+    # The worker is the **only** service straddling both networks: it alone
+    # drives the capture browser, over CDP. `capture` carries no route to
+    # `postgres`, `redis` nor `panel` — it is precisely what isolates the
+    # browser, and the reason why this line is here and nowhere else. See the
+    # `capture-browser` service at the bottom of the file.
     networks:
       - default
       - capture
@@ -108,82 +108,82 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      # Garantit que les migrations du panel sont passées avant le premier job.
+      # Ensures the panel's migrations have run before the first job.
       panel:
         condition: service_healthy
 
-  # ── Cible SSH de test, hors du démarrage normal ──────────────────────────────
-  # Démarrage explicite :
+  # ── SSH test target, outside the normal startup ──────────────────────────────
+  # Explicit startup:
   #   docker compose --profile test up -d --build ssh-target
-  # Utilisée par ./scripts/verify-targets-preflight.sh, jamais par `docker compose up`.
+  # Used by ./scripts/verify-targets-preflight.sh, never by `docker compose up`.
   ssh-target:
     profiles: ["test"]
     build:
       context: ./scripts/test-target
       args:
         AUTHORIZED_KEY: ${TEST_TARGET_PUBLIC_KEY:-}
-    # docker-in-docker : la cible a son propre daemon, comme une vraie machine.
+    # docker-in-docker: the target has its own daemon, like a real machine.
     privileged: true
     ports:
       - "127.0.0.1:${TEST_TARGET_PORT:-2222}:22"
-      # Plage publiée pour joindre depuis le poste les apps déployées sur la
-      # cible. Le driver reçoit la même plage via `portRange`.
+      # Range published to reach from the workstation the apps deployed on the
+      # target. The driver gets the same range through `portRange`.
       - "127.0.0.1:30000-30009:30000-30009"
     volumes:
       - dind-data:/var/lib/docker
     restart: unless-stopped
 
-  # ── Cible K3s de test, hors du démarrage normal ──────────────────────────────
-  # Démarrage explicite — il n'y a pas d'équivalent de `setup-test-target.sh`
-  # pour cette cible, la procédure est manuelle et tient en deux commandes :
+  # ── K3s test target, outside the normal startup ──────────────────────────────
+  # Explicit startup — there is no equivalent of `setup-test-target.sh` for this
+  # target, the procedure is manual and fits in two commands:
   #
   #   TEST_TARGET_PUBLIC_KEY="$(cat .test-target-key.pub)" \
   #     docker compose --profile test up -d --build k3s-target
-  #   docker compose logs -f k3s-target   # jusqu'à « démarrage de sshd »
+  #   docker compose logs -f k3s-target   # until "starting sshd"
   #
-  # La clé est celle que `setup-test-target.sh` a produite : les deux cibles de
-  # test partagent la même paire. Il reste ensuite à enregistrer les cibles à la
-  # main — `docs/getting-started.md` donne les deux lignes à saisir et explique
-  # pourquoi il en faut deux (`k3s-target:22` pour le worker, `127.0.0.1:2223`
-  # pour le poste).
+  # The key is the one `setup-test-target.sh` produced: the two test targets
+  # share the same pair. The targets then remain to be registered by hand —
+  # `docs/getting-started.md` gives the two lines to type and explains why two
+  # are needed (`k3s-target:22` for the worker, `127.0.0.1:2223` for the
+  # workstation).
   #
-  # Pendant de `ssh-target`, qui porte Docker : celle-ci porte un vrai cluster
-  # K3s. Elle existe pour le critère de CLAUDE.md — la même AppSpec déployée sur
-  # les deux runtimes — que le rendu seul ne peut pas prouver.
+  # The counterpart of `ssh-target`, which carries Docker: this one carries a
+  # real K3s cluster. It exists for CLAUDE.md's criterion — the same AppSpec
+  # deployed on both runtimes — which the rendering alone cannot prove.
   k3s-target:
     profiles: ["test"]
     build:
       context: ./scripts/test-target-k3s
       args:
         AUTHORIZED_KEY: ${TEST_TARGET_PUBLIC_KEY:-}
-    # k3s monte des cgroups et pilote netfilter : il lui faut les mêmes
-    # privilèges qu'au daemon Docker de l'autre cible.
+    # k3s mounts cgroups and drives netfilter: it needs the same privileges as
+    # the other target's Docker daemon.
     privileged: true
-    # Espace de noms cgroup privé — sans quoi kubelet échoue au démarrage sur
-    # « cannot enter cgroupv2 /sys/fs/cgroup/kubepods with domain controllers ».
-    # En cgroup v2, un conteneur qui partage la racine de l'hôte ne peut pas y
-    # créer de sous-groupe : les contrôleurs y sont en mode « domaine ». C'est
-    # la même correction que k3d applique.
+    # Private cgroup namespace — otherwise kubelet fails at startup on "cannot
+    # enter cgroupv2 /sys/fs/cgroup/kubepods with domain controllers". With
+    # cgroup v2, a container that shares the host's root cannot create a
+    # subgroup there: the controllers are in "domain" mode. It is the same fix
+    # k3d applies.
     cgroup: private
     tmpfs:
       - /run
       - /var/run
     ports:
       - "127.0.0.1:${K3S_TARGET_PORT:-2223}:22"
-      # 80 pour l'Ingress : en K3s le panel n'alloue aucun port, l'exposition
-      # passe par le contrôleur d'ingress. C'est par là qu'on joint une
-      # application déployée.
+      # 80 for the Ingress: on K3s the panel allocates no port, the exposure goes
+      # through the ingress controller. It is through there that a deployed
+      # application is reached.
       - "127.0.0.1:${K3S_TARGET_HTTP_PORT:-8080}:80"
     volumes:
       - k3s-data:/var/lib/rancher/k3s
     restart: unless-stopped
 
-  # ── ACME de test, hors du démarrage normal ───────────────────────────────────
-  # Pebble est le serveur ACME de test de l'équipe Let's Encrypt : il émet de
-  # vrais certificats, signés par une autorité jetable, après avoir réellement
-  # validé le défi HTTP-01 sur le port 80 de la cible. C'est ce qui permet
-  # d'éprouver « HTTPS automatique » sans domaine public. Son DNS est
-  # `pebble-dns`, où `pnpm test:proxy` déclare les domaines de test.
+  # ── Test ACME, outside the normal startup ────────────────────────────────────
+  # Pebble is the Let's Encrypt team's test ACME server: it issues real
+  # certificates, signed by a throwaway authority, after really validating the
+  # HTTP-01 challenge on the target's port 80. It is what allows trying out
+  # "automatic HTTPS" without a public domain. Its DNS is `pebble-dns`, where
+  # `pnpm test:proxy` declares the test domains.
   #
   #   docker compose --profile test up -d pebble pebble-dns acme-front
   pebble:
@@ -191,14 +191,14 @@ services:
     image: ghcr.io/letsencrypt/pebble:2.10.1
     command: ["-config", "/acme/pebble-config.json", "-dnsserver", "pebble-dns:8053"]
     environment:
-      # Pas d'attente artificielle entre deux validations : les tests restent courts.
+      # No artificial wait between two validations: the tests stay short.
       PEBBLE_VA_NOSLEEP: "1"
     volumes:
       - ./scripts/test-acme/pebble-config.json:/acme/pebble-config.json:ro
     restart: unless-stopped
 
-  # Le même Pebble, sous les noms de Let's Encrypt : pour un proxy qui n'accepte
-  # pas d'autre autorité (BunkerWeb). Voir scripts/test-acme/Caddyfile.
+  # The same Pebble, under Let's Encrypt's names: for a proxy that accepts no
+  # other authority (BunkerWeb). See scripts/test-acme/Caddyfile.
   acme-front:
     profiles: ["test"]
     image: caddy:2.10-alpine
@@ -210,34 +210,34 @@ services:
   pebble-dns:
     profiles: ["test"]
     image: ghcr.io/letsencrypt/pebble-challtestsrv:2.10.1
-    # Rien que le DNS et son API de gestion : les défis sont relevés par les vraies cibles.
+    # Only the DNS and its management API: the challenges are taken up by the real targets.
     command: ["-defaultIPv6", "", "-http01", "", "-https01", "", "-tlsalpn01", "", "-doh", ""]
     ports:
       - "127.0.0.1:8055:8055"
     restart: unless-stopped
 
-  # ── Nginx Proxy Manager de test, hors du démarrage normal ───────────────────
-  # Un proxy **distant** : hors des cibles, que Pupitre ne pilote que par son
-  # API. `pnpm test:npm` le connecte, y relie les deux cibles de test et y pose
-  # des domaines, certificats compris — émis par Pebble (`LE_SERVER`), dont
-  # l'autorité est donnée à certbot. Ses ports sont publiés sur la boucle
-  # locale : c'est par là que le panel le sonde, comme il sonderait un NPM à
-  # part sur le réseau.
+  # ── Test Nginx Proxy Manager, outside the normal startup ────────────────────
+  # A **remote** proxy: outside the targets, which Pupitre only drives through
+  # its API. `pnpm test:npm` connects it, links the two test targets to it and
+  # sets domains there, certificates included — issued by Pebble (`LE_SERVER`),
+  # whose authority is given to certbot. Its ports are published on the
+  # loopback: it is through there that the panel probes it, as it would probe a
+  # separate NPM on the network.
   #
   #   docker compose --profile test up -d pebble pebble-dns npm-proxy
   npm-proxy:
     profiles: ["test"]
     image: jc21/nginx-proxy-manager:2.16.0
     environment:
-      # Le compte d'administration de cette instance jetable — `test:npm`
-      # l'emploie pour créer celui de Pupitre, aux droits restreints.
+      # The administration account of this throwaway instance — `test:npm` uses
+      # it to create Pupitre's, with restricted rights.
       INITIAL_ADMIN_EMAIL: admin@npm.pupitre.test
       INITIAL_ADMIN_PASSWORD: ${NPM_TEST_ADMIN_PASSWORD:-npm-test-admin}
       LE_SERVER: https://pebble:14000/dir
       REQUESTS_CA_BUNDLE: /acme/pebble.minica.pem
       DISABLE_IPV6: "true"
     volumes:
-      # NPM refuse de démarrer si ces deux dossiers ne sont pas des volumes.
+      # NPM refuses to start if these two folders are not volumes.
       - npm-test-data:/data
       - npm-test-letsencrypt:/etc/letsencrypt
       - ./scripts/test-acme/pebble.minica.pem:/acme/pebble.minica.pem:ro
@@ -247,15 +247,15 @@ services:
       - "127.0.0.1:${NPM_TEST_HTTPS_PORT:-8443}:443"
     restart: unless-stopped
 
-  # ── Serveur SMTP jetable, hors du démarrage normal ───────────────────────────
-  # Démarrage explicite :
+  # ── Throwaway SMTP server, outside the normal startup ────────────────────────
+  # Explicit startup:
   #   docker compose --profile test up -d mailpit
-  # Utilisé par ./scripts/verify-notifications.sh pour vérifier le canal e-mail
-  # contre un vrai serveur SMTP plutôt que contre un faux : Mailpit accepte la
-  # session, garde le message, et l'expose sur une API HTTP — ce qui permet de
-  # relire le sujet, la partie texte et la partie HTTP réellement émises.
-  # Il n'envoie rien vers l'extérieur : tout ce qui entre reste dans sa mémoire.
-  # Jamais démarré par `docker compose up`.
+  # Used by ./scripts/verify-notifications.sh to check the e-mail channel
+  # against a real SMTP server rather than a fake one: Mailpit accepts the
+  # session, keeps the message, and exposes it on an HTTP API — which allows
+  # reading back the subject, the text part and the HTML part really sent. It
+  # sends nothing outside: everything that comes in stays in its memory. Never
+  # started by `docker compose up`.
   mailpit:
     profiles: ["test"]
     image: axllent/mailpit:v1.27
@@ -268,13 +268,13 @@ services:
       - "127.0.0.1:${MAILPIT_SMTP_PORT:-1025}:1025"
       - "127.0.0.1:${MAILPIT_HTTP_PORT:-8025}:8025"
 
-  # ── Keycloak de test, hors du démarrage normal ──────────────────────────────
-  # Un vrai fournisseur OpenID Connect, pour éprouver la connexion unique de bout
-  # en bout : le realm `pupitre` est importé au démarrage
-  # (`scripts/test-keycloak/pupitre-realm.json`) — un client confidentiel, un
-  # mappeur de groupes, quatre comptes de test. Tout y est jetable, secret du
-  # client compris. Le panel et le navigateur le joignent à la même adresse,
-  # http://localhost:8180 : c'est elle qui devient l'émetteur des jetons.
+  # ── Test Keycloak, outside the normal startup ───────────────────────────────
+  # A real OpenID Connect provider, to try out single sign-on end to end: the
+  # `pupitre` realm is imported at startup
+  # (`scripts/test-keycloak/pupitre-realm.json`) — a confidential client, a
+  # group mapper, four test accounts. Everything in it is throwaway, client
+  # secret included. The panel and the browser reach it at the same address,
+  # http://localhost:8180: it is the one that becomes the tokens' issuer.
   #
   #   docker compose --profile test up -d keycloak
   keycloak:
@@ -290,12 +290,12 @@ services:
       - "127.0.0.1:${KEYCLOAK_HTTP_PORT:-8180}:8080"
     restart: unless-stopped
 
-  # ── Gitea de test, hors du démarrage normal ─────────────────────────────────
-  # Une vraie forge Gitea (même API que Forgejo et Codeberg), pour éprouver un
-  # second fournisseur de code de bout en bout : un compte, un jeton, un dépôt
-  # avec son pupitre.json — tout est fabriqué par `scripts/test-gitea/setup.sh`
-  # et jetable. Le panel, le worker et le navigateur la joignent à la même
-  # adresse, http://localhost:3030 : c'est celle de ses liens.
+  # ── Test Gitea, outside the normal startup ──────────────────────────────────
+  # A real Gitea forge (same API as Forgejo and Codeberg), to try out a second
+  # code provider end to end: an account, a token, a repository with its
+  # pupitre.json — everything is made by `scripts/test-gitea/setup.sh` and
+  # throwaway. The panel, the worker and the browser reach it at the same
+  # address, http://localhost:3030: it is the one of its links.
   #
   #   docker compose --profile test up -d gitea
   gitea:
@@ -313,14 +313,13 @@ services:
       - "127.0.0.1:${GITEA_HTTP_PORT:-3030}:3000"
     restart: unless-stopped
 
-  # ── GitLab de test, hors du démarrage normal ─────────────────────────────────
-  # Une vraie instance GitLab CE, pour éprouver le troisième fournisseur de code
-  # de bout en bout : un groupe et un sous-groupe, un projet avec son
-  # pupitre.json, un jeton de projet — tout est fabriqué par
-  # `scripts/test-gitlab/setup.sh` et jetable. Réglée pour une petite machine
-  # (environ 3 Go de mémoire) ; il lui faut plusieurs minutes pour démarrer.
-  # Le panel, le worker et le navigateur la joignent à la même adresse,
-  # http://localhost:3040 : c'est celle de ses liens.
+  # ── Test GitLab, outside the normal startup ──────────────────────────────────
+  # A real GitLab CE instance, to try out the third code provider end to end: a
+  # group and a subgroup, a project with its pupitre.json, a project token —
+  # everything is made by `scripts/test-gitlab/setup.sh` and throwaway. Tuned
+  # for a small machine (about 3 GB of memory); it needs several minutes to
+  # start. The panel, the worker and the browser reach it at the same address,
+  # http://localhost:3040: it is the one of its links.
   #
   #   docker compose --profile test up -d gitlab
   gitlab:
@@ -348,112 +347,112 @@ services:
       - "127.0.0.1:${GITLAB_HTTP_PORT:-3040}:80"
     restart: unless-stopped
 
-  # ── Navigateur de capture, hors du démarrage normal ──────────────────────────
-  # Démarrage explicite :
+  # ── Capture browser, outside the normal startup ──────────────────────────────
+  # Explicit startup:
   #   docker compose --profile capture up -d capture-browser
-  #   # puis, dans .env :  MONITOR_CAPTURE_CDP_URL=http://capture-browser:9222
+  #   # then, in .env:  MONITOR_CAPTURE_CDP_URL=http://capture-browser:9222
   #
-  # Ce qu'il fait : rendre la page d'un site supervisé au moment où un incident
-  # s'ouvre ou se referme, pour qu'on voie ce que la sonde a vu. « Code 503 » ne
-  # dit pas si la page était blanche, en maintenance ou défigurée ; une image le
-  # dit. Un site qui rend 200 avec un tunnel de paiement cassé est au vert pour
-  # la sonde et en panne pour ses visiteurs — c'est le cas que seule une image
-  # attrape.
+  # What it does: rendering the page of a supervised site when an incident opens
+  # or closes, so that one sees what the probe saw. "Code 503" does not say
+  # whether the page was blank, under maintenance or defaced; an image says it.
+  # A site that returns 200 with a broken checkout funnel is green for the probe
+  # and down for its visitors — it is the case only an image catches.
   #
-  # ── Pourquoi un conteneur à part, et pas Playwright dans le worker ──────────
+  # ── Why a separate container, and not Playwright in the worker ──────────────
   #
-  #  1. **Le réseau, et c'est la vraie raison.** La garde SSRF de la supervision
-  #     (`packages/core/src/monitors/ssrf.ts`) est construite avec soin : on
-  #     résout une fois, on contrôle *toutes* les adresses, on se connecte à
-  #     l'adresse littérale — le rebinding DNS est fermé. Un navigateur passe à
-  #     travers **par l'intérieur** : il suit les redirections, charge les
-  #     sous-ressources, et exécute du JavaScript qui peut requêter ce qu'il
-  #     veut. Une page hostile supervisée par Pupitre irait lire
-  #     `http://panel:3000/api/...` ou taper `postgres:5432`.
+  #  1. **The network, and it is the real reason.** The supervision's SSRF guard
+  #     (`packages/core/src/monitors/ssrf.ts`) is built with care: we resolve
+  #     once, check *all* the addresses, connect to the literal address — DNS
+  #     rebinding is closed. A browser goes through **from the inside**: it
+  #     follows redirects, loads subresources, and runs JavaScript that can
+  #     request whatever it wants. A hostile page supervised by Pupitre would go
+  #     and read `http://panel:3000/api/...` or hit `postgres:5432`.
   #
-  #     Une garde applicative *dans* le navigateur (interception de requêtes)
-  #     serait contournable et surtout oubliable. La réponse est donc
-  #     topologique — mais pas celle qu'on croit, et la nuance a été **mesurée**,
-  #     pas supposée : deux réseaux Compose distincts ne sont *pas* isolés l'un
-  #     de l'autre. Depuis un simple réseau `capture` non interne, on joint
-  #     `172.21.0.4:3000` et on lit la réponse du panel. Seul le nom disparaît.
+  #     An application guard *inside* the browser (request interception) could
+  #     be worked around and, above all, forgotten. So the answer is topological
+  #     — but not the one you would think, and the nuance was **measured**, not
+  #     assumed: two distinct Compose networks are *not* isolated from each
+  #     other. From a plain non-internal `capture` network, one reaches
+  #     `172.21.0.4:3000` and reads the panel's response. Only the name goes
+  #     away.
   #
-  #     Ce qui isole vraiment est `internal: true` : plus de passerelle du tout,
-  #     une seule ligne dans la table de routage. Mais un réseau interne coupe
-  #     aussi l'Internet, et un navigateur sans Internet ne capture rien. D'où
-  #     le montage final : réseau **interne**, dont la seule sortie est un
-  #     mandataire tenu par le worker, qui applique à chaque requête la garde
-  #     SSRF déjà écrite. Une page ne peut pas contourner le mandataire de son
-  #     navigateur, et si quelqu'un retirait l'option, le navigateur ne perdrait
-  #     pas sa garde : il perdrait l'Internet, bruyamment.
+  #     What really isolates is `internal: true`: no gateway at all any more, a
+  #     single line in the routing table. But an internal network also cuts the
+  #     Internet, and a browser without Internet captures nothing. Hence the
+  #     final setup: an **internal** network, whose only exit is a proxy held by
+  #     the worker, which applies the already written SSRF guard to each
+  #     request. A page cannot get around its browser's proxy, and if someone
+  #     removed the option, the browser would not lose its guard: it would lose
+  #     the Internet, loudly.
   #
-  #  2. **Le poids.** L'image applicative est sur base Alpine, et les
-  #     navigateurs de Playwright sont liés à la glibc : il n'y en a pas pour
-  #     musl. Le conteneur séparé règle la question sans toucher à l'image du
-  #     worker, qui ne prend pas un octet.
+  #  2. **The weight.** The application image is Alpine-based, and Playwright's
+  #     browsers are linked to glibc: there are none for musl. The separate
+  #     container settles the question without touching the worker's image,
+  #     which does not gain a byte.
   #
-  # ── Pourquoi cette image-là ─────────────────────────────────────────────────
-  # `headless-shell` est le binaire Chromium réduit au strict nécessaire pour
-  # être piloté : 146 Mo au lieu de 2 Go pour une image Playwright complète, pas
-  # d'interface, pas de codecs propriétaires. Il expose directement CDP, donc le
-  # worker le pilote avec `fetch` et `WebSocket` — tous deux natifs sous Node 24,
-  # aucune dépendance npm ajoutée nulle part.
+  # ── Why this image ──────────────────────────────────────────────────────────
+  # `headless-shell` is the Chromium binary reduced to the bare minimum needed
+  # to be driven: 146 MB instead of 2 GB for a complete Playwright image, no
+  # interface, no proprietary codecs. It exposes CDP directly, so the worker
+  # drives it with `fetch` and `WebSocket` — both native under Node 24, no npm
+  # dependency added anywhere.
   #
-  # **La version est épinglée au build de Chromium près**, et ce n'est pas une
-  # précaution de principe : un navigateur qui change tout seul change les
-  # captures, et une comparaison avant/après entre deux moteurs différents
-  # compare le moteur, pas le site.
+  # **The version is pinned down to the Chromium build**, and it is not a
+  # precaution of principle: a browser that changes on its own changes the
+  # captures, and a before/after comparison between two different engines
+  # compares the engine, not the site.
   capture-browser:
     profiles: ["capture"]
     image: chromedp/headless-shell:151.0.7922.109
     restart: unless-stopped
-    # Le seul réseau, et il ne mène nulle part : ni base, ni cache, ni panel.
+    # The only network, and it leads nowhere: neither database, nor cache, nor panel.
     networks:
       - capture
-    # Aucun port publié : le worker le joint par le réseau interne. Publier CDP
-    # sur l'hôte donnerait à quiconque sur la machine un navigateur à piloter.
-    # Rien qu'un `Page.navigate` vers `file:///etc/passwd` en ferait une lecture
-    # de fichiers arbitraire.
+    # No published port: the worker reaches it through the internal network.
+    # Publishing CDP on the host would give anyone on the machine a browser to
+    # drive. A mere `Page.navigate` to `file:///etc/passwd` would make it an
+    # arbitrary file read.
     init: true
     read_only: true
-    # `HOME` pointe dans le tmpfs : sans lui, fontconfig cherche son cache dans
-    # `/root`, que `read_only` interdit, et rescanne toutes les polices à chaque
-    # page. Ça ne casse rien, ça ralentit tout.
+    # `HOME` points into the tmpfs: without it, fontconfig looks for its cache in
+    # `/root`, which `read_only` forbids, and rescans all the fonts at each page.
+    # It breaks nothing, it slows everything down.
     environment:
       HOME: /tmp
     tmpfs:
-      # Le profil est en mémoire et meurt avec le conteneur : aucun cookie,
-      # aucun cache, aucune capture ne survit sur disque.
+      # The profile is in memory and dies with the container: no cookie, no
+      # cache, no capture survives on disk.
       - /tmp
       - /var/cache/fontconfig
-    # Chromium alloue ses tampons de rendu dans /dev/shm ; les 64 Mo par défaut
-    # de Docker font échouer le rendu des pages un peu lourdes.
+    # Chromium allocates its rendering buffers in /dev/shm; Docker's default
+    # 64 MB make the rendering of somewhat heavy pages fail.
     shm_size: "512m"
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
-    # Bornes contre la page hostile : une page qui part en boucle ne doit pas
-    # emporter la machine. Pas une garde de sécurité — une garde de voisinage.
+    # Bounds against the hostile page: a page that goes into a loop must not
+    # take the machine down. Not a security guard — a neighborhood guard.
     mem_limit: 1g
     pids_limit: 512
     command:
-      # Le bac à sable de Chromium demande CAP_SYS_ADMIN dans un conteneur.
-      # L'arbitrage est assumé : un `--cap-add=SYS_ADMIN` transformerait une
-      # évasion de moteur de rendu en évasion potentielle de conteneur, alors
-      # qu'ici l'évasion ne donne qu'un conteneur sans capacité, sans secret,
-      # sans disque et sans route vers la pile. `run.sh` de l'image pose déjà
-      # `--no-sandbox` ; c'est le réseau qui tient lieu de bac à sable.
-      # **La seule porte de sortie.** Le réseau est interne : sans mandataire,
-      # ce navigateur ne joint rien. Toute requête qu'il émet — page, redirection,
-      # sous-ressource, `fetch()` du JavaScript de la page — passe par le worker,
-      # qui lui applique la garde SSRF. Le port suit `MONITOR_CAPTURE_EGRESS_PORT`
-      # — la même variable des deux côtés, pour qu'ils ne puissent pas diverger.
+      # Chromium's sandbox asks for CAP_SYS_ADMIN in a container. The trade-off
+      # is assumed: a `--cap-add=SYS_ADMIN` would turn a rendering engine escape
+      # into a potential container escape, whereas here the escape only yields a
+      # container without capabilities, without secrets, without disk and
+      # without a route to the stack. The image's `run.sh` already sets
+      # `--no-sandbox`; it is the network that serves as the sandbox.
+      # **The only way out.** The network is internal: without a proxy, this
+      # browser reaches nothing. Every request it emits — page, redirect,
+      # subresource, `fetch()` from the page's JavaScript — goes through the
+      # worker, which applies the SSRF guard to it. The port follows
+      # `MONITOR_CAPTURE_EGRESS_PORT` — the same variable on both sides, so that
+      # they cannot diverge.
       - --proxy-server=http://worker:${MONITOR_CAPTURE_EGRESS_PORT:-8383}
       - --user-data-dir=/tmp/profile
       - --hide-scrollbars
-      # Rien ne doit téléphoner à la maison : ni variations, ni mises à jour de
-      # composants, ni synchronisation, ni remontée de plantage.
+      # Nothing must phone home: no variations, no component updates, no sync,
+      # no crash reporting.
       - --disable-background-networking
       - --disable-component-update
       - --disable-sync
@@ -464,20 +463,21 @@ services:
       - --no-default-browser-check
       - --disable-default-apps
       - --disable-extensions
-      # Une page supervisée n'ouvre ni fenêtre, ni onglet, et ne demande ni la
-      # géolocalisation ni les notifications : tout est refusé sans question.
+      # A supervised page opens neither a window nor a tab, and asks for neither
+      # geolocation nor notifications: everything is refused without a question.
       - --block-new-web-contents
       - --deny-permission-prompts
       - --disable-features=Translate,MediaRouter,OptimizationHints,AcceptCHFrame,InterestFeedContentSuggestions
     healthcheck:
-      # L'image n'a ni curl ni wget ; bash et son /dev/tcp suffisent. `CMD` et
-      # non `CMD-SHELL` : le shell par défaut est dash, qui n'a pas /dev/tcp.
+      # The image has neither curl nor wget; bash and its /dev/tcp are enough.
+      # `CMD` and not `CMD-SHELL`: the default shell is dash, which has no
+      # /dev/tcp.
       #
-      # L'en-tête `Host` n'est pas décoratif : le point d'entrée DevTools ferme
-      # sans répondre toute requête dont le `Host` n'est ni une IP ni
-      # `localhost` — sa protection contre le rebinding DNS. Sans elle, la sonde
-      # lit une réponse vide et le conteneur reste éternellement « unhealthy »
-      # alors que le navigateur va très bien.
+      # The `Host` header is not decorative: the DevTools entry point closes
+      # without answering any request whose `Host` is neither an IP nor
+      # `localhost` — its protection against DNS rebinding. Without it, the probe
+      # reads an empty response and the container stays "unhealthy" forever
+      # although the browser is perfectly fine.
       test:
         - CMD
         - bash
@@ -489,51 +489,50 @@ services:
       start_period: 10s
 
 networks:
-  # Le réseau par défaut, celui de toute la pile. Déclaré explicitement parce
-  # qu'un service qui liste ses réseaux ne l'obtient plus implicitement.
+  # The default network, the whole stack's. Declared explicitly because a
+  # service that lists its networks no longer gets it implicitly.
   default:
-  # Le réseau de capture. Deux membres, et deux seulement : le worker, qui
-  # pilote, et le navigateur, qui rend.
+  # The capture network. Two members, and two only: the worker, which drives,
+  # and the browser, which renders.
   #
-  # **`internal: true`, et ce n'est pas de la ceinture-bretelles.** L'hypothèse
-  # de départ — « deux réseaux Compose distincts sont isolés l'un de l'autre » —
-  # a été mesurée sur cette machine (Docker Engine 29 / Docker Desktop) et elle
-  # est **fausse** : depuis un réseau `capture` ordinaire, un conteneur joint
-  # `postgres`, `redis` et `panel` par leur adresse IP et lit leurs réponses.
-  # Le réseau séparé fait disparaître les *noms*, rien de plus, et deviner
-  # `172.21.0.x` n'est pas un obstacle.
+  # **`internal: true`, and it is not belt and braces.** The starting
+  # assumption — "two distinct Compose networks are isolated from each other" —
+  # was measured on this machine (Docker Engine 29 / Docker Desktop) and it is
+  # **false**: from an ordinary `capture` network, a container reaches
+  # `postgres`, `redis` and `panel` through their IP address and reads their
+  # responses. The separate network makes the *names* disappear, nothing more,
+  # and guessing `172.21.0.x` is no obstacle.
   #
-  # Un réseau interne, lui, n'a pas de passerelle. La table de routage du
-  # conteneur tient en une ligne — son propre /16 — et absolument rien d'autre
-  # n'est routable : ni la pile, ni l'hôte, ni l'Internet. C'est la garantie
-  # qu'on cherchait, et elle se vérifie en une commande :
+  # An internal network, for its part, has no gateway. The container's routing
+  # table fits in one line — its own /16 — and absolutely nothing else is
+  # routable: neither the stack, nor the host, nor the Internet. It is the
+  # guarantee we were looking for, and it can be checked in one command:
   #
-  #   docker compose exec capture-browser ip route     # une seule ligne
+  #   docker compose exec capture-browser ip route     # a single line
   #
-  # Reste que le navigateur doit atteindre les sites supervisés. Sa seule sortie
-  # est le mandataire du worker (`--proxy-server` ci-dessus), qui applique la
-  # garde SSRF du projet à chaque requête. Retirer le mandataire ne rendrait pas
-  # le navigateur dangereux : ça le rendrait aveugle, tout de suite.
+  # Still, the browser must reach the supervised sites. Its only exit is the
+  # worker's proxy (`--proxy-server` above), which applies the project's SSRF
+  # guard to each request. Removing the proxy would not make the browser
+  # dangerous: it would make it blind, right away.
   capture:
     internal: true
 
 volumes:
-  # `pgdata` et `redisdata` portent l'état du plan de contrôle et ont été
-  # recopiés depuis les volumes préfixés `bootstrap-tp-v2_` au moment du
-  # renommage. `backups` sert la destination « Dossier monté » quand
-  # BACKUP_LOCAL_PATH n'est pas fourni. Les deux derniers sont des caches de
-  # cibles de test — images Docker et état k3s — que Compose recrée vides et qui
-  # se remplissent seuls.
+  # `pgdata` and `redisdata` carry the control plane's state and were copied
+  # from the volumes prefixed `bootstrap-tp-v2_` at the time of the renaming.
+  # `backups` serves the "Mounted folder" destination when BACKUP_LOCAL_PATH is
+  # not provided. The last two are test targets' caches — Docker images and k3s
+  # state — that Compose recreates empty and that fill up on their own.
   pgdata:
   redisdata:
   backups:
   k3s-data:
   dind-data:
-  # L'état du Nginx Proxy Manager de test : sa base et ses certificats.
+  # The test Nginx Proxy Manager's state: its database and its certificates.
   npm-test-data:
   npm-test-letsencrypt:
-  # La forge Gitea de test : son compte, son jeton, ses dépôts.
+  # The test Gitea forge: its account, its token, its repositories.
   gitea-test-data:
-  # L'instance GitLab de test : sa configuration, ses projets, ses jetons.
+  # The test GitLab instance: its configuration, its projects, its tokens.
   gitlab-test-config:
   gitlab-test-data:

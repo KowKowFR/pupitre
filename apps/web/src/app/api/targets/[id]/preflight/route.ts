@@ -16,8 +16,8 @@ const paramsSchema = z.object({ id: z.string().uuid() });
 type Context = { params: Promise<{ id: string }> };
 
 /**
- * Enfile un preflight. La route n'ouvre aucune session SSH : la connexion est
- * une opération longue, elle appartient au worker.
+ * Queues a preflight. The route opens no SSH session: the connection is a
+ * long-running operation, it belongs to the worker.
  */
 export const POST = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'target:update');
@@ -33,8 +33,8 @@ export const POST = apiRoute<Context>(async (request, context) => {
   });
 
   const job = await getOpsQueue().add(TARGET_PREFLIGHT_JOB, data, {
-    // Un preflight qui échoue échoue pour de bon : le rejouer masquerait
-    // le diagnostic que l'opérateur attend.
+    // A preflight that fails fails for good: replaying it would mask the diagnosis
+    // the operator is waiting for.
     attempts: 1,
   });
 

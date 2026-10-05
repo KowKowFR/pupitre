@@ -1,52 +1,52 @@
 import type { AppSpec } from '../spec/index.js';
 
 /**
- * Le code d'une application, téléversé dans le panel : une archive `.tar.gz`,
- * `.tar` ou `.zip`.
+ * An application's code, uploaded into the panel: a `.tar.gz`, `.tar` or `.zip`
+ * archive.
  *
- * C'est l'autre voie d'entrée du code, à côté d'un dépôt lié — pour une
- * application créée par le formulaire, par l'IA, depuis le catalogue ou par
- * import d'un `compose.yml`, qui n'a pas de dépôt. L'archive n'apporte **que**
- * le code à construire : l'AppSpec reste celle du panel, un `pupitre.json`
- * qu'elle contiendrait est ignoré.
+ * It is the other way in for code, next to a linked repository — for an
+ * application created by the form, by AI, from the catalog or by importing a
+ * `compose.yml`, which has no repository. The archive brings **only** the code
+ * to build: the AppSpec stays the panel's, a `pupitre.json` it might contain is
+ * ignored.
  *
- * Elle n'est jamais envoyée telle quelle sur une machine. Le worker la relit
- * entrée par entrée, refuse ce qui sortirait du dossier (chemins absolus, `..`,
- * liens qui pointent dehors ou qu'on traverserait, liens durs, fichiers
- * spéciaux), puis en refait une archive propre — celle que le driver dépose
- * dans `source/` de la release, exactement comme le code d'un commit.
+ * It is never sent as is to a machine. The worker reads it entry by entry,
+ * refuses what would leave the folder (absolute paths, `..`, links pointing
+ * outside or that would be traversed, hard links, special files), then makes a
+ * clean archive of it — the one the driver places in the release's `source/`,
+ * exactly like a commit's code.
  *
- * Module pur : le panel s'en sert pour reconnaître un format, et l'écran pour
- * dire ce qu'il en est. La lecture elle-même vit sous `@pupitre/core/source-upload`.
+ * A pure module: the panel uses it to recognize a format, and the screen to say
+ * how things stand. The reading itself lives under `@pupitre/core/source-upload`.
  */
 
-/** Une archive téléversée ne dépasse pas cette taille. */
+/** An uploaded archive does not exceed this size. */
 export const SOURCE_UPLOAD_MAX_BYTES = 100 * 1024 * 1024;
 
-/** Décompressée, pas davantage : une archive piégée qui gonfle s'arrête là. */
+/** Decompressed, no more than this: a booby-trapped archive that swells stops there. */
 export const SOURCE_UPLOAD_MAX_UNPACKED_BYTES = 1024 * 1024 * 1024;
 
-/** Ni plus d'entrées que ceci. */
+/** Nor more entries than this. */
 export const SOURCE_UPLOAD_MAX_ENTRIES = 50_000;
 
-/** Les dernières archives d'une application qu'on garde — de quoi redéployer une version récente. */
+/** An application's latest archives that are kept — enough to redeploy a recent version. */
 export const SOURCE_ARCHIVES_KEPT = 5;
 
-/** Les octets d'une archive vivent en base par morceaux de cette taille. */
+/** An archive's bytes live in the database in chunks of this size. */
 export const SOURCE_ARCHIVE_CHUNK_BYTES = 1024 * 1024;
 
-/** Des noms qu'on n'emporte jamais : l'historique Git, les métadonnées du Finder. */
+/** Names never taken along: the Git history, the Finder's metadata. */
 export const SOURCE_UPLOAD_SKIPPED = ['.git', '__MACOSX', '.DS_Store'] as const;
 
 /**
- * Le préfixe des fichiers AppleDouble. Le `tar` de macOS en glisse un à côté de
- * chaque entrée qui porte des attributs étendus — `site/._Dockerfile`, et
- * `._site` à côté du dossier de tête, qui empêchait alors de le retirer. Ce ne
- * sont pas des fichiers du code.
+ * The prefix of AppleDouble files. macOS's `tar` slips one next to each entry
+ * that carries extended attributes — `site/._Dockerfile`, and `._site` next to
+ * the leading folder, which then prevented removing it. They are not files of
+ * the code.
  */
 export const SOURCE_UPLOAD_APPLEDOUBLE_PREFIX = '._';
 
-/** `true` : l'entrée, ou l'un des dossiers qui la contiennent, n'est pas du code. */
+/** `true`: the entry, or one of the folders containing it, is not code. */
 export function isSkippedSourcePath(path: string): boolean {
   return path
     .split('/')
@@ -61,14 +61,13 @@ export const SOURCE_ARCHIVE_FORMATS = ['tar.gz', 'tar', 'zip'] as const;
 export type SourceArchiveFormat = (typeof SOURCE_ARCHIVE_FORMATS)[number];
 
 /**
- * Le format, lu dans les premiers octets — jamais dans le nom du fichier ni
- * dans l'en-tête de la requête. 512 octets suffisent : la signature d'un `tar`
- * est à l'offset 257.
+ * The format, read from the first bytes — never from the file name or the
+ * request header. 512 bytes are enough: a `tar`'s signature is at offset 257.
  */
 export function sniffArchiveFormat(head: Uint8Array): SourceArchiveFormat | null {
   if (head.length >= 2 && head[0] === 0x1f && head[1] === 0x8b) return 'tar.gz';
   if (head.length >= 4 && head[0] === 0x50 && head[1] === 0x4b) {
-    // Une entrée locale, ou la fin d'une archive vide.
+    // A local entry, or the end of an empty archive.
     if ((head[2] === 0x03 && head[3] === 0x04) || (head[2] === 0x05 && head[3] === 0x06)) {
       return 'zip';
     }
@@ -81,55 +80,55 @@ export function sniffArchiveFormat(head: Uint8Array): SourceArchiveFormat | null
 }
 
 /**
- * Pourquoi une archive est refusée. Un code et un détail brut (un chemin) :
- * la phrase appartient à l'écran, qui la dit dans la langue de l'instance.
+ * Why an archive is refused. A code and a raw detail (a path): the sentence
+ * belongs to the screen, which says it in the instance's language.
  */
 export const SOURCE_ARCHIVE_REJECTIONS = [
-  /** Ni `tar.gz`, ni `tar`, ni `zip`. */
+  /** Neither `tar.gz`, nor `tar`, nor `zip`. */
   'format',
-  /** Illisible : tronquée, en-tête invalide, compression inconnue. */
+  /** Unreadable: truncated, invalid header, unknown compression. */
   'corrupt',
-  /** Une entrée chiffrée (zip protégé par mot de passe). */
+  /** An encrypted entry (password-protected zip). */
   'encrypted',
-  /** Rien à construire dedans. */
+  /** Nothing to build in it. */
   'empty',
   'too_many_entries',
-  /** Plus de `SOURCE_UPLOAD_MAX_UNPACKED_BYTES` une fois décompressée. */
+  /** More than `SOURCE_UPLOAD_MAX_UNPACKED_BYTES` once decompressed. */
   'too_large',
   'absolute_path',
   'parent_path',
-  /** Un nom vide, trop long, ou qui porte un octet nul. */
+  /** An empty name, too long, or carrying a null byte. */
   'invalid_name',
-  /** Un lien symbolique qui pointe hors de l'archive. */
+  /** A symbolic link pointing outside the archive. */
   'link_outside',
-  /** Une entrée écrite *à travers* un lien symbolique de l'archive. */
+  /** An entry written *through* a symbolic link of the archive. */
   'link_traversal',
   'hardlink',
-  /** Périphérique, tube nommé : rien à faire dans du code. */
+  /** Device, named pipe: nothing to do in code. */
   'special_file',
-  /** Deux entrées au même chemin, ou un fichier qui sert aussi de dossier. */
+  /** Two entries at the same path, or a file that also serves as a folder. */
   'duplicate',
 ] as const;
 export type SourceArchiveRejection = (typeof SOURCE_ARCHIVE_REJECTIONS)[number];
 
-/** Ce que la lecture a trouvé, une fois l'archive acceptée. */
+/** What the reading found, once the archive is accepted. */
 export type SourceArchiveReport = {
   files: number;
   directories: number;
   symlinks: number;
-  /** Octets des fichiers, décompressés. */
+  /** Bytes of the files, decompressed. */
   unpackedBytes: number;
   /**
-   * Le dossier de tête retiré, sans sa barre finale — `mon-app` pour une
-   * archive faite d'un seul dossier `mon-app/`. `null` : rien de retiré.
+   * The leading folder removed, without its trailing slash — `my-app` for an
+   * archive made of a single `my-app/` folder. `null`: nothing removed.
    */
   strippedRoot: string | null;
-  /** Entrées laissées de côté (`.git/`, `__MACOSX/`). */
+  /** Entries left aside (`.git/`, `__MACOSX/`). */
   skippedEntries: number;
   /**
-   * Les fichiers qui ressemblent à un Dockerfile, relatifs à la racine du code
-   * (bornés à `DOCKERFILE_LIST_MAX`) : de quoi vérifier, au déploiement, qu'un
-   * service trouvera le sien — même si l'AppSpec a changé depuis.
+   * The files that look like a Dockerfile, relative to the root of the code
+   * (capped at `DOCKERFILE_LIST_MAX`): enough to check, at deployment, that a
+   * service will find its own — even if the AppSpec has changed since.
    */
   dockerfiles: string[];
 };
@@ -142,7 +141,7 @@ export function looksLikeDockerfile(path: string): boolean {
   return /^(docker|container)file([.-].*)?$/i.test(name) || /\.(docker|container)file$/i.test(name);
 }
 
-/** Un chemin relatif, sans `.` ni barres en trop : `./app//Dockerfile` → `app/Dockerfile`. */
+/** A relative path, without `.` or extra slashes: `./app//Dockerfile` → `app/Dockerfile`. */
 export function cleanRelativePath(path: string): string {
   return path
     .split('/')
@@ -150,7 +149,7 @@ export function cleanRelativePath(path: string): string {
     .join('/');
 }
 
-/** Ce que chaque service construit attend de trouver dans le code. */
+/** What each built service expects to find in the code. */
 export function expectedDockerfiles(spec: AppSpec): { service: string; path: string }[] {
   return spec.services.flatMap((service) =>
     service.source.type === 'dockerfile'
@@ -168,14 +167,14 @@ export type DockerfileCheck = {
   service: string;
   path: string;
   /**
-   * `found` : présent. `missing` : absent, et l'archive le dirait (le nom a
-   * l'air d'un Dockerfile). `unknown` : un nom qu'on ne relève pas — la
-   * construction le vérifiera sur la machine.
+   * `found`: present. `missing`: absent, and the archive would show it (the name
+   * looks like a Dockerfile). `unknown`: a name we do not record — the build will
+   * check it on the machine.
    */
   status: 'found' | 'missing' | 'unknown';
 };
 
-/** Chaque service construit trouve-t-il son Dockerfile dans l'archive ? */
+/** Does each built service find its Dockerfile in the archive? */
 export function checkDockerfiles(spec: AppSpec, dockerfiles: readonly string[]): DockerfileCheck[] {
   const present = new Set(dockerfiles);
   return expectedDockerfiles(spec).map(({ service, path }) => ({
@@ -186,9 +185,9 @@ export function checkDockerfiles(spec: AppSpec, dockerfiles: readonly string[]):
 }
 
 /**
- * Le nom affiché d'une archive : le dernier segment de ce que le navigateur
- * a envoyé, sans caractère de contrôle, borné. Il n'est qu'une étiquette —
- * rien ne s'écrit jamais sous ce nom.
+ * An archive's displayed name: the last segment of what the browser sent,
+ * without control characters, capped. It is only a label — nothing is ever
+ * written under that name.
  */
 export function sourceArchiveLabel(raw: string | null | undefined): string {
   const base = (raw ?? '').split(/[\\/]/).at(-1) ?? '';

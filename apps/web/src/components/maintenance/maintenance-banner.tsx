@@ -9,12 +9,12 @@ import { maintenanceWhen } from '@/lib/maintenance-format';
 import { cn } from '@/lib/utils';
 
 /**
- * La bande de la vue d'ensemble : ce qui est en maintenance maintenant, et ce
- * qui le sera dans la journée. Elle passe avant le bloc d'attention — une
- * panne sur une machine en maintenance n'a pas le même poids qu'une autre.
+ * The overview's band: what is under maintenance now, and what will be within
+ * the day. It comes before the attention block — an outage on a machine under
+ * maintenance does not have the same weight as another one.
  *
- * Rien quand il n'y a rien. Chaque fenêtre ne montre que les sujets que la
- * session peut lire ; une fenêtre dont elle ne lit aucun sujet n'apparaît pas.
+ * Nothing when there is nothing. Each window only shows the subjects the session
+ * can read; a window none of whose subjects it reads does not appear.
  */
 export async function MaintenanceBanner({
   windows,

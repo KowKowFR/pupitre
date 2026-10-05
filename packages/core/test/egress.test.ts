@@ -3,8 +3,8 @@ import { describe, it } from 'node:test';
 import { assertEgressAllowed, EgressRefusedError } from '../src/egress.js';
 
 /**
- * Une adresse saisie dans le panel (NPM, webhook, S3) peut être privée — c'est
- * normal —, mais jamais celle des métadonnées d'un cloud.
+ * An address entered in the panel (NPM, webhook, S3) can be private — that is
+ * normal —, but never a cloud's metadata address.
  */
 
 const resolver = (table: Record<string, string[]>) => async (host: string) => {
@@ -13,8 +13,8 @@ const resolver = (table: Record<string, string[]>) => async (host: string) => {
   return found;
 };
 
-describe('appels sortants vers une adresse saisie', () => {
-  it('refuse les métadonnées d’un cloud, en adresse ou par un nom', async () => {
+describe('outgoing calls to a typed-in address', () => {
+  it('refuses a cloud’s metadata, by address or by name', async () => {
     await assert.rejects(
       assertEgressAllowed('http://169.254.169.254/latest/meta-data/'),
       (error: unknown) => error instanceof EgressRefusedError && /lien-local/.test(error.message),
@@ -29,7 +29,7 @@ describe('appels sortants vers une adresse saisie', () => {
     await assert.rejects(assertEgressAllowed('http://[fe80::1]:81/'), EgressRefusedError);
   });
 
-  it('refuse un nom dont une seule des adresses est interdite', async () => {
+  it('refuses a name only one of whose addresses is forbidden', async () => {
     await assert.rejects(
       assertEgressAllowed(
         'https://piege.exemple.fr/',
@@ -39,7 +39,7 @@ describe('appels sortants vers une adresse saisie', () => {
     );
   });
 
-  it('laisse passer le réseau privé, la boucle locale et le public', async () => {
+  it('lets the private network, loopback and public through', async () => {
     await assertEgressAllowed('http://10.0.0.5:81');
     await assertEgressAllowed('http://192.168.1.20:9000');
     await assertEgressAllowed('http://127.0.0.1:8181');
@@ -49,7 +49,7 @@ describe('appels sortants vers une adresse saisie', () => {
     );
   });
 
-  it('laisse passer un nom qui ne se résout pas : l’appel dira lui-même pourquoi', async () => {
+  it('lets through a name that does not resolve: the call will say why itself', async () => {
     await assertEgressAllowed('https://inconnu.invalid/', resolver({}));
   });
 });

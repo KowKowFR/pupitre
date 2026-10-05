@@ -6,15 +6,15 @@ SEED="node /app/packages/db/dist/seed.js"
 
 case "${1:-web}" in
   web)
-    echo "[entrypoint] application des migrations"
+    echo "[entrypoint] applying the migrations"
     $MIGRATE
-    echo "[entrypoint] seed RBAC (idempotent)"
+    echo "[entrypoint] RBAC seed (idempotent)"
     $SEED
-    echo "[entrypoint] démarrage du panel Next.js sur ${HOSTNAME:-0.0.0.0}:${PORT:-3000}"
+    echo "[entrypoint] starting the Next.js panel on ${HOSTNAME:-0.0.0.0}:${PORT:-3000}"
     exec node /app/web/apps/web/server.js
     ;;
   worker)
-    echo "[entrypoint] démarrage du worker BullMQ"
+    echo "[entrypoint] starting the BullMQ worker"
     exec node /app/apps/worker/dist/main.js
     ;;
   migrate)
@@ -24,7 +24,7 @@ case "${1:-web}" in
     exec $SEED
     ;;
   backup)
-    # Reprise après sinistre : `docker compose run --rm worker backup restore-panel …`
+    # Disaster recovery: `docker compose run --rm worker backup restore-panel …`
     shift
     exec node /app/apps/worker/dist/cli/backup.js "$@"
     ;;

@@ -3,12 +3,12 @@ import { logger } from '../logger.js';
 import { notifyBreachTransition } from './notify.js';
 
 /**
- * Juger le dernier relevé d'une machine, et n'annoncer que les bascules.
+ * Judge a machine's last reading, and only announce the flips.
  *
- * Un seul endroit, appelé par les **deux** déclencheurs : le balayage
- * périodique et le relevé demandé depuis l'écran. Dupliquer cette dizaine de
- * lignes dans les deux chemins aurait suffi à ce qu'ils divergent — l'un
- * annonçant les rétablissements, l'autre non, six mois plus tard.
+ * A single place, called by **both** triggers: the periodic sweep and the
+ * reading asked from the screen. Duplicating these ten lines in both paths would
+ * have been enough for them to diverge — one announcing recoveries, the other
+ * not, six months later.
  */
 export async function judgeAndAnnounce(target: {
   id: string;
@@ -17,8 +17,8 @@ export async function judgeAndAnnounce(target: {
   const transitions = await evaluateThresholds(target.id);
   if (transitions.length === 0) return { breached: 0, cleared: 0 };
 
-  // Le relevé qui vient d'être écrit : le catalogue en a besoin pour composer
-  // sa phrase — le chemin du disque, le nombre de cœurs.
+  // The reading just written: the catalog needs it to compose its sentence — the
+  // disk's path, the number of cores.
   const [latest] = await listTargetSamples(target.id, 1);
   if (!latest) return { breached: 0, cleared: 0 };
 
@@ -31,9 +31,9 @@ export async function judgeAndAnnounce(target: {
     try {
       await notifyBreachTransition(target, transition, latest);
     } catch (error) {
-      // Un message qui ne part pas ne doit pas emporter le relevé, qui, lui,
-      // est déjà en base. C'est l'inverse qui serait grave.
-      logger.error({ err: error, targetId: target.id }, 'annonce de franchissement impossible');
+      // A message that does not go out must not take the reading with it, which is
+      // already in the database. The reverse would be serious.
+      logger.error({ err: error, targetId: target.id }, 'crossing announcement failed');
     }
   }
 

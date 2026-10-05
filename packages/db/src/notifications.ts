@@ -16,19 +16,18 @@ import { users } from './schema/auth.js';
 import { notificationChannels } from './schema/notifications.js';
 
 /**
- * Accès aux canaux de notification.
+ * Access to the notification channels.
  *
- * Règle absolue, calquée sur `targets.ts` et `settings.ts` :
- * `encrypted_secrets` ne sort d'ici que par `resolveNotificationChannel()`.
- * Toutes les autres lectures rendent un `NotificationChannelRecord`, où les
- * secrets n'existent simplement pas — seulement la **liste des champs
- * renseignés**. Un secret ne peut donc pas fuir par oubli de filtrage dans un
- * handler : il n'est pas là.
+ * Absolute rule, modeled on `targets.ts` and `settings.ts`: `encrypted_secrets`
+ * only leaves here through `resolveNotificationChannel()`. Every other read
+ * returns a `NotificationChannelRecord`, where the secrets simply do not exist —
+ * only the **list of filled-in fields**. A secret therefore cannot leak by a
+ * forgotten filter in a handler: it is not there.
  */
 
 export type NotificationChannelRow = typeof notificationChannels.$inferSelect;
 
-/** Ce qui sort d'ici vers une route, un écran ou un journal. Jamais de secret. */
+/** What leaves here toward a route, a screen or a log. Never a secret. */
 export type NotificationChannelRecord = {
   id: string;
   kind: NotificationChannelKind;
@@ -36,7 +35,7 @@ export type NotificationChannelRecord = {
   enabled: boolean;
   config: ChannelConfig;
   events: NotificationEventKey[];
-  /** Noms des champs secrets réellement renseignés. Jamais leur valeur. */
+  /** Names of the secret fields really filled in. Never their value. */
   configuredSecrets: string[];
   lastSuccessAt: Date | null;
   lastFailureAt: Date | null;
@@ -46,18 +45,18 @@ export type NotificationChannelRecord = {
   updatedAt: Date;
 };
 
-/** Nom déjà pris. La base le refuserait de toute façon ; on le dit mieux. */
+/** Name already taken. The database would refuse it anyway; we say it better. */
 export class NotificationChannelNameTakenError extends Error {
   readonly channelName: string;
 
   constructor(channelName: string) {
-    super(`Un canal nommé « ${channelName} » existe déjà`);
+    super(`A channel named "${channelName}" already exists`);
     this.name = 'NotificationChannelNameTakenError';
     this.channelName = channelName;
   }
 }
 
-/** Code Postgres d'une violation de contrainte d'unicité. */
+/** Postgres code of a uniqueness constraint violation. */
 function isUniqueViolation(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === '23505';
 }
@@ -70,10 +69,10 @@ function decodeSecrets(encrypted: string | null): ChannelConfig {
       ? (parsed as ChannelConfig)
       : {};
   } catch {
-    // `MASTER_KEY` changée, ou colonne abîmée. Le canal reste « configuré » —
-    // la colonne est pleine — mais rien n'en est lisible. L'échec réel se
-    // produira à l'envoi, avec un message explicite, plutôt qu'ici où il
-    // ferait échouer un simple affichage de liste.
+    // `MASTER_KEY` changed, or damaged column. The channel stays "configured" — the
+    // column is full — but nothing in it is readable. The real failure will happen
+    // at send time, with an explicit message, rather than here where it would fail
+    // a mere list display.
     return {};
   }
 }
@@ -105,7 +104,7 @@ function toRecord(row: NotificationChannelRow): NotificationChannelRecord {
   };
 }
 
-// ─── lecture ──────────────────────────────────────────────────────────────────
+// ─── reading ──────────────────────────────────────────────────────────────────
 
 export async function listNotificationChannels(
   db: Database = getDb(),
@@ -123,11 +122,11 @@ export async function getNotificationChannel(
 }
 
 /**
- * Configuration complète, secrets déchiffrés. **Seul** point de déchiffrement.
+ * Complete configuration, secrets decrypted. The **only** decryption point.
  *
- * Réservé au code qui va réellement émettre — c'est-à-dire au worker. Le
- * résultat ne doit ni être journalisé, ni traverser une réponse HTTP, ni entrer
- * dans une entrée d'audit.
+ * Reserved to the code that will really send — that is, the worker. The result
+ * must neither be logged, nor go through an HTTP response, nor enter an audit
+ * entry.
  */
 export async function resolveNotificationChannel(
   id: string,
@@ -139,11 +138,11 @@ export async function resolveNotificationChannel(
 }
 
 /**
- * Canaux actifs abonnés à cet événement.
+ * Active channels subscribed to this event.
  *
- * Le filtre sur `events` est fait en SQL (`jsonb ? 'clé'`) et non en TypeScript :
- * c'est la base qui sait répondre, et ramener tous les canaux pour en écarter
- * la plupart serait du gâchis à chaque événement.
+ * The filter on `events` is done in SQL (`jsonb ? 'key'`) and not in TypeScript:
+ * it is the database that knows how to answer, and bringing back every channel
+ * to discard most of them would be a waste at each event.
  */
 export async function notificationChannelsForEvent(
   event: NotificationEventKey,
@@ -162,7 +161,7 @@ export async function notificationChannelsForEvent(
   return rows.map(toRecord);
 }
 
-/** E-mail de l'acteur, pour la ligne « Déclenché par » du message. */
+/** The actor's email, for the message's "Triggered by" line. */
 export async function notificationActorLabel(
   actorId: string | null,
   db: Database = getDb(),
@@ -172,7 +171,7 @@ export async function notificationActorLabel(
   return row?.email ?? null;
 }
 
-// ─── écriture ─────────────────────────────────────────────────────────────────
+// ─── writing ──────────────────────────────────────────────────────────────────
 
 export type NotificationChannelInput = {
   kind: NotificationChannelKind;
@@ -184,11 +183,11 @@ export type NotificationChannelInput = {
 };
 
 /**
- * Trois cas distincts pour chaque secret, et ils doivent le rester :
- *   champ absent → inchangé
- *   `null`       → effacé
- *   chaîne       → remplacé
- * C'est la sémantique déjà retenue pour `aiApiKey` dans `settings.ts`.
+ * Three distinct cases for each secret, and they must stay so:
+ *   field absent → unchanged
+ *   `null`       → erased
+ *   string       → replaced
+ * It is the semantics already chosen for `aiApiKey` in `settings.ts`.
  */
 export type NotificationChannelPatch = {
   name?: string;
@@ -203,9 +202,9 @@ function encodeSecrets(secrets: ChannelConfig): string | null {
 }
 
 /**
- * La validation traverse le catalogue de `@pupitre/core` : c'est lui qui sait quels
- * champs un canal attend, lesquels sont obligatoires et lesquels sont secrets.
- * Un `ZodError` remonte tel quel à l'appelant — 422 côté route.
+ * Validation goes through `@pupitre/core`'s catalog: it is what knows which
+ * fields a channel expects, which are required and which are secret. A
+ * `ZodError` goes up as is to the caller — 422 on the route side.
  */
 function validate(
   kind: NotificationChannelKind,
@@ -238,7 +237,7 @@ export async function createNotificationChannel(
         createdBy: actorId,
       })
       .returning();
-    if (!row) throw new Error('insertion du canal de notification sans retour');
+    if (!row) throw new Error('notification channel insert returned nothing');
     return toRecord(row);
   } catch (error) {
     if (isUniqueViolation(error)) throw new NotificationChannelNameTakenError(input.name);
@@ -259,9 +258,9 @@ export async function updateNotificationChannel(
 
   const nextConfigRaw = patch.config ?? current.config;
 
-  // Fusion des secrets : on repart de ce qui est en base, on applique le patch
-  // champ par champ, puis on **revalide l'ensemble**. Un secret obligatoire ne
-  // peut donc pas être effacé au détour d'un enregistrement.
+  // Merging secrets: we start from what is in the database, apply the patch field
+  // by field, then **validate the whole again**. A required secret therefore
+  // cannot be erased in passing during a save.
   const merged: Record<string, unknown> = { ...decodeSecrets(current.encryptedSecrets) };
   for (const [field, value] of Object.entries(patch.secrets ?? {})) {
     if (value === null || value === '') delete merged[field];
@@ -304,12 +303,12 @@ export async function deleteNotificationChannel(
 }
 
 /**
- * Enregistre l'issue d'une tentative d'envoi.
+ * Records the outcome of a send attempt.
  *
- * C'est la réponse à « l'échec ne doit pas être silencieux » : même quand
- * personne ne regarde le journal d'audit, l'écran des paramètres montre le
- * dernier message d'erreur et le nombre d'échecs d'affilée. `error` est déjà
- * expurgé par la couche d'envoi — aucun jeton n'atterrit ici.
+ * It is the answer to "the failure must not be silent": even when nobody looks
+ * at the audit log, the settings screen shows the last error message and the
+ * number of failures in a row. `error` is already scrubbed by the send layer —
+ * no token lands here.
  */
 export async function recordNotificationOutcome(
   id: string,
@@ -324,7 +323,8 @@ export async function recordNotificationOutcome(
         ? { lastSuccessAt: now, lastError: null, consecutiveFailures: 0 }
         : {
             lastFailureAt: now,
-            // Un échec sans message reste un échec : un tiret plutôt qu'une phrase figée.
+            // A failure without a message is still a failure: a dash rather than a frozen
+            // sentence.
             lastError: (outcome.error ?? '—').slice(0, 400),
             consecutiveFailures: sql`${notificationChannels.consecutiveFailures} + 1`,
           },

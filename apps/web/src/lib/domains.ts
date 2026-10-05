@@ -2,31 +2,33 @@ import 'server-only';
 import { CERTIFICATE_WARN_DAYS } from '@pupitre/core/proxy';
 import { listRoutes, listServingProxies, listTargets } from '@pupitre/db';
 import { proxyViewForUi, routeViewForUi, type RouteViewForUi } from './proxy';
+import { currentLanguage } from '@/i18n/server';
 
 const DAY_MS = 86_400_000;
 
-/** Un domaine de l'instance, tel que la page « Domaines » et son API le rendent. */
+/** One of the instance's domains, as the "Domains" page and its API return it. */
 export type DomainRow = RouteViewForUi & {
-  /** Le proxy qui le sert, ou `null` : la machine n'en a plus. */
+  /** The proxy that serves it, or `null`: the machine no longer has one. */
   proxy: { name: string; description: string; waf: boolean } | null;
-  /** La machine du proxy, quand c'est celui d'une autre, ou un proxy distant. */
+  /** The proxy's machine, when it is another's, or a remote proxy. */
   via: string | null;
   /**
-   * Jours pleins avant l'échéance du certificat, ou depuis, s'il est échu (alors
-   * négatif) ; `null` sans certificat lu. Échu depuis quelques heures : `0`.
+   * Full days before the certificate's expiry, or since, if it expired (then
+   * negative); `null` without a read certificate. Expired a few hours ago: `0`.
    */
   certificateDaysLeft: number | null;
   certificateExpired: boolean;
-  /** Le domaine mérite qu'on le regarde : il ne répond pas, ou son certificat arrive à échéance. */
+  /** The domain deserves a look: it does not answer, or its certificate is nearing expiry. */
   attention: boolean;
 };
 
 /**
- * Tous les domaines de l'instance, avec le proxy qui les sert et l'état de
- * leur certificat. Trois lectures, quel que soit leur nombre : les routes, les
- * machines, et le proxy de chacune.
+ * All the instance's domains, with the proxy that serves them and their
+ * certificate's state. Three reads, whatever their number: the routes, the
+ * machines, and each one's proxy.
  */
 export async function listDomains(now: number = Date.now()): Promise<DomainRow[]> {
+  const language = await currentLanguage();
   const [routes, targets, proxies] = await Promise.all([
     listRoutes({}),
     listTargets(),
@@ -37,11 +39,11 @@ export async function listDomains(now: number = Date.now()): Promise<DomainRow[]
   return routes
     .map((route) => {
       const serving = proxies.get(route.targetId);
-      const view = serving ? proxyViewForUi(serving.proxy) : null;
+      const view = serving ? proxyViewForUi(serving.proxy, language) : null;
       const expiresAt = route.certificate?.notAfter ? Date.parse(route.certificate.notAfter) : NaN;
       const left = route.tls && !Number.isNaN(expiresAt) ? expiresAt - now : null;
-      // Vers zéro dans les deux sens : échu depuis deux jours et des poussières
-      // se dit « deux jours », pas trois.
+      // Toward zero both ways: expired two days and a bit ago is said "two days", not
+      // three.
       const daysLeft = left === null ? null : Math.trunc(left / DAY_MS);
       return {
         ...routeViewForUi(route),

@@ -2,17 +2,17 @@ import { parseCidrList, safeParseMonitorConfig, type MonitorType } from '../src/
 import { getMonitorProbe } from '../src/probe/index.js';
 
 /**
- * Harnais des sondes `keyword` et `domain` — **il sonde pour de vrai**.
+ * Harness for the `keyword` and `domain` probes — **it probes for real**.
  *
  *     pnpm --filter @pupitre/core harness:probes
  *
- * Les tests unitaires prouvent la logique sur des fixtures ; ce harnais prouve
- * qu'elle tient face à l'internet tel qu'il est : un vrai site, un vrai
- * registre, une vraie liste d'amorçage. C'est délibérément un script et non un
- * test — un registre indisponible ne doit pas faire rougir une suite.
+ * The unit tests prove the logic on fixtures; this harness proves it holds
+ * against the Internet as it is: a real site, a real registry, a real bootstrap
+ * list. It is deliberately a script and not a test — an unavailable registry
+ * must not turn a suite red.
  *
- * Il est **économe** : deux interrogations RDAP et une lecture de la liste
- * d'amorçage, pas une de plus. Un registre est un service public gratuit.
+ * It is **frugal**: two RDAP queries and one read of the bootstrap list, not one
+ * more. A registry is a free public service.
  */
 
 const ALLOWLIST = parseCidrList(process.env.MONITOR_ALLOWED_CIDRS);
@@ -21,49 +21,49 @@ type Scenario = { title: string; expect: string; type: MonitorType; config: Reco
 
 const SCENARIOS: Scenario[] = [
   {
-    title: 'mot-clé présent sur un vrai site',
+    title: 'keyword present on a real site',
     expect: 'healthy',
     type: 'keyword',
     config: { url: 'https://example.com/', mustContain: 'Example Domain' },
   },
   {
-    title: 'même page, mot-clé absent — la casse et les accents ne sauvent rien',
+    title: 'same page, keyword absent — case and accents save nothing',
     expect: 'unhealthy',
     type: 'keyword',
     config: { url: 'https://example.com/', mustContain: 'Se connecter à mon espace' },
   },
   {
-    title: 'texte interdit trouvé : la page dit ce qu’elle ne devrait pas dire',
+    title: 'forbidden text found: the page says what it should not say',
     expect: 'unhealthy',
     type: 'keyword',
     config: { url: 'https://example.com/', mustNotContain: 'Avoid use in operations' },
   },
   {
-    title: 'texte interdit, cherché dans le brut : trouvé dans une feuille de style',
-    expect: 'unhealthy — faux positif que le mode « texte » évite',
+    title: 'forbidden text, searched in the raw response: found in a style sheet',
+    expect: 'unhealthy — a false positive the “text” mode avoids',
     type: 'keyword',
     config: { url: 'https://example.com/', mustNotContain: 'system-ui', scope: 'raw' },
   },
   {
-    title: 'même sonde, balises retirées : le <style> ne compte plus',
+    title: 'same probe, tags removed: the <style> no longer counts',
     expect: 'healthy',
     type: 'keyword',
     config: { url: 'https://example.com/', mustNotContain: 'system-ui', scope: 'text' },
   },
   {
-    title: 'comparaison souple : casse et espaces multiples indifférents',
+    title: 'lenient comparison: case and multiple spaces irrelevant',
     expect: 'healthy',
     type: 'keyword',
     config: { url: 'https://example.com/', mustContain: 'EXAMPLE   domain', matching: 'lenient' },
   },
   {
-    title: 'RDAP chez Verisign (.com)',
+    title: 'RDAP at Verisign (.com)',
     expect: 'healthy',
     type: 'domain',
     config: { domain: 'example.com', warnDays: 30 },
   },
   {
-    title: 'RDAP chez l’AFNIC (.fr), avec vérification du registrar et de la délégation',
+    title: 'RDAP at AFNIC (.fr), checking the registrar and the delegation',
     expect: 'healthy',
     type: 'domain',
     config: {
@@ -74,10 +74,10 @@ const SCENARIOS: Scenario[] = [
     },
   },
   {
-    title: 'RDAP sur un TLD qui n’en publie pas — refusé avant toute requête',
-    expect: 'configuration refusée',
+    title: 'RDAP on a TLD that publishes none — refused before any request',
+    expect: 'configuration refused',
     type: 'domain',
-    config: { domain: 'exemple.io' },
+    config: { domain: 'example.io' },
   },
 ];
 
@@ -86,19 +86,19 @@ function show(label: string, value: unknown): void {
 }
 
 async function main(): Promise<void> {
-  console.log(`Harnais des sondes — ${new Date().toISOString()}`);
+  console.log(`Probe harness — ${new Date().toISOString()}`);
   console.log(
-    `MONITOR_ALLOWED_CIDRS : ${ALLOWLIST.length === 0 ? '(vide — public uniquement)' : ALLOWLIST.map((c) => c.text).join(', ')}\n`,
+    `MONITOR_ALLOWED_CIDRS: ${ALLOWLIST.length === 0 ? '(empty — public only)' : ALLOWLIST.map((c) => c.text).join(', ')}\n`,
   );
 
   for (const scenario of SCENARIOS) {
     console.log(`── ${scenario.title}`);
-    console.log(`   type=${scenario.type} attendu=${scenario.expect}`);
+    console.log(`   type=${scenario.type} expected=${scenario.expect}`);
     console.log(`   config ${JSON.stringify(scenario.config)}`);
 
     const parsed = safeParseMonitorConfig(scenario.type, scenario.config);
     if (!parsed.ok) {
-      console.log(`   ⛔ configuration refusée : ${parsed.error.issues.map((i) => i.message).join(' ; ')}\n`);
+      console.log(`   ⛔ configuration refused: ${parsed.error.issues.map((i) => i.message).join('; ')}\n`);
       continue;
     }
 
@@ -106,9 +106,9 @@ async function main(): Promise<void> {
     const result = await getMonitorProbe(scenario.type).run(parsed.config, { allowlist: ALLOWLIST });
     const mark = result.outcome === 'healthy' ? '🟢' : result.outcome === 'unhealthy' ? '🟠' : '🔴';
 
-    console.log(`   ${mark} ${result.outcome}  (${Date.now() - started} ms de bout en bout)`);
-    show('latence', result.latencyMs === null ? null : `${result.latencyMs} ms`);
-    show('détail', result.detail);
+    console.log(`   ${mark} ${result.outcome}  (${Date.now() - started} ms end to end)`);
+    show('latency', result.latencyMs === null ? null : `${result.latencyMs} ms`);
+    show('detail', result.detail);
     for (const [key, value] of Object.entries(result.metrics)) show(key, value);
     console.log('');
   }

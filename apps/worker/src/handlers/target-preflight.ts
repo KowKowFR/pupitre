@@ -12,10 +12,10 @@ import { logger } from '../logger.js';
 import { workerSay } from '../messages.js';
 
 /**
- * Preflight d'une machine cible.
+ * A target machine's preflight.
  *
- * C'est le seul endroit du projet où un credential est déchiffré, et il ne
- * quitte jamais la portée de cette fonction : ni retour, ni audit, ni log.
+ * It is the only place in the project where a credential is decrypted, and it
+ * never leaves this function's scope: neither return, nor audit, nor log.
  */
 export async function handleTargetPreflight(
   job: Job<unknown, TargetPreflightJobResult>,
@@ -30,7 +30,7 @@ export async function handleTargetPreflight(
   }
 
   const { target, encryptedCredential } = record;
-  log.info({ host: target.host, port: target.port }, 'preflight démarré');
+  log.info({ host: target.host, port: target.port }, 'preflight started');
 
   const report = await runPreflight(sshTargetOf({ target, encryptedCredential }), language, log);
   await savePreflightResult(data.targetId, report);
@@ -45,7 +45,7 @@ export async function handleTargetPreflight(
       latencyMs: report.latencyMs,
       failedChecks: report.checks.filter((check) => check.status === 'failed').map((c) => c.key),
     },
-    'preflight terminé',
+    'preflight completed',
   );
 
   await logAudit({
@@ -53,8 +53,8 @@ export async function handleTargetPreflight(
     action: 'target.preflight.completed',
     resourceType: 'target',
     resourceId: data.targetId,
-    // Le rapport complet, sans le moindre credential : `runPreflight` ne
-    // manipule que des sorties de commandes.
+    // The complete report, without the slightest credential: `runPreflight` only
+    // handles command outputs.
     after: {
       host: target.host,
       status: report.status,

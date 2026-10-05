@@ -44,17 +44,17 @@ import { targets as messages } from '@/i18n/messages/targets';
 import { WorkloadRunDrawer, type RunMode } from './workload-run-drawer';
 
 /**
- * Ce qui tourne sur la cible, panel compris.
+ * What runs on the target, panel included.
  *
- * Le mot « charge » ne s'affiche nulle part : chaque ligne se nomme comme son
- * runtime la nomme — « conteneur », « deployment », « pod » — parce que c'est le
- * driver qui a rempli le champ `kind`. L'interface parle donc la langue de la
- * machine sans que le code n'ait à deviner de quel runtime il s'agit.
+ * The word "workload" shows nowhere: each row is named as its runtime names it —
+ * "container", "deployment", "pod" — because it is the driver that filled the
+ * `kind` field. The interface therefore speaks the machine's language without the
+ * code having to guess which runtime it is.
  *
- * Le driver pose une **clé** (`container`, `pod`, `deployment`, …), pas un mot :
- * c'est ici, et nulle part ailleurs, qu'elle devient une phrase — sans quoi un
- * panel anglais demanderait « Remove conteneur "x"? ». Un genre venu d'un
- * runtime que ce dictionnaire ne connaît pas s'affiche tel quel.
+ * The driver sets a **key** (`container`, `pod`, `deployment`, …), not a word: it
+ * is here, and nowhere else, that it becomes a sentence — otherwise an English
+ * panel would ask "Remove conteneur "x"?". A kind coming from a runtime this
+ * dictionary does not know shows as is.
  */
 
 type WorkloadRow = Workload & { ref: string };
@@ -78,7 +78,7 @@ type ApiError = { error?: { message?: string } };
 
 type Progress = { ref: string; name: string; lines: string[]; done: boolean; failed: boolean };
 
-/** Ce qui demande une confirmation. Démarrer n'en demande pas : rien ne s'interrompt. */
+/** What requires a confirmation. Starting does not: nothing is interrupted. */
 type ConfirmedAction = 'remove' | 'update' | 'stop' | 'restart';
 type Action = ConfirmedAction | 'start';
 
@@ -89,8 +89,8 @@ const CONTROL_ICON: Record<WorkloadControlAction, typeof Play> = {
 };
 
 /**
- * L'adresse de chaque geste. Supprimer est le `DELETE` de la charge ; les
- * autres sont des sous-ressources, et ceux du cycle de vie partagent la leur.
+ * Each gesture's address. Deleting is the workload's `DELETE`; the others are
+ * sub-resources, and the life-cycle ones share theirs.
  */
 function request(
   targetId: string,
@@ -120,9 +120,9 @@ const STATE_TONE: Record<ServiceState, Tone> = {
 };
 
 /**
- * Les genres de charge que ce panel sait nommer. Une clé absente d'ici n'est
- * pas une erreur : c'est un runtime plus récent que ce dictionnaire, et son mot
- * brut vaut mieux qu'une clé affichée à l'écran.
+ * The workload kinds this panel knows how to name. A key absent from here is not
+ * an error: it is a runtime more recent than this dictionary, and its raw word is
+ * better than a key shown on screen.
  */
 const KNOWN_KINDS = ['container', 'pod', 'deployment', 'statefulset', 'daemonset'] as const;
 type KnownKind = (typeof KNOWN_KINDS)[number];
@@ -162,8 +162,8 @@ export function WorkloadsPanel({
   const [progress, setProgress] = useState<Progress | null>(null);
   const source = useRef<EventSource | null>(null);
 
-  /** Interrogation nue : elle ne touche à aucun état, pour rester appelable
-   *  depuis un effet sans déclencher de rendu en cascade. */
+  /** Bare query: it touches no state, so as to stay callable from an effect
+   *  without triggering a cascading render. */
   const fetchInventory = useCallback(async (): Promise<Inventory> => {
     const response = await fetch(`/api/targets/${targetId}/workloads`, { cache: 'no-store' });
     if (!response.ok) {
@@ -195,8 +195,8 @@ export function WorkloadsPanel({
     }
   }, [apply, fetchInventory, t]);
 
-  // Premier chargement : les mises à jour d'état n'ont lieu que dans les
-  // rappels de la promesse, jamais dans le corps de l'effet.
+  // First load: the state updates only happen in the promise's callbacks, never in
+  // the effect's body.
   useEffect(() => {
     let cancelled = false;
     fetchInventory().then(
@@ -222,8 +222,8 @@ export function WorkloadsPanel({
   useEffect(() => closeStream, [closeStream]);
 
   /**
-   * Ouvre le flux **avant** d'enfiler la tâche : s'abonner après, c'est perdre
-   * les premières lignes d'une opération qui démarre en une fraction de seconde.
+   * Opens the stream **before** queuing the job: subscribing afterwards is losing
+   * the first lines of an operation that starts in a fraction of a second.
    */
   const openStream = useCallback(
     (ref: string, name: string) =>
@@ -276,11 +276,11 @@ export function WorkloadsPanel({
     [closeStream, reload, router, t, targetId],
   );
 
-  /** Le geste en attente de confirmation, s'il y en a un. */
+  /** The gesture awaiting confirmation, if there is one. */
   const [pending, setPending] = useState<{ workload: WorkloadRow; action: ConfirmedAction } | null>(
     null,
   );
-  /** Le journal ou la console ouverts, s'il y en a. */
+  /** The open log or console, if any. */
   const [session, setSession] = useState<{ workload: WorkloadRow; mode: RunMode } | null>(null);
 
   async function act(workload: WorkloadRow, action: Action) {
@@ -301,9 +301,9 @@ export function WorkloadsPanel({
   }
 
   const items = inventory?.items ?? [];
-  // `kind` vient du driver — `container`, `pod`, `deployment` : c'est le
-  // runtime qui nomme la chose. Il entre dans la phrase avec le mot de la
-  // langue courante, jamais avec la clé.
+  // `kind` comes from the driver — `container`, `pod`, `deployment`: it is the
+  // runtime that names the thing. It enters the sentence with the current
+  // language's word, never with the key.
   const confirmVars = pending
     ? {
         kind: kindLabel(pending.workload.kind, t),
@@ -317,8 +317,8 @@ export function WorkloadsPanel({
       <div className="card-h">
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <h2>{t('workloads.title')}</h2>
-          {/* Trois fragments : deux décomptes qui s'accordent chacun de leur
-              côté, et la date du relevé. */}
+          {/* Three fragments: two counts that each agree on their own side, and
+              the reading's date. */}
           <span className="sub">
             {inventory
               ? `${t('workloads.count', { count: inventory.total })}, ${t('workloads.managed', {
@@ -486,7 +486,7 @@ export function WorkloadsPanel({
 
 type ConfirmVars = { kind: string; name: string; image: string };
 
-/** Ce que chaque geste confirmé va faire, dit avant qu'il ne le fasse. */
+/** What each confirmed gesture is going to do, said before it does it. */
 const CONSEQUENCES: Record<ConfirmedAction, (t: Messages, vars: ConfirmVars) => string[]> = {
   remove: (t, vars) => [
     t('workload.remove.image', vars),
@@ -503,9 +503,9 @@ const CONSEQUENCES: Record<ConfirmedAction, (t: Messages, vars: ConfirmVars) => 
 };
 
 /**
- * Le menu d'une ligne. Il n'offre que ce que le driver a dit possible pour
- * cette charge, dans son état (`controls`, `exec`) — l'écran ne devine rien du
- * runtime. Une charge du panel ne se supprime ni ne se met à jour d'ici.
+ * A row's menu. It only offers what the driver said is possible for this
+ * workload, in its state (`controls`, `exec`) — the screen guesses nothing about
+ * the runtime. A panel workload is neither deleted nor updated from here.
  */
 function WorkloadMenu({
   workload,

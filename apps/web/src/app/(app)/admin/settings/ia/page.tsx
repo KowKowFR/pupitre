@@ -13,11 +13,10 @@ export const dynamic = 'force-dynamic';
 const section = settingsSection('/admin/settings/ia');
 
 /**
- * La seule page qui affiche la section IA.
+ * The only page that shows the AI section.
  *
- * Ce qui descend au client : le fait qu'une clé soit posée, et ses quatre
- * derniers caractères. Jamais la clé — `getAppSettings()` ne la rend
- * physiquement pas.
+ * What comes down to the client: the fact that a key is set, and its last four
+ * characters. Never the key — `getAppSettings()` physically does not return it.
  */
 export default async function AiSettingsPage() {
   const auth = await requirePagePermission('/admin/settings/ia', 'settings:read');

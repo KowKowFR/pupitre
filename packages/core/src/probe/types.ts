@@ -4,33 +4,32 @@ import type { MonitorType } from '../monitors/catalog.js';
 import type { UiLanguage } from '../i18n.js';
 
 /**
- * **L'abstraction.** Une sonde, quel que soit ce qu'elle observe.
+ * **The abstraction.** A probe, whatever it observes.
  *
  *     run(config) → CheckResult { outcome, latencyMs, detail, metrics }
  *
- * Même forme que `DeploymentDriver` et `Scanner` : une interface, une
- * implémentation par type, une fabrique. Ajouter un type de surveillance —
- * DNS, expiration de domaine, empreinte de contenu — c'est écrire une classe
- * ici et l'enregistrer, sans toucher à la table, au runner, aux routes ni à
- * l'écran.
+ * The same shape as `DeploymentDriver` and `Scanner`: an interface, one
+ * implementation per type, a factory. Adding a kind of monitoring — DNS, domain
+ * expiry, content fingerprint — means writing a class here and registering it,
+ * without touching the table, the runner, the routes or the screen.
  *
- * La configuration arrive en `unknown` : chaque implémentation la valide avec
- * le schéma Zod de **son** type, pris dans le catalogue. C'est ce qui permet au
- * reste du projet de manipuler des sondes sans jamais connaître leur forme.
+ * The configuration arrives as `unknown`: each implementation validates it with
+ * **its** type's Zod schema, taken from the catalog. That is what lets the rest
+ * of the project handle probes without ever knowing their shape.
  */
 export type ProbeContext = {
-  /** Plages internes autorisées. La politique SSRF s'applique à tous les types. */
+  /** Allowed internal ranges. The SSRF policy applies to every type. */
   allowlist: readonly Cidr[];
-  /** La langue de l'instance : celle du `detail` de chaque relevé. */
+  /** The instance's language: that of each reading's `detail`. */
   language: UiLanguage;
 };
 
 export interface MonitorProbe {
   readonly type: MonitorType;
   /**
-   * **Ne lève jamais** pour une panne de la cible : une cible morte est un
-   * résultat, pas une erreur de programme. Ne lève pas non plus pour un refus
-   * SSRF — c'est aussi un verdict, mais qui porte son motif dans `detail`.
+   * **Never throws** for a target failure: a dead target is a result, not a
+   * program error. Does not throw for an SSRF refusal either — that is a verdict
+   * too, but it carries its reason in `detail`.
    */
   run(config: unknown, ctx: ProbeContext): Promise<CheckResult>;
 }

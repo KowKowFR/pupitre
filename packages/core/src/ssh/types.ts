@@ -1,7 +1,7 @@
 import type { UiLanguage } from '../i18n.js';
 /**
- * Types de la couche SSH. Volontairement séparés du client pour que le reste
- * du monorepo puisse les importer sans tirer `ssh2` dans son graphe.
+ * Types of the SSH layer. Deliberately separate from the client so that the
+ * rest of the monorepo can import them without pulling `ssh2` into its graph.
  */
 
 export type SshAuthMethod = 'key' | 'password';
@@ -12,24 +12,24 @@ export type SshCredentials =
   | { authMethod: 'password'; password: string };
 
 /**
- * La clé d'hôte qu'on attend de la machine — sans quoi n'importe quelle machine
- * intercalée sur le réseau pourrait se faire passer pour elle, recevoir le mot
- * de passe SSH ou sudo, voir et modifier les commandes.
+ * The host key expected from the machine — otherwise any machine inserted on the
+ * network could pass itself off as it, receive the SSH or sudo password, see and
+ * change the commands.
  *
- * Confiance au premier contact (TOFU), comme `ssh` et son `known_hosts` :
- * `expected` vaut `null` pour une machine jamais jointe — la clé présentée est
- * acceptée, et `onFirstSeen` la reçoit pour qu'on la retienne. Ensuite, une
- * autre clé fait **refuser** la connexion, sans nouvel essai, et `onMismatch`
- * reçoit la clé présentée pour qu'on la signale.
+ * Trust on first use (TOFU), like `ssh` and its `known_hosts`: `expected` is
+ * `null` for a machine never reached — the presented key is accepted, and
+ * `onFirstSeen` receives it so that it is remembered. After that, another key
+ * makes the connection be **refused**, without retry, and `onMismatch` receives
+ * the presented key so that it is reported.
  */
 export type HostKeyPolicy = {
-  /** L'empreinte retenue (`SHA256:…`), ou `null` : machine jamais jointe. */
+  /** The recorded fingerprint (`SHA256:…`), or `null`: machine never reached. */
   expected: string | null;
   onFirstSeen?: (fingerprint: string) => Promise<void> | void;
   onMismatch?: (presented: string) => Promise<void> | void;
 };
 
-/** Tout ce qu'il faut pour joindre une machine cible. */
+/** Everything needed to reach a target machine. */
 export type SshTarget = {
   host: string;
   port: number;
@@ -37,8 +37,8 @@ export type SshTarget = {
   credentials: SshCredentials;
   sudoMethod: SudoMethod;
   /**
-   * Absente : aucune vérification — réservé aux outils de test, qui visent des
-   * machines jetables. Le worker la donne toujours (`sshTargetOf()`).
+   * Absent: no check — reserved to test tools, which aim at throwaway machines.
+   * The worker always provides it (`sshTargetOf()`).
    */
   hostKey?: HostKeyPolicy;
 };
@@ -47,32 +47,32 @@ export type ExecResult = {
   code: number;
   stdout: string;
   stderr: string;
-  /** `true` si la commande a été interrompue par le timeout. */
+  /** `true` if the command was interrupted by the timeout. */
   timedOut: boolean;
   durationMs: number;
 };
 
 export type ExecOptions = {
-  /** Préfixe la commande de `sudo`, selon la `sudoMethod` de la cible. */
+  /** Prefixes the command with `sudo`, according to the target's `sudoMethod`. */
   sudo?: boolean;
   /**
-   * Millisecondes. Défaut : `DEFAULT_EXEC_TIMEOUT_MS`.
+   * Milliseconds. Default: `DEFAULT_EXEC_TIMEOUT_MS`.
    *
-   * `null` désarme la garde : la commande n'a pas de date limite et c'est
-   * l'appelant qui coupe la session. Réservé au suivi de logs, qui n'a pas de
-   * fin naturelle. Ne pas simuler ce cas avec un très grand nombre : au-delà
-   * de 2³¹−1 ms, `setTimeout` retombe à 1 ms et coupe tout immédiatement.
+   * `null` disarms the guard: the command has no deadline and it is the caller
+   * that cuts the session. Reserved to following logs, which has no natural end.
+   * Do not simulate this case with a very large number: beyond 2³¹−1 ms,
+   * `setTimeout` falls back to 1 ms and cuts everything immediately.
    */
   timeout?: number | null;
   cwd?: string;
-  /** Journalise la sortie de la commande. Coupé pour les commandes sensibles. */
+  /** Logs the command's output. Turned off for sensitive commands. */
   logOutput?: boolean;
 };
 
 /**
- * Journal minimal, satisfait structurellement par un logger Pino.
- * `packages/core` ne dépend d'aucun logger : l'appelant injecte le sien, avec
- * son `redact` déjà configuré.
+ * Minimal logger, structurally satisfied by a Pino logger. `packages/core`
+ * depends on no logger: the caller injects its own, with its `redact` already
+ * configured.
  */
 export type SshLogger = {
   debug: (obj: Record<string, unknown>, msg?: string) => void;
@@ -82,14 +82,14 @@ export type SshLogger = {
 };
 
 export type ConnectOptions = {
-  /** Millisecondes pour l'établissement de la connexion. Défaut : 15 000. */
+  /** Milliseconds to establish the connection. Default: 15,000. */
   readyTimeout?: number;
-  /** Tentatives sur échec réseau. Défaut : 3. Jamais appliqué à un échec d'authentification. */
+  /** Attempts on network failure. Default: 3. Never applied to an authentication failure. */
   retries?: number;
   logger?: SshLogger;
   /**
-   * La langue de ce que la session dira — erreurs de connexion, délais
-   * dépassés. Celle de l'instance ; le français à défaut.
+   * The language of what the session will say — connection errors, timeouts. The
+   * instance's; French by default.
    */
   language?: UiLanguage;
 };

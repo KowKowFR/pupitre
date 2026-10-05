@@ -27,11 +27,11 @@ async function addressesOf(name: string): Promise<string[]> {
 }
 
 /**
- * Ce domaine pointe-t-il vers la machine qui recevra ses visiteurs — celle-ci,
- * ou celle du proxy qui la sert quand c'est celui d'une autre ? Un avertissement, jamais un
- * refus : derrière un NAT, un CDN ou un tunnel, l'adresse publique n'est pas
- * celle par laquelle le panel joint la cible — et le DNS peut ne pas être
- * encore propagé. Le certificat, lui, attendra qu'il le soit.
+ * Does this domain point to the machine that will receive its visitors — this
+ * one, or the machine of the proxy that serves it when it is another's? A
+ * warning, never a refusal: behind a NAT, a CDN or a tunnel, the public address
+ * is not the one through which the panel reaches the target — and the DNS may not
+ * be propagated yet. The certificate, for its part, will wait until it is.
  */
 export const GET = apiRoute<Context>(async (request, context) => {
   await requirePermission(request, 'target:read');
@@ -44,7 +44,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
     serving?.link && serving.proxy.hostTargetId
       ? await getTarget(serving.proxy.hostTargetId)
       : null;
-  // Un proxy distant reçoit sur sa propre entrée, hors des cibles.
+  // A remote proxy receives on its own entry, outside the targets.
   const remoteHost =
     serving?.link && !serving.proxy.hostTargetId
       ? proxyEntrypointHost(serving.proxy.kind, serving.proxy.config)
@@ -60,7 +60,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
     targetAddresses,
     resolves: addresses.length > 0,
     matches: addresses.some((address) => targetAddresses.includes(address)),
-    /** Le proxy, quand il n'est pas sur celle-ci. */
+    /** The proxy, when it is not on this one. */
     via: proxyHost?.name ?? (remoteHost ? serving!.proxy.name : null),
   });
 });

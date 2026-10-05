@@ -19,66 +19,62 @@ import { logger } from '../logger.js';
 import { allowedCidrs } from './policy.js';
 
 /**
- * ⟵ **LA COUTURE** ⟶
+ * ⟵ **THE SEAM** ⟶
  *
- * Tout ce que la supervision de sites émet vers l'extérieur passe par cette
- * unique fonction. Le reste du code — le balayage, la machine à états — ne
- * connaît ni webhook, ni `fetch`, ni format de charge utile : il constate une
- * transition et appelle `notifyMonitorTransition()`.
+ * Everything site monitoring sends to the outside goes through this single
+ * function. The rest of the code — the sweep, the state machine — knows neither
+ * webhook, nor `fetch`, nor payload format: it observes a transition and calls
+ * `notifyMonitorTransition()`.
  *
- * ── Deux sorties, et c'est voulu ────────────────────────────────────────────
- * La couture annoncée a été tenue : les canaux de notification généraux (SMTP,
- * Telegram, Discord, webhook) sont désormais servis. Mais **pas** en remplaçant
- * le corps de cette fonction — en la laissant faire ce qu'elle faisait déjà :
- * écrire l'audit. `logAudit()` porte l'observateur qui reconnaît
- * `monitor.down` / `monitor.recovered` au catalogue d'événements et enfile la
- * distribution. Zéro appel à la fabrique de canaux depuis ici, zéro import de
- * `@pupitre/core/notifications` dans la supervision : le raccord tient dans
- * deux entrées de table, côté `packages/core/src/notifications/events.ts`.
+ * ── Two outputs, on purpose ─────────────────────────────────────────────────
+ * The announced seam was honored: the general notification channels (SMTP,
+ * Telegram, Discord, webhook) are now served. But **not** by replacing this
+ * function's body — by letting it do what it already did: write the audit.
+ * `logAudit()` carries the observer that recognizes `monitor.down` /
+ * `monitor.recovered` in the events catalog and queues the delivery. Zero calls
+ * to the channels factory from here, zero imports of
+ * `@pupitre/core/notifications` in monitoring: the connection fits in two table
+ * entries, on the `packages/core/src/notifications/events.ts` side.
  *
- *   sortie 1 — les canaux d'instance, via l'audit. Regroupement des rafales,
- *              résumés nommés, rejeu par canal : hérité, pas réécrit.
- *   sortie 2 — le webhook **de cette sonde**, ci-dessous, inchangé.
+ *   output 1 — the instance's channels, through the audit log. Burst grouping,
+ *              named digests, per-channel retry: inherited, not rewritten.
+ *   output 2 — **this probe's** webhook, below, unchanged.
  *
- * ── Pourquoi le webhook par sonde n'a pas disparu ───────────────────────────
- * Il aurait été facile de le retirer « puisque les canaux font mieux ». Ils ne
- * font pas la même chose. Un canal est abonné à un *événement*, donc à **toutes**
- * les sondes de l'instance ; ce webhook est attaché à **une** sonde. Un
- * hébergeur qui surveille trente sites pour vingt clients veut le salon Slack
- * du client dans le webhook de sa sonde, et surtout pas les vingt-neuf autres.
- * Le supprimer forcerait ce cas à recevoir tout ou rien : une régression sans
- * équivalent de remplacement.
+ * ── Why the per-probe webhook did not disappear ─────────────────────────────
+ * It would have been easy to remove it "since the channels do better". They do
+ * not do the same thing. A channel subscribes to an *event*, hence to **all**
+ * the instance's probes; this webhook is attached to **one** probe. A host
+ * monitoring thirty sites for twenty customers wants the customer's Slack
+ * channel in its probe's webhook, and certainly not the twenty-nine others.
+ * Removing it would force that case to receive all or nothing: a regression
+ * without a replacement.
  *
- * Les deux peuvent donc se déclencher pour la même panne. Ce n'est pas un
- * doublon accidentel : ce sont deux abonnements distincts, posés par deux
- * gestes distincts, et l'écran des sondes le dit en toutes lettres au moment de
- * saisir l'URL. La charge utile diffère d'ailleurs — ici un `MonitorAlert`
- * brut, taillé pour Slack et Discord (`text` / `content`, métriques, identifiant
- * d'incident) ; là un message neutre rendu par chaque canal dans sa forme.
+ * Both can therefore fire for the same outage. It is not an accidental
+ * duplicate: they are two distinct subscriptions, set by two distinct gestures,
+ * and the probes screen says so in plain words when entering the URL. The
+ * payload differs, by the way — here a raw `MonitorAlert`, cut for Slack and
+ * Discord (`text` / `content`, metrics, incident identifier); there a neutral
+ * message rendered by each channel in its own shape.
  *
- * Règles que cette couture tient :
+ * Rules this seam holds:
  *
- *   1. On alerte **à la transition**, jamais à chaque échec. Cinquante messages
- *      pour une panne, personne ne les lit. C'est la machine à états qui décide
- *      de la transition ; cette fonction n'est appelée que quand elle a lieu.
- *      Les deux sorties héritent de cette hystérésis, puisqu'elles partent
- *      toutes deux d'ici.
- *   2. On alerte **aussi au rétablissement**. Une alerte sans son pendant
- *      oblige à aller vérifier à la main, ce qui est exactement ce qu'on
- *      voulait éviter.
- *   3. L'émission **une seule fois** est garantie en amont par l'index unique
- *      partiel sur les incidents ouverts : pas d'incident ouvert deux fois,
- *      donc pas de message deux fois.
- *   4. Un webhook injoignable **ne fait pas échouer le balayage** : l'échec est
- *      consigné sur l'incident (`alert_error`) et audité. Perdre la mesure
- *      parce que Slack était en panne serait le comble. Il ne fait pas non plus
- *      échouer la sortie 1 : l'audit est écrit **avant**, donc les canaux sont
- *      déjà servis quand le webhook expire.
+ *   1. We alert **at the transition**, never at each failure. Fifty messages for
+ *      one outage, nobody reads them. It is the state machine that decides the
+ *      transition; this function is only called when it happens. Both outputs
+ *      inherit this hysteresis, since both go out from here.
+ *   2. We alert **at recovery too**. An alert without its counterpart forces a
+ *      manual check, which is exactly what we wanted to avoid.
+ *   3. Sending **only once** is guaranteed upstream by the partial unique index
+ *      on open incidents: no incident opened twice, hence no message twice.
+ *   4. An unreachable webhook **does not fail the sweep**: the failure is
+ *      recorded on the incident (`alert_error`) and audited. Losing the
+ *      measurement because Slack was down would be the last straw. It does not
+ *      fail output 1 either: the audit is written **before**, so the channels
+ *      are already served when the webhook times out.
  *
- * La valeur de retour ne concerne que la **sortie 2** : elle alimente le
- * compteur `alerts` du balayage, qui compte des remises de webhook de sonde. Les
- * remises par canal sont asynchrones — elles vivent dans la file des
- * notifications et se comptent là-bas.
+ * The return value only concerns **output 2**: it feeds the sweep's `alerts`
+ * counter, which counts probe webhook deliveries. Per-channel deliveries are
+ * asynchronous — they live in the notifications queue and are counted there.
  */
 export async function notifyMonitorTransition(
   monitor: Monitor,
@@ -92,11 +88,11 @@ export async function notifyMonitorTransition(
   const target = monitorTarget(monitor);
 
   /**
-   * La langue de l'alerte est celle de **l'instance**, comme pour les canaux de
-   * notification (`handlers/notification.ts`) : personne n'est devant un écran
-   * quand un site tombe, et le salon Slack qui reçoit la phrase est celui de
-   * l'exploitant. Une transition est rare — quelques-unes par jour au pire —,
-   * donc cette lecture ne pèse sur aucun chemin chaud.
+   * The alert's language is **the instance's**, as for the notification channels
+   * (`handlers/notification.ts`): nobody is in front of a screen when a site goes
+   * down, and the Slack channel receiving the sentence is the operator's. A
+   * transition is rare — a few a day at worst —, so this read weighs on no hot
+   * path.
    */
   const settings = await getAppSettingsValue();
   const language = languageOf(settings.locale);
@@ -124,22 +120,21 @@ export async function notifyMonitorTransition(
   );
 
   /**
-   * Le changement d'état est tracé **quoi qu'il arrive** — même sans webhook
-   * configuré. Le journal d'audit est la mémoire de l'exploitation ; il ne
-   * dépend pas de la présence d'un récepteur.
+   * The state change is recorded **whatever happens** — even without a configured
+   * webhook. The audit log is the operation's memory; it does not depend on a
+   * receiver being present.
    *
-   * Et c'est désormais bien plus que de la mémoire : `logAudit()` est le point
-   * où l'observateur des notifications reconnaît `monitor.down` /
-   * `monitor.recovered` au catalogue (`@pupitre/core` → `notifiableEventFor`) et
-   * enfile la distribution vers les canaux abonnés. Autrement dit, **cette
-   * charge utile est le message**. Ce qui n'y figure pas ne pourra pas être dit
-   * à l'opérateur — d'où `startedAt` et `durationSeconds`, sans lesquels un
-   * résumé ne saurait dire « rétabli après 4 min » et se réduirait à un
-   * compteur.
+   * And it is now much more than memory: `logAudit()` is the point where the
+   * notifications observer recognizes `monitor.down` / `monitor.recovered` in the
+   * catalog (`@pupitre/core` → `notifiableEventFor`) and queues the delivery to the
+   * subscribed channels. In other words, **this payload is the message**. What is
+   * not in it cannot be told to the operator — hence `startedAt` and
+   * `durationSeconds`, without which a digest could not say "recovered after
+   * 4 min" and would shrink to a counter.
    *
-   * Rien de secret n'y entre : le nom, la cible publique, le verdict et les
-   * mesures. L'URL du webhook de la sonde, elle, n'est jamais écrite ici — pas
-   * plus que dans les logs.
+   * Nothing secret goes into it: the name, the public target, the verdict and the
+   * measurements. The probe webhook's URL is never written here — any more than in
+   * the logs.
    */
   const durationSeconds = incident.resolvedAt
     ? Math.max(
@@ -172,9 +167,9 @@ export async function notifyMonitorTransition(
   try {
     url = monitorWebhookUrl(monitor);
   } catch (error) {
-    // Une URL chiffrée sous une autre `MASTER_KEY` : on le dit, on ne plante pas.
+    // A URL encrypted under another `MASTER_KEY`: we say so, we do not crash.
     const message = error instanceof Error ? error.message : String(error);
-    logger.error({ monitorId: monitor.id, err: error }, 'webhook de sonde illisible');
+    logger.error({ monitorId: monitor.id, err: error }, 'probe webhook unreadable');
     await markIncidentAlerted(incident.id, kind, { ok: false, error: message });
     return false;
   }
@@ -195,14 +190,14 @@ export async function notifyMonitorTransition(
   );
 
   if (!delivery.ok) {
-    // Jamais l'URL dans les logs : c'est le secret.
+    // Never the URL in the logs: it is the secret.
     logger.warn(
       { monitorId: monitor.id, incidentId: incident.id, error: delivery.error },
-      "alerte de supervision non remise",
+      'monitoring alert not delivered',
     );
     return false;
   }
 
-  logger.info({ monitorId: monitor.id, incidentId: incident.id, event }, 'alerte de supervision émise');
+  logger.info({ monitorId: monitor.id, incidentId: incident.id, event }, 'monitoring alert sent');
   return true;
 }

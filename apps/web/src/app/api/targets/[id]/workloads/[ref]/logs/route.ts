@@ -21,16 +21,16 @@ const paramsSchema = z.object({ id: z.string().uuid(), ref: z.string().min(3).ma
 type Context = { params: Promise<{ id: string; ref: string }> };
 
 const bodySchema = z.object({
-  /** Tiré par le navigateur, qui a déjà ouvert le flux de cette exécution. */
+  /** Drawn by the browser, which already opened this run's stream. */
   run: z.string().uuid(),
   tail: z.number().int().min(10).max(WORKLOAD_LOGS_MAX_TAIL).default(300),
 });
 
 /**
- * Les dernières lignes du journal d'une charge. Elles reviennent par le flux
- * temps réel de la cible, marquées de `run` : seul l'écran qui les a
- * demandées les lit. `workload:manage` et non `workload:read` — un journal de
- * conteneur peut porter des secrets.
+ * The last lines of a workload's log. They come back through the target's
+ * real-time stream, marked with `run`: only the screen that asked for them reads
+ * them. `workload:manage` and not `workload:read` — a container log can carry
+ * secrets.
  */
 export const POST = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'workload:manage');

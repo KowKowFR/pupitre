@@ -1,29 +1,27 @@
 /**
- * La correspondance tolérante de la palette ⌘K : ce qu'on tape, contre ce
- * qu'un objet porte (nom, slug, hôte, étiquettes…).
+ * The ⌘K palette's tolerant matching: what is typed, against what an object
+ * carries (name, slug, host, labels…).
  *
- * Tolérante, mais pas floue au point de tout rendre :
+ * Tolerant, but not so fuzzy that it returns everything:
  *
- * - les accents et la casse ne comptent pas (« deploiement » trouve
- *   « Déploiement ») ;
- * - **chaque mot tapé doit répondre** quelque part : « api prod » ne rend pas
- *   tout ce qui contient « prod » ;
- * - un mot répond, du plus fort au plus faible : le champ entier, un début de
- *   mot, un morceau de mot, puis — à partir de trois lettres — les lettres
- *   dans l'ordre (« prd1 » → « prod-1 »), ou une faute de frappe
- *   (« umamo » → « umami », une lettre fausse, en trop, manquante ou
- *   inversée ; deux à partir de huit lettres).
+ * - accents and case do not count ("deploiement" finds "Déploiement");
+ * - **each typed word must match** somewhere: "api prod" does not return
+ *   everything that contains "prod";
+ * - a word matches, from strongest to weakest: the whole field, a word start, a
+ *   piece of a word, then — from three letters — the letters in order ("prd1" →
+ *   "prod-1"), or a typo ("umamo" → "umami", one letter wrong, extra, missing or
+ *   swapped; two from eight letters).
  *
- * Le score sert à ranger : un objet qui répond par son nom passe devant un
- * objet qui répond par une faute de frappe.
+ * The score is used for ranking: an object that matches by its name goes before
+ * an object that matches through a typo.
  */
 
-/** Sans accents, en minuscules. */
+/** Without accents, lowercase. */
 export function foldText(value: string): string {
   return value.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 }
 
-/** Les mots d'une saisie, repliés. Le `#` d'un numéro de run tombe. */
+/** The words of an input, folded. The `#` of a run number drops. */
 export function queryTokens(query: string): string[] {
   return foldText(query)
     .split(/\s+/)
@@ -35,7 +33,7 @@ function wordsOf(field: string): string[] {
   return field.split(/[^a-z0-9]+/).filter((word) => word !== '');
 }
 
-/** Les lettres de `token` apparaissent-elles dans l'ordre dans `text` ? */
+/** Do the letters of `token` appear in order in `text`? */
 function isSubsequence(token: string, text: string): boolean {
   let index = 0;
   for (const char of text) {
@@ -46,8 +44,8 @@ function isSubsequence(token: string, text: string): boolean {
 }
 
 /**
- * Distance de Damerau-Levenshtein (alignement optimal), bornée : au-delà de
- * `max`, on s'arrête et on rend `max + 1`.
+ * Damerau-Levenshtein distance (optimal alignment), bounded: beyond `max`, we
+ * stop and return `max + 1`.
  */
 export function editDistance(a: string, b: string, max: number): number {
   if (Math.abs(a.length - b.length) > max) return max + 1;
@@ -73,10 +71,9 @@ export function editDistance(a: string, b: string, max: number): number {
 }
 
 /**
- * Ce que vaut un mot tapé contre un champ : 0 s'il n'y répond pas. Un champ
- * de prose (une description) ne répond qu'à un vrai morceau de texte : les
- * lettres dans l'ordre et les fautes de frappe trouveraient n'importe quoi
- * dans une phrase.
+ * What a typed word is worth against a field: 0 if it does not match. A prose
+ * field (a description) only matches a real piece of text: letters in order and
+ * typos would find anything in a sentence.
  */
 function tokenScore(token: string, field: string, prose: boolean): number {
   if (field === token) return 5;
@@ -84,13 +81,13 @@ function tokenScore(token: string, field: string, prose: boolean): number {
   if (field.startsWith(token) || words.some((word) => word.startsWith(token))) return 4;
   if (field.includes(token)) return 3;
   if (prose) return 0;
-  // Les mots, le champ entier, et le champ sans séparateurs : « prd1 » se lit
-  // dans « prod-1 », « portail-cleint » contre « portail-client ».
+  // The words, the whole field, and the field without separators: "prd1" reads in
+  // "prod-1", "portail-cleint" against "portail-client".
   const compact = field.replace(/[^a-z0-9]/g, '');
   const candidates = [...words, field, compact];
-  // Les lettres dans l'ordre, mais en commençant comme le mot, et dans un mot
-  // guère plus long que la saisie : « prd1 » pour « prod-1 », pas « umamo »
-  // éparpillé dans « open-webui-documentation ».
+  // Letters in order, but starting like the word, and in a word hardly longer than
+  // the input: "prd1" for "prod-1", not "umamo" scattered across
+  // "open-webui-documentation".
   if (
     token.length >= 3 &&
     candidates.some(
@@ -102,8 +99,8 @@ function tokenScore(token: string, field: string, prose: boolean): number {
   }
   if (token.length >= 4) {
     const allowed = token.length >= 8 ? 2 : 1;
-    // Contre le mot entier, ou contre son début de même longueur : « umam »
-    // tapé pour « umami » ne doit pas être puni pour la lettre qui manque.
+    // Against the whole word, or against its start of the same length: "umam" typed
+    // for "umami" must not be punished for the missing letter.
     if (
       candidates.some(
         (word) =>
@@ -118,14 +115,14 @@ function tokenScore(token: string, field: string, prose: boolean): number {
 }
 
 /**
- * Le score d'un objet pour une saisie : la somme, mot par mot, de la meilleure
- * réponse parmi ses champs. 0 dès qu'un mot ne répond nulle part. Une saisie
- * vide vaut 1 : tout répond, sans ordre.
+ * An object's score for an input: the sum, word by word, of the best match among
+ * its fields. 0 as soon as a word matches nowhere. An empty input is worth 1:
+ * everything matches, without order.
  */
 export function matchScore(
   query: string,
   fields: ReadonlyArray<string | null | undefined>,
-  /** Des champs de prose : texte exact seulement, sans tolérance aux fautes. */
+  /** Prose fields: exact text only, without typo tolerance. */
   prose: ReadonlyArray<string | null | undefined> = [],
 ): number {
   const tokens = queryTokens(query);
@@ -145,7 +142,7 @@ export function matchScore(
   return total;
 }
 
-/** Les objets qui répondent, du meilleur au moins bon ; l'ordre d'origine départage. */
+/** The objects that match, from best to worst; the original order breaks ties. */
 export function rankByMatch<T>(
   query: string,
   items: readonly T[],

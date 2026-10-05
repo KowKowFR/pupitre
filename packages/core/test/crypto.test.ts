@@ -33,25 +33,25 @@ describe('crypto', () => {
   afterEach(() => withMasterKey(original));
 
   describe('round-trip', () => {
-    it('rend le texte d’origine', () => {
-      const secret = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5 clé de test';
+    it('returns the original text', () => {
+      const secret = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5 test key';
       assert.equal(decrypt(encrypt(secret)), secret);
     });
 
-    it('supporte l’unicode, le vide et les charges longues', () => {
+    it('handles unicode, empty and long payloads', () => {
       for (const value of ['', 'é→☃', 'a'.repeat(100_000), '{"json":true}']) {
         assert.equal(decrypt(encrypt(value)), value);
       }
     });
 
-    it('produit un ciphertext différent à chaque appel (IV aléatoire)', () => {
-      const a = encrypt('même secret');
-      const b = encrypt('même secret');
+    it('produces a different ciphertext at each call (random IV)', () => {
+      const a = encrypt('same secret');
+      const b = encrypt('same secret');
       assert.notEqual(a, b);
       assert.equal(decrypt(a), decrypt(b));
     });
 
-    it('respecte le format version:iv:authTag:ciphertext', () => {
+    it('follows the version:iv:authTag:ciphertext format', () => {
       const parts = encrypt('x').split(':');
       assert.equal(parts.length, 4);
       assert.equal(parts[0], CURRENT_CRYPTO_VERSION);
@@ -59,14 +59,14 @@ describe('crypto', () => {
       assert.equal(Buffer.from(parts[2] ?? '', 'base64').byteLength, 16);
     });
 
-    it('ne laisse pas le clair apparaître dans la sortie', () => {
+    it('does not let the plaintext appear in the output', () => {
       const secret = 'motdepasse-tres-reconnaissable';
       assert.ok(!encrypt(secret).includes(secret));
     });
   });
 
-  describe('détection d’altération', () => {
-    /** Retourne le payload avec le champ `index` modifié d’un octet. */
+  describe('tamper detection', () => {
+    /** Returns the payload with the `index` field changed by one byte. */
     function tamper(payload: string, index: number): string {
       const parts = payload.split(':');
       const buf = Buffer.from(parts[index] ?? '', 'base64');
@@ -75,31 +75,31 @@ describe('crypto', () => {
       return parts.join(':');
     }
 
-    it('rejette un ciphertext altéré', () => {
+    it('rejects a tampered ciphertext', () => {
       assert.throws(() => decrypt(tamper(encrypt('secret'), 3)), DecryptionError);
     });
 
-    it('rejette un IV altéré', () => {
+    it('rejects a tampered IV', () => {
       assert.throws(() => decrypt(tamper(encrypt('secret'), 1)), DecryptionError);
     });
 
-    it('rejette un tag d’authentification altéré', () => {
+    it('rejects a tampered authentication tag', () => {
       assert.throws(() => decrypt(tamper(encrypt('secret'), 2)), DecryptionError);
     });
 
-    it('rejette une version rétrogradée', () => {
+    it('rejects a downgraded version', () => {
       const payload = encrypt('secret').split(':');
       payload[0] = 'v0';
       assert.throws(() => decrypt(payload.join(':')), DecryptionError);
     });
 
-    it('rejette un nombre de champs incorrect', () => {
+    it('rejects a wrong number of fields', () => {
       for (const bad of ['', 'v1', 'v1:a:b', 'v1:a:b:c:d']) {
         assert.throws(() => decrypt(bad), DecryptionError);
       }
     });
 
-    it('rejette un IV ou un tag de mauvaise taille', () => {
+    it('rejects an IV or a tag of the wrong size', () => {
       const parts = encrypt('secret').split(':');
       const shortIv = [parts[0], Buffer.alloc(8).toString('base64'), parts[2], parts[3]].join(':');
       assert.throws(() => decrypt(shortIv), DecryptionError);
@@ -107,97 +107,97 @@ describe('crypto', () => {
       assert.throws(() => decrypt(shortTag), DecryptionError);
     });
 
-    it('rejette une valeur chiffrée avec une autre MASTER_KEY', () => {
+    it('rejects a value encrypted with another MASTER_KEY', () => {
       const payload = encrypt('secret');
       withMasterKey(OTHER_HEX_KEY);
       assert.throws(() => decrypt(payload), DecryptionError);
     });
   });
 
-  describe('validation de MASTER_KEY', () => {
-    it('refuse une clé absente', () => {
+  describe('MASTER_KEY validation', () => {
+    it('refuses a missing key', () => {
       assert.throws(() => deriveKey(undefined), MasterKeyError);
       assert.throws(() => deriveKey(''), MasterKeyError);
     });
 
-    it('refuse une clé de moins de 32 octets', () => {
+    it('refuses a key shorter than 32 bytes', () => {
       assert.throws(() => deriveKey('trop-court'), MasterKeyError);
       assert.throws(() => deriveKey('a'.repeat(31)), MasterKeyError);
     });
 
-    it('accepte 64 caractères hexadécimaux', () => {
+    it('accepts 64 hexadecimal characters', () => {
       assert.equal(deriveKey(VALID_HEX_KEY).byteLength, 32);
     });
 
-    it('accepte une phrase secrète d’au moins 32 octets', () => {
+    it('accepts a passphrase of at least 32 bytes', () => {
       assert.equal(deriveKey('a'.repeat(32)).byteLength, 32);
     });
 
-    it('dérive la même clé pour la même MASTER_KEY, une autre sinon', () => {
+    it('derives the same key for the same MASTER_KEY, another otherwise', () => {
       assert.deepEqual(deriveKey(VALID_HEX_KEY), deriveKey(VALID_HEX_KEY));
       assert.notDeepEqual(deriveKey(VALID_HEX_KEY), deriveKey(OTHER_HEX_KEY));
     });
 
-    it('encrypt() échoue si MASTER_KEY est absente', () => {
+    it('encrypt() fails if MASTER_KEY is missing', () => {
       withMasterKey(undefined);
       assert.throws(() => encrypt('secret'), MasterKeyError);
     });
   });
 
-  // Une clé valide n'est pas forcément une clé sérieuse : soixante-quatre zéros
-  // font trente-deux octets, et c'est exactement ce que livre `.env.example`.
-  // La longueur ne dit rien de l'entropie, et une instance montée en recopiant
-  // l'exemple chiffre ses identifiants SSH sous une clé publiée — sans qu'aucun
-  // test ne bronche, puisque tout fonctionne.
-  // Les deux gabarits du `.env.example`, assemblés plutôt que recopiés : ces
-  // chaînes servent de secrets en clair sur les instances montées à l'identique,
-  // et un balayage de secrets sur le dépôt doit pouvoir rester muet.
+  // A valid key is not necessarily a serious key: sixty-four zeros make
+  // thirty-two bytes, and that is exactly what `.env.example` ships. Length says
+  // nothing about entropy, and an instance set up by copying the example encrypts
+  // its SSH credentials under a published key — without any test flinching, since
+  // everything works.
+  // The two templates of `.env.example`, assembled rather than copied: these
+  // strings serve as clear-text secrets on instances set up identically, and a
+  // secret scan of the repository must be able to stay silent.
   const EXAMPLE_HEX_KEY = '0'.repeat(64);
   const EXAMPLE_PASSPHRASE = 'change-me-'.repeat(4).slice(0, 39);
 
-  describe('détection d’une MASTER_KEY devinable', () => {
-    it('signale les valeurs du .env.example, telles quelles', () => {
+  describe('detecting a guessable MASTER_KEY', () => {
+    it('flags the .env.example values, as is', () => {
       assert.ok(masterKeyWeakness(EXAMPLE_HEX_KEY));
       assert.ok(masterKeyWeakness(EXAMPLE_PASSPHRASE));
     });
 
-    it('signale un motif répété qui ne tombe pas juste', () => {
-      // 39 caractères pour un motif de 10 : exiger une division exacte
-      // laisserait passer la valeur même de l'exemple.
+    it('flags a repeated pattern that does not fall exactly', () => {
+      // 39 characters for a 10-character pattern: requiring an exact division would
+      // let the example's own value through.
       assert.equal(EXAMPLE_PASSPHRASE.length % 10, 9);
-      assert.match(masterKeyWeakness(EXAMPLE_PASSPHRASE) ?? '', /répète le motif/);
-      assert.match(masterKeyWeakness('secret'.repeat(6)) ?? '', /répète le motif/);
+      assert.match(masterKeyWeakness(EXAMPLE_PASSPHRASE) ?? '', /repeats the pattern/);
+      assert.match(masterKeyWeakness('secret'.repeat(6)) ?? '', /repeats the pattern/);
     });
 
-    it('signale une clé à un ou deux caractères distincts', () => {
-      assert.match(masterKeyWeakness('f'.repeat(64)) ?? '', /caractère\(s\) distinct/);
-      assert.match(masterKeyWeakness('ab'.repeat(32)) ?? '', /caractère\(s\) distinct/);
+    it('flags a key with one or two distinct characters', () => {
+      assert.match(masterKeyWeakness('f'.repeat(64)) ?? '', /distinct character\(s\)/);
+      assert.match(masterKeyWeakness('ab'.repeat(32)) ?? '', /distinct character\(s\)/);
     });
 
-    it('laisse passer une vraie clé', () => {
+    it('lets a real key through', () => {
       assert.equal(masterKeyWeakness(VALID_HEX_KEY), null);
       assert.equal(masterKeyWeakness(OTHER_HEX_KEY), null);
       assert.equal(masterKeyWeakness(randomBytes(32).toString('hex')), null);
-      assert.equal(masterKeyWeakness('une-passphrase-honnete-et-assez-longue'), null);
+      assert.equal(masterKeyWeakness('an-honest-and-long-enough-passphrase'), null);
     });
 
-    it('juge de même le secret de Better Auth, à son nom', () => {
+    it('judges the Better Auth secret the same way, by its name', () => {
       assert.match(
         secretWeakness('change-me-change-me-change-me-change-me', 'BETTER_AUTH_SECRET') ?? '',
-        /^BETTER_AUTH_SECRET répète le motif « change-me- »/,
+        /^BETTER_AUTH_SECRET repeats the pattern "change-me-"/,
       );
       assert.equal(secretWeakness(randomBytes(32).toString('base64'), 'BETTER_AUTH_SECRET'), null);
       assert.equal(secretWeakness(undefined, 'BETTER_AUTH_SECRET'), null);
     });
 
-    it('ne dit rien d’une clé absente — ce n’est pas son sujet', () => {
+    it('says nothing about a missing key — it is not its subject', () => {
       assert.equal(masterKeyWeakness(undefined), null);
       assert.equal(masterKeyWeakness(''), null);
     });
   });
 
   describe('safeEqual', () => {
-    it('compare sans fuite de longueur ni faux positif', () => {
+    it('compares without length leak or false positive', () => {
       assert.ok(safeEqual('jeton', 'jeton'));
       assert.ok(!safeEqual('jeton', 'jetoN'));
       assert.ok(!safeEqual('jeton', 'jetons'));

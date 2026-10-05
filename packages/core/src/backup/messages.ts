@@ -1,9 +1,8 @@
 import { translator, type Translate, type Translated, type UiLanguage } from '../i18n.js';
 
 /**
- * Ce que disent les destinations de sauvegarde et le format chiffré — le
- * « Tester » d'une destination, l'échec d'une sauvegarde ou d'une
- * restauration —, dans la langue de l'instance.
+ * What the backup destinations and the encrypted format say — a destination's
+ * "Test", a backup's or a restore's failure —, in the instance's language.
  */
 const fr = {
   'store.keyOutside': 'clé hors du dossier de sauvegarde : {key}',
@@ -22,6 +21,13 @@ const fr = {
   'format.truncated': 'fichier de sauvegarde tronqué',
   'format.authFailed':
     'authentification impossible : fichier altéré, ou chiffré sous une autre MASTER_KEY',
+  'format.notPupitre': "ce n'est pas un fichier de sauvegarde Pupitre",
+  'format.unknownVersion': 'version de format inconnue : {version}',
+  'store.notFound': '« {key} » introuvable',
+  's3.notFound': 'S3 : « {key} » introuvable',
+  's3.unreachable': 'stockage S3 injoignable ({host}) : {detail}',
+  's3.egress': 'S3 : {detail}',
+  'sftp.notFound': 'SFTP : « {key} » introuvable',
 } as const;
 
 const en: Translated<typeof fr> = {
@@ -40,6 +46,13 @@ const en: Translated<typeof fr> = {
   'sftp.probeMismatch': 'SFTP: the probe file read back does not match',
   'format.truncated': 'truncated backup file',
   'format.authFailed': 'authentication failed: file altered, or encrypted under another MASTER_KEY',
+  'format.notPupitre': 'this is not a Pupitre backup file',
+  'format.unknownVersion': 'unknown format version: {version}',
+  'store.notFound': '“{key}” not found',
+  's3.notFound': 'S3: “{key}” not found',
+  's3.unreachable': 'S3 storage unreachable ({host}): {detail}',
+  's3.egress': 'S3: {detail}',
+  'sftp.notFound': 'SFTP: “{key}” not found',
 };
 
 export const backupCopy = { fr, en };

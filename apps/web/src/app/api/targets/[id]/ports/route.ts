@@ -13,12 +13,11 @@ const paramsSchema = z.object({ id: z.string().uuid() });
 type Context = { params: Promise<{ id: string }> };
 
 /**
- * État de l'allocation de ports d'une cible : qui occupe quoi, et ce qu'il
- * reste.
+ * The state of a target's port allocation: who occupies what, and what is left.
  *
- * Lecture seule et dérivée : rien n'est stocké ici que `port_allocations` ne
- * dise déjà. La route existe parce que la question « ce port est pris par qui ? »
- * n'a pas de réponse évidente quand on ne regarde que la table.
+ * Read-only and derived: nothing is stored here that `port_allocations` does not
+ * already say. The route exists because the question "who took this port?" has no
+ * obvious answer when one only looks at the table.
  */
 export const GET = apiRoute<Context>(async (request, context) => {
   await requirePermission(request, 'target:read');

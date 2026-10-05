@@ -31,17 +31,17 @@ import { WorkloadsPanel } from './workloads-panel';
 export type TargetRecordTab = 'workloads' | 'proxy' | 'ports' | 'preflight' | 'config';
 
 export type TargetRecord = {
-  /** Le nom de la cible : c'est la clé du tiroir. */
+  /** The target's name: it is the drawer's key. */
   key: string;
-  /** Ce qui ouvre l'aperçu : empreinte SSH à trancher, relevés de la machine. */
+  /** What opens the overview: SSH fingerprint to decide on, the machine's readings. */
   overview: ReactNode;
   tabs: Partial<Record<TargetRecordTab, ReactNode>>;
   counts: Partial<Record<TargetRecordTab, string>>;
-  /** Ce que le pied du tiroir ajoute à « Tester » et « Modifier » : mettre en maintenance. */
+  /** What the drawer's footer adds to "Test" and "Edit": putting under maintenance. */
   actions: ReactNode;
 };
 
-/** « stable », « +6 pt », « −4 pt » : le sens dans lequel ça va sur 24 h. */
+/** "stable", "+6 pt", "−4 pt": the direction it goes over 24 h. */
 function trendOf(summary: MetricSummary | undefined, t: Translate<typeof messages.fr>): string {
   const trend = summary?.trend ?? null;
   if (trend === null) return '';
@@ -57,11 +57,11 @@ function toneOf(value: number | null, limit: number): Tone {
 }
 
 /**
- * La fiche d'une cible, rendue au serveur pour son tiroir : les relevés de la
- * machine en tête de l'aperçu, puis ses charges, son reverse proxy, ses ports,
- * le détail de son preflight et sa configuration. Ce que la ligne porte déjà —
- * état, connexion, runtimes, charge sur 24 h, applications — s'affiche sans
- * attendre ce rendu.
+ * A target's record, rendered on the server for its drawer: the machine's
+ * readings at the top of the overview, then its workloads, its reverse proxy, its
+ * ports, its preflight's detail and its configuration. What the row already
+ * carries — state, connection, runtimes, load over 24 h, applications — shows
+ * without waiting for this rendering.
  */
 export async function targetRecord(
   target: PublicTarget,

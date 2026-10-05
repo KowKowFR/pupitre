@@ -5,13 +5,13 @@ import { useT } from '@/i18n/client';
 import { backups as messages } from '@/i18n/messages/backups';
 
 /**
- * Au premier déploiement d'une application qui a des données : activer tout de
- * suite sa sauvegarde automatique, et celle qui précède chaque déploiement.
- * Réglable ensuite sur sa fiche.
+ * At the first deployment of an application that has data: enable its automatic
+ * backup right away, and the one that precedes each deployment. Adjustable
+ * afterwards on its record.
  *
- * Sans destination, les deux cases sont grisées et l'écran dit pourquoi :
- * activer une sauvegarde avant déploiement sans destination bloquerait chaque
- * déploiement suivant.
+ * Without a destination, both boxes are greyed out and the screen says why:
+ * enabling a pre-deployment backup without a destination would block every
+ * following deployment.
  */
 export type FirstDeployBackupChoice = { enabled: boolean; beforeDeploy: boolean };
 
@@ -49,7 +49,7 @@ export function FirstDeployBackup({
   );
 }
 
-/** Le choix tel que l'API l'attend — rien quand il n'y a pas de destination. */
+/** The choice as the API expects it — nothing when there is no destination. */
 export function firstDeployPayload(
   value: FirstDeployBackupChoice,
   hasDestination: boolean,

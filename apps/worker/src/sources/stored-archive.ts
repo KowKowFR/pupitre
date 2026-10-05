@@ -10,12 +10,12 @@ import {
 } from '@pupitre/db';
 
 /**
- * Les octets d'une archive téléversée, entre la base et le disque du worker.
- * Un morceau à la fois dans les deux sens : l'archive ne tient jamais en
- * mémoire, quelle que soit sa taille.
+ * An uploaded archive's bytes, between the database and the worker's disk. One
+ * chunk at a time both ways: the archive never fits in memory, whatever its
+ * size.
  */
 
-/** Écrit dans `path` les morceaux rangés en base ; rend le nombre d'octets. */
+/** Writes into `path` the chunks stored in the database; returns the number of bytes. */
 export async function exportArchiveChunks(
   archiveId: string,
   kind: SourceArchiveChunkKind,
@@ -32,7 +32,7 @@ export async function exportArchiveChunks(
   return bytes;
 }
 
-/** Range en base, par morceaux, le fichier `path` — à la place de ce qui y était. */
+/** Stores in the database, in chunks, the `path` file — in place of what was there. */
 export async function importArchiveChunks(
   archiveId: string,
   kind: SourceArchiveChunkKind,

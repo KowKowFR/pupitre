@@ -1,12 +1,12 @@
 import type { Translated } from '@pupitre/core';
 
 /**
- * Les pages de statut : la page publique (ce que lit un visiteur) et l'écran
- * qui les compose. La page publique est dans la langue de l'instance, comme
- * tout le panel.
+ * Status pages: the public page (what a visitor reads) and the screen that
+ * composes them. The public page is in the instance's language, like the whole
+ * panel.
  */
 const fr = {
-  // ── La page publique ────────────────────────────────────────────────────
+  // ── The public page ─────────────────────────────────────────────────────
   'public.updated': 'Mis à jour à {time}',
   'public.refresh': 'La page se met à jour toute seule chaque minute.',
   'public.empty': 'Cette page ne montre encore rien.',
@@ -62,7 +62,7 @@ const fr = {
   'phase.completed': 'Terminée',
   'update.posted': 'Publié le {time}',
 
-  // ── L'écran qui les compose ─────────────────────────────────────────────
+  // ── The screen that composes them ───────────────────────────────────────
   'meta.title': 'Pages de statut',
   'page.title': 'Pages de statut',
   'page.description':
@@ -145,7 +145,7 @@ const fr = {
   'error.slugTaken': "L'adresse {path} est déjà celle d'une autre page.",
   'error.monitorNotFound': "La sonde {id} n'existe pas.",
 
-  // ── Les annonces ────────────────────────────────────────────────────────
+  // ── The announcements ───────────────────────────────────────────────────
   'announce.title': 'Annonces',
   'announce.sub':
     'Pendant une panne ou une maintenance, dites aux visiteurs ce qui se passe. Une annonce paraît sur chaque page qui montre une sonde touchée.',

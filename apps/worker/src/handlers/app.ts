@@ -33,35 +33,35 @@ import { workerSay } from '../messages.js';
 import { getPublisher, getRedis } from '../redis.js';
 
 /**
- * Supervision des applications en marche.
+ * Monitoring of running applications.
  *
- * Le suivi des logs est le seul travail du projet qui n'a **pas de fin
- * naturelle**. Il ne peut donc pas s'arrêter tout seul comme les autres : c'est
- * la présence d'un spectateur qui le maintient en vie. La route SSE rafraîchit
- * une clé Redis à courte durée de vie tant qu'un client écoute ; ce job la
- * relit régulièrement et coupe la session SSH dès qu'elle a disparu.
+ * Following logs is the only work in the project that has **no natural end**. It
+ * therefore cannot stop by itself like the others: it is a viewer's presence
+ * that keeps it alive. The SSE route refreshes a short-lived Redis key as long as
+ * a client listens; this job reads it regularly and cuts the SSH session as soon
+ * as it has disappeared.
  *
- * Ce mécanisme couvre les quatre cas qui comptent :
- *   - onglet fermé proprement  → la route cesse de rafraîchir, la clé expire ;
- *   - onglet tué brutalement   → personne ne rafraîchit, la clé expire ;
- *   - plusieurs spectateurs    → tous rafraîchissent la même clé ;
- *   - worker redémarré         → le job meurt, le panel en redemande un.
+ * This mechanism covers the four cases that matter:
+ *   - tab closed cleanly      → the route stops refreshing, the key expires;
+ *   - tab killed abruptly     → nobody refreshes, the key expires;
+ *   - several viewers         → all refresh the same key;
+ *   - worker restarted        → the job dies, the panel asks for another one.
  *
- * Un plafond de durée complète le dispositif : un slot de worker ne doit pas
- * rester pris parce qu'un onglet est resté ouvert tout un week-end.
+ * A duration cap completes the mechanism: a worker slot must not stay taken
+ * because a tab stayed open a whole weekend.
  */
 
 /**
- * Isole le nom du service d'une ligne préfixée.
+ * Isolates the service's name from a prefixed line.
  *
- * Le nom rendu doit être celui que `status()` rapporte, sinon le filtre par
- * service de l'interface ne trouverait jamais rien. Or les deux runtimes
- * décorent le préfixe différemment :
+ * The returned name must be the one `status()` reports, otherwise the
+ * interface's per-service filter would never find anything. But the two runtimes
+ * decorate the prefix differently:
  *
- *   Compose  `api-1  | message`            — nom du conteneur : service + indice
- *   kubectl  `[pod/app-demo-api-7d9f/api] message` — dernier segment : conteneur,
- *                                             que nos manifestes nomment d'après
- *                                             le service
+ *   Compose  `api-1  | message`            — container name: service + index
+ *   kubectl  `[pod/app-demo-api-7d9f/api] message` — last segment: container,
+ *                                             which our manifests name after
+ *                                             the service
  */
 function splitPrefix(raw: string): { service: string | null; line: string } {
   const kube = /^\[pod\/[^\]/]+\/([^\]/]+)]\s?([\s\S]*)$/.exec(raw);
@@ -71,12 +71,12 @@ function splitPrefix(raw: string): { service: string | null; line: string } {
   if (separator <= 0 || separator > 60) return { service: null, line: raw };
 
   const candidate = raw.slice(0, separator).trim();
-  // Un préfixe de log est un identifiant, pas une phrase.
+  // A log prefix is an identifier, not a sentence.
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(candidate)) return { service: null, line: raw };
 
-  // Compose ajoute toujours exactement un indice de réplique : on en retire un
-  // seul, ce qui reste juste même pour un service dont le nom finit par un
-  // chiffre (`web-2` donne le conteneur `web-2-1`).
+  // Compose always adds exactly one replica index: we remove only one, which stays
+  // right even for a service whose name ends with a digit (`web-2` gives the
+  // `web-2-1` container).
   return {
     service: candidate.replace(/-\d+$/, ''),
     line: raw.slice(separator + 1).replace(/^ /, ''),
@@ -94,7 +94,7 @@ export async function handleAppLogs(job: Job<unknown>): Promise<{ lines: number 
     );
   }
   if (!isSupervisable(summary.status)) {
-    log.info({ status: summary.status }, 'déploiement non supervisable, flux non ouvert');
+    log.info({ status: summary.status }, 'deployment not monitorable, stream not opened');
     return { lines: 0 };
   }
 
@@ -103,15 +103,15 @@ export async function handleAppLogs(job: Job<unknown>): Promise<{ lines: number 
   const publisher = getPublisher();
   const redis = getRedis();
 
-  // Personne n'écoute déjà : inutile d'ouvrir une session SSH.
+  // Nobody is listening anymore: no need to open an SSH session.
   if ((await redis.exists(watchKey)) === 0) {
-    log.info('aucun spectateur, flux non ouvert');
+    log.info('no viewer, stream not opened');
     return { lines: 0 };
   }
 
   const emit = (message: AppLogMessage) => {
     publisher.publish(channel, JSON.stringify(message)).catch((error: unknown) => {
-      log.warn({ err: error }, 'publication du flux applicatif impossible');
+      log.warn({ err: error }, 'application stream could not be published');
     });
   };
 
@@ -125,13 +125,13 @@ export async function handleAppLogs(job: Job<unknown>): Promise<{ lines: number 
   let refresher: NodeJS.Timeout | null = null;
 
   /**
-   * Publie un relevé **et le retient**.
+   * Publishes a reading **and keeps it**.
    *
-   * Publier ne suffit pas : Redis ne rejoue pas un `publish`, et le flux est
-   * partagé entre tous les spectateurs d'un déploiement. Le deuxième onglet
-   * arrive donc après la diffusion et n'aurait jamais d'état — c'est ce qui
-   * faisait afficher « aucun conteneur rapporté » à côté de logs bien vivants.
-   * La clé retenue est ce que la route SSE sert au nouveau venu.
+   * Publishing is not enough: Redis does not replay a `publish`, and the stream is
+   * shared between all the viewers of a deployment. The second tab therefore
+   * arrives after the broadcast and would never have a state — it is what made
+   * "no container reported" show next to perfectly alive logs. The kept key is
+   * what the SSE route serves to the newcomer.
    */
   const publishStatus = async (status: AppStatus): Promise<void> => {
     emit({ kind: 'status', payload: status });
@@ -143,8 +143,8 @@ export async function handleAppLogs(job: Job<unknown>): Promise<{ lines: number 
         STATUS_TTL_SECONDS,
       );
     } catch (error) {
-      // Le flux ne s'arrête pas parce que le cache d'état a raté.
-      log.warn({ err: error }, "mémorisation du dernier état impossible");
+      // The stream does not stop because the state cache failed.
+      log.warn({ err: error }, 'last state could not be stored');
     }
   };
 
@@ -154,20 +154,20 @@ export async function handleAppLogs(job: Job<unknown>): Promise<{ lines: number 
       payload: { ts: new Date().toISOString(), action: 'stream.started', detail: null },
     });
 
-    // Un instantané d'état avant les logs : le spectateur voit tout de suite ce
-    // qui tourne, sans attendre qu'une ligne soit produite.
+    // A state snapshot before the logs: the viewer sees right away what runs,
+    // without waiting for a line to be produced.
     const status: AppStatus = await driver.status(ctx);
     await publishStatus(status);
 
     /**
-     * Couper la session SSH est ce qui met fin à `logs -f` : la commande
-     * distante reçoit un EOF et rend la main. C'est plus sûr que de compter
-     * sur un signal, qui ne traverse pas toujours le canal.
+     * Cutting the SSH session is what ends `logs -f`: the remote command receives an
+     * EOF and returns. It is safer than counting on a signal, which does not always
+     * go through the channel.
      */
     const halt = (reason: string) => {
       if (stop) return;
       stop = true;
-      log.info({ reason, lines }, 'flux applicatif interrompu');
+      log.info({ reason, lines }, 'application stream interrupted');
       void disconnect(session);
     };
 
@@ -175,25 +175,25 @@ export async function handleAppLogs(job: Job<unknown>): Promise<{ lines: number 
       redis
         .exists(watchKey)
         .then((present) => {
-          if (present === 0) halt('plus de spectateur');
+          if (present === 0) halt('no viewer left');
         })
         .catch((error: unknown) => {
-          log.warn({ err: error }, 'lecture de la clé de présence impossible');
+          log.warn({ err: error }, 'presence key could not be read');
         });
     }, WATCH_POLL_MS);
 
-    ceiling = setTimeout(() => halt('durée maximale atteinte'), STREAM_MAX_MS);
+    ceiling = setTimeout(() => halt('maximum duration reached'), STREAM_MAX_MS);
 
     /**
-     * Re-relevé périodique, sur la session SSH déjà ouverte.
+     * Periodic re-reading, on the SSH session already open.
      *
-     * Sans lui, la carte d'état est figée sur l'instantané d'ouverture pendant
-     * toute la vie du flux — jusqu'à trente minutes. Un conteneur qui sort ou
-     * qui redémarre en boucle se lirait dans les logs sans jamais apparaître
-     * dans l'inventaire, ce qui est précisément la contradiction qu'on corrige.
+     * Without it, the state card is frozen on the opening snapshot for the stream's
+     * whole life — up to thirty minutes. A container that exits or restarts in a
+     * loop would read in the logs without ever appearing in the inventory, which is
+     * precisely the contradiction being fixed.
      *
-     * Un relevé à la fois : `pending` évite d'empiler des `compose ps` si la
-     * machine met plus de vingt secondes à répondre.
+     * One reading at a time: `pending` avoids stacking `compose ps` if the machine
+     * takes more than twenty seconds to answer.
      */
     let pending = false;
     refresher = setInterval(() => {
@@ -203,9 +203,9 @@ export async function handleAppLogs(job: Job<unknown>): Promise<{ lines: number 
         .status(ctx)
         .then((fresh) => publishStatus(fresh))
         .catch((error: unknown) => {
-          // La session est peut-être en train d'être coupée : ce n'est pas une
-          // raison d'interrompre le flux de logs, qui lui vit encore.
-          if (!stop) log.warn({ err: error }, "relevé d'état impossible");
+          // The session may be being cut: it is no reason to interrupt the log stream,
+          // which is still alive.
+          if (!stop) log.warn({ err: error }, 'state reading failed');
         })
         .finally(() => {
           pending = false;
@@ -245,11 +245,11 @@ export async function handleAppLogs(job: Job<unknown>): Promise<{ lines: number 
 }
 
 /**
- * Redémarrage d'une application en marche.
+ * Restarting a running application.
  *
- * Ce n'est ni un déploiement ni un rollback : mêmes images, mêmes volumes, même
- * port. Le statut du déploiement n'en est pas modifié — seule sa santé l'est,
- * et elle est resondée juste après.
+ * It is neither a deployment nor a rollback: same images, same volumes, same
+ * port. The deployment's status is not changed — only its health is, and it is
+ * probed again right after.
  */
 export async function handleAppRestart(job: Job<unknown>): Promise<{ healthy: boolean }> {
   const data = deploymentJobDataSchema.parse(job.data);
@@ -271,7 +271,7 @@ export async function handleAppRestart(job: Job<unknown>): Promise<{ healthy: bo
   const publisher = getPublisher();
   const emit = (message: AppLogMessage) => {
     publisher.publish(channel, JSON.stringify(message)).catch(() => {
-      // Le redémarrage ne doit pas échouer parce que personne ne regarde.
+      // The restart must not fail because nobody is watching.
     });
   };
 
@@ -307,8 +307,8 @@ export async function handleAppRestart(job: Job<unknown>): Promise<{ healthy: bo
       },
     });
 
-    // Le statut du déploiement ne bouge pas : un redémarrage n'est pas un
-    // nouveau déploiement. Seule la santé constatée est mise à jour.
+    // The deployment's status does not move: a restart is not a new deployment. Only
+    // the observed health is updated.
     await recordHealthStatus(
       data.deploymentId,
       health.healthy ? 'healthy' : health.outcome === 'unreachable' ? 'unreachable' : 'unhealthy',
@@ -327,7 +327,7 @@ export async function handleAppRestart(job: Job<unknown>): Promise<{ healthy: bo
       ip: data.ip,
     });
 
-    log.info({ healthy: health.healthy }, 'application redémarrée');
+    log.info({ healthy: health.healthy }, 'application restarted');
     return { healthy: health.healthy };
   } finally {
     await disconnect(session);
@@ -335,20 +335,21 @@ export async function handleAppRestart(job: Job<unknown>): Promise<{ healthy: bo
 }
 
 /**
- * Arrêt et remise en marche d'une application déployée.
+ * Stopping and starting a deployed application.
  *
- * Les deux gestes partagent tout sauf trois choses : la méthode du driver à
- * appeler, ce qu'on écrit dans `stopped_at`, et le mot du journal d'activité.
- * D'où une seule implémentation paramétrée — dupliquer aurait garanti qu'un
- * jour l'une des deux oublie de republier l'état ou de fermer sa session SSH.
+ * The two gestures share everything except three things: the driver method to
+ * call, what is written in `stopped_at`, and the activity log's word. Hence a
+ * single parameterized implementation — duplicating would have guaranteed that
+ * one day one of the two forgets to republish the state or to close its SSH
+ * session.
  *
- * Ce n'est **pas** un branchement sur le runtime : `stop()` et `start()` sont du
- * contrat, et c'est le driver rendu par la fabrique qui sait ce qu'ils veulent
- * dire sur sa machine. Le worker ne sait pas s'il parle à Compose ou à
- * Kubernetes, et il n'a pas à le savoir.
+ * It is **not** a branch on the runtime: `stop()` and `start()` are part of the
+ * contract, and it is the driver returned by the factory that knows what they
+ * mean on its machine. The worker does not know whether it talks to Compose or
+ * Kubernetes, and does not have to.
  */
 type LifecycleAction = {
-  /** Nom de l'action dans le flux applicatif et dans le journal d'activité. */
+  /** The action's name in the application stream and in the activity log. */
   key: 'stop' | 'start';
   apply: (driver: DeploymentDriver, ctx: DriverContext, onLog: LogSink) => Promise<void>;
   auditAction: string;
@@ -391,7 +392,7 @@ async function runLifecycle(
   const publisher = getPublisher();
   const emit = (message: AppLogMessage) => {
     publisher.publish(channel, JSON.stringify(message)).catch(() => {
-      // Le geste ne doit pas échouer parce que personne ne regarde.
+      // The gesture must not fail because nobody is watching.
     });
   };
 
@@ -413,18 +414,17 @@ async function runLifecycle(
       emit({ kind: 'log', payload: { ts: new Date().toISOString(), service: null, line } });
     });
 
-    // La base n'est écrite qu'**après** le geste. Un arrêt qui échoue à
-    // mi-chemin laisse la ligne inchangée : mieux vaut une base qui croit
-    // l'application en marche alors qu'elle ne l'est qu'à moitié — l'écran, lui,
-    // montre l'état réel de la machine — qu'une base qui la déclare arrêtée
-    // alors qu'elle sert encore du trafic.
+    // The database is only written **after** the gesture. A stop that fails halfway
+    // leaves the row unchanged: better a database that believes the application
+    // running while it only half is — the screen shows the machine's real state —
+    // than a database that declares it stopped while it still serves traffic.
     await setDeploymentStopped(data.deploymentId, action.key === 'stop' ? new Date() : null);
 
     /**
-     * On ne resonde la santé qu'au démarrage. Après un arrêt, le healthcheck
-     * échouerait par construction : il écrirait `unreachable`, c'est-à-dire une
-     * panne, là où il n'y a qu'une décision. `setDeploymentStopped()` a déjà
-     * remis la santé à `unknown`, qui est la seule chose vraie.
+     * We only probe health again at start. After a stop, the healthcheck would fail
+     * by construction: it would write `unreachable`, that is an outage, where there
+     * is only a decision. `setDeploymentStopped()` already set health back to
+     * `unknown`, which is the only true thing.
      */
     let healthy: boolean | null = null;
     if (action.key === 'start') {
@@ -470,20 +470,20 @@ async function runLifecycle(
       ip: data.ip,
     });
 
-    log.info({ action: action.key, healthy }, 'application : geste effectué');
+    log.info({ action: action.key, healthy }, 'application: gesture done');
     return { stopped: action.key === 'stop', healthy };
   } finally {
     await disconnect(session);
   }
 }
 
-/** Arrêt volontaire : les processus s'arrêtent, rien n'est démonté. */
+/** Deliberate stop: the processes stop, nothing is taken down. */
 export async function handleAppStop(job: Job<unknown>): Promise<{ stopped: boolean }> {
   const outcome = await runLifecycle(job, STOP);
   return { stopped: outcome.stopped };
 }
 
-/** Remise en marche d'une application arrêtée, suivie d'une sonde de santé. */
+/** Starting a stopped application again, followed by a health probe. */
 export async function handleAppStart(
   job: Job<unknown>,
 ): Promise<{ stopped: boolean; healthy: boolean | null }> {

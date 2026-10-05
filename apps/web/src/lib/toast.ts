@@ -1,13 +1,12 @@
 /**
- * Toasts — le retour d'un geste qui a abouti (ou échoué) hors de la vue.
+ * Toasts — the feedback of a gesture that succeeded (or failed) out of view.
  *
- * Un store minuscule plutôt qu'une bibliothèque : le kit fixe tout — 360 px en
- * bas à droite, trois au plus, une minuterie de 5 s qui se met en pause au
- * survol, une erreur qui reste jusqu'à ce qu'on la ferme — et il n'y a rien à
- * configurer de plus.
+ * A tiny store rather than a library: the kit sets everything — 360 px at the
+ * bottom right, three at most, a 5 s timer that pauses on hover, an error that
+ * stays until it is closed — and there is nothing more to configure.
  *
- * Le texte reprend **le verbe du bouton** qui l'a déclenché : « Déploiement
- * enfilé », pas « Succès ».
+ * The text takes **the verb of the button** that triggered it: "Deployment
+ * queued", not "Success".
  */
 
 export type ToastTone = 'ok' | 'accent' | 'warn' | 'danger';
@@ -16,14 +15,14 @@ export type ToastInput = {
   title: string;
   description?: string;
   tone?: ToastTone;
-  /** Une action facultative : Suivre, Annuler… */
+  /** An optional action: Follow, Undo… */
   action?: { label: string; href?: string; onClick?: () => void };
 };
 
 export type ToastItem = ToastInput & {
   id: number;
   tone: ToastTone;
-  /** Durée de vie en ms ; `null` pour un toast qui reste (erreur). */
+  /** Lifetime in ms; `null` for a toast that stays (error). */
   life: number | null;
   closing: boolean;
 };
@@ -51,8 +50,8 @@ export function getToasts(): ToastItem[] {
 }
 
 /**
- * Ajoute un toast. Au-delà de trois, le plus ancien part — sauf une erreur,
- * qui ne se fait jamais pousser dehors par un succès.
+ * Adds a toast. Beyond three, the oldest goes — except an error, which is never
+ * pushed out by a success.
  */
 export function toast(input: ToastInput): number {
   const tone = input.tone ?? 'ok';
@@ -73,7 +72,7 @@ export function toast(input: ToastInput): number {
   return item.id;
 }
 
-/** Commence la sortie animée ; le composant retire l'élément à la fin. */
+/** Starts the animated exit; the component removes the element at the end. */
 export function dismissToast(id: number): void {
   items = items.map((item) => (item.id === id ? { ...item, closing: true } : item));
   emit();

@@ -1,25 +1,23 @@
 import type { Translated } from '@pupitre/core';
 
 /**
- * Le poste d'exploitation : les anomalies, la bande des dernières 24 heures,
- * l'inventaire.
+ * The operations station: the anomalies, the last 24 hours band, the inventory.
  *
- * ── Ce que les pluriels changent ici ────────────────────────────────────────
- * C'est l'écran qui compte le plus de choses du panel, et presque tous ses
- * compteurs peuvent valoir zéro. Le français écrit « 0 cible prête », l'anglais
- * *0 targets ready* : les `${n > 1 ? 's' : ''}` qui parsemaient ce fichier
- * n'auraient produit ni l'un ni l'autre. Chaque décompte passe donc par
- * `{one, other}` et laisse `Intl.PluralRules` trancher.
+ * ── What plurals change here ────────────────────────────────────────────────
+ * It is the panel's screen that counts the most things, and almost all its
+ * counters can be zero. French writes "0 cible prête", English *0 targets ready*:
+ * the `${n > 1 ? 's' : ''}` that dotted this file would have produced neither.
+ * Each count therefore goes through `{one, other}` and lets `Intl.PluralRules`
+ * decide.
  *
- * ── Ce qui reste en français, et pourquoi ───────────────────────────────────
- * Rien de visible. Les seules chaînes non traduites de l'écran sont les statuts
- * bruts (`healthy`, `rolled_back`) affichés en dernier recours quand la base
- * renvoie une valeur que le catalogue ne connaît pas : ce sont des identifiants,
- * pas de la prose.
+ * ── What stays in French, and why ───────────────────────────────────────────
+ * Nothing visible. The screen's only untranslated strings are the raw statuses
+ * (`healthy`, `rolled_back`) shown as a last resort when the database returns a
+ * value the catalog does not know: they are identifiers, not prose.
  */
 const fr = {
-  // ── En-tête ─────────────────────────────────────────────────────────────
-  // Un compte sans aucune permission : une inscription qui attend son rôle.
+  // ── Header ──────────────────────────────────────────────────────────────
+  // An account without any permission: a sign-up waiting for its role.
   'noAccess.title': 'Votre compte n’a encore accès à rien',
   'noAccess.hint':
     'Un administrateur doit vous attribuer un rôle. Cette page s’ouvrira d’elle-même dès qu’il l’aura fait.',
@@ -50,14 +48,14 @@ const fr = {
     "Ce qui demande une intervention, ce qui s'est passé depuis hier, puis l'état du parc.",
 
 
-  // ── Libellés de lien vers une autre section ─────────────────────────────
+  // ── Link labels to another section ──────────────────────────────────────
   'link.servers': 'Supervision',
   'link.targets': 'Cibles',
   'link.applications': 'Applications',
   'link.monitors': 'Sondes',
   'link.history': 'Historique',
 
-  // ── Ce qui demande attention ────────────────────────────────────────────
+  // ── What requires attention ─────────────────────────────────────────────
   'attention.title': {
     one: '{count} point demande votre attention',
     other: '{count} points demandent votre attention',
@@ -115,15 +113,15 @@ const fr = {
   'attention.action.monitor': 'Voir la sonde',
   'attention.action.threshold': 'Régler le seuil',
 
-  // ── La bande des dernières 24 heures ────────────────────────────────────
+  // ── The last 24 hours band ──────────────────────────────────────────────
   'band.title': 'Les dernières 24 heures',
   'band.aside': 'un intervalle par heure, chaque figure indique son nombre de mesures',
   'band.locked': "Aucune des séries de cet écran n'est accessible avec vos permissions.",
 
   /**
-   * Le séparateur décimal. Un `.toFixed()` rend toujours un point ; le français
-   * écrit une virgule. C'est la seule substitution de ce genre du fichier, et
-   * elle vaut mieux qu'un `toLocaleString` qui reformaterait aussi les milliers.
+   * The decimal separator. A `.toFixed()` always returns a point; French writes a
+   * comma. It is the only substitution of this kind in the file, and it is better
+   * than a `toLocaleString` that would also reformat the thousands.
    */
   'band.decimal': ',',
 
@@ -183,7 +181,7 @@ const fr = {
   'chronicle.median.value': ' · durée médiane {seconds} s',
   'chronicle.scans': ' · {count} analyses de sécurité',
 
-  // ── Statuts ─────────────────────────────────────────────────────────────
+  // ── Statuses ────────────────────────────────────────────────────────────
   'status.success': 'réussi',
   'status.failed': 'échoué',
   'status.rolled_back': 'replié',
@@ -203,11 +201,11 @@ const fr = {
   'fleet.gauge.disk': 'dsk',
   'fleet.noReadout': 'aucun relevé sur 24 h',
 
-  // ── Ce qui tourne ───────────────────────────────────────────────────────
+  // ── What runs ───────────────────────────────────────────────────────────
   'running.title': 'En marche',
   'running.empty': 'Aucune application en marche. Déployez-en une depuis',
 
-  // ── Les derniers déploiements ───────────────────────────────────────────
+  // ── The last deployments ────────────────────────────────────────────────
   'deployments.title': 'Derniers déploiements',
   'deployments.empty': "Aucun déploiement pour l'instant.",
   'deployments.weakness': "Sur {days} jours, l'étape qui casse est",
@@ -217,7 +215,7 @@ const fr = {
     other: '({failed} échecs sur {decided})',
   },
 
-  // ── L'inventaire, en pied d'écran ───────────────────────────────────────
+  // ── The inventory, at the bottom of the screen ──────────────────────────
   'readout.targets': 'Cibles prêtes',
   'readout.targets.faulty': '{count} en défaut',
   'readout.targets.untested': {
@@ -235,7 +233,7 @@ const fr = {
   'readout.inFlight': 'En vol',
   'readout.inFlight.off': 'aucun déploiement en cours',
 
-  // ── Âge d'un événement ──────────────────────────────────────────────────
+  // ── An event's age ──────────────────────────────────────────────────────
   'duration.seconds': '{seconds} s',
   'duration.minutes': '{minutes} min {seconds} s',
   'since.seconds': 'il y a {count} s',

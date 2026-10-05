@@ -1,23 +1,23 @@
 #!/usr/bin/env bash
 #
-# Connexion unique (OpenID Connect), de bout en bout contre un vrai Keycloak.
+# Single sign-on (OpenID Connect), end to end against a real Keycloak.
 #
-#   1. « Tester » dit si le fournisseur répond, et ce qui ne va pas sinon
-#   2. Une connexion crée le compte avec le rôle de ses groupes
-#   3. Création désactivée : une identité inconnue est refusée, et le dit
-#   4. Un compte local n'est lié que si le fournisseur déclare l'e-mail vérifié
-#   5. Le fournisseur fait foi : un groupe changé chez lui change le rôle
-#   6. Le secret du client ne ressort jamais
+#   1. "Test" says whether the provider answers, and what is wrong otherwise
+#   2. A sign-in creates the account with its groups' role
+#   3. Creation disabled: an unknown identity is refused, and says so
+#   4. A local account is only linked if the provider declares the e-mail verified
+#   5. The provider is authoritative: a group changed on its side changes the role
+#   6. The client secret never comes out
 #
-# Prérequis : le Keycloak de test, et le panel qui le joint à la même adresse
-# que ce script :
+# Prerequisite: the test Keycloak, and the panel reaching it at the same address
+# as this script:
 #   docker compose --profile test up -d keycloak
 #
-# Ce que le script touche, et qu'il rend : la section « connexion unique » des
-# paramètres (remise comme il l'a trouvée), les comptes `@keycloak.test`
-# (supprimés), les groupes d'Alice dans le realm de test.
+# What the script touches, and gives back: the settings' "single sign-on"
+# section (put back as it found it), the `@keycloak.test` accounts (deleted),
+# Alice's groups in the test realm.
 #
-# Usage :
+# Usage:
 #   ./scripts/verify-sso.sh
 #   BASE_URL=http://localhost:3200 ./scripts/verify-sso.sh
 #
@@ -28,14 +28,14 @@ ADMIN_EMAIL="${ADMIN_EMAIL:-admin@example.test}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-motdepasse-tres-long}"
 KEYCLOAK_URL="${KEYCLOAK_URL:-http://localhost:8180}"
 ISSUER="$KEYCLOAK_URL/realms/pupitre"
-# Le secret du client du realm de test (`scripts/test-keycloak/`) : jetable.
+# The test realm's client secret (`scripts/test-keycloak/`): throwaway.
 CLIENT_SECRET="secret-de-test-du-client-pupitre"
 
 WORK="$(mktemp -d)"
 ADMIN_JAR="$WORK/admin.jar"
 BODY="$WORK/body.json"
 
-command -v jq >/dev/null || { echo "jq est requis"; exit 1; }
+command -v jq >/dev/null || { echo "jq is required"; exit 1; }
 
 pass() { printf '  \033[32m✓\033[0m %s\n' "$1"; }
 fail() { printf '  \033[31m✗\033[0m %s\n' "$1"; exit 1; }
@@ -57,15 +57,15 @@ role_of() {
           join roles r on r.id = ur.role_id where u.email = '$1';"
 }
 
-# Une connexion par le fournisseur, comme un navigateur : le panel donne
-# l'adresse de Keycloak, on y remplit le formulaire, Keycloak renvoie au
-# panel. Écrit la destination finale dans $LANDED et la session dans $1.jar.
+# A sign-in through the provider, like a browser: the panel gives Keycloak's
+# address, we fill the form there, Keycloak sends back to the panel. Writes the
+# final destination into $LANDED and the session into $1.jar.
 sso_login() {
   local user="$1" password="$2" jar="$WORK/$1.jar" kjar="$WORK/$1.kc.jar"
   rm -f "$jar" "$kjar"
   local url page action back
-  # `/sign-in/*` est limité à trois demandes par dix secondes et par adresse :
-  # des connexions enchaînées attendent leur tour, comme le ferait quelqu'un.
+  # `/sign-in/*` is limited to three requests per ten seconds and per address:
+  # chained sign-ins wait their turn, as someone would.
   for _ in 1 2 3 4 5 6 7 8; do
     url=$(curl -s -c "$jar" -b "$jar" -H 'content-type: application/json' -H "origin: $BASE_URL" \
           -X POST "$BASE_URL/api/auth/sign-in/social" \
@@ -73,13 +73,13 @@ sso_login() {
     [ -n "$url" ] && break
     sleep 4
   done
-  [ -n "$url" ] || fail "le panel ne propose pas de départ vers le fournisseur"
+  [ -n "$url" ] || fail "the panel offers no departure to the provider"
   page=$(curl -s -c "$kjar" -b "$kjar" "$url")
   action=$(printf '%s' "$page" | grep -o 'action="[^"]*"' | head -1 | sed 's/action="//; s/"$//; s/&amp;/\&/g')
-  [ -n "$action" ] || fail "formulaire de connexion de Keycloak introuvable"
+  [ -n "$action" ] || fail "Keycloak's sign-in form not found"
   back=$(curl -s -o /dev/null -w '%{redirect_url}' -c "$kjar" -b "$kjar" -X POST "$action" \
          --data-urlencode "username=$user" --data-urlencode "password=$password")
-  case "$back" in "$BASE_URL"/*) ;; *) fail "Keycloak n'a pas renvoyé vers le panel : ${back:-?}" ;; esac
+  case "$back" in "$BASE_URL"/*) ;; *) fail "Keycloak did not send back to the panel: ${back:-?}" ;; esac
   LANDED=$(curl -s -o /dev/null -w '%{redirect_url}' -c "$jar" -b "$jar" "$back")
 }
 
@@ -117,98 +117,98 @@ cleanup() {
 }
 trap cleanup EXIT
 
-step "0. Prérequis"
+step "0. Prerequisites"
 code=$(curl -s -o /dev/null -w '%{http_code}' "$ISSUER/.well-known/openid-configuration")
-[ "$code" = "200" ] || fail "Keycloak de test injoignable à $ISSUER — docker compose --profile test up -d keycloak"
-pass "Keycloak répond à $ISSUER"
+[ "$code" = "200" ] || fail "test Keycloak unreachable at $ISSUER — docker compose --profile test up -d keycloak"
+pass "Keycloak answers at $ISSUER"
 code=$(req POST /api/auth/sign-in/email "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}")
 if [ "$code" != "200" ]; then
   code=$(req POST /api/auth/sign-up/email \
     "{\"name\":\"Admin de vérification\",\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}")
-  [ "$code" = "200" ] || fail "impossible de se connecter ou de créer l'administrateur (HTTP $code)"
+  [ "$code" = "200" ] || fail "could not sign in or create the administrator (HTTP $code)"
 fi
-pass "connecté en tant que $ADMIN_EMAIL"
+pass "signed in as $ADMIN_EMAIL"
 req GET /api/settings >/dev/null
 if jq -e --arg i "$ISSUER" '.ssoClientSecretConfigured and .settings.sso.issuer != $i' "$BODY" >/dev/null; then
-  fail "une connexion unique réelle est réglée sur cette instance : ce script la remplacerait"
+  fail "a real single sign-on is set up on this instance: this script would replace it"
 fi
 PREVIOUS_SSO=$(jq -c '.settings.sso' "$BODY")
 psql_q "delete from users where email like '%@keycloak.test';" >/dev/null
-# Le journal survit aux comptes supprimés : on ne lit que ce passage-ci.
+# The log outlives the deleted accounts: we only read this pass.
 START=$(psql_q "select now();")
 
-step "1. « Tester »"
+step "1. \"Test\""
 req POST /api/settings/sso/check "{\"issuer\":\"$ISSUER\"}" >/dev/null
-jq -e --arg i "$ISSUER" '.ok and .issuer == $i' "$BODY" >/dev/null || fail "le bon émetteur n'est pas reconnu : $(cat "$BODY")"
-pass "le bon émetteur répond"
+jq -e --arg i "$ISSUER" '.ok and .issuer == $i' "$BODY" >/dev/null || fail "the right issuer is not recognized: $(cat "$BODY")"
+pass "the right issuer answers"
 req POST /api/settings/sso/check "{\"issuer\":\"$KEYCLOAK_URL/realms/inexistant\"}" >/dev/null
-jq -e '.ok == false and (.error | length > 0)' "$BODY" >/dev/null || fail "un realm inexistant passe : $(cat "$BODY")"
-pass "un realm inexistant est refusé : $(jq -r .error "$BODY")"
+jq -e '.ok == false and (.error | length > 0)' "$BODY" >/dev/null || fail "a non-existent realm passes: $(cat "$BODY")"
+pass "a non-existent realm is refused: $(jq -r .error "$BODY")"
 
-step "2. Réglage"
+step "2. Configuration"
 mapping='[{"group":"pupitre-admins","role":"admin"},{"group":"pupitre-ops","role":"operator"},{"group":"pupitre-lecture","role":"viewer"}]'
 code=$(req PATCH /api/settings "{\"sso\":{\"roleMappings\":[{\"group\":\"x\",\"role\":\"role-inexistant\"}]}}")
-[ "$code" = "422" ] || fail "un rôle inexistant est accepté (HTTP $code)"
-pass "un rôle inexistant est refusé → 422"
+[ "$code" = "422" ] || fail "a non-existent role is accepted (HTTP $code)"
+pass "a non-existent role is refused → 422"
 code=$(req PATCH /api/settings "{\"sso\":{\"enabled\":true,\"label\":\"Keycloak\",\"issuer\":\"$ISSUER\",\"clientId\":\"pupitre\",\"autoCreate\":true,\"linkByEmail\":true,\"groupsClaim\":\"groups\",\"roleMappings\":$mapping,\"defaultRole\":\"no-access\",\"syncRoles\":true},\"ssoClientSecret\":\"$CLIENT_SECRET\"}")
-[ "$code" = "200" ] || fail "réglage refusé (HTTP $code) : $(cat "$BODY")"
-jq -e '.ssoStatus.active and .ssoClientSecretConfigured' "$BODY" >/dev/null || fail "connexion unique pas active : $(jq -c .ssoStatus "$BODY")"
-pass "connexion unique active, retour à $(jq -r .ssoStatus.callbackUrl "$BODY")"
-grep -qF "$CLIENT_SECRET" "$BODY" && fail "le secret du client ressort de l'API"
+[ "$code" = "200" ] || fail "configuration refused (HTTP $code): $(cat "$BODY")"
+jq -e '.ssoStatus.active and .ssoClientSecretConfigured' "$BODY" >/dev/null || fail "single sign-on not active: $(jq -c .ssoStatus "$BODY")"
+pass "single sign-on active, return to $(jq -r .ssoStatus.callbackUrl "$BODY")"
+grep -qF "$CLIENT_SECRET" "$BODY" && fail "the client secret comes out of the API"
 req GET /api/settings >/dev/null
-grep -qF "$CLIENT_SECRET" "$BODY" && fail "le secret du client ressort de la lecture des paramètres"
+grep -qF "$CLIENT_SECRET" "$BODY" && fail "the client secret comes out of the settings read"
 [ "$(psql_q "select count(*) from app_settings where sso_client_secret_encrypted like '%$CLIENT_SECRET%';")" = "0" ] \
-  || fail "le secret est en clair en base"
-pass "le secret ne ressort jamais, et il est chiffré en base"
-curl -s "$BASE_URL/login" | grep -q 'Se connecter avec Keycloak' || fail "le bouton n'est pas sur l'écran de connexion"
-pass "l'écran de connexion propose « Se connecter avec Keycloak »"
+  || fail "the secret is in clear in the database"
+pass "the secret never comes out, and it is encrypted in the database"
+curl -s "$BASE_URL/login" | grep -qE 'Se connecter avec Keycloak|Sign in with Keycloak' || fail "the button is not on the sign-in screen"
+pass "the sign-in screen offers \"Sign in with Keycloak\""
 
-step "3. Une connexion crée le compte, avec le rôle de ses groupes"
+step "3. A sign-in creates the account, with its groups' role"
 sso_login alice Alice-Keycloak-2026
-[ "$LANDED" = "$BASE_URL/" ] || fail "retour inattendu : $LANDED"
-[ "$(session_email alice)" = "alice@keycloak.test" ] || fail "pas de session pour Alice"
-[ "$(role_of alice@keycloak.test)" = "operator" ] || fail "Alice a le rôle « $(role_of alice@keycloak.test) »"
-pass "Alice (pupitre-ops) entre, Opérateur d'emblée"
+[ "$LANDED" = "$BASE_URL/" ] || fail "unexpected return: $LANDED"
+[ "$(session_email alice)" = "alice@keycloak.test" ] || fail "no session for Alice"
+[ "$(role_of alice@keycloak.test)" = "operator" ] || fail "Alice has the role \"$(role_of alice@keycloak.test)\""
+pass "Alice (pupitre-ops) comes in, Operator right away"
 [ "$(psql_q "select count(*) from audit_logs where action = 'user.role.changed' and after->>'email' = 'alice@keycloak.test' and created_at > '$START';")" = "0" ] \
-  || fail "la création est passée par un changement de rôle"
+  || fail "the creation went through a role change"
 psql_q "select after->>'origin' from audit_logs where action = 'user.created' and after->>'email' = 'alice@keycloak.test' and created_at > '$START';" | grep -q '^sso$' \
-  || fail "la création ne dit pas qu'elle vient de la connexion unique"
+  || fail "the creation does not say it comes from single sign-on"
 psql_q "select after->>'groups' from audit_logs where action = 'auth.sso.login.succeeded' and after->>'email' = 'alice@keycloak.test' and created_at > '$START';" | grep -q 'pupitre-ops' \
-  || fail "la connexion n'est pas au journal avec ses groupes"
-pass "le journal dit d'où vient le compte, et avec quels groupes il est entré"
+  || fail "the sign-in is not in the log with its groups"
+pass "the log says where the account comes from, and with which groups it came in"
 
-step "4. Création désactivée"
+step "4. Creation disabled"
 req PATCH /api/settings '{"sso":{"autoCreate":false}}' >/dev/null
 sso_login chloe Chloe-Keycloak-2026
-case "$LANDED" in *error=signup_disabled*) ;; *) fail "Chloé n'est pas refusée : $LANDED" ;; esac
-[ "$(psql_q "select count(*) from users where email = 'chloe@keycloak.test';")" = "0" ] || fail "un compte a été créé"
-pass "une identité inconnue est refusée (signup_disabled), sans compte créé"
+case "$LANDED" in *error=signup_disabled*) ;; *) fail "Chloé is not refused: $LANDED" ;; esac
+[ "$(psql_q "select count(*) from users where email = 'chloe@keycloak.test';")" = "0" ] || fail "an account was created"
+pass "an unknown identity is refused (signup_disabled), with no account created"
 req PATCH /api/settings '{"sso":{"autoCreate":true}}' >/dev/null
 sso_login chloe Chloe-Keycloak-2026
-[ "$(role_of chloe@keycloak.test)" = "no-access" ] || fail "Chloé (sans groupe) a « $(role_of chloe@keycloak.test) »"
-pass "réactivée : Chloé, sans groupe, entre « Sans accès »"
+[ "$(role_of chloe@keycloak.test)" = "no-access" ] || fail "Chloé (without a group) has \"$(role_of chloe@keycloak.test)\""
+pass "re-enabled: Chloé, without a group, comes in \"No access\""
 
-step "5. La liaison d'un compte local"
+step "5. Linking a local account"
 code=$(req POST /api/admin/users '{"name":"Damien local","email":"damien@keycloak.test","password":"motdepasse-tres-long","role":"viewer"}')
-[ "$code" = "201" ] || fail "compte local de Damien → HTTP $code"
+[ "$code" = "201" ] || fail "Damien's local account → HTTP $code"
 sso_login damien Damien-Keycloak-2026
-case "$LANDED" in *error=account_not_linked*) ;; *) fail "Damien (e-mail non vérifié) est lié : $LANDED" ;; esac
+case "$LANDED" in *error=account_not_linked*) ;; *) fail "Damien (unverified e-mail) is linked: $LANDED" ;; esac
 [ "$(psql_q "select count(*) from accounts a join users u on u.id = a.user_id where u.email = 'damien@keycloak.test' and a.provider_id = 'oidc';")" = "0" ] \
-  || fail "un compte OIDC a été lié à Damien"
-[ "$(role_of damien@keycloak.test)" = "viewer" ] || fail "le compte local de Damien a changé"
-pass "e-mail non vérifié chez le fournisseur : pas de liaison, le compte local est intact"
+  || fail "an OIDC account was linked to Damien"
+[ "$(role_of damien@keycloak.test)" = "viewer" ] || fail "Damien's local account changed"
+pass "e-mail not verified at the provider: no linking, the local account is intact"
 
-step "6. Le fournisseur fait foi"
+step "6. The provider is authoritative"
 kc_move alice pupitre-ops pupitre-admins
 sso_login alice Alice-Keycloak-2026
-[ "$(role_of alice@keycloak.test)" = "admin" ] || fail "Alice dans pupitre-admins a « $(role_of alice@keycloak.test) »"
-pass "Alice passe dans pupitre-admins chez Keycloak → Administratrice à la connexion suivante"
+[ "$(role_of alice@keycloak.test)" = "admin" ] || fail "Alice in pupitre-admins has \"$(role_of alice@keycloak.test)\""
+pass "Alice moves to pupitre-admins at Keycloak → Administrator at the next sign-in"
 kc_move alice pupitre-admins pupitre-ops
 sso_login alice Alice-Keycloak-2026
-[ "$(role_of alice@keycloak.test)" = "operator" ] || fail "Alice revenue dans pupitre-ops a « $(role_of alice@keycloak.test) »"
-pass "revenue dans pupitre-ops → Opératrice"
+[ "$(role_of alice@keycloak.test)" = "operator" ] || fail "Alice back in pupitre-ops has \"$(role_of alice@keycloak.test)\""
+pass "back in pupitre-ops → Operator"
 psql_q "select after->>'source' from audit_logs where action = 'user.role.changed' and after->>'email' = 'alice@keycloak.test' and created_at > '$START' order by created_at desc limit 1;" | grep -q '^sso$' \
-  || fail "le changement de rôle ne dit pas qu'il vient du fournisseur"
-pass "chaque changement est au journal, attribué au fournisseur"
+  || fail "the role change does not say it comes from the provider"
+pass "each change is in the log, attributed to the provider"
 
-printf '\n\033[32m✓ Connexion unique vérifiée.\033[0m\n\n'
+printf '\n\033[32m✓ Single sign-on verified.\033[0m\n\n'

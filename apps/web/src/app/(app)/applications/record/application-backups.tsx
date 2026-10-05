@@ -26,12 +26,12 @@ import { formatDateTime, type FormatSettings } from '@/lib/format';
 import { toast } from '@/lib/toast';
 
 /**
- * Les sauvegardes d'une application : comment elle est sauvegardée, ce qu'une
- * sauvegarde contient, et ce qui a déjà été fait.
+ * An application's backups: how it is backed up, what a backup contains, and
+ * what has already been done.
  *
- * La carte se lit elle-même (`GET /api/applications/:id/backups`) et se relit
- * tant qu'une sauvegarde est en cours : une sauvegarde dure des minutes, la
- * page n'a pas à être rechargée pour en connaître l'issue.
+ * The card reads itself (`GET /api/applications/:id/backups`) and reads itself
+ * again while a backup is in progress: a backup lasts minutes, the page does not
+ * have to be reloaded to know how it ended.
  */
 
 type Policy = {
@@ -69,7 +69,7 @@ export function ApplicationBackups({
   applicationSlug: string;
   canManage: boolean;
   canRestore: boolean;
-  /** Peut régler la destination (`settings:manage`) : le lien vers les paramètres. */
+  /** Can set the destination (`settings:manage`): the link to the settings. */
   canConfigure: boolean;
   format: FormatSettings;
 }) {
@@ -93,7 +93,7 @@ export function ApplicationBackups({
     if (next) setData(next);
   }, [load]);
 
-  // Premier chargement : l'état ne change que dans le rappel.
+  // First load: the state only changes in the callback.
   useEffect(() => {
     let cancelled = false;
     void load().then((next) => {
@@ -107,7 +107,7 @@ export function ApplicationBackups({
     };
   }, [load]);
 
-  // Une sauvegarde en cours : on relit jusqu'à son issue.
+  // A backup in progress: we read again until it ends.
   const running = data?.items.some((item) => item.status === 'running') ?? false;
   useEffect(() => {
     if (!running) return;
@@ -144,7 +144,7 @@ export function ApplicationBackups({
     );
   }
 
-  // `configured` n'est pas un réglage : il dit seulement si la ligne existe.
+  // `configured` is not a setting: it only says whether the row exists.
   const comparable = (policy: Policy) => JSON.stringify({ ...policy, configured: null });
   const dirty = comparable(draft) !== comparable(data.policy);
   const next = data.schedule?.nextRunAt ? formatDateTime(data.schedule.nextRunAt, format) : null;

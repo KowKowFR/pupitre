@@ -20,11 +20,11 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Tâches planifiées.
+ * Scheduled tasks.
  *
- * `/api/jobs` désigne les tâches **planifiées** — des lignes de `scheduled_jobs`
- * avec un cycle de vie CRUD. L'état d'une tâche BullMQ ponctuelle, lui, se lit
- * sur `/api/queue/jobs/:id`.
+ * `/api/jobs` designates the **scheduled** tasks — rows of `scheduled_jobs` with
+ * a CRUD life cycle. A one-off BullMQ job's state, for its part, is read on
+ * `/api/queue/jobs/:id`.
  */
 
 export const GET = apiRoute(async (request) => {
@@ -55,20 +55,20 @@ export const GET = apiRoute(async (request) => {
       neverDoes: definition.neverDoes,
       cron: row.cron,
       cronDescription: describeCron(row.cron, { locale: language, timeZone }),
-      // `null` quand l'expression n'a pas d'équivalent simplifié : l'écran
-      // bascule alors en mode expert plutôt que d'afficher une approximation.
+      // `null` when the expression has no simplified equivalent: the screen then
+      // switches to expert mode rather than show an approximation.
       schedule: fromCron(row.cron),
       timeZone,
-      // Fuseau réellement mémorisé par BullMQ : un écart avec `timeZone` dit que
-      // le scheduler date d'avant la modification, et sera corrigé au prochain
-      // upsert. Le masquer laisserait croire à une heure qui n'est pas la bonne.
+      // The time zone really stored by BullMQ: a gap with `timeZone` says the scheduler
+      // predates the change, and will be fixed at the next upsert. Hiding it would
+      // suggest a time that is not the right one.
       schedulerTimeZone: state?.timeZone ?? null,
       payload: row.payload,
       enabled: row.enabled,
       lastRunAt: row.lastRunAt?.toISOString() ?? null,
       nextRunAt: state?.nextRunAt ?? null,
-      // `false` sur une tâche active signale un écart entre la base et Redis :
-      // le prochain démarrage du worker le corrigera, et l'UI le montre.
+      // `false` on an active task signals a gap between the database and Redis: the
+      // worker's next start will fix it, and the UI shows it.
       installed: state?.installed ?? false,
       lastRun: lastRun
         ? {
@@ -84,8 +84,8 @@ export const GET = apiRoute(async (request) => {
     };
   });
 
-  // `defaultTimeZone` est celui des paramètres d'instance : le pré-remplissage
-  // du formulaire, pas le fuseau d'une tâche en particulier.
+  // `defaultTimeZone` is the instance settings': the form's prefill, not a
+  // particular task's time zone.
   return NextResponse.json({
     items,
     total: items.length,
@@ -130,8 +130,8 @@ export const POST = apiRoute(async (request) => {
         locale: await currentLanguage(),
         timeZone: row.timezone,
       }),
-      // `null` quand l'expression n'a pas d'équivalent simplifié : l'écran
-      // bascule alors en mode expert plutôt que d'afficher une approximation.
+      // `null` when the expression has no simplified equivalent: the screen then
+      // switches to expert mode rather than show an approximation.
       schedule: fromCron(row.cron),
       timeZone: row.timezone,
       payload: row.payload,

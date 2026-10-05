@@ -2,7 +2,7 @@ import { setAuditFailureReporter } from '@pupitre/db';
 import { pino } from 'pino';
 import { env } from './env.js';
 
-/** Champs jamais journalisés, quelle que soit leur profondeur. */
+/** Fields never logged, whatever their depth. */
 const REDACTED = [
   'password',
   'token',
@@ -40,7 +40,7 @@ export const logger = pino({
 setAuditFailureReporter((error, entry) => {
   logger.error(
     { err: error, action: entry.action, resourceType: entry.resourceType },
-    "échec d'écriture dans audit_logs",
+    'audit_logs write failed',
   );
 });
 

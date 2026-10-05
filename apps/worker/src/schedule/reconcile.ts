@@ -4,20 +4,20 @@ import type { Queue } from 'bullmq';
 import { logger } from '../logger.js';
 
 /**
- * Réconciliation base ↔ BullMQ.
+ * Database ↔ BullMQ reconciliation.
  *
- * La base est la source de vérité, Redis n'est que l'exécutant. Au démarrage du
- * worker on remet les deux d'accord :
+ * The database is the source of truth, Redis is only the executor. At the
+ * worker's startup we bring both into agreement:
  *
- *   - une tâche active en base et absente de Redis y est (ré)installée ;
- *   - une tâche dont le cron ou le fuseau a changé est réinstallée avec eux ;
- *   - une tâche désactivée ou supprimée en base est retirée de Redis ;
- *   - un scheduler orphelin — reliquat d'une version précédente du code, ou
- *     d'une tâche supprimée pendant que le worker était éteint — est retiré.
+ *   - a task active in the database and absent from Redis is (re)installed there;
+ *   - a task whose cron or time zone changed is reinstalled with them;
+ *   - a task disabled or deleted in the database is removed from Redis;
+ *   - an orphan scheduler — a leftover of a previous version of the code, or of
+ *     a task deleted while the worker was off — is removed.
  *
- * C'est ce qui permet à un `docker compose restart worker`, ou à un `FLUSHALL`
- * malencontreux, de ne rien perdre. Sans cette étape, un worker redémarré
- * hériterait de l'état de Redis, qui peut être n'importe lequel.
+ * That is what lets a `docker compose restart worker`, or an unfortunate
+ * `FLUSHALL`, lose nothing. Without this step, a restarted worker would inherit
+ * Redis's state, which can be anything.
  */
 
 export type ReconcileReport = {
@@ -43,13 +43,13 @@ function templateFor(row: ScheduledJob): { name: string; data: ScheduledJobData 
   };
 }
 
-/** Installe ou met à jour le scheduler d'une tâche. Idempotent. */
+/** Installs or updates a task's scheduler. Idempotent. */
 async function upsertScheduler(queue: Queue, row: ScheduledJob): Promise<void> {
   const template = templateFor(row);
-  // Même appel que dans `apps/web/src/lib/schedules.ts`, `tz` compris : les deux
-  // producteurs écrivent le même scheduler, ils ne peuvent pas diverger sur le
-  // fuseau sans que la tâche se mette à tourner à deux heures différentes selon
-  // qui l'a réinstallée en dernier.
+  // The same call as in `apps/web/src/lib/schedules.ts`, `tz` included: both
+  // producers write the same scheduler, they cannot diverge on the time zone
+  // without the task starting to run at two different times depending on who
+  // reinstalled it last.
   await queue.upsertJobScheduler(
     row.key,
     { pattern: row.cron, tz: row.timezone },
@@ -57,9 +57,9 @@ async function upsertScheduler(queue: Queue, row: ScheduledJob): Promise<void> {
       name: template.name,
       data: template.data,
       opts: {
-        // Une tâche périodique qui échoue ne doit pas être rejouée trois fois :
-        // la prochaine occurrence arrive de toute façon, et trois scans en
-        // rafale sur la même image ne disent rien de plus que le premier.
+        // A periodic task that fails must not be replayed three times: the next
+        // occurrence comes anyway, and three scans in a row on the same image say
+        // nothing more than the first.
         attempts: 1,
         removeOnComplete: { age: 24 * 3600, count: 200 },
         removeOnFail: { age: 7 * 24 * 3600, count: 200 },
@@ -97,18 +97,18 @@ export async function reconcileSchedulers(queue: Queue): Promise<ReconcileReport
       continue;
     }
 
-    // Le motif et le fuseau sont les deux seules choses que BullMQ nous rende de
-    // façon comparable ; les données du template, elles, sont réécrites à chaque
-    // upsert. Un scheduler antérieur à la migration `0009` n'a pas de `tz` : il
-    // compte comme un écart, et sera réinstallé avec celui de sa ligne.
+    // The pattern and the time zone are the only two things BullMQ returns to us in
+    // a comparable way; the template's data is rewritten at each upsert. A scheduler
+    // older than migration `0009` has no `tz`: it counts as a gap, and will be
+    // reinstalled with its row's.
     if (current.pattern !== row.cron || (current.tz ?? null) !== row.timezone) {
       await upsertScheduler(queue, row);
       report.updated.push(row.key);
       continue;
     }
 
-    // Réécriture silencieuse : le contenu du template peut avoir changé (un
-    // `payload` modifié, un identifiant de tâche recréé) sans que le cron bouge.
+    // Silent rewrite: the template's content may have changed (a modified `payload`,
+    // a recreated task identifier) without the cron moving.
     await upsertScheduler(queue, row);
     report.unchanged.push(row.key);
   }
@@ -127,7 +127,7 @@ export async function reconcileSchedulers(queue: Queue): Promise<ReconcileReport
       removed: report.removed,
       unchanged: report.unchanged.length,
     },
-    'tâches planifiées réconciliées avec BullMQ',
+    'scheduled tasks reconciled with BullMQ',
   );
 
   if (report.installed.length > 0 || report.updated.length > 0 || report.removed.length > 0) {

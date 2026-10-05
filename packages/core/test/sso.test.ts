@@ -9,8 +9,8 @@ import {
   ssoScopes,
 } from '../src/sso.js';
 
-describe('connexion unique — ce qu’on lit du profil', () => {
-  it('lit un champ par son chemin, chaîne ou liste', () => {
+describe('single sign-on — what is read from the profile', () => {
+  it('reads a field by its path, string or list', () => {
     const profile = { groups: ['/ops', 'dev', 3], realm_access: { roles: ['admin'] }, team: 'sre' };
     assert.deepEqual(claimValues(profile, 'groups'), ['/ops', 'dev']);
     assert.deepEqual(claimValues(profile, 'realm_access.roles'), ['admin']);
@@ -19,7 +19,7 @@ describe('connexion unique — ce qu’on lit du profil', () => {
     assert.deepEqual(claimValues(null, 'groups'), []);
   });
 
-  it('la première correspondance l’emporte, chemin complet ou non', () => {
+  it('the first match wins, full path or not', () => {
     const settings = {
       roleMappings: [
         { group: 'admins', role: 'admin' },
@@ -36,12 +36,12 @@ describe('connexion unique — ce qu’on lit du profil', () => {
     assert.deepEqual(roleFromGroups([], settings), { role: 'no-access', matched: null });
   });
 
-  it('openid toujours en tête, sans doublon', () => {
+  it('openid always first, without duplicates', () => {
     assert.deepEqual(ssoScopes('profile email openid email'), ['openid', 'profile', 'email']);
     assert.deepEqual(ssoScopes(''), ['openid']);
   });
 
-  it('les adresses à déclarer et à lire', () => {
+  it('the addresses to declare and to read', () => {
     assert.equal(
       ssoCallbackUrl('https://pupitre.exemple.fr/'),
       'https://pupitre.exemple.fr/api/auth/callback/oidc',
@@ -52,7 +52,7 @@ describe('connexion unique — ce qu’on lit du profil', () => {
     );
   });
 
-  it('désactivée par défaut, un nouvel arrivant sans accès', () => {
+  it('disabled by default, a newcomer without access', () => {
     assert.equal(DEFAULT_SSO_SETTINGS.enabled, false);
     assert.equal(DEFAULT_SSO_SETTINGS.defaultRole, 'no-access');
     assert.equal(ssoSettingsSchema.safeParse({ issuer: 'ftp://x' }).success, false);

@@ -9,22 +9,21 @@ import {
 } from '../i18n.js';
 
 /**
- * Le message neutre — tout ce qu'un canal reçoit, et rien de plus.
+ * The neutral message — everything a channel receives, and nothing more.
  *
- * Un canal ne reçoit **ni** HTML d'e-mail, **ni** Markdown Telegram, **ni**
- * `embed` Discord : il reçoit un titre, un corps, une gravité, quelques champs
- * et un lien. C'est chaque implémentation qui sait rendre cela dans son
- * protocole — l'e-mail en texte *et* en HTML, Discord en `embed` coloré,
- * Telegram en `MarkdownV2` avec ses échappements, le webhook en JSON brut.
+ * A channel receives **neither** email HTML, **nor** Telegram Markdown, **nor**
+ * a Discord `embed`: it receives a title, a body, a severity, a few fields and a
+ * link. It is each implementation that knows how to render that in its protocol
+ * — the email as text *and* HTML, Discord as a colored `embed`, Telegram as
+ * `MarkdownV2` with its escapes, the webhook as raw JSON.
  *
- * La règle qui tient l'abstraction : si le code appelant se met à écrire du
- * HTML ou des astérisques, l'abstraction fuit et il faut corriger ici, pas
- * là-bas.
+ * The rule that holds the abstraction: if the calling code starts writing HTML
+ * or asterisks, the abstraction leaks and it must be fixed here, not there.
  *
- * Ce module ne dépend que de Zod et du mécanisme de traduction — deux modules
- * sans dépendance : il est réexporté depuis la racine de `@pupitre/core`, donc
- * lisible par le panel Next sans tirer `nodemailer` dans son graphe. Les
- * implémentations, elles, vivent sous `@pupitre/core/notifications`.
+ * This module only depends on Zod and the translation mechanism — two modules
+ * without dependencies: it is re-exported from the root of `@pupitre/core`,
+ * hence readable by the Next panel without pulling `nodemailer` into its graph.
+ * The implementations live under `@pupitre/core/notifications`.
  */
 
 export const NOTIFICATION_SEVERITIES = ['info', 'warning', 'critical'] as const;
@@ -33,9 +32,9 @@ export const notificationSeveritySchema = z.enum(NOTIFICATION_SEVERITIES);
 export type NotificationSeverity = z.infer<typeof notificationSeveritySchema>;
 
 /**
- * Les mots que **tout** canal ajoute autour du message neutre : la gravité en
- * toutes lettres, le lien vers le panel, le message d'essai. Ils vivent ici
- * parce que quatre protocoles les rendent différemment mais les disent pareil.
+ * The words **every** channel adds around the neutral message: the severity
+ * spelled out, the link to the panel, the test message. They live here because
+ * four protocols render them differently but say them the same way.
  */
 const fr = {
   'severity.info': 'Information',
@@ -69,7 +68,7 @@ function t(language: UiLanguage, key: keyof typeof fr, vars?: Vars): string {
   return renderMessage(MESSAGE_TEXT, language, key, vars);
 }
 
-/** La gravité en toutes lettres, dans la langue de l'instance. */
+/** The severity spelled out, in the instance's language. */
 export function notificationSeverityLabel(
   severity: NotificationSeverity,
   language: UiLanguage = DEFAULT_UI_LANGUAGE,
@@ -77,14 +76,14 @@ export function notificationSeverityLabel(
   return t(language, `severity.${severity}`);
 }
 
-/** Le libellé du lien vers le panel — un canal ne l'écrit jamais lui-même. */
+/** The label of the link to the panel — a channel never writes it itself. */
 export function notificationOpenLabel(language: UiLanguage = DEFAULT_UI_LANGUAGE): string {
   return t(language, 'openInPanel');
 }
 
 /**
- * La table française, conservée pour les appelants qui ne portent pas encore de
- * langue. `notificationSeverityLabel()` est ce qu'il faut appeler.
+ * The French table, kept for callers that do not carry a language yet.
+ * `notificationSeverityLabel()` is what should be called.
  */
 export const NOTIFICATION_SEVERITY_LABELS: Record<NotificationSeverity, string> = {
   info: fr['severity.info'],
@@ -93,10 +92,10 @@ export const NOTIFICATION_SEVERITY_LABELS: Record<NotificationSeverity, string> 
 };
 
 /**
- * Une paire étiquette / valeur. Volontairement des chaînes : le canal n'a pas à
- * deviner comment rendre un nombre, une date ou un booléen, et deux canaux ne
- * les rendraient pas pareil. La mise en forme appartient à celui qui compose le
- * message, une fois, pour tout le monde.
+ * A label / value pair. Deliberately strings: the channel does not have to guess
+ * how to render a number, a date or a boolean, and two channels would not render
+ * them the same way. Formatting belongs to whoever composes the message, once,
+ * for everybody.
  */
 export const notificationFieldSchema = z.object({
   label: z.string().trim().min(1).max(60),
@@ -106,29 +105,29 @@ export const notificationFieldSchema = z.object({
 export type NotificationField = z.infer<typeof notificationFieldSchema>;
 
 export const notificationMessageSchema = z.object({
-  /** Clé de l'événement à l'origine du message — jamais un libellé traduit. */
+  /** Key of the event behind the message — never a translated label. */
   event: z.string().min(1).max(80),
   severity: notificationSeveritySchema,
   title: z.string().trim().min(1).max(200),
-  /** Deux ou trois phrases. Du texte simple : aucune syntaxe de balisage. */
+  /** Two or three sentences. Plain text: no markup syntax. */
   body: z.string().trim().min(1).max(2000),
   fields: z.array(notificationFieldSchema).max(12).default([]),
-  /** Lien absolu vers l'écran du panel qui montre l'objet. `null` s'il n'y en a pas. */
+  /** Absolute link to the panel screen that shows the object. `null` if there is none. */
   url: z.string().url().max(500).nullable().default(null),
   /**
-   * Nom de l'instance émettrice. Deux panels qui écrivent dans le même salon
-   * Discord sont indiscernables sans lui — et c'est un cas courant.
+   * Name of the sending instance. Two panels writing to the same Discord channel
+   * are indistinguishable without it — and it is a common case.
    */
   instance: z.string().trim().min(1).max(60),
   occurredAt: z.string().datetime(),
   /**
-   * Langue dans laquelle le message a été composé.
+   * Language in which the message was composed.
    *
-   * Elle voyage avec lui parce que le canal écrit ses propres mots par-dessus —
-   * la gravité en toutes lettres, « Ouvrir dans le panel » — et qu'il le fait
-   * plus tard, dans une autre tâche, sans accès aux paramètres. Un défaut
-   * plutôt qu'un champ obligatoire : une tâche déjà enfilée avant ce champ doit
-   * continuer à se déserialiser, sinon l'alerte est perdue.
+   * It travels with it because the channel writes its own words on top — the
+   * severity spelled out, "Open in the panel" — and does so later, in another
+   * task, without access to the settings. A default rather than a required field:
+   * a task already queued before this field must keep deserializing, otherwise the
+   * alert is lost.
    */
   language: z.enum(UI_LANGUAGES).default(DEFAULT_UI_LANGUAGE),
 });
@@ -136,12 +135,12 @@ export const notificationMessageSchema = z.object({
 export type NotificationMessage = z.infer<typeof notificationMessageSchema>;
 
 /**
- * Rendu en texte brut, commun à tous les canaux qui en ont besoin (la partie
- * `text/plain` d'un e-mail, le repli d'un canal qui refuse le balisage).
+ * Plain text rendering, shared by every channel that needs it (an email's
+ * `text/plain` part, the fallback of a channel that refuses markup).
  *
- * Il vit ici et non dans chaque implémentation parce que c'est le rendu *du
- * message neutre lui-même*, sans protocole : le dupliquer trois fois ferait
- * diverger trois versions de la même chose.
+ * It lives here and not in each implementation because it is the rendering *of
+ * the neutral message itself*, without protocol: duplicating it three times
+ * would make three versions of the same thing diverge.
  */
 export function renderPlainText(message: NotificationMessage): string {
   const lines = [message.title, '', message.body];
@@ -164,14 +163,14 @@ export function renderPlainText(message: NotificationMessage): string {
 }
 
 /**
- * Message d'essai. Il porte une vraie gravité et de vrais champs : un essai qui
- * n'exercerait pas le rendu complet ne prouverait pas grand-chose du canal.
+ * Test message. It carries a real severity and real fields: a test that did not
+ * exercise the complete rendering would not prove much about the channel.
  */
 export function testNotificationMessage(options: {
   instance: string;
   panelUrl: string | null;
   channelName: string;
-  /** Langue de l'instance. Le panel la résout avant d'enfiler l'essai. */
+  /** The instance's language. The panel resolves it before queuing the test. */
   language?: UiLanguage;
 }): NotificationMessage {
   const language = options.language ?? DEFAULT_UI_LANGUAGE;
@@ -182,8 +181,8 @@ export function testNotificationMessage(options: {
     title: t(language, 'test.title', { channel: options.channelName }),
     body: t(language, 'test.body'),
     fields: [
-      // Le **nom** du canal est de la donnée : l'opérateur l'a écrit, on le
-      // recopie tel quel. Seule son étiquette se traduit.
+      // The channel's **name** is data: the operator wrote it, we copy it as is. Only
+      // its label is translated.
       { label: t(language, 'test.field.channel'), value: options.channelName },
       { label: t(language, 'test.field.instance'), value: options.instance },
     ],

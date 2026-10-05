@@ -1,6 +1,6 @@
 /**
- * Vocabulaire RBAC partagé par le panel, le worker et le seed.
- * Une permission est une chaîne `ressource:action`.
+ * RBAC vocabulary shared by the panel, the worker and the seed. A permission is
+ * a `resource:action` string.
  */
 
 import type { Translated, UiLanguage } from './i18n.js';
@@ -49,22 +49,22 @@ export const PERMISSIONS = [
 export type Permission = (typeof PERMISSIONS)[number];
 
 /**
- * Les libellés d'écran des permissions.
+ * The permissions' screen labels.
  *
- * Ils vivent ici parce que le panel, le worker et le seed partagent le
- * vocabulaire RBAC — mais seules les **clés** sont partagées : ces phrases-là
- * ne servent qu'à l'éditeur de rôles, qui les rend dans la langue de l'instance
- * via `translator(permissionDescriptions, language)`.
+ * They live here because the panel, the worker and the seed share the RBAC
+ * vocabulary — but only the **keys** are shared: these sentences only serve the
+ * role editor, which renders them in the instance's language through
+ * `translator(permissionDescriptions, language)`.
  *
- * Le `satisfies Record<Permission, string>` est la garde qui compte : une
- * permission ajoutée à `PERMISSIONS` sans sa description ne compile plus.
+ * `satisfies Record<Permission, string>` is the guard that counts: a permission
+ * added to `PERMISSIONS` without its description no longer compiles.
  */
 const descriptionsFr = {
   'user:read': 'Consulter les utilisateurs',
   'user:manage': 'Créer, désactiver et changer le rôle des utilisateurs',
-  // Distincte de `user:manage` : retirer le second facteur de quelqu'un lève
-  // une protection sur son compte. Gérer les utilisateurs au quotidien ne
-  // devrait pas donner ce pouvoir sans qu'on l'ait explicitement voulu.
+  // Distinct from `user:manage`: removing someone's second factor lifts a
+  // protection on their account. Managing users day to day should not give that
+  // power without it being explicitly wanted.
   'user:reset-2fa': "Réinitialiser le second facteur d'un utilisateur",
   'role:read': 'Consulter les rôles et leurs permissions',
   'role:manage': 'Modifier les rôles et leurs permissions',
@@ -79,28 +79,28 @@ const descriptionsFr = {
   'deployment:read': 'Consulter les déploiements et leurs logs',
   'deployment:create': 'Lancer un déploiement',
   'deployment:rollback': 'Revenir à la version précédente',
-  // Couvre les trois gestes qui interrompent le service sans toucher à la
-  // version : redémarrer, arrêter, relancer. Une permission `deployment:stop`
-  // séparée aurait produit un rôle capable de redémarrer mais pas d'arrêter,
-  // alors qu'un redémarrage *est* un arrêt suivi d'un démarrage — même portée,
-  // même conséquence pour les visiteurs, rien de détruit dans les deux cas.
+  // Covers the three gestures that interrupt service without touching the
+  // version: restart, stop, start. A separate `deployment:stop` permission would
+  // have produced a role able to restart but not to stop, whereas a restart *is*
+  // a stop followed by a start — same scope, same consequence for visitors,
+  // nothing destroyed in either case.
   'deployment:restart': 'Redémarrer, arrêter et relancer une application déployée',
   'deployment:destroy': 'Détruire un déploiement',
-  // Détruire retire l'application de la machine ; purger efface la trace en base.
-  // Deux gestes différents, deux permissions.
+  // Destroying removes the application from the machine; purging erases the trace
+  // in the database. Two different gestures, two permissions.
   'deployment:purge': "Effacer des déploiements de l'historique",
   'backup:read': 'Consulter les sauvegardes et leur politique',
   'backup:manage': 'Régler les sauvegardes des applications et en lancer une',
   'backup:restore': "Restaurer une sauvegarde — remplace les données de l'application",
-  // « Charge » plutôt que « conteneur » : sur une cible K3s ce sont des pods.
-  // Le mot Docker n'a pas sa place dans le vocabulaire partagé.
+  // "Workload" rather than "container": on a K3s target they are pods. The Docker
+  // word has no place in the shared vocabulary.
   'workload:read': "Consulter les charges qui tournent sur une cible",
   'workload:manage':
     "Démarrer, arrêter, redémarrer, lire le journal, mettre à jour et supprimer les charges d'une cible",
   'workload:exec': "Exécuter des commandes dans les charges d'une cible",
   'scan:read': 'Consulter les scans et leurs findings',
-  // Accepter une faille décide, comme le seuil, de ce qui bloque une mise en
-  // ligne : le même geste, la même permission.
+  // Accepting a vulnerability decides, like the threshold, what blocks a release:
+  // the same gesture, the same permission.
   'scan:configure':
     "Choisir les scanners et le seuil de blocage, d'une application comme de l'instance, et accepter une faille connue",
   'job:read': 'Consulter les tâches planifiées',
@@ -111,8 +111,8 @@ const descriptionsFr = {
   'maintenance:manage': 'Planifier, modifier et terminer une fenêtre de maintenance',
   'status_page:manage':
     'Composer et publier les pages de statut publiques — ce que des inconnus verront',
-  // Distincte de `status_page:manage` : dire « on enquête » pendant une panne
-  // est un geste d'exploitation ; décider de ce qu'une page montre, non.
+  // Distinct from `status_page:manage`: saying "we are investigating" during an
+  // outage is an operations gesture; deciding what a page shows is not.
   'status_page:announce':
     'Publier des annonces sur les pages de statut pendant une panne ou une maintenance',
   'audit:read': "Consulter les logs d'activité",
@@ -166,35 +166,34 @@ const descriptionsEn: Translated<typeof descriptionsFr> = {
 export const permissionDescriptions = { fr: descriptionsFr, en: descriptionsEn };
 
 /**
- * @deprecated Utiliser `permissionDescriptions`, rendu par
+ * @deprecated Use `permissionDescriptions`, rendered through
  * `translator(permissionDescriptions, language)`.
  *
- * Conservé pour le seed : lui ne rend rien à l'écran, il **range** ces phrases
- * dans `permissions.description` comme des valeurs. La source reste le
- * français, comme le reste de la base.
+ * Kept for the seed: it renders nothing on screen, it **stores** these
+ * sentences in `permissions.description` as values. The source stays French,
+ * like the rest of the database.
  */
 export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = descriptionsFr;
 
 /**
- * Rôles installés sur une base vierge. Ce ne sont que des **valeurs de départ** :
- * l'autorité, à l'exécution, est la table `roles`. Un administrateur peut créer
- * d'autres rôles et modifier les permissions de ceux-ci.
+ * Roles installed on an empty database. They are only **starting values**: the
+ * authority, at runtime, is the `roles` table. An administrator can create
+ * other roles and change these ones' permissions.
  */
 export const SEEDED_ROLES = ['admin', 'operator', 'auditor', 'viewer', 'no-access'] as const;
 
 export type SeededRoleKey = (typeof SEEDED_ROLES)[number];
 
 /**
- * Clé d'un rôle. Volontairement une chaîne et non une union : les rôles sont
- * des données, pas du code. Une union figée obligerait à recompiler le panel
- * pour créer un rôle.
+ * A role's key. Deliberately a string and not a union: roles are data, not
+ * code. A frozen union would require recompiling the panel to create a role.
  */
 export type RoleKey = string;
 
 /**
- * Le seul rôle immuable. Il porte toujours l'intégralité des permissions et ne
- * peut être ni renommé, ni vidé, ni supprimé — c'est le garde-fou qui empêche
- * de se verrouiller hors de son propre panel.
+ * The only immutable role. It always carries every permission and can be
+ * neither renamed, nor emptied, nor deleted — it is the safeguard that prevents
+ * locking yourself out of your own panel.
  */
 export const LOCKED_ROLE = 'admin' as const;
 
@@ -202,25 +201,24 @@ export function isLockedRole(key: string): boolean {
   return key === LOCKED_ROLE;
 }
 
-/** Clé de rôle : kebab-case, comme les slugs du reste du projet. */
+/** Role key: kebab-case, like the rest of the project's slugs. */
 export const ROLE_KEY_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /**
- * Le rôle d'un compte créé par l'inscription publique : aucune permission, en
- * attendant qu'un administrateur en choisisse un. L'inscription ne dit rien de
- * qui s'inscrit — lui ouvrir la moindre lecture, c'était la lui ouvrir à
- * n'importe qui.
+ * The role of an account created by public sign-up: no permission, until an
+ * administrator chooses one. Sign-up says nothing about who signs up — opening
+ * the slightest read to it meant opening it to anyone.
  */
 export const SIGNUP_ROLE = 'no-access' satisfies SeededRoleKey;
 
-/** Toute permission dont l'action est `read`. */
+/** Every permission whose action is `read`. */
 const READ_ONLY = PERMISSIONS.filter((p) => p.endsWith(':read'));
 
 /**
- * Les lectures qui regardent l'administration de la plateforme plutôt que son
- * exploitation : qui s'est connecté et d'où (le journal porte des adresses IP
- * et des e-mails), qui a un compte, quels rôles existent, comment l'instance
- * est réglée. Elles vont à l'auditeur, pas à l'observateur.
+ * The reads that concern the platform's administration rather than its
+ * operation: who signed in and from where (the audit log carries IP addresses
+ * and emails), who has an account, which roles exist, how the instance is set.
+ * They go to the auditor, not to the viewer.
  */
 const ADMINISTRATION_READS: ReadonlySet<Permission> = new Set<Permission>([
   'user:read',
@@ -229,7 +227,7 @@ const ADMINISTRATION_READS: ReadonlySet<Permission> = new Set<Permission>([
   'settings:read',
 ]);
 
-/** Les lectures de l'exploitation : ce qui tourne, où, et dans quel état. */
+/** Operations reads: what runs, where, and in what state. */
 const OPERATION_READS = READ_ONLY.filter((p) => !ADMINISTRATION_READS.has(p));
 
 /**
@@ -263,20 +261,18 @@ export const ROLE_DEFINITIONS: Record<
       'deployment:create',
       'deployment:rollback',
       'deployment:restart',
-      // Sauvegarder fait partie de l'exploitation ; restaurer remplace des
-      // données, et reste à l'administrateur tant qu'il ne le délègue pas.
+      // Backing up is part of operations; restoring replaces data, and stays with the
+      // administrator as long as they do not delegate it.
       'backup:read',
       'backup:manage',
       'scan:read',
-      // Choisir les scanners fait partie du geste de déploiement : un opérateur
-      // qui déploie doit pouvoir décider ce qu'on analyse et quand ça bloque.
+      // Choosing the scanners is part of the deployment gesture: an operator who
+      // deploys must be able to decide what is scanned and when it blocks.
       'scan:configure',
-      // Intervenir sur une machine sans réveiller l'astreinte fait partie de
-      // l'exploitation.
+      // Working on a machine without waking up on-call is part of operations.
       'maintenance:read',
       'maintenance:manage',
-      // Tenir les visiteurs au courant d'une panne qu'on est en train de
-      // réparer, aussi.
+      // Keeping visitors informed of an outage being repaired, too.
       'status_page:announce',
     ],
   },
@@ -298,34 +294,33 @@ export const ROLE_DEFINITIONS: Record<
 };
 
 /**
- * Les permissions **sensibles** : celles qui donnent la main sur autre chose
- * que des lectures — un compte ou un rôle, l'instance, une machine (ses accès
- * SSH, ce qui y tourne), du code exécuté sur une machine, des données qu'on
- * détruit ou qu'on remplace.
+ * The **sensitive** permissions: those that give control over something other
+ * than reads — an account or a role, the instance, a machine (its SSH access,
+ * what runs on it), code run on a machine, data destroyed or replaced.
  *
- * C'est la liste qui décide, quand l'instance l'exige, qui doit porter un
- * second facteur : un rôle qui en porte une seule y est soumis. Déployer en
- * fait partie — déployer ce qu'on veut, c'est exécuter ce qu'on veut sur la
+ * It is the list that decides, when the instance requires it, who must carry a
+ * second factor: a role carrying a single one is bound by it. Deploying is part
+ * of it — deploying whatever you want is running whatever you want on the
  * machine.
  */
 export const SENSITIVE_PERMISSIONS: readonly Permission[] = [
-  // comptes et rôles
+  // accounts and roles
   'user:manage',
   'user:reset-2fa',
   'role:manage',
-  // l'instance
+  // the instance
   'settings:manage',
-  // les machines
+  // machines
   'target:create',
   'target:update',
   'target:delete',
   'workload:manage',
   'workload:exec',
-  // du code exécuté sur une machine
+  // code run on a machine
   'application:create',
   'application:update',
   'deployment:create',
-  // des données détruites ou remplacées
+  // data destroyed or replaced
   'application:delete',
   'backup:restore',
   'deployment:destroy',
@@ -338,14 +333,14 @@ export function isSensitivePermission(permission: string): boolean {
   return SENSITIVE_SET.has(permission);
 }
 
-/** Quand l'instance exige un second facteur. */
+/** When the instance requires a second factor. */
 export const TWO_FACTOR_POLICIES = ['off', 'sensitive', 'all'] as const;
 export type TwoFactorPolicy = (typeof TWO_FACTOR_POLICIES)[number];
 
 /**
- * Ce compte doit-il porter un second facteur ? Selon la politique de
- * l'instance et les permissions qu'il tient : `sensitive` y soumet tout rôle
- * qui en porte une seule sensible — l'administrateur toujours.
+ * Must this account carry a second factor? Depending on the instance's policy
+ * and the permissions it holds: `sensitive` binds any role carrying a single
+ * sensitive one — the administrator always.
  */
 export function requiresTwoFactor(
   permissions: readonly string[],
@@ -356,7 +351,7 @@ export function requiresTwoFactor(
   return permissions.some(isSensitivePermission);
 }
 
-/** Découpe `ressource:action`. */
+/** Splits `resource:action`. */
 export function splitPermission(permission: Permission): {
   resource: string;
   action: string;
@@ -376,11 +371,11 @@ export function isPermission(value: string): value is Permission {
 
 
 /**
- * Permissions groupées par ressource, dans l'ordre de déclaration.
+ * Permissions grouped by resource, in declaration order.
  *
- * `describe` vient de l'appelant : le regroupement est une affaire de
- * structure, la phrase une affaire d'écran, et seul l'écran connaît la langue
- * de l'instance. Sans lui, on retombe sur le français, qui est la source.
+ * `describe` comes from the caller: grouping is a matter of structure, the
+ * sentence a matter of screen, and only the screen knows the instance's
+ * language. Without it, we fall back on French, which is the source.
  */
 export function permissionsByResource(
   describe: (key: Permission) => string = (key) => descriptionsFr[key],
@@ -400,7 +395,7 @@ export function permissionsByResource(
   return [...groups.entries()].map(([resource, permissions]) => ({ resource, permissions }));
 }
 
-/** Libellés des ressources, pour l'écran d'édition des rôles. */
+/** Resource labels, for the role editing screen. */
 const resourcesFr = {
   user: 'Utilisateurs',
   role: 'Rôles',
@@ -438,11 +433,11 @@ const resourcesEn: Translated<typeof resourcesFr> = {
 export const resourceLabels = { fr: resourcesFr, en: resourcesEn };
 
 /**
- * Le libellé d'une ressource, ou son nom brut.
+ * A resource's label, or its raw name.
  *
- * Une ressource est une chaîne libre — la moitié gauche d'une clé de
- * permission —, pas une clé de dictionnaire : le repli sur le nom brut est ce
- * qui permet d'ajouter une permission avant son libellé.
+ * A resource is a free string — the left half of a permission key —, not a
+ * dictionary key: falling back on the raw name is what allows adding a
+ * permission before its label.
  */
 export function resourceLabelOf(resource: string, language: UiLanguage): string {
   const table: Record<string, string> = resourceLabels[language] ?? resourcesFr;

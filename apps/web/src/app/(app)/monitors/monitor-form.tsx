@@ -34,7 +34,7 @@ export type AdoptableApp = {
   url: string;
 };
 
-/** Une sonde existante, telle que le formulaire de modification la reprend. */
+/** An existing probe, as the edit form takes it. */
 export type EditableMonitor = {
   id: string;
   name: string;
@@ -43,34 +43,34 @@ export type EditableMonitor = {
   intervalSeconds: number;
   failureThreshold: number;
   recoveryThreshold: number;
-  /** L'URL est chiffrée en base et ne revient jamais au navigateur : on sait seulement qu'elle existe. */
+  /** The URL is encrypted in the database and never comes back to the browser: we only know it
+   *  exists. */
   hasWebhook: boolean;
 };
 
 type ApiError = { error?: { message?: string } };
 
-/** Les cadences proposées. Filtrées par le minimum que le type déclare. */
+/** The offered cadences. Filtered by the minimum the type declares. */
 const INTERVAL_CHOICES = [30, 60, 300, 900, 3_600, 6 * 3_600, 12 * 3_600, 86_400];
 
 /**
- * Le formulaire d'une sonde, en création comme en modification.
+ * A probe's form, for creation as for editing.
  *
- * Un seul formulaire pour les deux, parce que les deux disent la même chose :
- * ce qui est sondé, à quelle cadence, et quand une panne devient un incident.
- * Deux différences seulement :
+ * A single form for both, because both say the same thing: what is probed, at
+ * what cadence, and when an outage becomes an incident. Only two differences:
  *
- *  - **le type ne se modifie pas.** Changer le type d'une sonde, c'est en créer
- *    une autre : son historique et ses incidents porteraient sur autre chose.
- *    Le serveur le refuse ; le formulaire l'affiche en lecture ;
- *  - **le webhook ne se relit pas.** Son URL est chiffrée en base et porte
- *    souvent un secret : elle ne revient pas au navigateur. On peut la
- *    remplacer ou la retirer ; laissé vide, le champ la conserve.
+ *  - **the type cannot be changed.** Changing a probe's type is creating another
+ *    one: its history and its incidents would be about something else. The
+ *    server refuses it; the form shows it read-only;
+ *  - **the webhook is not read back.** Its URL is encrypted in the database and
+ *    often carries a secret: it does not come back to the browser. It can be
+ *    replaced or removed; left empty, the field keeps it.
  */
 export function MonitorForm(
   props: {
     types: TypeOption[];
     onDone: (name: string) => void;
-    /** Revenir sans enregistrer — la fiche, quand on modifie depuis elle. */
+    /** Going back without saving — the record, when editing from it. */
     onCancel?: () => void;
   } & ({ mode: 'create'; app: AdoptableApp | null } | { mode: 'edit'; monitor: EditableMonitor }),
 ) {
@@ -120,12 +120,12 @@ export function MonitorForm(
   }
 
   /**
-   * En modification, seul ce que l'opérateur a changé part au serveur.
+   * When editing, only what the operator changed goes to the server.
    *
-   * Ce n'est pas une économie : renvoyer la configuration la fait revalider,
-   * résolution DNS comprise (garde SSRF). Changer un seuil ne doit pas échouer
-   * parce que le nom de l'hôte ne se résout pas à cet instant — et le journal
-   * ne doit montrer que ce qui a vraiment bougé.
+   * It is not a saving: sending the configuration back makes it validate again,
+   * DNS resolution included (SSRF guard). Changing a threshold must not fail
+   * because the host's name does not resolve at that instant — and the log must
+   * only show what really moved.
    */
   function editPatch(monitor: EditableMonitor): Record<string, unknown> {
     const patch: Record<string, unknown> = {};
@@ -137,7 +137,7 @@ export function MonitorForm(
     if (recoveryThreshold !== monitor.recoveryThreshold) {
       patch.recoveryThreshold = recoveryThreshold;
     }
-    // Le webhook : une URL saisie le remplace, « Retirer » l'efface, rien ne le garde.
+    // The webhook: a typed URL replaces it, "Remove" clears it, nothing keeps it.
     const typed = webhookUrl.trim();
     if (typed !== '') patch.webhookUrl = typed;
     else if (removeWebhook) patch.webhookUrl = null;
@@ -181,8 +181,8 @@ export function MonitorForm(
     onDone(name);
   }
 
-  // Une cadence réglée hors des choix proposés (par l'API) reste sélectionnable :
-  // ouvrir le formulaire ne doit pas la changer en douce.
+  // A cadence set outside the offered choices (through the API) stays selectable:
+  // opening the form must not change it on the sly.
   const intervals = [
     ...new Set([
       ...INTERVAL_CHOICES.filter((seconds) => seconds >= (definition?.minIntervalSeconds ?? 30)),
@@ -321,10 +321,10 @@ export function MonitorForm(
               {t('create.webhook.payload.c')} <code className="mono">content</code>
               {t('create.webhook.payload.d')}{' '}
               {/*
-                Deux sorties existent pour la même panne. Le dire ici, au moment
-                de saisir l'URL, est le seul endroit où l'information arrive à
-                temps : sinon l'opérateur découvre le doublon en le recevant.
-              */}
+                Two outputs exist for the same outage. Saying so here, when the URL
+                is typed in, is the only place where the information arrives in
+                time: otherwise the operator discovers the duplicate by receiving it.
+                             */}
               {t('create.webhook.scope.a')}
               <strong>{t('create.webhook.scope.only')}</strong>
               {t('create.webhook.scope.b')}

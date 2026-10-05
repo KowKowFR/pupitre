@@ -3,9 +3,9 @@ import { boolean, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from 'dri
 import { users } from './auth.js';
 
 /**
- * Les pages de statut publiques. `slug` vide : la page de `/status`. Une page
- * non publiée n'existe pas pour un visiteur — elle répond 404, comme une
- * adresse inconnue, pour ne pas dire qu'il y a quelque chose derrière.
+ * Public status pages. Empty `slug`: the `/status` page. An unpublished page
+ * does not exist for a visitor — it answers 404, like an unknown address, so as
+ * not to say there is something behind it.
  */
 export const statusPages = pgTable(
   'status_pages',

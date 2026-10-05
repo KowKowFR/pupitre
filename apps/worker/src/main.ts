@@ -141,12 +141,12 @@ import { closePublisher, createRedisConnection } from './redis.js';
 type JobHandler = (job: Job) => Promise<unknown>;
 
 /**
- * Un seul point d'enregistrement des tâches de la queue `ops`.
+ * A single place where the `ops` queue's jobs are registered.
  *
- * Les quatre tâches planifiées sont enregistrées depuis la table de
- * données `SCHEDULED_JOB_TYPES` et partagent la même enveloppe : le nom BullMQ
- * varie, le traitement est dispatché par `type` à l'intérieur. Écrire les
- * quatre noms à la main ici aurait été un cinquième endroit à tenir à jour.
+ * The four scheduled tasks are registered from the `SCHEDULED_JOB_TYPES` data
+ * table and share the same envelope: the BullMQ name varies, the handling is
+ * dispatched by `type` inside. Writing the four names by hand here would have
+ * been a fifth place to keep up to date.
  */
 const handlers: Record<string, JobHandler> = {
   [PING_JOB]: handlePing,
@@ -154,24 +154,24 @@ const handlers: Record<string, JobHandler> = {
   [DEPLOYMENT_RUN_JOB]: handleDeploymentRun,
   [DEPLOYMENT_ROLLBACK_JOB]: handleDeploymentRollback,
   [DEPLOYMENT_DESTROY_JOB]: handleDeploymentDestroy,
-  // Suppression en cascade : une session SSH par cible, puis la purge. Sur
-  // `ops` parce que c'est la même ressource distante qu'un déploiement.
+  // Cascading deletion: one SSH session per target, then the purge. On `ops`
+  // because it is the same remote resource as a deployment.
   [APPLICATION_DELETE_JOB]: handleApplicationDelete,
-  // Écritures sur la machine : même file, même budget de concurrence qu'un
-  // déploiement, parce qu'elles touchent la même ressource.
+  // Writes on the machine: same queue, same concurrency budget as a deployment,
+  // because they touch the same resource.
   [WORKLOAD_REMOVE_JOB]: handleWorkloadAction,
   [WORKLOAD_UPDATE_JOB]: handleWorkloadAction,
   [WORKLOAD_CONTROL_JOB]: handleWorkloadControl,
   [WORKLOAD_EXEC_JOB]: handleWorkloadExec,
-  // Reverse proxies : regarder, installer, tester, retirer, poser des domaines.
-  // Chacune ouvre une session et peut toucher la machine : la file d'un déploiement.
+  // Reverse proxies: look, install, test, remove, set domains. Each opens a
+  // session and can touch the machine: a deployment's queue.
   [PROXY_DETECT_JOB]: handleProxyDetect,
   [PROXY_INSTALL_JOB]: handleProxyInstall,
   [PROXY_CHECK_JOB]: handleProxyCheck,
   [PROXY_REMOVE_JOB]: handleProxyRemove,
   [PROXY_APPLY_JOB]: handleProxyApply,
   [PROXY_LINK_CHECK_JOB]: handleProxyLinkCheck,
-  // Le ménage des constructeurs d'images : une écriture sur la machine.
+  // Cleaning up image builders: a write on the machine.
   [BUILDER_PRUNE_JOB]: handleBuilderPrune,
   ...Object.fromEntries(
     SCHEDULED_JOB_TYPES_LIST.map((type) => [
@@ -182,63 +182,63 @@ const handlers: Record<string, JobHandler> = {
 };
 
 /**
- * Tâches de supervision, sur leur propre file.
- * `app:logs` occupe son slot pendant toute la consultation : mêlé aux
- * déploiements, il les affamerait.
+ * Monitoring jobs, on their own queue. `app:logs` holds its slot for the whole
+ * viewing: mixed with deployments, it would starve them.
  */
 const supervisionHandlers: Record<string, JobHandler> = {
   [APP_LOGS_JOB]: handleAppLogs,
   [APP_RESTART_JOB]: handleAppRestart,
-  // Arrêt et remise en marche : même famille que le redémarrage — une écriture
-  // courte sur une application déjà en place, qui ne rejoue aucun pipeline.
+  // Stop and start: the same family as restart — a short write on an application
+  // already in place, which replays no pipeline.
   [APP_STOP_JOB]: handleAppStop,
   [APP_START_JOB]: handleAppStart,
-  // L'inventaire est une lecture : sur la file de supervision, il ne retarde
-  // aucun déploiement et aucun déploiement ne le retarde.
+  // The inventory is a read: on the monitoring queue, it delays no deployment and
+  // no deployment delays it.
   [WORKLOAD_LIST_JOB]: handleWorkloadList,
-  // Une lecture : comme l'inventaire, elle n'attend pas derrière un déploiement.
+  // A read: like the inventory, it does not wait behind a deployment.
   [WORKLOAD_LOGS_JOB]: handleWorkloadLogs,
-  // Le relevé de métriques est de la même famille : une lecture courte, qu'un
-  // déploiement en cours ne doit pas faire attendre.
+  // The metrics reading is of the same family: a short read, which a deployment
+  // in progress must not make wait.
   [TARGET_METRICS_JOB]: handleTargetMetrics,
-  // Supervision de sites : la sonde part **du worker vers l'URL publique**, en
-  // HTTP. C'est un autre point de vue que `health:periodic`, qui interroge la
-  // machine cible par SSH — celle-ci voit le pare-feu, le proxy et le certificat.
+  // Site monitoring: the probe goes **from the worker to the public URL**, over
+  // HTTP. It is another point of view than `health:periodic`, which queries the
+  // target machine over SSH — this one sees the firewall, the proxy and the
+  // certificate.
   [MONITOR_SWEEP_JOB]: handleMonitorSweep,
-  // Capture d'écran d'une page supervisée. Même file, tâche séparée : le
-  // balayage a déjà écrit l'incident et émis l'alerte quand celle-ci part. Une
-  // capture ne doit jamais retarder ce qui compte.
+  // Screenshot of a monitored page. Same queue, separate job: the sweep has already
+  // written the incident and sent the alert when this one goes out. A capture must
+  // never delay what matters.
   [MONITOR_CAPTURE_JOB]: handleMonitorCapture,
-  // Supervision de serveurs : le balayage qui donne une mémoire aux relevés
-  // d'hôte. Même file et même raison que `target:metrics`, dont il est
-  // l'horloge — une lecture SSH courte, qu'un déploiement ne doit pas retarder.
+  // Server monitoring: the sweep that gives host readings a memory. Same queue
+  // and same reason as `target:metrics`, whose clock it is — a short SSH read,
+  // which a deployment must not delay.
   [HOST_SWEEP_JOB]: handleTargetMetricsSweep,
-  // Dépôts liés : « quoi de neuf sur la branche ? », puis le déploiement
-  // décidé par un humain. Des appels HTTP courts vers GitHub — le déploiement
-  // lui-même part sur `ops`, comme tous les autres.
+  // Linked repositories: "anything new on the branch?", then the deployment
+  // decided by a human. Short HTTP calls to GitHub — the deployment itself goes on
+  // `ops`, like all the others.
   [SOURCE_POLL_JOB]: handleSourcePoll,
   [SOURCE_DEPLOY_JOB]: handleSourceDeploy,
-  // Une archive de code téléversée : la juger, la refaire propre. Quelques
-  // secondes de disque, qui ne doivent pas attendre derrière un déploiement.
+  // An uploaded code archive: judge it, remake it clean. A few seconds of disk,
+  // which must not wait behind a deployment.
   [SOURCE_ARCHIVE_INSPECT_JOB]: handleSourceArchiveInspect,
-  // Images déployées contre leurs registres : des HEAD HTTP et un
-  // `docker inspect` par application, rien qui doive attendre un déploiement.
+  // Deployed images against their registries: HTTP HEADs and one
+  // `docker inspect` per application, nothing that should wait for a deployment.
   [IMAGE_CHECK_JOB]: handleImageCheck,
-  // Tester une destination de sauvegarde : quelques secondes de réseau, qui
-  // ne doivent pas attendre derrière une sauvegarde d'une heure.
+  // Testing a backup destination: a few seconds of network, which must not wait
+  // behind an hour-long backup.
   [BACKUP_DESTINATION_CHECK_JOB]: handleBackupDestinationCheck,
-  // Chaque domaine, à travers son proxy, depuis sa machine : une lecture.
+  // Each domain, through its proxy, from its machine: a read.
   [ROUTES_CHECK_JOB]: handleRoutesCheck,
-  // Le relevé d'un domaine pour son tiroir : DNS, RDAP, certificat, vus du
-  // worker. Une lecture de quelques secondes, que le panel attend.
+  // A domain's reading for its drawer: DNS, RDAP, certificate, seen from the
+  // worker. A read of a few seconds, which the panel waits for.
   [DOMAIN_INSPECT_JOB]: handleDomainInspect,
-  // Les prévisions : des lectures SQL et un calcul, toutes les 30 minutes.
+  // Forecasts: SQL reads and a computation, every 30 minutes.
   [FORECAST_SWEEP_JOB]: handleForecastSweep,
-  // Les fenêtres de maintenance : annoncer un début, fermer une fin.
+  // Maintenance windows: announce a start, close an end.
   [MAINTENANCE_SWEEP_JOB]: handleMaintenanceSweep,
 };
 
-/** La file des sauvegardes : longues, lentes, une à la fois par défaut. */
+/** The backups queue: long, slow, one at a time by default. */
 const backupHandlers: Record<string, JobHandler> = {
   [BACKUP_APPLICATION_JOB]: handleBackupApplication,
   [BACKUP_PANEL_JOB]: handleBackupPanel,
@@ -247,41 +247,41 @@ const backupHandlers: Record<string, JobHandler> = {
 };
 
 /**
- * Tâches de notification, sur leur propre file.
+ * Notification jobs, on their own queue.
  *
- * Ni `ops` ni `supervision` : une alerte « déploiement en échec » qui attend
- * derrière les déploiements — ou derrière huit suivis de logs qui tiennent leur
- * slot une demi-heure — arrive trop tard pour servir à quelque chose. Le
- * raisonnement est celui qui a justifié `supervision` en son temps.
+ * Neither `ops` nor `supervision`: a "deployment failed" alert waiting behind
+ * the deployments — or behind eight log follows holding their slot for half an
+ * hour — arrives too late to be of any use. The reasoning is the one that
+ * justified `supervision` in its time.
  */
 const notificationHandlers: Record<string, JobHandler> = {
-  // Décide : cette alerte part-elle maintenant, ou est-elle retenue pour être
-  // résumée ? Le chemin « maintenant » est le chemin par défaut.
+  // Decides: does this alert go out now, or is it held to be summarized? The "now"
+  // path is the default path.
   [NOTIFICATION_DISPATCH_JOB]: handleNotificationDispatch,
-  // Délivre à **un** canal, et se rejoue seule. C'est ce découpage qui rend le
-  // rejeu possible : la tentative qui rate ne concerne qu'un destinataire.
+  // Delivers to **one** channel, and retries by itself. It is this split that
+  // makes retrying possible: the attempt that fails only concerns one recipient.
   [NOTIFICATION_DELIVER_JOB]: handleNotificationDeliver,
-  // Ferme les fenêtres de regroupement échues et compose les résumés.
+  // Closes the due grouping windows and composes the digests.
   [NOTIFICATION_DIGEST_SWEEP_JOB]: handleNotificationDigestSweep,
   [NOTIFICATION_TEST_JOB]: handleNotificationTest,
-  // Invitation et réinitialisation de mot de passe. Sur cette file parce que
-  // c'est un envoi d'e-mail : il partage le budget de concurrence des envois
-  // d'e-mails, et il ne doit pas attendre derrière un déploiement. Ce n'est en
-  // revanche **pas** une notification — le destinataire vient de l'action, pas
-  // de la configuration du canal. Voir `handlers/account-mail.ts`.
+  // Invitation and password reset. On this queue because it is an email send: it
+  // shares the email sends' concurrency budget, and it must not wait behind a
+  // deployment. It is, however, **not** a notification — the recipient comes from
+  // the action, not from the channel's configuration. See
+  // `handlers/account-mail.ts`.
   [ACCOUNT_MAIL_JOB]: handleAccountMail,
 };
 
 /**
- * Installe l'horloge du balayage des sondes.
+ * Installs the probes sweep's clock.
  *
- * Pas de ligne en base, donc pas de réconciliation : ce scheduler est un détail
- * d'exécution, réinstallé à l'identique à chaque démarrage. La cadence des
- * sondes, elle, vit en base (`monitors.interval_seconds`) — c'est le balayage
- * qui la respecte, pas BullMQ.
+ * No database row, hence no reconciliation: this scheduler is a run detail,
+ * reinstalled identically at each startup. The probes' interval lives in the
+ * database (`monitors.interval_seconds`) — it is the sweep that respects it, not
+ * BullMQ.
  *
- * `MONITOR_SWEEP_JOB` contient un deux-points : c'est le *nom* de la tâche,
- * jamais un `jobId`. La clé du scheduler, elle, n'en porte pas.
+ * `MONITOR_SWEEP_JOB` contains a colon: it is the job's *name*, never a `jobId`.
+ * The scheduler's key carries none.
  */
 async function installMonitorSweep(): Promise<void> {
   const queue = getSupervisionQueue();
@@ -298,20 +298,19 @@ async function installMonitorSweep(): Promise<void> {
       },
     },
   );
-  logger.info({ everyMs: MONITOR_SWEEP_EVERY_MS }, 'balayage de supervision installé');
+  logger.info({ everyMs: MONITOR_SWEEP_EVERY_MS }, 'monitoring sweep installed');
 }
 
 /**
- * Installe l'horloge du balayage des serveurs.
+ * Installs the servers sweep's clock.
  *
- * Même motif que `installMonitorSweep()`, et pour les mêmes raisons : pas de
- * ligne en base, donc pas de réconciliation — ce scheduler est un détail
- * d'exécution, réinstallé à l'identique à chaque démarrage. La cadence de
- * *relevé* (5 min par machine), elle, n'est pas ici : c'est le balayage qui la
- * fait respecter, en ne réclamant que les machines dont le dernier relevé est
- * assez vieux. BullMQ n'est que l'horloge.
+ * The same pattern as `installMonitorSweep()`, and for the same reasons: no
+ * database row, hence no reconciliation — this scheduler is a run detail,
+ * reinstalled identically at each startup. The *reading* interval (5 min per
+ * machine) is not here: it is the sweep that enforces it, by only claiming the
+ * machines whose last reading is old enough. BullMQ is only the clock.
  *
- * Le nom de la tâche contient un deux-points ; la clé du scheduler, non.
+ * The job's name contains a colon; the scheduler's key does not.
  */
 async function installHostSweep(): Promise<void> {
   const queue = getSupervisionQueue();
@@ -322,23 +321,23 @@ async function installHostSweep(): Promise<void> {
       name: HOST_SWEEP_JOB,
       data: { targetId: null, force: false },
       opts: {
-        // Un balayage qui rate n'est pas rejoué : le suivant arrive dans une
-        // minute et les machines sont toujours dues.
+        // A sweep that fails is not retried: the next one comes in a minute and the
+        // machines are still due.
         attempts: 1,
         removeOnComplete: { age: 3600, count: 100 },
         removeOnFail: { age: 24 * 3600, count: 100 },
       },
     },
   );
-  logger.info({ everyMs: HOST_SWEEP_EVERY_MS }, 'balayage des serveurs installé');
+  logger.info({ everyMs: HOST_SWEEP_EVERY_MS }, 'servers sweep installed');
 }
 
 /**
- * Installe l'horloge des dépôts liés : une vérification par minute.
+ * Installs the linked repositories' clock: one check per minute.
  *
- * Même motif que les deux balayages ci-dessus. Le panel est privé, aucun
- * webhook ne l'atteint : c'est le worker qui demande, et l'ETag rend la
- * question presque gratuite quand rien n'a bougé.
+ * The same pattern as the two sweeps above. The panel is private, no webhook
+ * reaches it: it is the worker that asks, and the ETag makes the question almost
+ * free when nothing moved.
  */
 async function installSourcePoll(): Promise<void> {
   const queue = getSupervisionQueue();
@@ -355,16 +354,16 @@ async function installSourcePoll(): Promise<void> {
       },
     },
   );
-  logger.info({ everyMs: SOURCE_POLL_EVERY_MS }, 'vérification des dépôts liés installée');
+  logger.info({ everyMs: SOURCE_POLL_EVERY_MS }, 'linked repositories check installed');
 }
 
 /**
- * Installe l'horloge de la vérification des images : toutes les six heures.
+ * Installs the images check's clock: every six hours.
  *
- * Même motif que les balayages ci-dessus. Six heures et pas une minute : un
- * registre public n'apprécie pas d'être interrogé en boucle, et une image de
- * base n'est pas republiée plusieurs fois par jour. « Vérifier maintenant »
- * reste là pour qui ne veut pas attendre.
+ * The same pattern as the sweeps above. Six hours and not a minute: a public
+ * registry does not like being queried in a loop, and a base image is not
+ * republished several times a day. "Check now" is there for whoever does not
+ * want to wait.
  */
 async function installImageCheck(): Promise<void> {
   const queue = getSupervisionQueue();
@@ -381,14 +380,13 @@ async function installImageCheck(): Promise<void> {
       },
     },
   );
-  logger.info({ everyMs: IMAGE_CHECK_EVERY_MS }, 'vérification des images installée');
+  logger.info({ everyMs: IMAGE_CHECK_EVERY_MS }, 'images check installed');
 }
 
 /**
- * L'horloge du ménage des constructeurs d'images : toutes les heures, sur
- * `ops`. Même motif que les balayages — réinstallée à l'identique à chaque
- * démarrage. La durée au-delà de laquelle un constructeur est retiré n'est pas
- * ici : chaque driver tient la sienne.
+ * The clock for cleaning up image builders: every hour, on `ops`. The same
+ * pattern as the sweeps — reinstalled identically at each startup. The duration
+ * beyond which a builder is removed is not here: each driver holds its own.
  */
 async function installBuilderPrune(): Promise<void> {
   const queue = getOpsQueue();
@@ -405,10 +403,10 @@ async function installBuilderPrune(): Promise<void> {
       },
     },
   );
-  logger.info({ everyMs: BUILDER_PRUNE_EVERY_MS }, 'ménage des constructeurs installé');
+  logger.info({ everyMs: BUILDER_PRUNE_EVERY_MS }, 'builders cleanup installed');
 }
 
-/** L'horloge de la sonde des domaines : toutes les dix minutes, sur `supervision`. */
+/** The domains probe's clock: every ten minutes, on `supervision`. */
 async function installRoutesCheck(): Promise<void> {
   const queue = getSupervisionQueue();
   await queue.upsertJobScheduler(
@@ -424,14 +422,14 @@ async function installRoutesCheck(): Promise<void> {
       },
     },
   );
-  logger.info({ everyMs: ROUTES_CHECK_EVERY_MS }, 'sonde des domaines installée');
+  logger.info({ everyMs: ROUTES_CHECK_EVERY_MS }, 'domains probe installed');
 }
 
 /**
- * Installe l'horloge des prévisions : toutes les 30 minutes. Même motif que
- * les balayages ci-dessus — pas de ligne en base, réinstallée à l'identique à
- * chaque démarrage. Les séries qu'elle lit bougent toutes les 5 minutes au
- * plus vite : une demi-heure suffit à voir venir un mur qui est à des jours.
+ * Installs the forecasts' clock: every 30 minutes. The same pattern as the
+ * sweeps above — no database row, reinstalled identically at each startup. The
+ * series it reads move every 5 minutes at the fastest: half an hour is enough to
+ * see coming a wall that is days away.
  */
 async function installForecastSweep(): Promise<void> {
   const queue = getSupervisionQueue();
@@ -448,13 +446,13 @@ async function installForecastSweep(): Promise<void> {
       },
     },
   );
-  logger.info({ everyMs: FORECAST_SWEEP_EVERY_MS }, 'balayage des prévisions installé');
+  logger.info({ everyMs: FORECAST_SWEEP_EVERY_MS }, 'forecasts sweep installed');
 }
 
 /**
- * Installe l'horloge des maintenances : chaque minute. La mise en sourdine n'en
- * dépend pas — elle se décide à chaque alerte —, seules l'annonce du début et
- * la fermeture de la fin attendent ce balayage.
+ * Installs the maintenance windows' clock: every minute. Muting does not depend
+ * on it — it is decided at each alert —, only announcing the start and closing
+ * the end wait for this sweep.
  */
 async function installMaintenanceSweep(): Promise<void> {
   const queue = getSupervisionQueue();
@@ -471,132 +469,130 @@ async function installMaintenanceSweep(): Promise<void> {
       },
     },
   );
-  logger.info({ everyMs: MAINTENANCE_SWEEP_EVERY_MS }, 'balayage des maintenances installé');
+  logger.info({ everyMs: MAINTENANCE_SWEEP_EVERY_MS }, 'maintenance sweep installed');
 }
 
 async function waitForDatabase(attempts = 30, delayMs = 2000): Promise<void> {
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
       await pingDb();
-      logger.info('base de données joignable');
+      logger.info('database reachable');
       return;
     } catch (error) {
       logger.warn(
         { attempt, attempts, error: error instanceof Error ? error.message : error },
-        'base de données injoignable, nouvelle tentative',
+        'database unreachable, retrying',
       );
       await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
   }
-  throw new Error(`base de données injoignable après ${attempts} tentatives`);
+  throw new Error(`database unreachable after ${attempts} attempts`);
 }
 
 async function main(): Promise<void> {
-  // Refuse de démarrer sans une MASTER_KEY exploitable — et le dit tout haut
-  // si elle est exploitable mais devinable. Les identifiants SSH des cibles
-  // sont chiffrés sous cette clé : la valeur d'exemple les rend lisibles par
-  // quiconque met la main sur une sauvegarde de la base.
+  // Refuses to start without a usable MASTER_KEY — and says it out loud if it is
+  // usable but guessable. The targets' SSH credentials are encrypted under this
+  // key: the example value makes them readable by anyone who gets hold of a
+  // database backup.
   const weakKey = assertMasterKey();
   if (weakKey) {
     logger.warn(
       { reason: weakKey },
-      'MASTER_KEY est la valeur d\'exemple ou une valeur devinable — ' +
-        'les identifiants chiffrés en base ne sont pas protégés. ' +
-        'Générer : openssl rand -hex 32, puis rechiffrer les cibles.',
+      'MASTER_KEY is the example value or a guessable one — ' +
+        'the credentials encrypted in the database are not protected. ' +
+        'Generate one: openssl rand -hex 32, then encrypt the targets again.',
     );
   }
   await waitForDatabase();
 
   const connection = createRedisConnection();
 
-  // Redis n'est que le miroir de la base : on remet les deux d'accord avant
-  // d'accepter la moindre occurrence. Un worker redémarré ne doit ni perdre une
-  // tâche active, ni exécuter une tâche désactivée pendant son absence.
+  // Redis is only the database's mirror: we bring both into agreement before
+  // accepting the slightest occurrence. A restarted worker must neither lose an
+  // active task nor run a task disabled during its absence.
   try {
     await reconcileSchedulers(getOpsQueue());
   } catch (error) {
-    // Une réconciliation impossible ne doit pas empêcher le worker de consommer
-    // les déploiements : c'est une dégradation, pas une panne.
-    logger.error({ err: error }, 'réconciliation des tâches planifiées impossible');
+    // An impossible reconciliation must not prevent the worker from consuming
+    // deployments: it is a degradation, not an outage.
+    logger.error({ err: error }, 'scheduled tasks reconciliation failed');
   }
 
   try {
     await installMonitorSweep();
   } catch (error) {
-    // Même principe : sans balayage, le panel reste utilisable, il ne sonde
-    // simplement plus. C'est une dégradation, pas une panne.
-    logger.error({ err: error }, 'installation du balayage de supervision impossible');
+    // Same principle: without a sweep, the panel stays usable, it simply no longer
+    // probes. It is a degradation, not an outage.
+    logger.error({ err: error }, 'monitoring sweep installation failed');
   }
 
   try {
     await installHostSweep();
   } catch (error) {
-    // Sans balayage, l'historique des serveurs cesse de se remplir et les
-    // seuils ne sont plus évalués. Le panel reste utilisable et le relevé à la
-    // demande continue d'écrire : c'est une dégradation, pas une panne.
-    logger.error({ err: error }, 'installation du balayage des serveurs impossible');
+    // Without a sweep, the servers' history stops filling up and thresholds are no
+    // longer evaluated. The panel stays usable and on-demand reading keeps writing:
+    // it is a degradation, not an outage.
+    logger.error({ err: error }, 'servers sweep installation failed');
   }
 
   try {
     await installSourcePoll();
   } catch (error) {
-    // Sans horloge, les dépôts liés ne sont plus suivis d'eux-mêmes ;
-    // « Vérifier maintenant » et « Déployer ce commit » marchent toujours.
-    logger.error({ err: error }, 'installation de la vérification des dépôts impossible');
+    // Without a clock, linked repositories are no longer followed by themselves;
+    // "Check now" and "Deploy this commit" still work.
+    logger.error({ err: error }, 'repositories check installation failed');
   }
 
   try {
     await installImageCheck();
     await installRoutesCheck();
   } catch (error) {
-    // Sans horloge, plus d'annonce de mise à jour d'image ; « Vérifier
-    // maintenant » marche toujours.
-    logger.error({ err: error }, 'installation de la vérification des images impossible');
+    // Without a clock, no more image update announcements; "Check now" still works.
+    logger.error({ err: error }, 'images check installation failed');
   }
 
   try {
     await installBuilderPrune();
   } catch (error) {
-    // Sans horloge, les constructeurs restent en place, comme avant : leur
-    // cache survit, ils occupent le cluster. Une dégradation, pas une panne.
-    logger.error({ err: error }, 'installation du ménage des constructeurs impossible');
+    // Without a clock, builders stay in place, as before: their cache survives, they
+    // occupy the cluster. A degradation, not an outage.
+    logger.error({ err: error }, 'builders cleanup installation failed');
   }
 
   try {
-    // Le mandataire par lequel le navigateur de capture atteint l'Internet.
-    // N'ouvre rien quand la capture est éteinte, et un échec d'ouverture ne
-    // fait pas tomber le worker : sans mandataire, il n'y a pas de capture, et
-    // c'est tout ce qu'on perd.
+    // The proxy through which the capture browser reaches the Internet. Opens
+    // nothing when capture is off, and an opening failure does not bring the worker
+    // down: without a proxy, there is no capture, and that is all we lose.
     await startCaptureEgress();
   } catch (error) {
-    logger.error({ err: error }, 'mandataire de sortie des captures indisponible');
+    logger.error({ err: error }, 'capture egress proxy unavailable');
   }
 
   try {
     await installForecastSweep();
   } catch (error) {
-    // Sans horloge, plus de prévision nouvelle ; les épisodes ouverts restent
-    // affichés tels quels. Une dégradation, pas une panne.
-    logger.error({ err: error }, 'installation du balayage des prévisions impossible');
+    // Without a clock, no new forecast; the open episodes stay shown as they are. A
+    // degradation, not an outage.
+    logger.error({ err: error }, 'forecasts sweep installation failed');
   }
 
   try {
     await installMaintenanceSweep();
   } catch (error) {
-    // Sans horloge, les alertes restent retenues pendant les fenêtres, mais
-    // ce qui est resté en panne ne part plus à leur fin. On le crie : c'est
-    // une alerte qui attend sans le savoir. Le prochain démarrage réinstalle.
-    logger.error({ err: error }, 'installation du balayage des maintenances impossible');
+    // Without a clock, alerts stay held during the windows, but what stayed down no
+    // longer goes out at their end. We shout it: it is an alert waiting without
+    // knowing it. The next startup reinstalls.
+    logger.error({ err: error }, 'maintenance sweep installation failed');
   }
 
   try {
     await installNotificationDigestSweep();
   } catch (error) {
-    // Sans ce balayage, les fenêtres ouvertes ne se referment plus : les
-    // alertes retenues restent en base au lieu de partir en résumé. C'est grave
-    // — mais moins que de refuser de consommer les déploiements. On le crie
-    // dans les logs et on continue ; le prochain démarrage réinstalle.
-    logger.error({ err: error }, 'installation du balayage de regroupement impossible');
+    // Without this sweep, open windows no longer close: held alerts stay in the
+    // database instead of going out as a digest. It is serious — but less so than
+    // refusing to consume deployments. We shout it in the logs and go on; the next
+    // startup reinstalls.
+    logger.error({ err: error }, 'digest windows sweep installation failed');
   }
 
   const worker = new Worker(
@@ -604,7 +600,7 @@ async function main(): Promise<void> {
     async (job: Job) => {
       const handler = handlers[job.name];
       if (!handler) {
-        throw new Error(`aucun handler enregistré pour la tâche « ${job.name} »`);
+        throw new Error(`no handler registered for job "${job.name}"`);
       }
       return handler(job);
     },
@@ -617,10 +613,10 @@ async function main(): Promise<void> {
   );
 
   /**
-   * Branche le journal d'audit sur la file des notifications.
+   * Plugs the audit log into the notifications queue.
    *
-   * Avant d'ouvrir les workers : un déploiement en échec consommé dans la
-   * seconde qui suit le démarrage doit déjà déclencher son alerte.
+   * Before opening the workers: a failed deployment consumed in the second after
+   * startup must already trigger its alert.
    */
   installAuditNotifications();
   installRealtimeAudit();
@@ -630,7 +626,7 @@ async function main(): Promise<void> {
     async (job: Job) => {
       const handler = supervisionHandlers[job.name];
       if (!handler) {
-        throw new Error(`aucun handler de supervision pour « ${job.name} »`);
+        throw new Error(`no monitoring handler for "${job.name}"`);
       }
       return handler(job);
     },
@@ -643,16 +639,16 @@ async function main(): Promise<void> {
   );
 
   /**
-   * Concurrence volontairement modeste : quatre envois en vol suffisent
-   * largement pour des événements qui se comptent en unités par jour, et un
-   * serveur SMTP n'apprécie pas qu'on lui ouvre vingt sessions d'un coup.
+   * Deliberately modest concurrency: four sends in flight are plenty for events
+   * that count in units per day, and an SMTP server does not like having twenty
+   * sessions opened at once.
    */
   const notifications = new Worker(
     NOTIFICATIONS_QUEUE,
     async (job: Job) => {
       const handler = notificationHandlers[job.name];
       if (!handler) {
-        throw new Error(`aucun handler de notification pour « ${job.name} »`);
+        throw new Error(`no notification handler for "${job.name}"`);
       }
       return handler(job);
     },
@@ -664,16 +660,15 @@ async function main(): Promise<void> {
     },
   );
 
-  // Ce qui « tournait » quand le worker s'est arrêté ne tourne plus : le dire.
+  // What "was running" when the worker stopped no longer runs: say so.
   try {
     const interrupted = await failInterruptedBackups(
       new Date(),
       workerSay(await instanceLanguage())('backup.interrupted'),
     );
-    if (interrupted > 0)
-      logger.warn({ interrupted }, 'sauvegardes interrompues par le redémarrage');
+    if (interrupted > 0) logger.warn({ interrupted }, 'backups interrupted by the restart');
   } catch (error) {
-    logger.error({ err: error }, 'relecture des sauvegardes interrompues impossible');
+    logger.error({ err: error }, 'interrupted backups could not be reviewed');
   }
 
   const backupWorker = new Worker(
@@ -681,23 +676,23 @@ async function main(): Promise<void> {
     async (job: Job) => {
       const handler = backupHandlers[job.name];
       if (!handler) {
-        throw new Error(`aucun handler de sauvegarde pour « ${job.name} »`);
+        throw new Error(`no backup handler for "${job.name}"`);
       }
       return handler(job);
     },
     {
       connection: createRedisConnection(),
       concurrency: env.BACKUP_CONCURRENCY,
-      // Une sauvegarde de plusieurs gigaoctets tient son verrou longtemps :
-      // BullMQ le renouvelle, mais un délai court ferait croire à une tâche bloquée.
+      // A multi-gigabyte backup holds its lock for a long time: BullMQ renews it, but
+      // a short delay would make it look like a stuck job.
       lockDuration: 5 * 60_000,
       removeOnComplete: { age: 7 * 24 * 3600, count: 500 },
       removeOnFail: { age: 30 * 24 * 3600 },
     },
   );
 
-  // Les écrans ouverts apprennent qu'un déploiement part ou finit, qu'une
-  // sonde a tourné : ils se relisent d'eux-mêmes.
+  // Open screens learn that a deployment starts or finishes, that a probe ran:
+  // they read themselves again.
   installRealtimeJobEvents([worker, supervision, backupWorker]);
 
   for (const [instance, queue, concurrency] of [
@@ -707,26 +702,23 @@ async function main(): Promise<void> {
     [backupWorker, BACKUPS_QUEUE, env.BACKUP_CONCURRENCY],
   ] as const) {
     instance.on('ready', () => {
-      logger.info({ queue, concurrency }, 'worker prêt');
+      logger.info({ queue, concurrency }, 'worker ready');
     });
     instance.on('error', (error) => {
-      logger.error({ queue, error: error.message }, 'erreur worker');
+      logger.error({ queue, error: error.message }, 'worker error');
     });
   }
 
   worker.on('completed', (job) => {
-    logger.info({ jobId: job.id, jobName: job.name }, 'tâche terminée');
+    logger.info({ jobId: job.id, jobName: job.name }, 'job completed');
   });
 
   worker.on('failed', (job, error) => {
-    logger.error(
-      { jobId: job?.id, jobName: job?.name, error: error.message },
-      'tâche en échec',
-    );
-    // Une tâche de déploiement peut mourir SANS que le handler ait tourné —
-    // c'est ce que fait BullMQ d'une tâche qui a trop bloqué. Personne n'aurait
-    // alors écrit le verdict en base, et le déploiement resterait « en cours »
-    // pour toujours. On l'arrête en échec, sans jamais le rejouer.
+    logger.error({ jobId: job?.id, jobName: job?.name, error: error.message }, 'job failed');
+    // A deployment job can die WITHOUT the handler having run — it is what BullMQ
+    // does with a job that stalled too much. Nobody would then have written the
+    // verdict in the database, and the deployment would stay "in progress" forever.
+    // We stop it as failed, without ever replaying it.
     void reconcileFailedDeploymentJob(job, error.message);
   });
 
@@ -734,7 +726,7 @@ async function main(): Promise<void> {
   const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
     if (shuttingDown) return;
     shuttingDown = true;
-    logger.info({ signal }, 'arrêt demandé, drainage des tâches en cours');
+    logger.info({ signal }, 'shutdown requested, draining the jobs in progress');
     try {
       await worker.close();
       await supervision.close();
@@ -746,10 +738,10 @@ async function main(): Promise<void> {
       await closePublisher();
       await connection.quit();
       await closeDb();
-      logger.info('arrêt propre');
+      logger.info('clean shutdown');
       process.exit(0);
     } catch (error) {
-      logger.error({ error }, 'arrêt en erreur');
+      logger.error({ error }, 'shutdown with an error');
       process.exit(1);
     }
   };
@@ -759,6 +751,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  logger.fatal({ error }, 'démarrage du worker impossible');
+  logger.fatal({ error }, 'worker startup failed');
   process.exit(1);
 });

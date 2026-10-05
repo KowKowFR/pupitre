@@ -1,8 +1,8 @@
 import { translator, type Translate, type Translated, type UiLanguage } from '../i18n.js';
 
 /**
- * Ce que disent les sondes de supervision — le `detail` d'un relevé, repris
- * tel quel par l'écran et par les alertes —, dans la langue de l'instance.
+ * What the monitoring probes say — a reading's `detail`, taken as is by the
+ * screen and the alerts —, in the instance's language.
  */
 const fr = {
   timeout: 'délai dépassé après {ms} ms',

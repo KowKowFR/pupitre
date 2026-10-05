@@ -5,14 +5,14 @@ import { env } from '../env.js';
 import { logger } from '../logger.js';
 
 /**
- * Tâche de fumée d'origine : elle prouve que la chaîne
- * route HTTP → BullMQ → worker → Postgres est complète.
+ * The original smoke job: it proves the HTTP route → BullMQ → worker → Postgres
+ * chain is complete.
  */
 export async function handlePing(job: Job<unknown, PingJobResult>): Promise<PingJobResult> {
   const data = pingJobDataSchema.parse(job.data);
   const log = logger.child({ jobId: job.id, jobName: job.name });
 
-  log.info({ message: data.message, requestedAt: data.requestedAt }, 'ping reçu');
+  log.info({ message: data.message, requestedAt: data.requestedAt }, 'ping received');
 
   const auditLog = await logAudit({
     actorId: data.actorId,
@@ -28,7 +28,7 @@ export async function handlePing(job: Job<unknown, PingJobResult>): Promise<Ping
     ip: data.ip,
   });
 
-  log.info({ auditLogId: auditLog?.id ?? null }, 'ping journalisé dans audit_logs');
+  log.info({ auditLogId: auditLog?.id ?? null }, 'ping logged in audit_logs');
 
   return {
     ok: true,

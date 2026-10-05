@@ -13,9 +13,9 @@ import {
 } from '../src/index.js';
 
 /**
- * Gérer les charges d'une cible : ce que chaque runtime accepte selon l'état,
- * ce qu'une charge du panel refuse, et le fait qu'une commande ne s'exécute
- * jamais sur l'hôte.
+ * Managing a target's workloads: what each runtime accepts depending on the
+ * state, what a panel workload refuses, and the fact that a command never runs
+ * on the host.
  */
 
 const base = {
@@ -40,9 +40,9 @@ function deployment(name: string, replicas: number, ready: number, extra: object
   };
 }
 
-describe('contrat des drivers — gestes sur une charge', () => {
+describe('drivers contract — gestures on a workload', () => {
   for (const runtime of ['docker', 'k3s'] as const) {
-    it(`${runtime} sait démarrer, arrêter, lire le journal et exécuter`, () => {
+    it(`${runtime} can start, stop, read the log and exec`, () => {
       const driver = getDriver(runtime);
       for (const method of ['controlWorkload', 'workloadLogs', 'execInWorkload'] as const) {
         assert.equal(typeof driver[method], 'function', `${runtime}: ${method}`);
@@ -51,8 +51,8 @@ describe('contrat des drivers — gestes sur une charge', () => {
   }
 });
 
-describe('Docker — ce qu’un conteneur accepte', () => {
-  it('suit son état', () => {
+describe('Docker — what a container accepts', () => {
+  it('follows its state', () => {
     assert.deepEqual(containerControls('running', false), ['stop', 'restart']);
     assert.deepEqual(containerControls('restarting', false), ['stop', 'restart']);
     assert.deepEqual(containerControls('paused', false), ['stop']);
@@ -60,18 +60,18 @@ describe('Docker — ce qu’un conteneur accepte', () => {
     assert.deepEqual(containerControls('created', false), ['start']);
   });
 
-  it('une charge du panel ne fait que redémarrer', () => {
+  it('a panel workload only restarts', () => {
     assert.deepEqual(containerControls('running', true), ['restart']);
-    // Arrêtée, elle attend que son application redémarre : rien à faire d'ici.
+    // Stopped, it waits for its application to restart: nothing to do from here.
     assert.deepEqual(containerControls('exited', true), []);
   });
 });
 
-describe('K3s — ce qu’une ressource accepte', () => {
+describe('K3s — what a resource accepts', () => {
   const byName = (json: string) =>
     new Map(parseWorkloads(json).map((workload) => [workload.name, workload]));
 
-  it('selon son genre et son état', () => {
+  it('according to its kind and its state', () => {
     const workloads = byName(
       kubeList([
         deployment('api', 2, 2),
@@ -95,14 +95,14 @@ describe('K3s — ce qu’une ressource accepte', () => {
     assert.equal(workloads.get('api')?.exec, true);
     assert.deepEqual(workloads.get('paused')?.controls, ['start']);
     assert.equal(workloads.get('paused')?.exec, false);
-    // Un DaemonSet tourne sur chaque nœud : il redémarre, il ne s'arrête pas.
+    // A DaemonSet runs on each node: it restarts, it does not stop.
     assert.deepEqual(workloads.get('agent')?.controls, ['restart']);
-    // Un pod nu : rien ne le recréerait. Mais on peut encore y exécuter.
+    // A bare pod: nothing would recreate it. But one can still exec in it.
     assert.deepEqual(workloads.get('debug')?.controls, []);
     assert.equal(workloads.get('debug')?.exec, true);
   });
 
-  it('ne pilote rien dans les namespaces système', () => {
+  it('drives nothing in the system namespaces', () => {
     const [coredns] = parseWorkloads(
       kubeList([
         { ...deployment('coredns', 1, 1), metadata: { name: 'coredns', namespace: 'kube-system' } },
@@ -112,7 +112,7 @@ describe('K3s — ce qu’une ressource accepte', () => {
     assert.equal(coredns?.exec, false);
   });
 
-  it('une charge du panel ne fait que redémarrer', () => {
+  it('a panel workload only restarts', () => {
     const labels = { labels: { 'app.kubernetes.io/managed-by': 'pupitre' } };
     const workloads = byName(
       kubeList([deployment('web', 1, 1, labels), deployment('stopped', 0, 0, labels)]),
@@ -122,9 +122,9 @@ describe('K3s — ce qu’une ressource accepte', () => {
   });
 });
 
-describe('une commande ne s’exécute que dans la charge', () => {
-  // La commande traverse le shell de la machine avant `sh -c` dans la charge.
-  // Citée, elle doit y arriver intacte — une seule chaîne, rien d'interprété.
+describe('a command only runs in the workload', () => {
+  // The command goes through the machine's shell before `sh -c` in the workload.
+  // Quoted, it must arrive intact — a single string, nothing interpreted.
   for (const command of [
     'echo $HOME',
     "psql -c 'select 1'",
@@ -133,7 +133,7 @@ describe('une commande ne s’exécute que dans la charge', () => {
     'it\'s "quoted" \\ back\\slash',
     'line1\nline2',
   ]) {
-    it(`arrive intacte : ${JSON.stringify(command)}`, () => {
+    it(`arrives intact: ${JSON.stringify(command)}`, () => {
       const received = execFileSync('sh', ['-c', `printf %s ${quoteForShell(command)}`], {
         encoding: 'utf8',
       });
@@ -142,8 +142,8 @@ describe('une commande ne s’exécute que dans la charge', () => {
   }
 });
 
-describe('tâches et messages', () => {
-  it('borne une commande : vide, trop longue', () => {
+describe('jobs and messages', () => {
+  it('bounds a command: empty, too long', () => {
     const ok = workloadExecJobDataSchema.safeParse({
       ...base,
       action: 'exec',
@@ -160,7 +160,7 @@ describe('tâches et messages', () => {
     }
   });
 
-  it('borne le journal et n’accepte que les gestes de cycle de vie', () => {
+  it('bounds the log and only accepts life-cycle gestures', () => {
     assert.equal(workloadLogsJobDataSchema.parse({ ...base, action: 'logs', run }).tail, 300);
     assert.equal(
       workloadLogsJobDataSchema.safeParse({ ...base, action: 'logs', run, tail: 5000 }).success,
@@ -173,7 +173,7 @@ describe('tâches et messages', () => {
     );
   });
 
-  it('marque la sortie d’une exécution et son code de retour', () => {
+  it('marks a run’s output and its exit code', () => {
     const parsed = workloadMessageSchema.parse({
       kind: 'lifecycle',
       payload: {
@@ -190,7 +190,7 @@ describe('tâches et messages', () => {
     assert.equal(parsed.kind === 'lifecycle' && parsed.payload.exitCode, 3);
   });
 
-  it('un inventaire d’avant ces champs se relit sans gestes', () => {
+  it('an inventory from before these fields reads back without gestures', () => {
     const legacy = workloadSchema.parse({
       runtime: 'docker',
       id: 'abc',
@@ -203,7 +203,7 @@ describe('tâches et messages', () => {
     assert.equal(legacy.exec, false);
   });
 
-  it('refuse d’arrêter une charge du panel, dans les deux langues', () => {
+  it('refuses to stop a panel workload, in both languages', () => {
     for (const lang of ['fr', 'en'] as const) {
       const text = managedWorkloadControlRefusal({ name: 'web' }, lang);
       assert.match(text, /web/);
@@ -212,16 +212,16 @@ describe('tâches et messages', () => {
   });
 });
 
-describe('K3s — le journal de tous les pods', () => {
-  it('lit le sélecteur d’un contrôleur', () => {
+describe('K3s — the log of every pod', () => {
+  it('reads a controller’s selector', () => {
     assert.equal(labelSelector('{"app":"web","tier":"front"}'), 'app=web,tier=front');
-    // Rien de lisible : on refuse plutôt que de lire tout le namespace.
+    // Nothing readable: we refuse rather than read the whole namespace.
     assert.equal(labelSelector(''), null);
     assert.equal(labelSelector('{}'), null);
-    assert.equal(labelSelector('pas du json'), null);
+    assert.equal(labelSelector('not json'), null);
   });
 
-  it('remet les lignes de plusieurs pods dans l’ordre du temps', () => {
+  it('puts the lines of several pods back in time order', () => {
     const lines = [
       '[pod/web-a/web] 2026-10-01T09:00:00.5Z a1',
       '[pod/web-a/web] 2026-10-01T09:00:02Z a2',

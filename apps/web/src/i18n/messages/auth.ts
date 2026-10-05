@@ -1,28 +1,27 @@
 import type { Translated } from '@pupitre/core';
 
 /**
- * Les écrans qu'on voit **avant** d'entrer, et ceux qu'on voit **quand ça
- * rate** : connexion, inscription, mot de passe oublié, invitation,
- * déconnexion, accès refusé, 404 et filets d'erreur.
+ * The screens seen **before** coming in, and those seen **when it fails**:
+ * sign-in, sign-up, forgotten password, invitation, sign-out, access refused, 404
+ * and error safety nets.
  *
- * Une seule surface pour les deux, parce qu'elles partagent le même
- * vocabulaire de sortie de secours — « Retour à la connexion », « Retour au
- * tableau de bord », « Réessayer » — et qu'un visiteur passe de l'une à l'autre
- * sans s'en apercevoir.
+ * A single surface for both, because they share the same emergency exit
+ * vocabulary — "Back to sign-in", "Back to the dashboard", "Try again" — and a
+ * visitor goes from one to the other without noticing.
  *
- * Rappel de la règle : la colonne `fr` reproduit à l'identique les chaînes qui
- * existaient. `verify-invitations.sh` cherche « Mot de passe oubli » et
- * « Réinitialisation indisponible » dans le HTML servi ; une apostrophe
- * redressée le ferait échouer. Les `&apos;` du JSX sont donc écrits ici en
- * apostrophe droite, qui est exactement ce que le navigateur rendait.
+ * A reminder of the rule: the `fr` column reproduces identically the strings that
+ * existed. `verify-invitations.sh` looks for "Mot de passe oubli" and
+ * "Réinitialisation indisponible" in the served HTML; a straightened apostrophe
+ * would make it fail. The JSX's `&apos;` are therefore written here as straight
+ * apostrophes, which is exactly what the browser rendered.
  */
 const fr = {
-  // ── Le cadre de l'écran d'entrée ────────────────────────────────────────
+  // ── The entrance screen's frame ─────────────────────────────────────────
   'shell.tagline': 'Plan de contrôle de déploiement',
   'shell.footer.line1': "Panel auto-hébergé. Les déploiements partent d'ici vers vos machines,",
   'shell.footer.line2': 'en Docker Compose ou en K3s.',
 
-  // ── Titres d'onglet ─────────────────────────────────────────────────────
+  // ── Tab titles ──────────────────────────────────────────────────────────
   'meta.login': 'Connexion — Pupitre',
   'meta.signup': 'Inscription — Pupitre',
   'meta.forgot': 'Mot de passe oublié — Pupitre',
@@ -30,7 +29,7 @@ const fr = {
   'meta.invitation': 'Invitation — Pupitre',
   'meta.logout': 'Déconnexion — Pupitre',
 
-  // ── Champs, partagés par les quatre formulaires ─────────────────────────
+  // ── Fields, shared by the four forms ────────────────────────────────────
   'field.name': 'Nom',
   'field.email': 'Adresse e-mail',
   'field.password': 'Mot de passe',
@@ -39,10 +38,10 @@ const fr = {
   'field.password.hide': 'Masquer',
 
   /**
-   * La longueur minimale est une constante (`PASSWORD_MIN_LENGTH`), pas une
-   * variable d'exécution — mais elle passe quand même par `{count}` : c'est ce
-   * qui permet de la changer sans retoucher deux traductions, et de laisser
-   * `Intl.PluralRules` trancher si elle tombait un jour à 1.
+   * The minimum length is a constant (`PASSWORD_MIN_LENGTH`), not a run-time
+   * variable — but it still goes through `{count}`: that is what allows changing it
+   * without touching two translations again, and letting `Intl.PluralRules` decide
+   * if it ever dropped to 1.
    */
   'password.min': { one: '{count} caractère minimum.', other: '{count} caractères minimum.' },
   'password.tooShort': {
@@ -50,12 +49,12 @@ const fr = {
     other: 'Le mot de passe doit faire au moins {count} caractères.',
   },
 
-  // ── Sorties de secours ──────────────────────────────────────────────────
+  // ── Emergency exits ─────────────────────────────────────────────────────
   'link.backToLogin': 'Retour à la connexion',
   'link.backToDashboard': "Retour à la vue d'ensemble",
   'link.back': 'Retour',
 
-  // ── Connexion ───────────────────────────────────────────────────────────
+  // ── Sign-in ─────────────────────────────────────────────────────────────
   'login.title': 'Connexion',
   'login.description': "Avec l'adresse et le mot de passe de votre compte.",
   'login.description.sso':
@@ -72,7 +71,7 @@ const fr = {
     'La connexion par le fournisseur d’identité a échoué ({error}). Réessayez, ou utilisez votre mot de passe.',
   'login.submit': 'Se connecter',
   'login.pending': 'Connexion…',
-  /** Volontairement générique : ne pas révéler si le compte existe. */
+  /** Deliberately generic: do not reveal whether the account exists. */
   'login.rejected': 'Identifiants invalides.',
   'login.forgot': 'Mot de passe oublié ?',
   'login.signup.prompt': 'Pas de compte ?',
@@ -81,7 +80,7 @@ const fr = {
   'login.signup.closed':
     "L'inscription est fermée sur cette instance : les comptes sont créés par un administrateur, depuis « Utilisateurs ».",
 
-  // ── Second facteur, au moment de la connexion ───────────────────────────
+  // ── Second factor, at sign-in ───────────────────────────────────────────
   'twoFactor.title': 'Second facteur',
   'twoFactor.description.totp':
     "Saisissez le code à six chiffres affiché par votre application d'authentification.",
@@ -97,7 +96,7 @@ const fr = {
   'twoFactor.useApp': 'Utiliser le code de mon application',
   'twoFactor.useBackup': 'Utiliser un code de secours',
 
-  // ── Inscription ─────────────────────────────────────────────────────────
+  // ── Sign-up ─────────────────────────────────────────────────────────────
   'signup.title': 'Créer un compte',
   'signup.description': 'Le premier compte créé reçoit automatiquement le rôle administrateur.',
   'signup.submit': 'Créer le compte',
@@ -106,11 +105,11 @@ const fr = {
   'signup.closed.title': 'Inscription fermée',
   'signup.closed.description': "L'inscription publique est désactivée sur cette instance.",
   'signup.closed.hint': 'Demandez un compte à un administrateur, ou activez',
-  /** Renvoyée par l'API quand `ALLOW_SIGNUP` est faux et qu'un compte existe. */
+  /** Returned by the API when `ALLOW_SIGNUP` is false and an account exists. */
   'signup.closed.api':
     "L'inscription publique est désactivée. Demandez un compte à un administrateur.",
 
-  // ── Mot de passe oublié ─────────────────────────────────────────────────
+  // ── Forgotten password ──────────────────────────────────────────────────
   'forgot.title': 'Mot de passe oublié',
   'forgot.description':
     "Saisissez l'adresse de votre compte. Un lien pour en choisir un nouveau vous y sera envoyé.",
@@ -131,7 +130,7 @@ const fr = {
   'forgot.unavailable.hint.path': 'Paramètres → Notifications',
   'forgot.unavailable.hint.after': 'pour que ce parcours fonctionne.',
 
-  // ── Choisir un mot de passe à partir d'un lien ──────────────────────────
+  // ── Choosing a password from a link ─────────────────────────────────────
   'choose.mismatch': 'Les deux mots de passe ne sont pas identiques.',
   'choose.noToken': 'Ce lien ne porte aucun jeton.',
   'choose.throttled': 'Trop de tentatives. Attendez une minute avant de réessayer.',
@@ -140,7 +139,7 @@ const fr = {
     "Un lien ne fonctionne qu'une seule fois, et il expire. Celui-ci a été utilisé, ou son délai est passé.",
   'choose.newLink': 'Demander un nouveau lien',
 
-  // ── Réinitialisation : les mots de l'écran `/reset-password` ────────────
+  // ── Reset: the words of the `/reset-password` screen ────────────────────
   'reset.title': 'Nouveau mot de passe',
   'reset.description':
     'Choisissez un mot de passe. Toutes les sessions ouvertes sur ce compte seront fermées, y compris celles que vous n’avez pas ouvertes.',
@@ -151,7 +150,7 @@ const fr = {
   'reset.dead.title': 'Lien de réinitialisation périmé',
   'reset.dead.body': 'Ce lien ne permet plus de changer de mot de passe.',
 
-  // ── Invitation : même mécanisme, autre situation ────────────────────────
+  // ── Invitation: same mechanism, another situation ───────────────────────
   'invitation.title': 'Choisissez votre mot de passe',
   'invitation.description':
     'Votre compte est prêt. Il ne lui manque qu’un mot de passe — vous seul le connaîtrez.',
@@ -162,36 +161,36 @@ const fr = {
   'invitation.dead.title': 'Invitation périmée',
   'invitation.dead.body': 'Ce lien d’invitation a déjà servi, ou son délai est passé.',
 
-  // ── Déconnexion ─────────────────────────────────────────────────────────
+  // ── Sign-out ────────────────────────────────────────────────────────────
   'logout.pending': 'Déconnexion…',
 
-  // ── Accès refusé ────────────────────────────────────────────────────────
+  // ── Access refused ──────────────────────────────────────────────────────
   'forbidden.title': 'Accès refusé',
   'forbidden.description': "Votre rôle ne permet pas d'ouvrir cette page.",
   'forbidden.permission': 'Permission requise :',
   'forbidden.body':
     "Les permissions se portent par le rôle, jamais par le compte : un administrateur l'ajoute au vôtre depuis Administration → Rôles, et elle prend effet à votre prochaine navigation. La tentative est enregistrée dans les logs d'activité, au même titre qu'une action aboutie.",
 
-  // ── 404 hors du panel ───────────────────────────────────────────────────
+  // ── 404 outside the panel ───────────────────────────────────────────────
   'notFound.title': "Cette page n'existe pas",
   'notFound.description': "L'adresse demandée ne correspond à aucun écran du panel.",
   'notFound.body':
     "Elle a pu être renommée, ou l'objet qu'elle désignait — un déploiement, une cible — a pu être supprimé depuis que le lien a été copié.",
 
-  // ── 404 dans le panel, rail de navigation conservé ──────────────────────
+  // ── 404 in the panel, navigation rail kept ──────────────────────────────
   'appNotFound.title': 'Rien à cette adresse',
   'appNotFound.description': "L'objet demandé n'existe pas, ou plus.",
   'appNotFound.body':
     'Un déploiement purgé, une application supprimée ou une cible retirée laissent leurs liens derrière eux. Le rail de navigation à gauche reste utilisable.',
 
-  // ── Filet de rendu d'un écran ───────────────────────────────────────────
+  // ── A screen's rendering safety net ─────────────────────────────────────
   'appError.title': "Cet écran n'a pas pu s'afficher",
   'appError.description': 'Le rail reste utilisable ; seule cette page a échoué.',
   'appError.fallback': 'Erreur inattendue pendant le rendu de la page.',
   'appError.digest.before': 'Référence à citer dans un rapport :',
   'appError.digest.after': '— elle se retrouve dans les logs du serveur.',
 
-  // ── Dernier filet : le layout racine lui-même a échoué ──────────────────
+  // ── The last safety net: the root layout itself failed ──────────────────
   'globalError.title': "Le panel n'a pas pu démarrer",
   'globalError.body':
     "L'erreur s'est produite avant l'affichage de l'interface. Vérifiez que PostgreSQL et Redis répondent, puis réessayez.",

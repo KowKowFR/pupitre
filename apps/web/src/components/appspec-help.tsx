@@ -14,23 +14,23 @@ import { useT } from '@/i18n/client';
 import { appspecHelp as messages } from '@/i18n/messages/appspec-help';
 
 /**
- * Aide sur l'AppSpec — contenu statique, aucune donnée serveur.
+ * Help on the AppSpec — static content, no server data.
  *
- * Un tiroir du kit d'aide (`components/help-drawer.tsx`) ; tout ce qui parle
- * d'AppSpec vit ici. Le contenu suit `packages/core/src/spec/app-spec.ts` et les
- * deux rendus `drivers/docker/render.ts` et `drivers/k3s/render.ts` : chaque
- * contrainte citée est celle du schéma Zod, pas une approximation.
+ * A help kit drawer (`components/help-drawer.tsx`); everything that talks about
+ * the AppSpec lives here. The content follows `packages/core/src/spec/app-spec.ts`
+ * and the two renderings `drivers/docker/render.ts` and `drivers/k3s/render.ts`:
+ * each quoted constraint is the Zod schema's, not an approximation.
  */
 
 type Props = {
-  /** Libellé du déclencheur. Le défaut convient à la plupart des pages. */
+  /** The trigger's label. The default suits most pages. */
   label?: string;
   className?: string;
 };
 
 /**
- * Les champs du format. Le **nom** est une clé JSON, il n'est pas traduit ; les
- * deux autres colonnes sont des clés du dictionnaire.
+ * The format's fields. The **name** is a JSON key, it is not translated; the two
+ * other columns are dictionary keys.
  */
 const FIELDS = [
   { name: 'name', key: 'name' },
@@ -109,9 +109,9 @@ export function AppSpecHelp({ label, className }: Props) {
       <HelpSection icon={ShieldCheck} tone="ok" title={t('section.guards')}>
         <p>{t('guards.intro')}</p>
         {/*
-          Texte brut, sans `rich()` : ces énoncés portent déjà des accents
-          graves, affichés tels quels — c'est leur ponctuation, pas du balisage.
-        */}
+          Plain text, without `rich()`: these statements already carry
+          backticks, shown as is — it is their punctuation, not markup.
+                 */}
         <HelpSteps
           tone="ok"
           steps={GUARDS.map((guard) => ({

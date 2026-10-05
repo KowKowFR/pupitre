@@ -1,46 +1,46 @@
 import type { Translated } from '@pupitre/core';
 
 /**
- * L'aide « Qu'est-ce qu'une cible ? » — la plus grosse surface de texte du
- * panel, et la seule qui soit de la documentation plutôt que de l'interface.
+ * The "What is a target?" help — the panel's largest text surface, and the only
+ * one that is documentation rather than interface.
  *
- * ── Pourquoi son propre module ──────────────────────────────────────────────
- * Cent cinquante phrases dont aucune ne s'affiche tant que personne n'a ouvert
- * la modale. Les laisser dans `targets.ts` aurait fait payer ce poids à chaque
- * rendu de la liste. Un dictionnaire par écran, c'est aussi ce qui permet au
- * bundler de ne charger que le nécessaire.
+ * ── Why a module of its own ─────────────────────────────────────────────────
+ * A hundred and fifty sentences none of which shows as long as nobody opened the
+ * modal. Leaving them in `targets.ts` would have made each rendering of the list
+ * pay that weight. One dictionary per screen is also what allows the bundler to
+ * only load what is needed.
  *
- * ── Le balisage en ligne ────────────────────────────────────────────────────
- * Une entrée de dictionnaire est une chaîne, pas du JSX. Les quelques marques
- * de mise en forme voyagent donc dans le texte, et `rich()` (dans
- * `components/target-help.tsx`) les rend :
+ * ── The inline markup ───────────────────────────────────────────────────────
+ * A dictionary entry is a string, not JSX. The few formatting marks therefore
+ * travel in the text, and `rich()` (in `components/target-help.tsx`) renders
+ * them:
  *
- *   `x`      → `<Code>` : une commande, un chemin, un identifiant
- *   **x**    → `<strong>` : une emphase dans une phrase
- *   __x__    → `<strong>` de tête, celui qui ouvre un paragraphe ou une puce
+ *   `x`      → `<Code>`: a command, a path, an identifier
+ *   **x**    → `<strong>`: an emphasis in a sentence
+ *   __x__    → a lead `<strong>`, the one that opens a paragraph or a bullet
  *   *x*      → `<em>`
  *
- * Les trois derniers acceptent du balisage à l'intérieur ; `` `…` `` non — ce
- * qu'il contient est du code, on n'y touche pas.
+ * The last three accept markup inside; `` `…` `` does not — what it contains is
+ * code, it is not touched.
  *
- * ── Ce qui n'est pas traduit ────────────────────────────────────────────────
- * Les deux blocs shell (`PREPARE_SCRIPT`, `KEY_SCRIPT`) restent dans le
- * composant : c'est du code à copier-coller, pas de la prose. Idem pour les
- * noms de binaires, de paquets et de distributions, les clés de contrôle du
- * preflight (`ssh`, `os`, `sudo`, `tools`, `firewall`, `docker`, `k3s`,
- * `disk`, `memory`), et les messages que produisent les programmes distants.
+ * ── What is not translated ──────────────────────────────────────────────────
+ * The two shell blocks (`PREPARE_SCRIPT`, `KEY_SCRIPT`) stay in the component: it
+ * is code to copy and paste, not prose. The same for the names of binaries,
+ * packages and distributions, the preflight's check keys (`ssh`, `os`, `sudo`,
+ * `tools`, `firewall`, `docker`, `k3s`, `disk`, `memory`), and the messages the
+ * remote programs produce.
  *
- * Rappel de la règle : la colonne `fr` reproduit à l'identique ce que rendait
- * le JSX — `&nbsp;` compris, transcrit en U+00A0.
+ * A reminder of the rule: the `fr` column reproduces identically what the JSX
+ * rendered — `&nbsp;` included, transcribed as U+00A0.
  */
 const fr = {
-  // ── L'ouverture ─────────────────────────────────────────────────────────
+  // ── Opening ─────────────────────────────────────────────────────────────
   'trigger.label': 'Qu’est-ce qu’une cible ?',
   'dialog.title': "Qu'est-ce qu'une cible ?",
   'dialog.description':
     'Une machine Linux jointe en SSH, sur laquelle le panel déploie. Le panel orchestre — la cible héberge.',
 
-  // ── Section 1 : les deux rôles ──────────────────────────────────────────
+  // ── Section 1: the two roles ────────────────────────────────────────────
   'roles.title': 'Le panel n’est pas l’application déployée',
   'roles.intro':
     'Déclarer une cible, c’est donner au panel de quoi ouvrir une session SSH sur une machine qui vous appartient. Rien n’est installé sur elle à ce moment-là : la création n’écrit qu’une ligne en base. La machine n’est touchée qu’au premier preflight, et vraiment utilisée qu’au premier déploiement.',
@@ -74,14 +74,14 @@ const fr = {
   'roles.callout':
     '__Le formulaire ne demande pas de runtime.__ Vous ne déclarez pas « cette machine est une cible Docker » : c’est le preflight qui découvre ce qui est installé, et le renseigne dans les badges « Docker ✓ / K3s ✗ ». Le runtime est une décision du *déploiement*, pas de la déclaration — c’est ce qui permet de redéployer la même application sur l’autre moteur sans rien retoucher ici. En l’état, l’écran de déploiement ne propose que les cibles dont le preflight a vu Docker.',
 
-  // ── Section 2 : préparer la machine ─────────────────────────────────────
+  // ── Section 2: preparing the machine ────────────────────────────────────
   'prepare.title': 'Ce qu’il faut préparer sur la machine',
   'prepare.intro':
     'Quatre choses, et rien d’autre : un compte, sa clé, un moteur de conteneurs joignable par ce compte, et de quoi élever les privilèges quand c’est nécessaire. Les commandes ci-dessous sont l’équivalent Debian/Ubuntu de ce que fait la cible de test du dépôt (`scripts/test-target/`, en Alpine).',
   'prepare.traps':
     '__Deux pièges dans ce bloc.__ L’appartenance au groupe `docker` n’est lue qu’à l’ouverture d’une session : tant que vous n’êtes pas ressorti, `docker info` continue de répondre « permission denied ». Et l’ordre d’UFW n’est pas négociable — autoriser le port 22 *avant* d’activer, sinon la politique `deny incoming` coupe la session qui pilote la machine, et il n’y a plus personne pour la rouvrir.',
 
-  // ── Section 3 : la clé SSH ──────────────────────────────────────────────
+  // ── Section 3: the SSH key ──────────────────────────────────────────────
   'key.title': 'La clé SSH',
   'key.intro':
     'Générez une paire **dédiée au panel**, sans passphrase. Ce n’est pas du laxisme : le panel stocke un seul secret par cible et n’a nulle part où mettre une passphrase, donc une clé protégée échoue à la connexion. Une clé dédiée se révoque en retirant une ligne d’`authorized_keys`, sans toucher à la vôtre.',
@@ -90,7 +90,7 @@ const fr = {
   'key.crypto':
     'Elle est chiffrée en __AES-256-GCM__ avant insertion, sous une clé dérivée de `MASTER_KEY` par HKDF-SHA256. La valeur en base a la forme `v1:iv:authTag:ciphertext`. Les lectures de l’API passent par une projection de colonnes où `encrypted_credential` n’existe pas : la réponse HTTP ne peut pas la contenir, même par oubli de filtrage. Le seul point de déchiffrement du projet est le handler `target:preflight` du worker, au moment d’ouvrir la session. Conséquence à assumer : **le credential ne se relit jamais**. Pour en changer, on le remplace.',
 
-  // ── Section 4 : chaque champ du formulaire ──────────────────────────────
+  // ── Section 4: each field of the form ───────────────────────────────────
   'fields.title': 'Chaque champ du formulaire',
   'fields.column.field': 'Champ',
   'fields.column.role': 'Ce que le panel en fait',
@@ -149,7 +149,7 @@ const fr = {
     'Une paire `clé=valeur` par ligne, libre : `env=prod`, `zone=eu-west`. Purement descriptif.',
   'field.labels.wrong': 'Une ligne sans `=` est ignorée en silence, pas rejetée.',
 
-  // ── Section 5 : la plage de ports ───────────────────────────────────────
+  // ── Section 5: the port range ───────────────────────────────────────────
   'ports.title': 'La plage de ports, à part',
   'ports.intro':
     'Elle mérite sa section parce qu’elle est le seul champ du formulaire qui décrit quelque chose d’extérieur au panel : ce que cette machine-là accepte de publier. Une application déployée en Docker Compose et exposée y réserve un port, sur lequel le driver publie et pose une règle UFW commentée `pupitre:{slug}`.',
@@ -158,10 +158,10 @@ const fr = {
   'ports.blind':
     '__La base ne connaît pas la machine.__ Un service installé à la main qui écoute déjà sur le port tiré est invisible pour elle. Le driver le constate après coup (`ss -tlnH`, ou `netstat -tln` sur les images sans `iproute2`), abandonne la réservation et rejoue en excluant ce port.',
   /**
-   * « pare-feu*hors* » n'est pas une faute de frappe de la traduction : le JSX
-   * d'origine passait à la ligne juste avant `<em>hors</em>`, et JSX supprime
-   * cette espace-là. Le français rendu était donc « pare-feuhors », et la règle
-   * dit de reproduire à l'identique. L'anglais, lui, met l'espace.
+   * "pare-feu*hors*" is not a typo of the translation: the original JSX went to the
+   * next line right before `<em>hors</em>`, and JSX removes that space. The
+   * rendered French was therefore "pare-feuhors", and the rule says to reproduce
+   * identically. English, for its part, puts the space.
    */
   'ports.firewall':
     '__Le pare-feu est une seconde barrière, pas la même.__ Le panel ouvre le port sur UFW s’il est actif et si sudo le permet. Un pare-feu*hors* de la machine — groupe de sécurité d’un hébergeur, box — est hors de sa portée : c’est à vous d’y ouvrir la plage.',
@@ -170,7 +170,7 @@ const fr = {
   'ports.narrow':
     'Une plage étroite se remplit vite : la cible de test du dépôt tient sur dix ports (30000-30009), soit dix applications exposées. Le panneau d’une cible affiche la jauge et la table application → port.',
 
-  // ── Section 6 : le preflight ────────────────────────────────────────────
+  // ── Section 6: the preflight ────────────────────────────────────────────
   'checks.title': 'Le preflight, contrôle par contrôle',
   'checks.intro':
     'Le preflight est une tâche BullMQ, pas un appel HTTP : le bouton « Tester la connexion » l’enfile et suit la tâche. Règle de conception — __chaque contrôle est indépendant__. Un `kubectl` absent marque K3s indisponible, il ne fait pas échouer le preflight. Chaque contrôle dispose de 15 secondes.',
@@ -220,7 +220,7 @@ const fr = {
   'checks.status':
     'Le statut qui en sort tient en trois valeurs. `ok` : au moins un runtime exploitable — Docker disponible, ou K3s avec un node prêt — et aucun contrôle en échec. `degraded` : la machine répond, mais rien n’y est déployable, ou un contrôle a échoué. `unreachable` : la session SSH n’a pas pu s’ouvrir. Le rapport complet est conservé et relisible sur la page de la cible.',
 
-  // ── Section 7 : le parcours complet ─────────────────────────────────────
+  // ── Section 7: the complete journey ─────────────────────────────────────
   'tutorial.title': 'De la machine nue à la première application',
 
   'step.machine.title': 'Une machine Linux joignable en SSH depuis le worker',
@@ -266,7 +266,7 @@ const fr = {
   'tutorial.shortcut':
     'Sans machine sous la main, `./scripts/setup-test-target.sh` monte un conteneur docker-in-docker qui porte son propre démon Docker, y installe une clé jetable et enregistre la cible — les étapes 1 à 7 en une commande.',
 
-  // ── Section 8 : les pannes fréquentes ───────────────────────────────────
+  // ── Section 8: the frequent failures ────────────────────────────────────
   'failures.title': 'Les pannes fréquentes',
   'failures.column.symptom': 'Ce que vous lisez',
   'failures.column.cause': 'Ce que c’est',

@@ -7,12 +7,11 @@ import {
 } from '../src/notifications/account-mail.js';
 
 /**
- * Les e-mails du cycle de vie des comptes.
+ * The accounts' life-cycle emails.
  *
- * Ce que ces tests couvrent et que `verify-invitations.sh` ne peut pas couvrir
- * aussi finement : l'échappement, et le fait que les deux parties du message
- * disent la même chose. Le script, lui, prouve qu'un vrai serveur SMTP les
- * reçoit — les deux sont nécessaires.
+ * What these tests cover and `verify-invitations.sh` cannot cover as finely:
+ * escaping, and the fact that both parts of the message say the same thing. The
+ * script proves that a real SMTP server receives them — both are necessary.
  */
 
 function mail(overrides: Partial<AccountMail> = {}): AccountMail {
@@ -28,82 +27,80 @@ function mail(overrides: Partial<AccountMail> = {}): AccountMail {
   });
 }
 
-describe('e-mails de cycle de vie des comptes', () => {
-  it('joint la tuile Pupitre et la cite par cid:, sans aucune image distante', () => {
+describe('account life-cycle emails', () => {
+  it('attaches the Pupitre tile and cites it by cid:, without any remote image', () => {
     for (const kind of ['invitation', 'password_reset'] as const) {
       const { html, inlineImages } = renderAccountMail(mail({ kind }), 'fr');
       assert.equal(inlineImages.length, 1);
       const [mark] = inlineImages;
       assert.equal(mark!.contentType, 'image/png');
-      // Les huit octets de signature d'un PNG : l'image jointe en est bien une.
+      // A PNG's eight signature bytes: the attached image is indeed one.
       const bytes = Buffer.from(mark!.content, 'base64');
       assert.equal(bytes.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
-      assert.ok(html.includes(`src="cid:${mark!.cid}"`), `tuile absente du HTML pour ${kind}`);
-      assert.ok(!/<img[^>]+src="https?:/.test(html), 'une image distante a été glissée');
+      assert.ok(html.includes(`src="cid:${mark!.cid}"`), `tile missing from the HTML for ${kind}`);
+      assert.ok(!/<img[^>]+src="https?:/.test(html), 'a remote image slipped in');
     }
   });
 
-  it('rend toujours deux parties, et la partie texte ne porte aucune balise', () => {
+  it('always renders two parts, and the text part carries no tag', () => {
     for (const kind of ['invitation', 'password_reset'] as const) {
       const { subject, text, html } = renderAccountMail(mail({ kind }), 'fr');
 
-      assert.ok(subject.length > 0, `sujet vide pour ${kind}`);
-      assert.ok(text.length > 0, `texte vide pour ${kind}`);
-      assert.ok(html.length > 0, `HTML vide pour ${kind}`);
+      assert.ok(subject.length > 0, `empty subject for ${kind}`);
+      assert.ok(text.length > 0, `empty text for ${kind}`);
+      assert.ok(html.length > 0, `empty HTML for ${kind}`);
 
-      // La règle que `smtp.ts` impose déjà aux alertes : la partie `text/plain`
-      // est lue telle quelle par un client en mode texte. Une balise qui s'y
-      // glisse est du bruit affiché à l'utilisateur.
-      assert.doesNotMatch(text, /<[a-zA-Z/!]/, `du HTML a fui dans la partie texte de ${kind}`);
+      // The rule `smtp.ts` already imposes on alerts: the `text/plain` part is read
+      // as is by a text-mode client. A tag that slips in is noise shown to the user.
+      assert.doesNotMatch(text, /<[a-zA-Z/!]/, `HTML leaked into the text part of ${kind}`);
       assert.match(html, /^<!doctype html>/i);
     }
   });
 
-  it('met le lien dans les deux parties, à l’identique', () => {
+  it('puts the link in both parts, identically', () => {
     const source = mail();
     const { text, html } = renderAccountMail(source, 'fr');
 
-    assert.ok(text.includes(source.url), 'le lien manque à la partie texte');
-    assert.ok(html.includes(source.url), 'le lien manque à la partie HTML');
-    // Le HTML le porte trois fois : le `href` du bouton, le `href` du repli, et
-    // le repli affiché en clair. Un bouton qui ne se rend pas — c'est le cas
-    // dans plusieurs clients d'entreprise — ne doit pas laisser la personne
-    // sans rien à copier.
+    assert.ok(text.includes(source.url), 'the link is missing from the text part');
+    assert.ok(html.includes(source.url), 'the link is missing from the HTML part');
+    // The HTML carries it three times: the button's `href`, the fallback's `href`,
+    // and the fallback shown in clear. A button that does not render — the case in
+    // several enterprise clients — must not leave the person with nothing to copy.
     assert.equal(html.split(source.url).length - 1, 3);
   });
 
-  it('échappe ce qui vient du formulaire', () => {
+  it('escapes what comes from the form', () => {
     const { text, html } = renderAccountMail(
       mail({ recipientName: '<script>alert(1)</script>', instance: 'A & B <prod>' }),
       'fr',
     );
 
-    assert.ok(html.includes('&lt;script&gt;'), 'le nom n’est pas échappé dans le HTML');
-    assert.ok(!html.includes('<script>'), 'une balise brute a survécu');
-    assert.ok(html.includes('A &amp; B &lt;prod&gt;'), 'le nom d’instance n’est pas échappé');
-    // La partie texte, elle, n'échappe rien — c'est du texte. On vérifie
-    // seulement qu'elle porte bien la valeur brute, sans transformation muette.
+    assert.ok(html.includes('&lt;script&gt;'), 'the name is not escaped in the HTML');
+    assert.ok(!html.includes('<script>'), 'a raw tag survived');
+    assert.ok(html.includes('A &amp; B &lt;prod&gt;'), 'the instance name is not escaped');
+    // The text part escapes nothing — it is text. We only check that it does carry
+    // the raw value, without a silent transformation.
     assert.ok(text.includes('<script>alert(1)</script>'));
   });
 
-  it('distingue les deux situations dans le sujet et dans le corps', () => {
+  it('tells the two situations apart in the subject and in the body', () => {
     const invitation = renderAccountMail(mail({ kind: 'invitation' }), 'fr');
     const reset = renderAccountMail(mail({ kind: 'password_reset' }), 'fr');
 
     assert.notEqual(invitation.subject, reset.subject);
     assert.match(invitation.text, /a ouvert un accès/);
     assert.match(reset.text, /réinitialisation/i);
-    // Une invitation ne parle jamais de « réinitialiser » : la personne n'a
-    // jamais eu de mot de passe ici.
+    // An invitation never talks about "resetting": the person never had a password
+    // here.
     assert.doesNotMatch(invitation.text, /réinitialis/i);
   });
 
-  it('nomme l’auteur de l’invitation quand il est connu, et reste correct sinon', () => {
+  it('names the invitation’s author when known, and stays correct otherwise', () => {
     assert.match(renderAccountMail(mail({ actor: 'admin@example.test' }), 'fr').text, /admin@example\.test/);
     assert.match(renderAccountMail(mail({ actor: null }), 'fr').text, /Un administrateur/);
   });
 
-  it('annonce une durée lisible, pas un nombre de millisecondes', () => {
+  it('announces a readable duration, not a number of milliseconds', () => {
     const long = renderAccountMail(mail({ expiresAt: new Date(Date.now() + 72 * 3600_000).toISOString() }), 'fr');
     const short = renderAccountMail(
       mail({ kind: 'password_reset', expiresAt: new Date(Date.now() + 3600_000).toISOString() }),
@@ -112,11 +109,11 @@ describe('e-mails de cycle de vie des comptes', () => {
 
     assert.match(long.text, /valable 3 jours/);
     assert.match(short.text, /valable 1 heure/);
-    // Et l'échéance absolue, parce qu'une durée relative lue le lendemain ment.
+    // And the absolute expiry, because a relative duration read the next day lies.
     assert.match(long.text, /expire le \d{2}\/\d{2}\/\d{4} à \d{2} h \d{2} UTC/);
   });
 
-  it('dit dans les deux cas que le lien ne sert qu’une fois', () => {
+  it('says in both cases that the link only works once', () => {
     for (const kind of ['invitation', 'password_reset'] as const) {
       const { text, html } = renderAccountMail(mail({ kind }), 'fr');
       assert.match(text, /une seule fois/);
@@ -125,27 +122,27 @@ describe('e-mails de cycle de vie des comptes', () => {
   });
 
   /**
-   * L'e-mail part vers quelqu'un qui n'a pas encore de compte, donc pas de
-   * préférence : c'est la langue de l'instance qui décide, et elle descend en
-   * paramètre parce que `packages/core` ne lit pas la base. Ce test vérifie que
-   * le paramètre traverse bien les trois rendus — sujet, texte et HTML — et que
-   * le `lang` du document suit, faute de quoi un lecteur d'écran anglophone se
-   * ferait lire du français avec une prosodie française.
+   * The email goes to someone who has no account yet, hence no preference: it is
+   * the instance's language that decides, and it comes down as a parameter
+   * because `packages/core` does not read the database. This test checks that the
+   * parameter does go through the three renderings — subject, text and HTML — and
+   * that the document's `lang` follows, otherwise an English-speaking screen
+   * reader would read French with a French prosody.
    */
-  it('compose dans la langue qu’on lui donne, jusqu’au `lang` du document', () => {
+  it('composes in the language it is given, down to the document’s `lang`', () => {
     const fr = renderAccountMail(mail({ kind: 'invitation' }), 'fr');
     const en = renderAccountMail(mail({ kind: 'invitation' }), 'en');
 
     assert.notEqual(fr.subject, en.subject);
     assert.match(en.subject, /Your access to/i);
     assert.match(en.text, /Choose my password/);
-    assert.ok(!/Choisir mon mot de passe/.test(en.text), 'du français a survécu dans la version anglaise');
+    assert.ok(!/Choisir mon mot de passe/.test(en.text), 'French survived in the English version');
     assert.match(fr.html, /<html lang="fr"/);
     assert.match(en.html, /<html lang="en"/);
   });
 
-  it('refuse une adresse ou une URL qui n’en sont pas', () => {
-    assert.throws(() => mail({ url: 'pas-une-url' as string }));
+  it('refuses an address or a URL that are not ones', () => {
+    assert.throws(() => mail({ url: 'not-a-url' as string }));
     assert.throws(() => accountMailSchema.parse({ ...mail(), kind: 'autre-chose' }));
   });
 });

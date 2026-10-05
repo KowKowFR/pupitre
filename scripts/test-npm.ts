@@ -1,26 +1,27 @@
 /**
- * Nginx Proxy Manager de bout en bout — un proxy **distant**, piloté par son API.
+ * Nginx Proxy Manager end to end — a **remote** proxy, driven through its API.
  *
  *   docker compose --profile test up -d pebble pebble-dns npm-proxy
- *   pnpm test:npm <cible-docker> <cible-k3s>
+ *   pnpm test:npm <docker-target> <k3s-target>
  *
- * Contre une vraie instance (2.16), avec un compte aux droits restreints :
- *   0. l'instance répond ; son administrateur crée le compte de Pupitre —
- *      « Manage » sur les Proxy Hosts et les SSL Certificates, visibilité
- *      « Created Items » ;
- *   1. « Tester » passe ; un mauvais mot de passe est refusé, en le disant ;
- *   2. la liaison, éprouvée **à travers NPM** vers chaque cible (`checkReach`),
- *      l'arrivée relevée ; une adresse qui ne mène nulle part est dite telle,
- *      et aucun hôte de test ne reste ;
- *   3. sur chaque runtime, une application publiée pour NPM seul et son
- *      domaine posé : HTTP renvoie vers HTTPS, certificat émis par Pebble,
- *      sondé depuis le panel ;
- *   4. ce qui n'est pas à Pupitre reste : l'hôte d'un autre compte n'est pas
- *      touché, et son domaine, réclamé, est refusé en le disant ;
- *   5. un certificat déjà dans NPM qui couvre le domaine (un joker) est repris ;
- *   6. le retrait : les hôtes de Pupitre partent avec ses certificats ; le joker
- *      et l'hôte de l'autre compte restent ; une machine ne touche pas l'autre.
- * Puis tout est retiré : applications, hôtes, certificats, compte, DNS de test.
+ * Against a real instance (2.16), with an account with restricted rights:
+ *   0. the instance answers; its administrator creates Pupitre's account —
+ *      "Manage" on Proxy Hosts and SSL Certificates, "Created Items"
+ *      visibility;
+ *   1. "Test" passes; a wrong password is refused, saying so;
+ *   2. the link, tried out **through NPM** to each target (`checkReach`), the
+ *      arrival recorded; an address that leads nowhere is called so, and no
+ *      test host remains;
+ *   3. on each runtime, an application published for NPM alone and its domain
+ *      set: HTTP redirects to HTTPS, certificate issued by Pebble, probed from
+ *      the panel;
+ *   4. what does not belong to Pupitre stays: another account's host is not
+ *      touched, and its domain, claimed, is refused, saying so;
+ *   5. a certificate already in NPM that covers the domain (a wildcard) is
+ *      taken over;
+ *   6. the removal: Pupitre's hosts go with its certificates; the wildcard and
+ *      the other account's host stay; one machine does not touch the other.
+ * Then everything is removed: applications, hosts, certificates, account, test DNS.
  */
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
@@ -84,7 +85,7 @@ async function guarded<T>(scope: string, label: string, run: () => Promise<T>): 
 }
 
 const SPEC = parseAppSpec({
-  name: 'npm-essai',
+  name: 'npm-trial',
   version: '1.0.0',
   services: [
     {
@@ -97,7 +98,7 @@ const SPEC = parseAppSpec({
   ],
 });
 
-// ─── l'instance NPM, côté administrateur ─────────────────────────────────────
+// ─── the NPM instance, administrator side ────────────────────────────────────
 
 async function npm<T>(token: string | null, method: string, route: string, body?: unknown) {
   const response = await fetch(`${NPM_URL}/api${route}`, {
@@ -111,7 +112,7 @@ async function npm<T>(token: string | null, method: string, route: string, body?
     ...(body !== undefined ? { body: body instanceof FormData ? body : JSON.stringify(body) } : {}),
   });
   const text = await response.text();
-  if (!response.ok) throw new Error(`${method} ${route} : HTTP ${response.status} ${text}`);
+  if (!response.ok) throw new Error(`${method} ${route}: HTTP ${response.status} ${text}`);
   return (text ? JSON.parse(text) : null) as T;
 }
 
@@ -123,7 +124,7 @@ async function login(email: string, password: string): Promise<string> {
   return answer.token;
 }
 
-/** Le compte de Pupitre, tel que la documentation le conseille. */
+/** Pupitre's account, as the documentation advises. */
 async function ensurePupitreAccount(admin: string): Promise<number> {
   const users = await npm<Array<{ id: number; email: string }>>(admin, 'GET', '/users');
   const found = users.find((user) => user.email === PUPITRE.email);
@@ -159,7 +160,7 @@ type Host = {
 };
 type Certificate = { id: number; nice_name: string; domain_names: string[] };
 
-// ─── les cibles ──────────────────────────────────────────────────────────────
+// ─── the targets ─────────────────────────────────────────────────────────────
 
 type Side = {
   runtime: RuntimeKind;
@@ -173,7 +174,7 @@ type Side = {
 async function openSide(runtime: RuntimeKind, ref: string, applicationId: string): Promise<Side> {
   const { session, target: found } = await openTarget(ref);
   const address = (await exec(session, "hostname -i 2>/dev/null | awk '{print $1}'")).stdout.trim();
-  if (!/^\d+\.\d+\.\d+\.\d+$/.test(address)) throw new Error(`${ref} : adresse illisible`);
+  if (!/^\d+\.\d+\.\d+\.\d+$/.test(address)) throw new Error(`${ref}: unreadable address`);
   const ctx: DriverContext = {
     spec: SPEC,
     target: {
@@ -252,21 +253,21 @@ const tls = (hostname: string): ProxyRoute => ({
   waf: 'block',
 });
 
-// ─── le déroulé ──────────────────────────────────────────────────────────────
+// ─── the run ─────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
   const [dockerRef, k3sRef] = process.argv.slice(2);
   if (!dockerRef || !k3sRef) {
-    write('Usage : pnpm test:npm <cible-docker> <cible-k3s>\n');
+    write('Usage: pnpm test:npm <docker-target> <k3s-target>\n');
     process.exit(1);
   }
-  write(bold('Nginx Proxy Manager — un proxy distant, piloté par son API\n'));
+  write(bold('Nginx Proxy Manager — a remote proxy, driven through its API\n'));
 
-  // 0. L'instance et le compte de Pupitre.
-  write(`\n${bold('── 0. l’instance')}\n`);
+  // 0. The instance and Pupitre's account.
+  write(`\n${bold('── 0. the instance')}\n`);
   const admin = await login(ADMIN.email, ADMIN.password);
   const accountId = await ensurePupitreAccount(admin);
-  record('npm', 'compte de Pupitre aux droits restreints', true, PUPITRE.email);
+  record('npm', "Pupitre's account with restricted rights", true, PUPITRE.email);
   const npmIp = npmAddress();
 
   const provider = getRemoteProxyProvider('npm');
@@ -276,25 +277,25 @@ async function main(): Promise<void> {
     language: 'fr',
   };
   const origin: ReachOrigin = {
-    name: 'NPM de test',
+    name: 'Test NPM',
     routeSource: async () => undefined,
     connect: (address, port, token) => provider.reach(ctx, { address, port, token }, log),
   };
 
-  // 1. « Tester ».
-  write(`\n${bold('── 1. la connexion')}\n`);
+  // 1. "Test".
+  write(`\n${bold('── 1. the connection')}\n`);
   const check = await provider.check(ctx, log);
   record(
     'npm',
-    '« Tester » passe',
+    '"Test" passes',
     check.ok,
-    check.checks.map((item) => `${item.label} : ${item.detail}`).join(' · '),
+    check.checks.map((item) => `${item.label}: ${item.detail}`).join(' · '),
   );
-  const refused = await provider.check({ ...ctx, secrets: { password: 'faux' } }, log);
+  const refused = await provider.check({ ...ctx, secrets: { password: 'wrong' } }, log);
   const login1 = refused.checks.find((item) => item.key === 'login');
   record(
     'npm',
-    'un mauvais mot de passe est refusé, en le disant',
+    'a wrong password is refused, saying so',
     !refused.ok && login1?.ok === false && /identifiants refusés/.test(login1.detail ?? ''),
     login1?.detail ?? '',
   );
@@ -305,21 +306,21 @@ async function main(): Promise<void> {
     await openSide('k3s', k3sRef, applicationId),
   ];
   const scope = (side: Side) => `t${side.ctx.target.id.slice(0, 8)}`;
-  const foreignHost = `autre.${DOMAIN}`;
-  const jokerHost = `app.joker.${DOMAIN}`;
+  const foreignHost = `other.${DOMAIN}`;
+  const wildcardHost = `app.wildcard.${DOMAIN}`;
   let foreignId: number | null = null;
-  let jokerId: number | null = null;
+  let wildcardId: number | null = null;
   const work = mkdtempSync(path.join(tmpdir(), 'pupitre-npm-'));
 
   try {
-    // 2. La liaison, à travers NPM.
-    write(`\n${bold('── 2. la liaison, éprouvée à travers NPM')}\n`);
+    // 2. The link, through NPM.
+    write(`\n${bold('── 2. the link, tried out through NPM')}\n`);
     const reached = new Map<RuntimeKind, string | null>();
     const ports = new Map<RuntimeKind, number>();
     for (const side of sides) {
       const report = await getTargetPortReport(side.ctx.target.id);
       const range = await appRange(side);
-      const result = await guarded(side.runtime, 'connexion éprouvée', () =>
+      const result = await guarded(side.runtime, 'connection tried out', () =>
         checkReach({
           origin,
           served: side.ctx,
@@ -331,20 +332,20 @@ async function main(): Promise<void> {
       );
       if (!result) continue;
       reached.set(side.runtime, reachSource(result));
-      // L'arrivée se relève avec python3 ou perl sur la machine servie ; avec
-      // `nc` seul (une Alpine), elle ne l'est pas — et le résultat doit le dire.
+      // The arrival is recorded with python3 or perl on the served machine; with
+      // `nc` alone (an Alpine), it is not — and the result must say so.
       const source = reachSource(result);
       record(
         side.runtime,
-        `NPM joint ${side.ctx.target.name} à ${side.address}`,
+        `NPM reaches ${side.ctx.target.name} at ${side.address}`,
         result.ok === true &&
           (source === npmIp ||
             (source === null && /n['’]a pas pu être relevé/.test(result.detail))),
-        `${result.detail}${source ? ` — arrivée depuis ${source}` : ''}`,
+        `${result.detail}${source ? ` — arrival from ${source}` : ''}`,
       );
     }
     const firstRange = await appRange(sides[0]!);
-    const nowhere = await guarded('npm', 'adresse injoignable', () =>
+    const nowhere = await guarded('npm', 'unreachable address', () =>
       checkReach({
         origin,
         served: sides[0]!.ctx,
@@ -355,7 +356,7 @@ async function main(): Promise<void> {
     if (nowhere) {
       record(
         'npm',
-        'une adresse qui ne mène nulle part est dite telle',
+        'an address that leads nowhere is called so',
         nowhere.ok === false && nowhere.failure === 'timeout',
         nowhere.detail,
       );
@@ -363,12 +364,12 @@ async function main(): Promise<void> {
     const leftovers = (await npm<Host[]>(admin, 'GET', '/nginx/proxy-hosts')).filter(
       (host) => (host.meta.pupitre as { reach?: boolean } | undefined)?.reach,
     );
-    record('npm', 'aucun hôte de test ne reste', leftovers.length === 0, `${leftovers.length}`);
+    record('npm', 'no test host remains', leftovers.length === 0, `${leftovers.length}`);
 
-    // 3. Une application par runtime, et son domaine.
-    write(`\n${bold('── 3. un domaine par runtime, HTTPS compris')}\n`);
+    // 3. One application per runtime, and its domain.
+    write(`\n${bold('── 3. one domain per runtime, HTTPS included')}\n`);
     for (const side of sides) {
-      const port = await guarded(side.runtime, 'déploiement', async () => {
+      const port = await guarded(side.runtime, 'deployment', async () => {
         side.ctx.exposure = {
           byPort: true,
           bindAddress: side.address,
@@ -380,14 +381,14 @@ async function main(): Promise<void> {
         await side.driver.build(side.ctx, () => {});
         const result = await side.driver.deploy(side.ctx, () => {});
         const health = await side.driver.healthcheck(side.ctx);
-        if (!health.healthy) throw new Error(`en mauvaise santé : ${health.detail ?? ''}`);
+        if (!health.healthy) throw new Error(`unhealthy: ${health.detail ?? ''}`);
         return result.publishedPort ?? allocated;
       });
       if (port === null) continue;
       ports.set(side.runtime, port);
       const upstream = side.driver.upstream(side.ctx, port);
       if (upstream?.kind !== 'port') {
-        record(side.runtime, 'un port publié pour NPM', false, JSON.stringify(upstream));
+        record(side.runtime, 'a port published for NPM', false, JSON.stringify(upstream));
         continue;
       }
       await declareDomain(side.hostname, npmIp);
@@ -412,23 +413,23 @@ async function main(): Promise<void> {
       );
       record(
         side.runtime,
-        `${side.hostname} : HTTP → HTTPS, certificat de Pebble`,
+        `${side.hostname}: HTTP → HTTPS, Pebble certificate`,
         probe.ok &&
           [301, 308].includes(probe.http ?? 0) &&
           probe.https === 200 &&
           probe.certificate.status === 'valid' &&
           /Pebble/i.test(probe.certificate.issuer ?? ''),
-        `${probe.detail} — ${probe.certificate.issuer ?? 'sans certificat'}`,
+        `${probe.detail} — ${probe.certificate.issuer ?? 'no certificate'}`,
       );
     }
 
-    // 3 bis. Deux demandes de certificat en même temps : NPM ne lance qu'un
-    // certbot à la fois et refuse le second — Pupitre les fait passer l'une
-    // après l'autre.
+    // 3 bis. Two certificate requests at the same time: NPM only runs one certbot
+    // at a time and refuses the second — Pupitre makes them go one after the
+    // other.
     const docker = sides[0]!;
     const shared = docker.driver.upstream(docker.ctx, ports.get('docker') ?? null);
     if (shared?.kind === 'port') {
-      const twins = ['un', 'deux'].map((name) => ({
+      const twins = ['one', 'two'].map((name) => ({
         appSlug: `${SPEC.name}-${name}`,
         hostname: `${name}.${DOMAIN}`,
       }));
@@ -460,7 +461,7 @@ async function main(): Promise<void> {
       );
       record(
         'docker',
-        'deux certificats demandés en même temps, deux obtenus',
+        'two certificates requested at the same time, two obtained',
         probes.every((probe) => probe.ok && probe.certificate.status === 'valid'),
         probes.map((probe) => probe.detail).join(' · '),
       );
@@ -474,8 +475,8 @@ async function main(): Promise<void> {
       }
     }
 
-    // 4. Ce qui n'est pas à Pupitre.
-    write(`\n${bold('── 4. ce qui n’est pas à Pupitre')}\n`);
+    // 4. What does not belong to Pupitre.
+    write(`\n${bold('── 4. what does not belong to Pupitre')}\n`);
     const dockerPort = docker.driver.upstream(docker.ctx, ports.get('docker') ?? null);
     foreignId = (
       await npm<Host>(admin, 'POST', '/nginx/proxy-hosts', {
@@ -500,20 +501,20 @@ async function main(): Promise<void> {
       .catch((error: unknown) => (error instanceof Error ? error.message : String(error)));
     record(
       'npm',
-      'le domaine d’un autre compte, réclamé, est refusé en le disant',
+      "another account's domain, claimed, is refused, saying so",
       conflict !== null && /existe déjà dans NPM/.test(conflict),
-      conflict ?? 'accepté',
+      conflict ?? 'accepted',
     );
-    // NPM recharge nginx après chaque geste : la sonde réessaie, comme celle du pipeline.
+    // NPM reloads nginx after each gesture: the probe retries, like the pipeline's.
     const still = await probeUntil(
       () => provider.probe(ctx, tls(docker.hostname), '/'),
       (result) => result.ok,
       30,
     );
-    record('docker', 'son propre domaine n’en souffre pas', still.ok, still.detail);
+    record('docker', 'its own domain does not suffer from it', still.ok, still.detail);
 
-    // 5. Un joker déjà dans NPM.
-    write(`\n${bold('── 5. un certificat déjà présent est repris')}\n`);
+    // 5. A wildcard already in NPM.
+    write(`\n${bold('── 5. a certificate already present is taken over')}\n`);
     execFileSync(
       'openssl',
       [
@@ -527,9 +528,9 @@ async function main(): Promise<void> {
         '-days',
         '30',
         '-subj',
-        `/CN=*.joker.${DOMAIN}`,
+        `/CN=*.wildcard.${DOMAIN}`,
         '-addext',
-        `subjectAltName=DNS:*.joker.${DOMAIN}`,
+        `subjectAltName=DNS:*.wildcard.${DOMAIN}`,
         '-keyout',
         path.join(work, 'key.pem'),
         '-out',
@@ -538,26 +539,26 @@ async function main(): Promise<void> {
       { stdio: 'ignore' },
     );
     const pupitreToken = await login(PUPITRE.email, PUPITRE.password);
-    jokerId = (
+    wildcardId = (
       await npm<Certificate>(pupitreToken, 'POST', '/nginx/certificates', {
         provider: 'other',
-        nice_name: 'joker de test',
+        nice_name: 'test wildcard',
       })
     ).id;
     const form = new FormData();
     form.append('certificate', new Blob([readFileSync(path.join(work, 'cert.pem'))]), 'cert.pem');
     form.append('certificate_key', new Blob([readFileSync(path.join(work, 'key.pem'))]), 'key.pem');
-    await npm(pupitreToken, 'POST', `/nginx/certificates/${jokerId}/upload`, form);
+    await npm(pupitreToken, 'POST', `/nginx/certificates/${wildcardId}/upload`, form);
     const k3s = sides[1]!;
     const k3sPort = k3s.driver.upstream(k3s.ctx, ports.get('k3s') ?? null);
     const lines: string[] = [];
-    await guarded('k3s', 'apply() avec le joker', () =>
+    await guarded('k3s', 'apply() with the wildcard', () =>
       provider.apply(
         ctx,
         {
           appSlug: SPEC.name,
           scope: scope(k3s),
-          routes: [tls(k3s.hostname), tls(jokerHost)],
+          routes: [tls(k3s.hostname), tls(wildcardHost)],
           upstream: k3sPort?.kind === 'port' ? { ...k3sPort, host: k3s.address } : null,
         },
         (line) => {
@@ -566,23 +567,23 @@ async function main(): Promise<void> {
         },
       ),
     );
-    const jokerProbe = await probeUntil(
-      () => provider.probe(ctx, tls(jokerHost), '/'),
+    const wildcardProbe = await probeUntil(
+      () => provider.probe(ctx, tls(wildcardHost), '/'),
       (result) => result.ok,
       30,
     );
     record(
       'k3s',
-      `${jokerHost} sert le joker, sans nouvelle demande`,
-      jokerProbe.ok &&
-        /\*\.joker/.test(jokerProbe.certificate.subject ?? '') &&
+      `${wildcardHost} serves the wildcard, without a new request`,
+      wildcardProbe.ok &&
+        /\*\.wildcard/.test(wildcardProbe.certificate.subject ?? '') &&
         lines.some((line) => line.includes('reprend le certificat')) &&
-        !lines.some((line) => line.includes(`demande d'un certificat pour ${jokerHost}`)),
-      `${jokerProbe.detail} — ${jokerProbe.certificate.subject ?? '?'}`,
+        !lines.some((line) => line.includes(`demande d'un certificat pour ${wildcardHost}`)),
+      `${wildcardProbe.detail} — ${wildcardProbe.certificate.subject ?? '?'}`,
     );
 
-    // 6. Le retrait.
-    write(`\n${bold('── 6. le retrait')}\n`);
+    // 6. The removal.
+    write(`\n${bold('── 6. the removal')}\n`);
     await provider.apply(
       ctx,
       { appSlug: SPEC.name, scope: scope(docker), routes: [], upstream: null },
@@ -592,7 +593,7 @@ async function main(): Promise<void> {
     let certificates = await npm<Certificate[]>(admin, 'GET', '/nginx/certificates');
     record(
       'docker',
-      'ses hôtes et son certificat partent ; ceux de K3s restent',
+      "its hosts and its certificate go; K3s's stay",
       !hosts.some((host) => host.domain_names.includes(docker.hostname)) &&
         !certificates.some((certificate) => certificate.domain_names.includes(docker.hostname)) &&
         hosts.some((host) => host.domain_names.includes(k3s.hostname)),
@@ -607,28 +608,28 @@ async function main(): Promise<void> {
     certificates = await npm<Certificate[]>(admin, 'GET', '/nginx/certificates');
     record(
       'k3s',
-      'ses hôtes partent ; le joker et l’hôte de l’autre compte restent',
+      "its hosts go; the wildcard and the other account's host stay",
       !hosts.some((host) => (host.meta.pupitre as object | undefined) !== undefined) &&
-        certificates.some((certificate) => certificate.id === jokerId) &&
+        certificates.some((certificate) => certificate.id === wildcardId) &&
         !certificates.some((certificate) => certificate.domain_names.includes(k3s.hostname)) &&
         hosts.some((host) => host.id === foreignId),
-      `${hosts.length} hôte(s), ${certificates.length} certificat(s)`,
+      `${hosts.length} host(s), ${certificates.length} certificate(s)`,
     );
   } finally {
-    write(`\n${dim('ménage…')}\n`);
+    write(`\n${dim('cleanup…')}\n`);
     for (const side of sides) {
       await side.driver.destroy(side.ctx, () => {}).catch(() => undefined);
       await disconnect(side.session);
       await forgetDomain(side.hostname);
     }
-    await forgetDomain(jokerHost);
+    await forgetDomain(wildcardHost);
     if (foreignId !== null) {
       await npm(admin, 'DELETE', `/nginx/proxy-hosts/${foreignId}`).catch(() => undefined);
     }
-    if (jokerId !== null) {
-      await npm(admin, 'DELETE', `/nginx/certificates/${jokerId}`).catch(() => undefined);
+    if (wildcardId !== null) {
+      await npm(admin, 'DELETE', `/nginx/certificates/${wildcardId}`).catch(() => undefined);
     }
-    // Ce que le compte de Pupitre aurait laissé en cas d'échec, puis le compte.
+    // What Pupitre's account would have left in case of failure, then the account.
     const pupitreToken = await login(PUPITRE.email, PUPITRE.password).catch(() => null);
     if (pupitreToken) {
       for (const host of await npm<Host[]>(pupitreToken, 'GET', '/nginx/proxy-hosts')) {
@@ -644,7 +645,7 @@ async function main(): Promise<void> {
   }
 
   await closeDb();
-  report.summary('NPM tient.');
+  report.summary('NPM holds.');
   process.exit(report.failures === 0 ? 0 : 1);
 }
 

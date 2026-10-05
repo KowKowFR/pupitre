@@ -24,45 +24,45 @@ import { jobs as messages } from '@/i18n/messages/jobs';
 import { formatDateTimeWith, type FormatSettings } from '@/lib/format';
 
 /**
- * Saisie d'une cadence : périodicité simplifiée ou expression cron.
+ * Entering a cadence: a simplified schedule or a cron expression.
  *
- * Le mode simple est une **surcouche de saisie**. Il ne produit pas un second
- * format : `toCron()` le convertit en expression cron, seule chose qui parte au
- * serveur et finisse en base. Réciproquement, une cadence existante est relue
- * par `fromCron()` ; quand elle n'a pas d'équivalent simple, l'écran le dit et
- * reste en mode expert plutôt que d'afficher une approximation.
+ * The simple mode is an **input layer**. It does not produce a second format:
+ * `toCron()` converts it into a cron expression, the only thing that goes to the
+ * server and ends up in the database. Conversely, an existing cadence is read
+ * back by `fromCron()`; when it has no simple equivalent, the screen says so and
+ * stays in expert mode rather than show an approximation.
  *
- * Composant contrôlé : tout l'état vit chez l'appelant, ce qui évite d'avoir à
- * resynchroniser un état interne sur une prop dans un effet.
+ * A controlled component: all the state lives with the caller, which avoids
+ * having to resynchronize an internal state on a prop in an effect.
  */
 
 export type ScheduleDraft = {
   mode: 'simple' | 'expert';
-  /** État du mode simple. Toujours défini, même en mode expert. */
+  /** The simple mode's state. Always defined, even in expert mode. */
   simple: SimpleSchedule;
-  /** État du mode expert : texte libre, éventuellement invalide. */
+  /** The expert mode's state: free text, possibly invalid. */
   cron: string;
   /**
-   * Fuseau dans lequel l'expression sera interprétée par BullMQ. Porté par le
-   * brouillon comme la cadence elle-même : les deux forment une heure, et une
-   * heure sans fuseau ne veut rien dire.
+   * The time zone in which the expression will be interpreted by BullMQ. Carried
+   * by the draft like the cadence itself: the two make a time, and a time without
+   * a time zone means nothing.
    */
   timeZone: string;
 };
 
 const DEFAULT_SIMPLE: SimpleSchedule = { kind: 'daily', hour: 3, minute: 0 };
 
-/** Cadence effective du brouillon, dans le format que la base stocke. */
+/** The draft's effective cadence, in the format the database stores. */
 export function draftCron(draft: ScheduleDraft): string {
   return draft.mode === 'simple' ? toCron(draft.simple) : draft.cron.trim();
 }
 
 /**
- * Corps de requête correspondant au brouillon.
+ * The request body corresponding to the draft.
  *
- * En mode simple on envoie la périodicité et c'est le **serveur** qui la
- * convertit : un client ne décide pas de ce qui est écrit en base, même quand
- * il sait calculer la même chose.
+ * In simple mode we send the schedule and it is the **server** that converts it:
+ * a client does not decide what is written to the database, even when it can
+ * compute the same thing.
  */
 export function draftBody(
   draft: ScheduleDraft,
@@ -72,7 +72,7 @@ export function draftBody(
   return { ...cadence, timezone: draft.timeZone };
 }
 
-/** Ouverture d'une cadence existante : mode simple si `fromCron` y arrive. */
+/** Opening an existing schedule: simple mode if `fromCron` can read it. */
 export function draftFromCron(cron: string, timeZone: string): ScheduleDraft {
   const simple = fromCron(cron);
   return {
@@ -83,14 +83,14 @@ export function draftFromCron(cron: string, timeZone: string): ScheduleDraft {
   };
 }
 
-// ─── vocabulaire d'écran ──────────────────────────────────────────────────────
+// ─── screen vocabulary ────────────────────────────────────────────────────────
 
 type Messages = Translate<(typeof messages)['fr']>;
 
 /**
- * Lundi en tête : c'est l'ordre attendu ici, pas celui de cron. L'ordre est une
- * propriété de l'écran, pas de la langue — il ne bouge pas d'une locale à
- * l'autre, seules les initiales changent.
+ * Monday first: it is the order expected here, not cron's. The order is a
+ * property of the screen, not of the language — it does not move from one locale
+ * to another, only the initials change.
  */
 const WEEKDAY_VALUES = [1, 2, 3, 4, 5, 6, 0] as const;
 
@@ -104,7 +104,7 @@ function hourAndMinuteOf(simple: SimpleSchedule): { hour: number; minute: number
   return { hour: simple.hour, minute: simple.minute };
 }
 
-/** Changement de périodicité : on conserve l'heure déjà saisie. */
+/** Changing schedule: the time already entered is kept. */
 function withKind(previous: SimpleSchedule, kind: SimpleScheduleKind): SimpleSchedule {
   const { hour, minute } = hourAndMinuteOf(previous);
   switch (kind) {
@@ -121,7 +121,7 @@ function withKind(previous: SimpleSchedule, kind: SimpleScheduleKind): SimpleSch
   }
 }
 
-// ─── horloge ──────────────────────────────────────────────────────────────────
+// ─── clock ────────────────────────────────────────────────────────────────────
 
 const TICK_MS = 30_000;
 
@@ -130,7 +130,7 @@ function subscribeToTick(onChange: () => void): () => void {
   return () => clearInterval(id);
 }
 
-/** Quantifié : `getSnapshot` doit rendre la même valeur tant que rien ne bouge. */
+/** Quantized: `getSnapshot` must return the same value as long as nothing moves. */
 function browserNow(): number {
   return Math.floor(Date.now() / TICK_MS) * TICK_MS;
 }
@@ -140,23 +140,23 @@ function noNow(): null {
 }
 
 /**
- * `null` côté serveur, et au premier rendu client.
+ * `null` on the server side, and at the first client render.
  *
- * L'aperçu dépend de l'heure courante : le rendre pendant le SSR produirait un
- * texte que l'hydratation contredirait aussitôt. `useSyncExternalStore` donne
- * exactement ce contrat, sans `setState` dans un effet.
+ * The preview depends on the current time: rendering it during SSR would produce
+ * a text the hydration would contradict right away. `useSyncExternalStore` gives
+ * exactly this contract, without `setState` in an effect.
  */
 function useNow(): number | null {
   return useSyncExternalStore(subscribeToTick, browserNow, noNow);
 }
 
-// ─── aperçu ───────────────────────────────────────────────────────────────────
+// ─── preview ──────────────────────────────────────────────────────────────────
 
 /**
- * Une occurrence à venir, dans un fuseau **explicite** — celui de la tâche, ou
- * celui du lecteur — et dans la locale de l'instance. Le fuseau est le sujet de
- * cet aperçu, il est donc toujours dit ; la locale, elle, était court-circuitée
- * et servait `en-GB` à une instance `en-US`.
+ * An upcoming occurrence, in an **explicit** time zone — the task's, or the
+ * reader's — and in the instance's locale. The time zone is the subject of this
+ * preview, so it is always spelled out; the locale, for its part, was
+ * short-circuited and served `en-GB` to an `en-US` instance.
  */
 function formatIn(date: Date, timeZone: string, format: FormatSettings): string {
   return formatDateTimeWith(date, format, { dateStyle: 'short', timeStyle: 'short', timeZone });
@@ -190,8 +190,8 @@ function SchedulePreview({
     );
   }
 
-  // Lu seulement une fois l'horloge disponible : côté serveur, le fuseau du
-  // rendu n'est celui de personne.
+  // Only read once the clock is available: on the server side, the rendering's
+  // time zone is nobody's.
   const viewerZone = now === null ? null : browserTimeZone();
   const differentZone = viewerZone !== null && viewerZone !== timeZone;
 
@@ -233,7 +233,7 @@ function SchedulePreview({
   );
 }
 
-// ─── champ ────────────────────────────────────────────────────────────────────
+// ─── field ────────────────────────────────────────────────────────────────────
 
 export function ScheduleField({
   idPrefix,
@@ -243,16 +243,16 @@ export function ScheduleField({
   format,
   disabled = false,
 }: {
-  /** Préfixe d'identifiant : le champ apparaît deux fois sur la même page. */
+  /** Identifier prefix: the field appears twice on the same page. */
   idPrefix: string;
   value: ScheduleDraft;
   onChange: (next: ScheduleDraft) => void;
-  /** Locale et fuseau de l'instance, pour l'aperçu des prochaines occurrences. */
+  /** The instance's locale and time zone, for the preview of the next occurrences. */
   format: FormatSettings;
   /**
-   * Fuseaux proposés, énumérés **côté serveur** : c'est l'ICU du process qui
-   * validera la saisie, proposer ceux du navigateur mènerait à des choix
-   * refusés à l'enregistrement.
+   * Offered time zones, listed **on the server side**: it is the process's ICU that
+   * will validate the input, offering the browser's would lead to choices refused
+   * at save time.
    */
   timeZones: readonly string[];
   disabled?: boolean;
@@ -268,13 +268,13 @@ export function ScheduleField({
   const setMode = (mode: 'simple' | 'expert'): void => {
     if (mode === value.mode) return;
     if (mode === 'expert') {
-      // On emporte la cadence en cours plutôt que de repartir d'un champ vide.
+      // We take the current cadence along rather than start again from an empty field.
       onChange({ ...value, mode, cron: toCron(value.simple) });
       return;
     }
-    // Si l'expression tapée a un équivalent simple, on l'adopte ; sinon on
-    // garde la dernière périodicité simple choisie, et le cron est écrasé —
-    // c'est ce que la mention sous le champ annonce.
+    // If the typed expression has a simple equivalent, we adopt it; otherwise we keep
+    // the last simple schedule chosen, and the cron is overwritten — that is what the
+    // notice under the field announces.
     const parsed = fromCron(value.cron.trim());
     onChange({ ...value, mode, simple: parsed ?? value.simple });
   };
@@ -393,7 +393,7 @@ export function ScheduleField({
                     short={weekdayShort(day, t)}
                     long={weekdayLong(day, t)}
                     checked={simple.weekdays.includes(day)}
-                    // Un dernier jour décoché donnerait une semaine sans occurrence.
+                    // Unchecking the last day would give a week without an occurrence.
                     disabled={
                       disabled || (simple.weekdays.length === 1 && simple.weekdays[0] === day)
                     }
@@ -463,8 +463,8 @@ export function ScheduleField({
           disabled={disabled}
           onChange={(event) => onChange({ ...value, timeZone: event.target.value })}
         >
-          {/* Le fuseau enregistré peut avoir disparu de l'ICU courant : on le
-              garde en tête de liste plutôt que de le remplacer en silence. */}
+          {/* The saved time zone may have disappeared from the current ICU: we keep
+              it at the top of the list rather than replace it silently. */}
           {timeZones.includes(timeZone) ? null : (
             <option value={timeZone}>{t('field.timeZone.unknown', { zone: timeZone })}</option>
           )}
@@ -485,8 +485,8 @@ export function ScheduleField({
 }
 
 /**
- * Un jour de la semaine, en pastille ronde : pleine quand il est retenu. Une
- * vraie case à cocher dessous, pour le clavier et les lecteurs d'écran.
+ * A day of the week, as a round chip: filled when it is selected. A real checkbox
+ * underneath, for the keyboard and screen readers.
  */
 function DayToggle({
   short,
@@ -522,8 +522,8 @@ function DayToggle({
 }
 
 /**
- * Une cadence dont l'heure est fixée dépend du fuseau ; un intervalle en
- * minutes, non — le dire évite de laisser croire à un réglage sans effet.
+ * A cadence whose time is fixed depends on the time zone; an interval in minutes
+ * does not — saying so avoids suggesting a setting without effect.
  */
 function dependsOnTimeZone(draft: ScheduleDraft): boolean {
   const simple = fromCron(draftCron(draft));
@@ -531,12 +531,12 @@ function dependsOnTimeZone(draft: ScheduleDraft): boolean {
   return simple.kind !== 'interval' && simple.kind !== 'hourly';
 }
 
-/** L'initiale d'un jour, telle que la case à cocher l'affiche. */
+/** A day's initial, as the checkbox shows it. */
 function weekdayShort(day: WeekdayValue, t: Messages): string {
   return t(`weekday.${day}.short`);
 }
 
-/** Son nom entier, pour le lecteur d'écran et l'infobulle. */
+/** Its full name, for the screen reader and the tooltip. */
 function weekdayLong(day: WeekdayValue, t: Messages): string {
   return t(`weekday.${day}.long`);
 }

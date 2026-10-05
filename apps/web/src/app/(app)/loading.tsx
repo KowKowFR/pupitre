@@ -5,13 +5,13 @@ import { useT } from '@/i18n/client';
 import { chrome } from '@/i18n/messages/chrome';
 
 /**
- * Attente d'un écran du panel : la silhouette de la plupart des pages — un
- * en-tête avec ses actions, une bande de relevés, une liste. Elle tient la
- * place de ce qui arrive, pour que l'écran ne se réorganise pas sous les yeux.
+ * Waiting for a panel screen: the silhouette of most pages — a header with its
+ * actions, a readings band, a list. It holds the place of what is coming, so that
+ * the screen does not rearrange itself before one's eyes.
  *
- * Composant client pour son seul `aria-label` : un `loading.tsx` est le
- * fallback d'un `Suspense`, et un fallback ne peut pas suspendre — il ne peut
- * donc pas être `async`, donc pas appeler `getT()`.
+ * A client component for its `aria-label` alone: a `loading.tsx` is a
+ * `Suspense`'s fallback, and a fallback cannot suspend — so it cannot be `async`,
+ * so it cannot call `getT()`.
  */
 export default function AppLoading() {
   const t = useT(chrome);

@@ -10,12 +10,12 @@ import { MonitorsPanel, type MonitorRow, type TypeOption } from './monitors-pane
 export const dynamic = 'force-dynamic';
 
 /**
- * Supervision de sites.
+ * Site monitoring.
  *
- * La distinction avec l'écran `/apps` est le cœur du sujet et mérite d'être dite
- * dans l'en-tête : `/apps` montre ce que la machine cible rapporte d'elle-même,
- * par SSH ; ici, la sonde part du worker vers l'adresse publique. Un pare-feu
- * refermé, un proxy cassé ou un certificat expiré n'apparaissent que là.
+ * The distinction with the `/apps` screen is the heart of the matter and deserves
+ * to be said in the header: `/apps` shows what the target machine reports about
+ * itself, over SSH; here, the probe goes from the worker to the public address. A
+ * closed firewall, a broken proxy or an expired certificate only show up here.
  */
 export default async function MonitorsPage({
   searchParams,
@@ -61,7 +61,7 @@ export default async function MonitorsPage({
   const types = (await monitorTypeOptions(MONITOR_TYPES_LIST)) as TypeOption[];
   const format = formatSettingsOf(settings);
 
-  // La fiche ouverte (`?monitor=<id>`) : sa courbe, ses incidents, sa capture.
+  // The open record (`?monitor=<id>`): its curve, its incidents, its capture.
   const wanted = (await searchParams).monitor;
   const selected = typeof wanted === 'string' ? rows.find((row) => row.id === wanted) : undefined;
   const record = selected ? await monitorRecord(selected, auth, format) : null;

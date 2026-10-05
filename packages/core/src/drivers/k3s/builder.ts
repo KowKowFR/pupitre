@@ -2,106 +2,105 @@ import { stringify } from 'yaml';
 import { MANAGED_BY } from './render.js';
 
 /**
- * Le constructeur d'images du runtime K3s.
+ * The K3s runtime's image builder.
  *
- * ── Le problème ──────────────────────────────────────────────────────────────
+ * ── The problem ──────────────────────────────────────────────────────────────
  *
- * CLAUDE.md a tranché : « build des images sur la machine cible, pas de
- * registry ». Sur une cible Docker, le démon sait construire *et* stocker, et
- * le tour est joué. Sur un nœud K3s il n'y a pas de démon Docker : containerd
- * sait exécuter une image et `k3s ctr` sait en importer une, mais **personne ne
- * sait en construire une**. Il manquait donc la moitié du geste.
+ * CLAUDE.md decided: "images built on the target machine, no registry". On a
+ * Docker target, the daemon can build *and* store, and that is it. On a K3s node
+ * there is no Docker daemon: containerd can run an image and `k3s ctr` can
+ * import one, but **nobody can build one**. Half of the gesture was therefore
+ * missing.
  *
- * ── Ce qu'on apporte, et pourquoi celui-là ───────────────────────────────────
+ * ── What we bring, and why that one ──────────────────────────────────────────
  *
- * BuildKit, déployé **dans le cluster** par le driver lui-même. Trois raisons
- * de le préférer aux autres candidats :
+ * BuildKit, deployed **in the cluster** by the driver itself. Three reasons to
+ * prefer it to the other candidates:
  *
- * - **kaniko** ne sait pas écrire dans le containerd du nœud : il pousse vers
- *   un registry, ou il écrit un tar. Sans registry, on retombe sur le tar — et
- *   kaniko n'est plus maintenu depuis 2024. Aucun gain sur BuildKit.
- * - **`nerdctl build`** suppose nerdctl *et* buildkitd installés sur le nœud.
- *   Le panel ne provisionne pas ses cibles ; il n'a aucun moyen de les y poser.
- * - **BuildKit en pod** ne suppose rien du nœud sinon un cluster qui accepte un
- *   pod privilégié. Le cluster tire l'image du constructeur lui-même. C'est le
- *   seul candidat qui n'exige aucune installation préalable.
+ * - **kaniko** cannot write into the node's containerd: it pushes to a registry,
+ *   or writes a tar. Without a registry, we fall back on the tar — and kaniko is
+ *   no longer maintained since 2024. No gain over BuildKit.
+ * - **`nerdctl build`** assumes nerdctl *and* buildkitd installed on the node.
+ *   The panel does not provision its targets; it has no way to put them there.
+ * - **BuildKit in a pod** assumes nothing about the node except a cluster that
+ *   accepts a privileged pod. The cluster pulls the builder's image itself. It is
+ *   the only candidate that requires no prior installation.
  *
- * ── Worker OCI, et non worker containerd ─────────────────────────────────────
+ * ── OCI worker, and not containerd worker ────────────────────────────────────
  *
- * BuildKit sait parler directement au containerd du nœud
- * (`--containerd-worker`) : l'image construite atterrirait alors *toute seule*
- * dans l'espace `k8s.io`, sans tar intermédiaire. C'est la solution élégante,
- * et elle a été essayée en premier. Elle échoue, et pas pour une broutille :
+ * BuildKit can talk directly to the node's containerd (`--containerd-worker`):
+ * the built image would then land *by itself* in the `k8s.io` namespace,
+ * without an intermediate tar. It is the elegant solution, and it was tried
+ * first. It fails, and not for a trifle:
  *
- *   1. les étapes `RUN` sont exécutées par le shim de containerd, qui tourne
- *      **sur l'hôte**. Les montages que buildkitd prépare dans le pod ne lui
- *      sont pas visibles : « failed to mount rootfs component » ;
- *   2. les rendre visibles exige `mountPropagation: Bidirectional` sur
- *      `/var/lib/buildkit`, ce que kubelet refuse si la racine du nœud n'est
- *      pas un montage partagé. Mesuré sur la cible de test :
- *      « path "/var/lib/buildkit" is mounted on "/" but it is not a shared
- *      mount ».
+ *   1. `RUN` steps are run by containerd's shim, which runs **on the host**. The
+ *      mounts buildkitd prepares in the pod are not visible to it: "failed to
+ *      mount rootfs component";
+ *   2. making them visible requires `mountPropagation: Bidirectional` on
+ *      `/var/lib/buildkit`, which the kubelet refuses if the node's root is not a
+ *      shared mount. Measured on the test target: "path "/var/lib/buildkit" is
+ *      mounted on "/" but it is not a shared mount".
  *
- * Un nœud Linux sous systemd a bien `/` en `shared` — mais pas un nœud en
- * conteneur, et on n'a aucun moyen de le savoir avant d'essayer. Le worker OCI
- * exécute `runc` **à l'intérieur du pod** : rien à propager, rien à supposer de
- * la topologie de montage du nœud, et aucun chemin de données containerd à
- * deviner. On paie ce choix d'un aller-retour par un tar OCI, que
- * `k3s ctr images import` reprend ensuite — exactement le geste que le driver
- * faisait déjà après `docker save`.
+ * A Linux node under systemd does have `/` as `shared` — but not a node in a
+ * container, and we have no way to know before trying. The OCI worker runs
+ * `runc` **inside the pod**: nothing to propagate, nothing to assume about the
+ * node's mount topology, and no containerd data path to guess. We pay for this
+ * choice with a round trip through an OCI tar, which `k3s ctr images import`
+ * then takes over — exactly the gesture the driver already made after
+ * `docker save`.
  *
- * ── Le tar ne transite pas par le réseau ─────────────────────────────────────
+ * ── The tar does not travel over the network ─────────────────────────────────
  *
- * `kubectl exec ... -- cat` le lit depuis le pod et le tube l'envoie directement
- * dans `k3s ctr images import`, sur la même machine. Rien n'est poussé nulle
- * part : la décision « pas de registry » tient.
+ * `kubectl exec ... -- cat` reads it from the pod and the pipe sends it directly
+ * into `k3s ctr images import`, on the same machine. Nothing is pushed anywhere:
+ * the "no registry" decision holds.
  */
 
 /**
- * Un namespace à part, et non `kube-system`.
+ * A separate namespace, and not `kube-system`.
  *
- * Le constructeur n'appartient à aucune application — il sert toutes les
- * cibles d'un même cluster — mais il n'appartient pas non plus au cluster :
- * c'est le panel qui l'a posé, et `SYSTEM_NAMESPACES` protège précisément
- * `kube-system` de ce que le panel y ferait.
+ * The builder belongs to no application — it serves every target of a cluster —
+ * but it does not belong to the cluster either: it is the panel that set it up,
+ * and `SYSTEM_NAMESPACES` protects precisely `kube-system` from what the panel
+ * would do there.
  */
 export const BUILDER_NAMESPACE = `${MANAGED_BY}-build`;
 
 export const BUILDER_DEPLOYMENT = 'buildkitd';
 
 /**
- * La date du dernier build servi, sur les métadonnées du Deployment. C'est elle
- * que l'expiration lit (`K3sDriver.pruneIdleBuilder`).
+ * The date of the last build served, on the Deployment's metadata. It is what
+ * expiry reads (`K3sDriver.pruneIdleBuilder`).
  */
 export const BUILDER_LAST_BUILD_ANNOTATION = 'pupitre.io/last-build';
 
 /**
- * Au-delà de 24 heures sans build, le constructeur est retiré : son cache ne
- * vaut plus le pod privilégié qui l'abrite. Le build suivant le repose — une
- * minute de plus, et les images de base à retélécharger.
+ * Beyond 24 hours without a build, the builder is removed: its cache is no
+ * longer worth the privileged pod that hosts it. The next build sets it up again
+ * — one more minute, and the base images to download again.
  */
 export const BUILDER_IDLE_TTL_MS = 24 * 60 * 60 * 1000;
 
 /**
- * Version épinglée, jamais `latest` : le constructeur fait partie de la chaîne
- * de fabrication des images déployées. Une image qui change sous nos pieds
- * changerait le résultat d'un déploiement sans qu'aucune AppSpec ait bougé.
+ * A pinned version, never `latest`: the builder is part of the chain that makes
+ * the deployed images. An image changing underfoot would change a deployment's
+ * result without any AppSpec having moved.
  */
 export const BUILDKIT_IMAGE = 'moby/buildkit:v0.28.1';
 
-/** Volume de travail du pod : contexte reçu et tar produit. */
+/** The pod's working volume: context received and tar produced. */
 const WORK_DIR = '/work';
 const CONTEXT_DIR = `${WORK_DIR}/context`;
 const IMAGE_TAR = `${WORK_DIR}/image.tar`;
 
-/** Délimiteur du heredoc qui porte les manifests. Quoté : aucune expansion. */
+/** Delimiter of the heredoc carrying the manifests. Quoted: no expansion. */
 const HEREDOC = 'PUPITRE_BUILDER_MANIFEST';
 
 /**
- * Échappement POSIX en quotes simples.
+ * POSIX escaping in single quotes.
  *
- * Dupliqué depuis `driver.ts` pour la raison qui y est déjà écrite : un module
- * qui fabrique des commandes ne doit pas dépendre du module qui les exécute.
+ * Duplicated from `driver.ts` for the reason already written there: a module
+ * that builds commands must not depend on the module that runs them.
  */
 function quote(value: string): string {
   return `'${value.replaceAll("'", `'\\''`)}'`;
@@ -119,14 +118,13 @@ export function builderNamespaceManifest(): string {
 }
 
 /**
- * Le `spec` du pod constructeur, seul et complet.
+ * The builder pod's `spec`, alone and complete.
  *
- * Isolé parce que le preflight en a besoin **hors** de son Deployment : le
- * contrôle d'admission PodSecurity valide des Pods, pas des contrôleurs. Un
- * `--dry-run=server` sur le Deployment sort en code 0 avec un simple
- * avertissement sur stderr, même sous `enforce=restricted` — mesuré. Le même
- * `spec` soumis en Pod est refusé net, code 1. C'est donc celui-là qu'on
- * soumet.
+ * Isolated because the preflight needs it **outside** its Deployment: the
+ * PodSecurity admission control validates Pods, not controllers. A
+ * `--dry-run=server` on the Deployment exits with code 0 and a mere warning on
+ * stderr, even under `enforce=restricted` — measured. The same `spec` submitted
+ * as a Pod is flatly refused, code 1. That is therefore the one submitted.
  */
 function builderPodSpec(): Record<string, unknown> {
   return {
@@ -135,24 +133,23 @@ function builderPodSpec(): Record<string, unknown> {
         name: BUILDER_DEPLOYMENT,
         image: BUILDKIT_IMAGE,
         args: [
-          // Worker OCI : `runc` tourne dans ce pod. Voir l'en-tête du
-          // module pour ce que le worker containerd aurait exigé du nœud.
+          // OCI worker: `runc` runs in this pod. See the module header for what the
+          // containerd worker would have required of the node.
           '--oci-worker=true',
           '--containerd-worker=false',
           '--addr=unix:///run/buildkit/buildkitd.sock',
         ],
-        // BuildKit crée des namespaces et monte des overlays : sans
-        // privilège, aucune étape `RUN` ne démarre. C'est le prix du
-        // constructeur, et c'est ce que le preflight vérifie que
-        // l'admission du cluster accepte.
+        // BuildKit creates namespaces and mounts overlays: without privilege, no `RUN`
+        // step starts. It is the builder's price, and it is what the preflight checks
+        // the cluster's admission accepts.
         securityContext: { privileged: true },
         volumeMounts: [
           { name: 'buildkit', mountPath: '/var/lib/buildkit' },
           { name: 'work', mountPath: WORK_DIR },
         ],
-        // Le seul état qui fasse foi : buildctl répond, donc le worker est
-        // enregistré. Un pod « Running » dont le daemon n'a pas fini de
-        // s'enregistrer ferait échouer le premier build.
+        // The only state that is authoritative: buildctl answers, so the worker is
+        // registered. A "Running" pod whose daemon has not finished registering would
+        // fail the first build.
         readinessProbe: {
           exec: { command: ['buildctl', 'debug', 'workers'] },
           initialDelaySeconds: 2,
@@ -165,11 +162,10 @@ function builderPodSpec(): Record<string, unknown> {
       },
     ],
     volumes: [
-      // `emptyDir` et non PVC : le cache de couches vit aussi longtemps que le
-      // pod, ce qui suffit à enchaîner les services d'une même AppSpec sans
-      // retélécharger chaque image de base. Un PVC ferait survivre le cache aux
-      // redémarrages, au prix d'un volume que personne ne réclamerait jamais —
-      // arbitrage assumé.
+      // `emptyDir` and not a PVC: the layer cache lives as long as the pod, which is
+      // enough to chain the services of one AppSpec without downloading each base
+      // image again. A PVC would make the cache survive restarts, at the price of a
+      // volume nobody would ever claim — an accepted trade-off.
       { name: 'buildkit', emptyDir: {} },
       { name: 'work', emptyDir: {} },
     ],
@@ -177,10 +173,10 @@ function builderPodSpec(): Record<string, unknown> {
 }
 
 /**
- * Le Pod que le preflight soumet à l'admission, et qu'il ne crée jamais.
+ * The Pod the preflight submits to admission, and never creates.
  *
- * Même `spec` que le constructeur réel, à la lettre : un contrôle qui
- * porterait sur autre chose ne prouverait rien.
+ * The same `spec` as the real builder, to the letter: a check on something else
+ * would prove nothing.
  */
 export function builderAdmissionProbeManifest(): string {
   return stringify({
@@ -195,14 +191,13 @@ export function builderAdmissionProbeManifest(): string {
 }
 
 /**
- * Le Deployment du constructeur, daté du build qui le pose ou le retrouve.
+ * The builder's Deployment, stamped with the build that sets it up or finds it.
  *
- * La date est dans le manifeste appliqué, et non posée après coup par un
- * `kubectl annotate` : l'usage et l'existence sont alors **une seule
- * écriture**. L'expiration supprime sous condition de la version qu'elle a
- * lue ; un build qui le réclame entre-temps change cette version, et la
- * suppression est refusée. Sur les métadonnées du Deployment, pas sur le
- * gabarit du pod : la changer ne redémarre rien.
+ * The date is in the applied manifest, and not set afterwards by a
+ * `kubectl annotate`: use and existence are then **a single write**. Expiry
+ * deletes conditionally on the version it read; a build that claims it in the
+ * meantime changes that version, and the deletion is refused. On the
+ * Deployment's metadata, not on the pod template: changing it restarts nothing.
  */
 export function builderDeploymentManifest(lastBuild: Date): string {
   return stringify({
@@ -212,12 +207,12 @@ export function builderDeploymentManifest(lastBuild: Date): string {
       name: BUILDER_DEPLOYMENT,
       namespace: BUILDER_NAMESPACE,
       annotations: { [BUILDER_LAST_BUILD_ANNOTATION]: lastBuild.toISOString() },
-      // Volontairement **sans** `app.kubernetes.io/managed-by` : ce label rend
-      // une charge « gérée par le panel » aux yeux de l'écran des charges, qui
-      // refuse alors de la supprimer en renvoyant vers la destruction du
-      // déploiement correspondant — or il n'y en a aucun. Le constructeur doit
-      // au contraire rester supprimable à la main : le prochain build le
-      // repose. Le nom du namespace dit déjà d'où il vient.
+      // Deliberately **without** `app.kubernetes.io/managed-by`: that label makes a
+      // workload "managed by the panel" in the workloads screen's eyes, which then
+      // refuses to delete it and points to destroying the matching deployment — but
+      // there is none. The builder must on the contrary stay deletable by hand: the
+      // next build sets it up again. The namespace's name already says where it comes
+      // from.
       labels: {
         'app.kubernetes.io/name': BUILDER_DEPLOYMENT,
         'app.kubernetes.io/component': 'image-builder',
@@ -225,9 +220,9 @@ export function builderDeploymentManifest(lastBuild: Date): string {
     },
     spec: {
       replicas: 1,
-      // `Recreate` et non `RollingUpdate` : deux buildkitd se disputeraient le
-      // verrou de `--root`, et le nouveau planterait sur « could not lock
-      // buildkitd.lock ». Mesuré, pas supposé.
+      // `Recreate` and not `RollingUpdate`: two buildkitd would fight over the
+      // `--root` lock, and the new one would crash on "could not lock buildkitd.lock".
+      // Measured, not assumed.
       strategy: { type: 'Recreate' },
       selector: { matchLabels: { 'app.kubernetes.io/name': BUILDER_DEPLOYMENT } },
       template: {
@@ -238,7 +233,7 @@ export function builderDeploymentManifest(lastBuild: Date): string {
   });
 }
 
-/** `kubectl apply` alimenté par un heredoc : rien à déposer sur la cible. */
+/** `kubectl apply` fed by a heredoc: nothing to place on the target. */
 export function applyManifestCommand(manifest: string, dryRun = false): string {
   return [
     `kubectl apply ${dryRun ? '--dry-run=server ' : ''}-f - <<'${HEREDOC}'`,
@@ -255,14 +250,13 @@ export function rolloutStatusCommand(timeout: string): string {
 }
 
 /**
- * Le contexte de build voyage par l'entrée standard de `kubectl exec`.
+ * The build context travels through `kubectl exec`'s stdin.
  *
- * Il est déjà sur le nœud — `upload()` l'y a déposé — mais dans le système de
- * fichiers du **nœud**, pas dans celui du pod. Un `hostPath` le rendrait
- * visible sans copie ; on ne le fait pas, parce qu'un `hostPath` sur la racine
- * de déploiement donnerait au constructeur la lecture de toutes les releases de
- * toutes les applications, secrets rendus compris. Un tar dans un tube ne
- * transmet que le contexte du service qu'on construit.
+ * It is already on the node — `upload()` placed it there — but in the **node's**
+ * file system, not the pod's. A `hostPath` would make it visible without a copy;
+ * we do not do it, because a `hostPath` on the deployment root would give the
+ * builder read access to every release of every application, rendered secrets
+ * included. A tar in a pipe only carries the context of the service being built.
  */
 export function pushContextCommand(hostContextDir: string): string {
   const unpack = `rm -rf ${CONTEXT_DIR} && mkdir -p ${CONTEXT_DIR} && tar -xf - -C ${CONTEXT_DIR}`;
@@ -273,9 +267,9 @@ export function pushContextCommand(hostContextDir: string): string {
 }
 
 /**
- * `--output type=oci` plutôt que `type=image` : le worker OCI n'a pas de
- * magasin d'images où enregistrer le résultat. Le nom voyage dans l'index du
- * tar, et c'est lui que `ctr images import` reprendra.
+ * `--output type=oci` rather than `type=image`: the OCI worker has no image
+ * store to save the result in. The name travels in the tar's index, and it is
+ * what `ctr images import` will take over.
  */
 export function buildCommand(tag: string, dockerfile: string): string {
   return (
@@ -288,12 +282,12 @@ export function buildCommand(tag: string, dockerfile: string): string {
 }
 
 /**
- * Le tar sort du pod et entre dans containerd sans toucher le disque du nœud.
+ * The tar leaves the pod and enters containerd without touching the node's disk.
  *
- * `-n k8s.io` est explicite alors que `k3s ctr` l'a déjà par défaut : c'est
- * **le** point du problème. Une image importée dans un autre espace de noms est
- * invisible du kubelet, et le pod resterait en `ImagePullBackOff` en cherchant
- * sur docker.io une image qui est déjà sur la machine.
+ * `-n k8s.io` is explicit even though `k3s ctr` already has it by default: it is
+ * **the** point of the problem. An image imported into another namespace is
+ * invisible to the kubelet, and the pod would stay in `ImagePullBackOff` looking
+ * on docker.io for an image that is already on the machine.
  */
 export function importCommand(): string {
   return (
@@ -302,29 +296,29 @@ export function importCommand(): string {
   );
 }
 
-/** L'espace de noms containerd du kubelet : celui où les images doivent être. */
+/** The kubelet's containerd namespace: where the images must be. */
 export const K3S_IMAGE_NAMESPACE = 'k8s.io';
 
 /**
- * Le containerd embarqué de k3s. Ce n'est **pas** `/run/containerd/containerd.sock`,
- * où les outils le cherchent par défaut — d'où des scanners qui ne trouvaient
- * aucune image construite. Réservé à root.
+ * k3s's embedded containerd. It is **not** `/run/containerd/containerd.sock`,
+ * where tools look for it by default — hence scanners that found no built
+ * image. Reserved to root.
  */
 export const K3S_CONTAINERD_ADDRESS = '/run/k3s/containerd/containerd.sock';
 
 // ─── expiration ──────────────────────────────────────────────────────────────
 
-/** Ce que l'expiration lit du constructeur : de quoi dater son dernier usage, et le supprimer sous condition. */
+/** What expiry reads from the builder: enough to date its last use, and delete it conditionally. */
 export type BuilderState = {
-  /** Le dernier build, ou la création d'un constructeur posé avant que les builds ne se datent. */
+  /** The last build, or the creation of a builder set up before builds were stamped. */
   lastUsedAt: Date;
-  /** La version de l'objet lue : la suppression n'aboutit que si elle n'a pas bougé. */
+  /** The object's version read: the deletion only succeeds if it has not moved. */
   resourceVersion: string;
 };
 
 /**
- * Une ligne `date du dernier build|création|version` — vide si le
- * constructeur n'existe pas, namespace compris (`--ignore-not-found`).
+ * A `last build date|creation|version` line — empty if the builder does not
+ * exist, namespace included (`--ignore-not-found`).
  */
 export function builderStateCommand(): string {
   const annotation = BUILDER_LAST_BUILD_ANNOTATION.replaceAll('.', '\\.');
@@ -334,7 +328,7 @@ export function builderStateCommand(): string {
   );
 }
 
-/** `null` : pas de constructeur. Une date illisible vaut sa création, puis l'absence. */
+/** `null`: no builder. An unreadable date counts as its creation, then as absence. */
 export function parseBuilderState(stdout: string): BuilderState | null {
   const [annotated = '', created = '', resourceVersion = ''] = stdout.trim().split('|');
   if (!resourceVersion.trim()) return null;
@@ -347,10 +341,10 @@ export function parseBuilderState(stdout: string): BuilderState | null {
 }
 
 /**
- * Supprime le Deployment du constructeur — ses pods avec lui, son cache aussi —
- * à condition qu'il soit encore dans la version lue. Sinon l'API répond
- * `Conflict` : un build vient de le réclamer, il reste. Le namespace, vide,
- * reste aussi : le recréer à chaque build ferait attendre sa fin de vie.
+ * Deletes the builder's Deployment — its pods with it, its cache too — provided
+ * it is still at the version read. Otherwise the API answers `Conflict`: a build
+ * just claimed it, it stays. The empty namespace stays too: recreating it at
+ * each build would mean waiting for its end of life.
  */
 export function deleteIdleBuilderCommand(resourceVersion: string): string {
   const body = JSON.stringify({
@@ -366,7 +360,7 @@ export function deleteIdleBuilderCommand(resourceVersion: string): string {
   ].join('\n');
 }
 
-/** Le tar pèse le poids de l'image : on ne le laisse pas dans le pod. */
+/** The tar weighs as much as the image: we do not leave it in the pod. */
 export function discardTarCommand(): string {
   return (
     `kubectl -n ${BUILDER_NAMESPACE} exec deploy/${BUILDER_DEPLOYMENT} -- ` +

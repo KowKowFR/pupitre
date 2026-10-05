@@ -25,9 +25,9 @@ import {
 } from '../src/notifications/types.js';
 
 /**
- * Tout est vérifié **sans réseau** : les transports sont injectés. C'est la
- * raison d'être de `NotificationTransports` — un canal ne doit pas exiger un
- * serveur SMTP, un jeton Telegram et un salon Discord pour être testable.
+ * Everything is checked **without network**: the transports are injected. It is
+ * the reason for being of `NotificationTransports` — a channel must not require
+ * an SMTP server, a Telegram token and a Discord channel to be testable.
  */
 
 type Call = { url: string; init: RequestInit };
@@ -75,7 +75,8 @@ function body(call: Call): Record<string, unknown> {
 }
 
 const CTX = {
-  // La langue est un réglage d'instance : le worker la résout et la descend ici.
+  // The language is an instance setting: the worker resolves it and passes it
+  // down here.
   language: 'fr' as const,
   instance: 'Panel de recette',
   panelUrl: 'https://panel.example.test',
@@ -95,8 +96,8 @@ function entry(overrides: Partial<NotifiableAuditEntry>): NotifiableAuditEntry {
   };
 }
 
-describe('notifications — la table des événements', () => {
-  it('reconnaît les cinq événements retenus', () => {
+describe('notifications — the events table', () => {
+  it('recognizes the five chosen events', () => {
     assert.equal(notifiableEventFor(entry({ after: { error: 'boum' } })), 'deployment.failed');
     assert.equal(
       notifiableEventFor(entry({ after: { failedStep: 'scan', error: 'CVE' } })),
@@ -116,22 +117,22 @@ describe('notifications — la table des événements', () => {
     );
   });
 
-  it('ignore tout le reste — c’est ce qui tient le volume', () => {
+  it('ignores everything else — that is what holds the volume', () => {
     for (const action of [
       'deployment.created',
       'permission.denied',
       'auth.logout',
       'settings.updated',
       'target.preflight.completed',
-      // Anti-boucle : prévenir qu'on n'a pas su prévenir relancerait la
-      // distribution sur elle-même.
+      // Anti-loop: warning that we could not warn would restart the delivery on
+      // itself.
       'notification.delivery.failed',
     ]) {
       assert.equal(notifiableEventFor(entry({ action })), null, action);
     }
   });
 
-  it('une inscription publique prévient, un compte créé par un administrateur non', () => {
+  it('a public sign-up warns, an account created by an administrator does not', () => {
     const signup = entry({
       action: 'user.created',
       resourceType: 'user',
@@ -155,7 +156,7 @@ describe('notifications — la table des événements', () => {
     assert.equal(message.url, 'https://panel.example.test/admin/users');
   });
 
-  it('un compte né d’une connexion unique le dit, et nomme le fournisseur', () => {
+  it('an account born from single sign-on says so, and names the provider', () => {
     const created = entry({
       action: 'user.created',
       resourceType: 'user',
@@ -176,7 +177,7 @@ describe('notifications — la table des événements', () => {
     assert.ok(!message.body.includes('inscription publique'));
   });
 
-  it('un déploiement réussi se nomme : application, version, machine, URL', () => {
+  it('a successful deployment names itself: application, version, machine, URL', () => {
     const succeeded = entry({
       action: 'deployment.succeeded',
       after: {
@@ -196,7 +197,7 @@ describe('notifications — la table des événements', () => {
     assert.ok(message.body.includes('https://api.example.test'));
   });
 
-  it('une prévision prévient une fois, en phrase, et mène au tiroir de son sujet', () => {
+  it('a forecast warns once, as a sentence, and leads to its subject’s drawer', () => {
     const raised = entry({
       action: 'forecast.raised',
       resourceType: 'forecast',
@@ -225,7 +226,7 @@ describe('notifications — la table des événements', () => {
     assert.ok(message.url?.endsWith('/monitors?monitor=m-1'));
   });
 
-  it('une machine injoignable prévient, et son retour dit la durée', () => {
+  it('an unreachable machine warns, and its return says the duration', () => {
     const down = entry({
       action: 'target.unreachable',
       resourceType: 'target',
@@ -257,7 +258,7 @@ describe('notifications — la table des événements', () => {
     assert.ok(back.body.includes('1 h 5'));
   });
 
-  it('un certificat bientôt échu prévient, son renouvellement aussi', () => {
+  it('a certificate about to expire warns, its renewal too', () => {
     const expiring = entry({
       action: 'route.certificate.expiring',
       resourceType: 'application',
@@ -296,7 +297,7 @@ describe('notifications — la table des événements', () => {
     );
   });
 
-  it('un jeton d’API créé prévient, sans jamais porter le jeton', () => {
+  it('a created API token warns, without ever carrying the token', () => {
     const created = entry({
       action: 'api_token.created',
       resourceType: 'api_token',
@@ -318,7 +319,7 @@ describe('notifications — la table des événements', () => {
     assert.ok(message.fields.some((field) => field.value === 'pup_AbCdEfGh'));
   });
 
-  it('une clé d’hôte inattendue sur une cible prévient, et nomme les deux clés', () => {
+  it('an unexpected host key on a target warns, and names both keys', () => {
     const mismatch = entry({
       action: 'target.host_key.mismatch',
       resourceType: 'target',
@@ -338,16 +339,16 @@ describe('notifications — la table des événements', () => {
       message.url,
       'https://panel.example.test/targets/22222222-2222-2222-2222-222222222222',
     );
-    // Accepter ou écarter une clé est un geste, pas une alerte.
+    // Accepting or dismissing a key is a gesture, not an alert.
     assert.equal(notifiableEventFor(entry({ action: 'target.host_key.accepted' })), null);
     assert.equal(notifiableEventFor(entry({ action: 'target.host_key.recorded' })), null);
   });
 
-  it('un rollback manuel n’est pas un rollback automatique', () => {
+  it('a manual rollback is not an automatic rollback', () => {
     assert.equal(notifiableEventFor(entry({ action: 'deployment.rolled_back' })), null);
   });
 
-  it('compose un message neutre valide, lien du panel compris', () => {
+  it('composes a valid neutral message, panel link included', () => {
     const key = notifiableEventFor(entry({ after: { failedStep: 'healthcheck', error: 'timeout' } }));
     assert.equal(key, 'deployment.failed');
 
@@ -366,11 +367,11 @@ describe('notifications — la table des événements', () => {
     );
     assert.ok(message.fields.some((field) => field.value === 'healthcheck'));
     assert.ok(message.fields.some((field) => field.value === 'admin@example.test'));
-    // Le message neutre ne porte aucun balisage : ni HTML, ni Markdown.
+    // The neutral message carries no markup: neither HTML nor Markdown.
     assert.ok(!/[<>*`]/.test(message.body));
   });
 
-  it('survit à une charge utile d’audit difforme', () => {
+  it('survives a malformed audit payload', () => {
     const message = buildNotificationMessage(
       'security.role_changed',
       entry({ action: 'user.role.changed', after: 'pas un objet', before: null }),
@@ -379,7 +380,7 @@ describe('notifications — la table des événements', () => {
     notificationMessageSchema.parse(message);
   });
 
-  it('rend un texte brut lisible', () => {
+  it('renders a readable plain text', () => {
     const text = renderPlainText(
       buildNotificationMessage('deployment.failed', entry({ after: { error: 'boum' } }), CTX),
     );
@@ -388,15 +389,15 @@ describe('notifications — la table des événements', () => {
   });
 });
 
-describe('notifications — le catalogue', () => {
-  it('refuse une configuration à laquelle il manque un champ obligatoire', () => {
+describe('notifications — the catalog', () => {
+  it('refuses a configuration missing a required field', () => {
     assert.throws(() => channelConfigSchema('smtp').parse({ from: 'a@b.test', to: 'c@d.test' }));
     assert.throws(() => channelConfigSchema('webhook').parse({}));
-    // Une URL qui n'en est pas une ne doit pas non plus passer.
-    assert.throws(() => channelConfigSchema('webhook').parse({ url: 'pas-une-url' }));
+    // A URL that is not one must not pass either.
+    assert.throws(() => channelConfigSchema('webhook').parse({ url: 'not-a-url' }));
   });
 
-  it('applique les valeurs par défaut déclarées', () => {
+  it('applies the declared default values', () => {
     const parsed = channelConfigSchema('smtp').parse({
       host: 'smtp.example.test',
       from: 'panel@example.test',
@@ -407,25 +408,25 @@ describe('notifications — le catalogue', () => {
     assert.equal(parsed.rejectUnauthorized, true);
   });
 
-  it('désigne les champs secrets, et le catalogue présenté ne porte aucun schéma', () => {
+  it('designates the secret fields, and the presented catalog carries no schema', () => {
     assert.deepEqual(channelSecretFields('telegram'), ['botToken']);
     assert.deepEqual(channelSecretFields('discord'), ['webhookUrl']);
-    // Sérialisable : une `RegExp` ou une fonction deviendrait `{}` en JSON, et
-    // l'écran afficherait un formulaire vide sans la moindre erreur.
+    // Serializable: a `RegExp` or a function would become `{}` in JSON, and the
+    // screen would show an empty form without the slightest error.
     const presented = presentNotificationChannels();
     assert.deepEqual(JSON.parse(JSON.stringify(presented)), presented);
     assert.ok(presented.every((channel) => channel.fields.every((f) => !('schema' in f))));
   });
 });
 
-describe('notifications — les canaux', () => {
+describe('notifications — the channels', () => {
   const message = buildNotificationMessage(
     'deployment.scan_blocked',
     entry({ after: { failedStep: 'scan', error: 'CVE-2026-1 (CRITICAL)' } }),
     CTX,
   );
 
-  it('webhook : POST du message neutre, versionné, avec ses en-têtes', async () => {
+  it('webhook: POST of the neutral message, versioned, with its headers', async () => {
     const { transports, calls } = fakeTransports();
     await getNotificationChannel('webhook', transports).send(
       { config: { url: 'https://hook.example.test/in' }, secrets: { token: 'jeton-tres-secret' } },
@@ -447,7 +448,7 @@ describe('notifications — les canaux', () => {
     assert.equal(payload.instance, 'Panel de recette');
   });
 
-  it('discord : un embed coloré, et une sonde qui ne dépose rien', async () => {
+  it('discord: a colored embed, and a probe that posts nothing', async () => {
     const { transports, calls } = fakeTransports(() => new Response('{"name":"ops"}', { status: 200 }));
     const url = 'https://discord.com/api/webhooks/1/abcdefghijklmnop';
 
@@ -471,7 +472,7 @@ describe('notifications — les canaux', () => {
     assert.ok(Array.isArray(embeds[0]?.fields));
   });
 
-  it('telegram : MarkdownV2 échappé, et l’appel au bon point d’entrée', async () => {
+  it('telegram: escaped MarkdownV2, and the call to the right endpoint', async () => {
     const { transports, calls } = fakeTransports();
     await getNotificationChannel('telegram', transports).send(
       {
@@ -488,20 +489,20 @@ describe('notifications — les canaux', () => {
     assert.equal(payload.chat_id, '-100123');
 
     const text = String(payload.text);
-    // Le point, le tiret et la parenthèse sont réservés : non échappés, Telegram
-    // refuse le message entier avec un « can't parse entities ».
-    assert.ok(text.includes('\\.'), 'le point doit être échappé');
+    // The period, the dash and the parenthesis are reserved: unescaped, Telegram
+    // refuses the whole message with a "can't parse entities".
+    assert.ok(text.includes('\\.'), 'the period must be escaped');
     assert.ok(text.includes('\\-') || !message.body.includes('-'));
-    // Le lien reste exploitable : seul son libellé est échappé.
+    // The link stays usable: only its label is escaped.
     assert.ok(text.includes('](https://panel.example.test/deployments/'));
   });
 
-  it('telegram : l’échappement couvre les dix-huit caractères réservés', () => {
+  it('telegram: escaping covers the eighteen reserved characters', () => {
     assert.equal(escapeMarkdownV2('a.b-c(d)!'), 'a\\.b\\-c\\(d\\)\\!');
     assert.equal(escapeMarkdownV2('100% sûr'), '100% sûr');
   });
 
-  it('smtp : texte et HTML, sujet préfixé, destinataires séparés', async () => {
+  it('smtp: text and HTML, prefixed subject, separate recipients', async () => {
     const { transports, mails } = fakeTransports();
     const resolved = {
       config: {
@@ -519,7 +520,7 @@ describe('notifications — les canaux', () => {
     const probe = await getNotificationChannel('smtp', transports).test(resolved);
     assert.equal(probe.ok, true);
     assert.equal(mails.verified, 1);
-    // SMTPS implicite : la session s'ouvre chiffrée, STARTTLS n'est pas exigé.
+    // Implicit SMTPS: the session opens encrypted, STARTTLS is not required.
     assert.equal(mails.options.secure, true);
     assert.equal(mails.options.requireTls, false);
     assert.deepEqual(mails.options.auth, { user: 'panel', pass: 'mot-de-passe-smtp' });
@@ -531,14 +532,14 @@ describe('notifications — les canaux', () => {
     assert.ok(envelope.html.includes('<html'));
     assert.ok(!envelope.text.includes('<'));
     assert.equal(envelope.headers['X-Control-Plane-Event'], 'deployment.scan_blocked');
-    // La tuile voyage avec le message : le HTML la cite par `cid:`, jamais par URL.
+    // The tile travels with the message: the HTML cites it by `cid:`, never by URL.
     const [mark] = envelope.inlineImages ?? [];
-    assert.ok(mark, 'la tuile Pupitre n’est pas jointe');
+    assert.ok(mark, 'the Pupitre tile is not attached');
     assert.ok(envelope.html.includes(`src="cid:${mark.cid}"`));
-    assert.ok(!/<img[^>]+src="https?:/.test(envelope.html), 'une image distante a été glissée');
+    assert.ok(!/<img[^>]+src="https?:/.test(envelope.html), 'a remote image slipped in');
   });
 
-  it('smtp : STARTTLS est exigé, jamais opportuniste', async () => {
+  it('smtp: STARTTLS is required, never opportunistic', async () => {
     const { transports, mails } = fakeTransports();
     await getNotificationChannel('smtp', transports).test({
       config: { host: 'smtp.example.test', port: 587, security: 'starttls', from: 'a@b.test', to: 'c@d.test' },
@@ -546,13 +547,13 @@ describe('notifications — les canaux', () => {
     });
     assert.equal(mails.options.secure, false);
     assert.equal(mails.options.requireTls, true);
-    // Aucun identifiant : pas d'authentification, plutôt qu’une authentification vide.
+    // No credentials: no authentication, rather than an empty authentication.
     assert.equal(mails.options.auth, null);
   });
 });
 
-describe('notifications — les secrets ne fuient pas par les messages d’erreur', () => {
-  it('masque la valeur exacte, le jeton Telegram et le jeton d’un webhook Discord', () => {
+describe('notifications — secrets do not leak through error messages', () => {
+  it('masks the exact value, the Telegram token and a Discord webhook’s token', () => {
     const token = '123456789:AAbbccddeeffgghhiijjkkllmmnnoopp';
     assert.ok(!redactSecrets(`échec sur ${token}`).includes(token));
     assert.equal(
@@ -563,7 +564,7 @@ describe('notifications — les secrets ne fuient pas par les messages d’erreu
     assert.ok(!redactSecrets('Authorization: Bearer abcdefghijklmnop').includes('abcdefghij'));
   });
 
-  it('déplie la cause : « fetch failed » tout seul ne rend pas l’échec visible', () => {
+  it('unfolds the cause: “fetch failed” alone does not make the failure visible', () => {
     const wrapped = new TypeError('fetch failed', {
       cause: new Error('connect ECONNREFUSED 127.0.0.1:9'),
     });
@@ -573,7 +574,7 @@ describe('notifications — les secrets ne fuient pas par les messages d’erreu
     );
   });
 
-  it('un 401 qui recopie le jeton ne le remonte pas tel quel', async () => {
+  it('a 401 that copies the token does not report it as is', async () => {
     const token = '987654321:ZZyyxxwwvvuuttssrrqqppoonnmmllkk';
     const { transports } = fakeTransports(
       () => new Response(`{"description":"Unauthorized for bot${token}"}`, { status: 401 }),
@@ -594,14 +595,14 @@ describe('notifications — les secrets ne fuient pas par les messages d’erreu
 });
 
 /**
- * La supervision de sites au catalogue.
+ * Site monitoring in the catalog.
  *
- * Ce qui est vérifié ici n'est pas « le message est joli » mais « la ligne de
- * résumé nomme l'objet ». Un résumé de douze pannes qui dit « 12 alertes » a
- * perdu l'information ; celui qui dit « site boutique — injoignable » l'a
- * gardée. C'est la seule chose que le reste de la couche ne peut pas rattraper.
+ * What is checked here is not "the message is pretty" but "the digest line
+ * names the object". A digest of twelve outages that says "12 alerts" has lost
+ * the information; the one that says "shop site — unreachable" has kept it. It
+ * is the only thing the rest of the layer cannot make up for.
  */
-describe('notifications — les sondes de supervision', () => {
+describe('notifications — the monitoring probes', () => {
   function monitorEntry(overrides: Partial<NotifiableAuditEntry> = {}): NotifiableAuditEntry {
     return {
       action: 'monitor.down',
@@ -626,7 +627,7 @@ describe('notifications — les sondes de supervision', () => {
     };
   }
 
-  it('reconnaît la panne et le rétablissement', () => {
+  it('recognizes the outage and the recovery', () => {
     assert.equal(notifiableEventFor(monitorEntry()), 'monitor.down');
     assert.equal(
       notifiableEventFor(monitorEntry({ action: 'monitor.recovered' })),
@@ -634,22 +635,22 @@ describe('notifications — les sondes de supervision', () => {
     );
   });
 
-  it('n’écoute pas les actions voisines de la supervision', () => {
-    // Une sonde créée, modifiée ou supprimée n'est pas un incident. Et une
-    // mesure isolée n'écrit aucune entrée : l'hystérésis est en amont.
+  it('does not listen to monitoring’s neighboring actions', () => {
+    // A probe created, changed or deleted is not an incident. And an isolated
+    // measurement writes no entry: the hysteresis is upstream.
     for (const action of ['monitor.created', 'monitor.updated', 'monitor.deleted']) {
       assert.equal(notifiableEventFor(monitorEntry({ action })), null, action);
     }
   });
 
-  it('la ligne de résumé nomme le site et dit la nature de la panne', () => {
+  it('the digest line names the site and says the nature of the outage', () => {
     const item = buildNotificationDigestItem('monitor.down', monitorEntry(), CTX);
     assert.equal(item.label, 'site boutique — https://boutique.example.test/');
     assert.equal(item.detail, 'injoignable — connexion refusée');
     assert.equal(item.url, 'https://panel.example.test/monitors/22222222-2222-2222-2222-222222222222');
   });
 
-  it('« répond mal » et « injoignable » ne se disent pas pareil, mais se groupent pareil', () => {
+  it('“answers badly” and “unreachable” are not said the same, but group the same', () => {
     const entry503 = monitorEntry({
       after: { ...(monitorEntry().after as object), status: 'unhealthy', detail: 'HTTP 503' },
     });
@@ -660,7 +661,7 @@ describe('notifications — les sondes de supervision', () => {
     );
   });
 
-  it('le rétablissement dit la durée de la panne, pas un compteur', () => {
+  it('the recovery says the outage’s duration, not a counter', () => {
     const recovered = monitorEntry({
       action: 'monitor.recovered',
       before: { status: 'unreachable' },
@@ -679,10 +680,10 @@ describe('notifications — les sondes de supervision', () => {
     assert.ok(message.body.includes('4 min'), message.body);
   });
 
-  it('une URL démesurée est tronquée, jamais rejetée — sinon l’alerte serait perdue', () => {
-    // `monitorUrlSchema` accepte 2 048 caractères ; `label` en plafonne 200.
-    // Un `parse()` qui lève ici ferait échouer la distribution et personne ne
-    // serait prévenu de la panne.
+  it('an oversized URL is truncated, never rejected — otherwise the alert would be lost', () => {
+    // `monitorUrlSchema` accepts 2,048 characters; `label` caps at 200. A `parse()`
+    // that throws here would fail the delivery and nobody would be warned of the
+    // outage.
     const long = monitorEntry({
       after: {
         ...(monitorEntry().after as object),
@@ -694,7 +695,7 @@ describe('notifications — les sondes de supervision', () => {
     assert.ok(item.label.endsWith('…'));
   });
 
-  it('une charge utile d’audit amputée ne fait pas échouer la composition', () => {
+  it('a truncated audit payload does not fail the composition', () => {
     const broken = monitorEntry({ before: null, after: { status: 'unreachable' } });
     const message = buildNotificationMessage('monitor.down', broken, CTX);
     assert.equal(message.severity, 'critical');
@@ -703,14 +704,14 @@ describe('notifications — les sondes de supervision', () => {
     assert.ok(item.label.length > 0);
   });
   /*
-   * Le défaut que ce bloc verrouille : l'anti-doublon de la distribution porte
-   * sur (événement, ressource) pendant cinq minutes. Pour un déploiement la
-   * ressource change à chaque fois ; pour une sonde, non — c'est la sonde. Deux
-   * pannes distinctes du même site rapprochées se confondaient donc, et la
-   * seconde alerte disparaissait sans trace. Un anti-doublon qui perd une
-   * alerte est pire que le doublon qu'il évitait.
+   * The flaw this block locks: the delivery's deduplication is keyed on (event,
+   * resource) for five minutes. For a deployment the resource changes each time;
+   * for a probe, it does not — it is the probe. Two distinct outages of the same
+   * site close together were therefore merged, and the second alert disappeared
+   * without a trace. A deduplication that loses an alert is worse than the
+   * duplicate it avoided.
    */
-  it('deux pannes distinctes du même site ne se masquent pas', () => {
+  it('two distinct outages of the same site do not hide each other', () => {
     const premiere = monitorEntry();
     const seconde = monitorEntry({
       after: {
@@ -729,8 +730,8 @@ describe('notifications — les sondes de supervision', () => {
     assert.notEqual(cle(premiere), cle(seconde));
   });
 
-  it('le même incident rejoué par BullMQ reste absorbé', () => {
-    // Un rejeu recopie la charge utile telle quelle : même incident, même clé.
+  it('the same incident replayed by BullMQ stays absorbed', () => {
+    // A replay copies the payload as is: same incident, same key.
     const entry = monitorEntry();
     const rejeu = monitorEntry();
     const cle = (e: NotifiableAuditEntry) =>
@@ -738,9 +739,9 @@ describe('notifications — les sondes de supervision', () => {
     assert.equal(cle(entry), cle(rejeu));
   });
 
-  it('un événement sans discriminant garde la clé d’origine', () => {
-    // Les cinq événements de déploiement et de sécurité n'en fournissent pas :
-    // leur ressource suffit, et leur clé ne doit pas changer de forme.
+  it('an event without a discriminant keeps the original key', () => {
+    // The five deployment and security events do not provide one: their resource
+    // is enough, and their key must not change shape.
     assert.equal(notificationDedupKey('deployment.failed', 'abc'), 'deployment.failed|abc');
     assert.equal(notificationDedupKey('deployment.failed', null), 'deployment.failed|none');
   });

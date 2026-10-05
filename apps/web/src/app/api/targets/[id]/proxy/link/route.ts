@@ -25,15 +25,15 @@ type Context = { params: Promise<{ id: string }> };
 
 const putSchema = z.object({
   proxyId: z.string().uuid(),
-  /** Comment la machine du proxy joint celle-ci — de préférence une adresse privée. */
+  /** How the proxy's machine reaches this one — preferably a private address. */
   address: z.string().trim().min(1).max(255),
 });
 
 /**
- * Relier cette machine au reverse proxy d'une autre — le proxy central. Ses
- * domaines seront posés là-bas, vers son adresse. Un test de la liaison part
- * aussitôt : il relève par quelle adresse le proxy arrive, et si l'adresse
- * donnée est bien à cette machine.
+ * Linking this machine to another's reverse proxy — the central proxy. Its
+ * domains will be set there, toward its address. A link test goes out right
+ * away: it notes which address the proxy arrives from, and whether the given
+ * address does belong to this machine.
  */
 export const PUT = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'target:update');
@@ -43,13 +43,13 @@ export const PUT = apiRoute<Context>(async (request, context) => {
   const input = await readJsonBody(request, putSchema);
 
   if (await getProxyForTarget(id)) throw new ConflictError(msg(messages, 'error.hasOwnProxy'));
-  // Le proxy d'une autre machine, ou un proxy distant (sans machine).
+  // Another machine's proxy, or a remote proxy (without a machine).
   const proxy = await getProxy(input.proxyId);
   if (!proxy) throw new NotFoundError(msg(messages, 'error.proxyNotFound'));
   if (proxy.hostTargetId === id) throw new ConflictError(msg(messages, 'error.hasOwnProxy'));
   if (proxy.status === 'installing') throw new ConflictError(msg(messages, 'error.installing'));
-  // Ce que ce proxy sait joindre hors de sa machine — le Traefik d'un cluster,
-  // par exemple, ne joint une autre machine que par une IPv4.
+  // What this proxy can reach outside its machine — a cluster's Traefik, for
+  // instance, only reaches another machine through an IPv4.
   const { remoteUpstream } = proxyCapabilities(proxy.kind, proxy.config);
   if (remoteUpstream === 'none') {
     throw new ConflictError(msg(messages, 'error.linkUnsupported'));
@@ -80,7 +80,7 @@ export const PUT = apiRoute<Context>(async (request, context) => {
   return NextResponse.json({ jobId: job.id });
 });
 
-/** Délier — refusé tant que des domaines de cette machine passent par ce proxy. */
+/** Unlinking — refused as long as domains of this machine go through this proxy. */
 export const DELETE = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'target:update');
   const { id } = paramsSchema.parse(await context.params);

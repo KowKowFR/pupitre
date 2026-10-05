@@ -19,10 +19,10 @@ export const dynamic = 'force-dynamic';
 const paramsSchema = z.object({ id: z.string().uuid() });
 type Context = { params: Promise<{ id: string }> };
 
-/** Une archive pèse : de quoi itérer vite, pas de quoi remplir la base en boucle. */
+/** An archive weighs: enough to iterate quickly, not enough to fill the database in a loop. */
 const UPLOAD_RULE: RateLimitRule = { name: 'application:archive', limit: 20, windowSec: 600 };
 
-/** Le nom voyage encodé (un en-tête n'accepte que de l'ASCII) ; brut s'il ne l'est pas. */
+/** The name travels encoded (a header only accepts ASCII); raw if it is not. */
 function headerName(raw: string | null): string | null {
   if (raw === null) return null;
   try {
@@ -32,7 +32,7 @@ function headerName(raw: string | null): string | null {
   }
 }
 
-/** Les archives d'une application, de la plus récente à la plus ancienne. Jamais leurs octets. */
+/** An application's archives, from the most recent to the oldest. Never their bytes. */
 export const GET = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'application:read', { applicationScoped: true });
   const { id } = paramsSchema.parse(await context.params);
@@ -43,13 +43,13 @@ export const GET = apiRoute<Context>(async (request, context) => {
 });
 
 /**
- * Téléverse le code de l'application : le corps de la requête **est**
- * l'archive (`.tar.gz`, `.tar` ou `.zip`, reconnue à ses octets), son nom dans
- * l'en-tête `x-archive-name` (encodé comme un composant d'URL). Rend `202` : le worker la lit ensuite, et
- * `status` passe à `ready` ou `rejected`.
+ * Uploads the application's code: the request body **is** the archive (`.tar.gz`,
+ * `.tar` or `.zip`, recognized by its bytes), its name in the `x-archive-name`
+ * header (encoded as a URL component). Returns `202`: the worker reads it next,
+ * and `status` moves to `ready` or `rejected`.
  *
- * C'est aussi la route d'une CI qui n'a pas de dépôt lié : un jeton d'API
- * limité à l'application suffit (`application:update`).
+ * It is also the route of a CI that has no linked repository: an API token
+ * limited to the application is enough (`application:update`).
  */
 export const POST = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'application:update', { applicationScoped: true });

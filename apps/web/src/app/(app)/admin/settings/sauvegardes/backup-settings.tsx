@@ -38,8 +38,8 @@ import { toast } from '@/lib/toast';
 import { ApplicationsBackups } from './applications-backups';
 
 /**
- * Paramètres → Sauvegardes, côté écran : la destination (un formulaire par
- * genre, les secrets jamais réaffichés), la base du panel, les applications.
+ * Settings → Backups, screen side: the destination (one form per kind, secrets
+ * never shown again), the panel's database, the applications.
  */
 
 type ApiError = { error?: { message?: string } };
@@ -85,13 +85,13 @@ export function BackupSettings({
   panelSchedule: BackupScheduleView;
   appsSchedule: BackupScheduleView;
   enabledApps: number;
-  /** Les applications et leur historique — `null` sans `backup:read`. */
+  /** The applications and their history — `null` without `backup:read`. */
   appsOverview: {
     applications: ApplicationBackupsView[];
     targetNames: Record<string, string>;
   } | null;
   canManage: boolean;
-  /** `backup:manage` : supprimer une sauvegarde d'application. */
+  /** `backup:manage`: delete an application's backup. */
   canManageBackups: boolean;
   /** `backup:restore`. */
   canRestore: boolean;
@@ -108,7 +108,7 @@ export function BackupSettings({
   const [error, setError] = useState<string | null>(null);
   const [removing, setRemoving] = useState(false);
   const [deleting, setDeleting] = useState<BackupView | null>(null);
-  /** Un test lancé : on relit la destination jusqu'à ce que son verdict change. */
+  /** A test started: we read the destination again until its verdict changes. */
   const [awaitingCheck, setAwaitingCheck] = useState<string | null>(null);
 
   useEffect(() => {
@@ -132,7 +132,7 @@ export function BackupSettings({
     return () => window.clearInterval(timer);
   }, [awaitingCheck]);
 
-  // Une sauvegarde du panel en cours : la page se relit jusqu'à son issue.
+  // A panel backup in progress: the page reads itself again until it ends.
   const panelRunning = panelBackups.some((backup) => backup.status === 'running');
   useEffect(() => {
     if (!panelRunning) return;
@@ -171,7 +171,7 @@ export function BackupSettings({
     setDestination(saved);
     setDraft((current) => ({ ...current, secrets: {} }));
     toast({ title: t('destination.saved'), tone: 'ok' });
-    // La route a déjà enfilé un test : on en attend le verdict.
+    // The route already queued a test: we wait for its verdict.
     setBusy('test');
     setAwaitingCheck(saved.lastCheckedAt ?? '');
     router.refresh();
@@ -262,7 +262,7 @@ export function BackupSettings({
           {destination ? (
             <p className="t-sm flex flex-wrap items-center gap-2">
               <span className="mono text-text">{destination.description}</span>
-              {/* « testée il y a 3 min » : l'horloge du serveur et celle du navigateur diffèrent. */}
+              {/* "tested 3 min ago": the server's clock and the browser's differ. */}
               <span
                 className={destination.lastCheckError ? 'text-danger-text' : 'text-text-3'}
                 suppressHydrationWarning

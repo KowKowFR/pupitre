@@ -31,7 +31,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
     if (single !== undefined && single !== '') flat[key] = single;
   }
 
-  // Les jours du filtre se lisent dans le fuseau de l'instance, « Au » compris.
+  // The filter's days read in the instance's time zone, "To" included.
   const { settings } = await getAppSettings();
   const parsed = auditQuerySchema.safeParse(expandDayRange(flat, settings.timezone));
   const query = parsed.success ? parsed.data : auditQuerySchema.parse({});
@@ -41,7 +41,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
     countAuditLogsBySeverity(query),
   ]);
 
-  // L'export reprend les filtres affichés, toutes pages confondues.
+  // The export takes the displayed filters, across all pages.
   const exportParams = new URLSearchParams();
   for (const key of ['q', 'severity', 'action', 'resourceType', 'actorId', 'from', 'to'] as const) {
     if (flat[key]) exportParams.set(key, flat[key]);

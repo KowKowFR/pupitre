@@ -1,13 +1,13 @@
 import { translator, type Translate, type Translated, type UiLanguage } from '../i18n.js';
 
 /**
- * Ce que disent les pièces communes aux drivers — exécution d'une commande,
- * pare-feu, rétention des versions, code source déposé —, dans la langue de
- * l'instance (`TargetContext.language`).
+ * What the pieces shared by the drivers say — running a command, firewall,
+ * version retention, placed source code —, in the instance's language
+ * (`TargetContext.language`).
  *
- * Les lignes d'un journal de déploiement sont écrites au moment où elles sont
- * émises, comme les statuts de commit et les notifications : elles gardent la
- * langue qu'avait l'instance à ce moment-là.
+ * The lines of a deployment log are written when they are emitted, like commit
+ * statuses and notifications: they keep the language the instance had at that
+ * moment.
  */
 const fr = {
   'step.timeout': '« {step} » a dépassé son délai',

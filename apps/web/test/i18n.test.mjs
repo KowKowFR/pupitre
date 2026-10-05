@@ -7,29 +7,28 @@ import { isFrench, placeholdersOf } from './french.mjs';
 import { scanSource } from './scan-source.mjs';
 
 /**
- * La garde anti-régression du bilinguisme.
+ * The bilingualism's anti-regression guard.
  *
- * ── Ce qu'elle attrape, et pourquoi elle existe ─────────────────────────────
- * `Translated<typeof fr>` fait déjà échouer la compilation quand une clé
- * manque ou est en trop. C'est la garde principale, et elle est imparable :
- * personne ne peut livrer une clé orpheline. Restent trois choses qu'un type
- * ne voit pas, et que ce fichier vérifie :
+ * ── What it catches, and why it exists ──────────────────────────────────────
+ * `Translated<typeof fr>` already fails the build when a key is missing or extra.
+ * It is the main guard, and it is unstoppable: nobody can ship an orphan key.
+ * Three things remain that a type does not see, and that this file checks:
  *
- *   1. une valeur anglaise **restée en français** — même clé, même forme, mais
- *      personne ne l'a traduite ;
- *   2. une substitution `{nom}` **perdue en route** — la phrase compile, et
- *      affiche « Cible {name} introuvable » à l'utilisateur ;
- *   3. une chaîne visible **écrite en dur** dans un composant, qui échappe donc
- *      complètement au mécanisme et ne sera jamais traduite.
+ *   1. an English value **left in French** — same key, same shape, but nobody
+ *      translated it;
+ *   2. a `{name}` substitution **lost on the way** — the sentence compiles, and
+ *      shows "Target {name} not found" to the user;
+ *   3. a visible string **hard-coded** in a component, which therefore completely
+ *      escapes the mechanism and will never be translated.
  *
- * Le troisième est le plus important : c'est par là qu'une seconde langue
- * meurt. Un contributeur pressé ajoute un bouton, écrit « Enregistrer » entre
- * deux balises, tout compile, tout marche en français, et l'écran anglais a
- * désormais un mot français. Trois semaines de cela suffisent.
+ * The third is the most important: it is through there that a second language
+ * dies. A hurried contributor adds a button, writes "Save" between two tags,
+ * everything compiles, everything works in French, and the English screen now
+ * has a French word. Three weeks of that are enough.
  *
- * ── Ce qu'elle ne prétend pas faire ─────────────────────────────────────────
- * Elle ne juge pas la *qualité* d'une traduction. Une phrase anglaise plate ou
- * mot à mot passe. Le glossaire et la relecture s'en chargent.
+ * ── What it does not claim to do ────────────────────────────────────────────
+ * It does not judge a translation's *quality*. A flat or word-for-word English
+ * sentence passes. The glossary and the review take care of that.
  */
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -38,16 +37,16 @@ const srcRoot = path.join(webRoot, 'src');
 const messagesRoot = path.join(srcRoot, 'i18n', 'messages');
 
 /**
- * Les surfaces qu'un autre chantier refait en parallèle, laissées en français
- * sciemment le temps qu'il aboutisse. Vide : tout le panel est traduit. Le
- * mécanisme reste pour la prochaine fois — et si quelqu'un oublie d'en retirer
- * une ligne, rien ne casse : la garde devient simplement plus stricte.
+ * The surfaces another piece of work is redoing in parallel, left in French
+ * knowingly until it is done. Empty: the whole panel is translated. The mechanism
+ * stays for next time — and if someone forgets to remove a line, nothing breaks:
+ * the guard simply becomes stricter.
  */
 const NOT_YET_TRANSLATED = [];
 
 /**
- * Fichiers dont les chaînes françaises sont de la donnée, pas de l'interface :
- * les dictionnaires eux-mêmes, et la plomberie qui les rend.
+ * Files whose French strings are data, not interface: the dictionaries
+ * themselves, and the plumbing that renders them.
  */
 const NOT_UI = [messagesRoot, path.join(srcRoot, 'i18n')];
 
@@ -65,23 +64,22 @@ function under(file, roots) {
 }
 
 /**
- * L'échappatoire, et sa raison d'être.
+ * The escape hatch, and its reason for being.
  *
- * Certaines chaînes françaises d'un composant ne sont **pas** de l'interface :
- * les scripts shell que l'aide des cibles donne à copier-coller en sont le cas
- * type. Traduire `# 1 — un compte dédié` produirait un script qui ne
- * correspond plus à celui du dépôt, et ce n'est pas une phrase, c'est un
- * fichier.
+ * Some of a component's French strings are **not** interface: the shell scripts
+ * the targets help gives to copy and paste are the typical case. Translating a
+ * script's comments in a dictionary would produce a script that no longer matches
+ * the repository's, and it is not a sentence, it is a file.
  *
- * Plutôt qu'une liste d'exceptions tenue à distance — qui se périme dès que le
- * code bouge —, la dispense se pose **sur la ligne**, avec un commentaire
- * `i18n-ignore` qui doit dire pourquoi. Elle se voit en revue, à côté de ce
- * qu'elle dispense, et elle disparaît avec le code qu'elle couvrait.
+ * Rather than a list of exceptions kept at a distance — which goes stale as soon
+ * as the code moves —, the exemption is set **on the line**, with an `i18n-ignore`
+ * comment that must say why. It shows in review, next to what it exempts, and it
+ * disappears with the code it covered.
  */
 function exempted(lines, line) {
-  // La marque couvre la déclaration qu'elle précède : on remonte tant que les
-  // lignes se touchent. Une ligne vide referme la dispense — c'est ce qui
-  // l'empêche de s'étendre silencieusement au reste du fichier.
+  // The mark covers the declaration it precedes: we go up as long as the lines
+  // touch. An empty line closes the exemption — that is what prevents it from
+  // silently extending to the rest of the file.
   for (let index = line - 1; index >= 0 && index > line - 14; index -= 1) {
     const text = lines[index] ?? '';
     if (text.includes('i18n-ignore')) return true;
@@ -101,7 +99,7 @@ function isBundle(value) {
   );
 }
 
-/** Aplatit une entrée — chaîne simple ou formes de pluriel — en couples clé/texte. */
+/** Flattens an entry — plain string or plural forms — into key/text pairs. */
 function flatten(dict) {
   const out = new Map();
   for (const [key, entry] of Object.entries(dict)) {
@@ -122,24 +120,24 @@ async function loadBundles() {
   return found;
 }
 
-describe('les dictionnaires du panel', () => {
-  it('en trouve au moins un — sinon la garde ne garde rien', async () => {
+describe('the panel dictionaries', () => {
+  it('finds at least one — otherwise the guard guards nothing', async () => {
     const bundles = await loadBundles();
-    assert.ok(bundles.length > 0, `aucun dictionnaire trouvé dans ${messagesRoot}`);
+    assert.ok(bundles.length > 0, `no dictionary found in ${messagesRoot}`);
   });
 
-  it('apparient exactement leurs clés', async () => {
+  it('pair their keys exactly', async () => {
     const problems = [];
     for (const { file, name, bundle } of await loadBundles()) {
       const fr = new Set(Object.keys(bundle.fr));
       const en = new Set(Object.keys(bundle.en));
-      for (const key of fr) if (!en.has(key)) problems.push(`${file} · ${name} · « ${key} » manque en anglais`);
-      for (const key of en) if (!fr.has(key)) problems.push(`${file} · ${name} · « ${key} » en trop en anglais`);
+      for (const key of fr) if (!en.has(key)) problems.push(`${file} · ${name} · "${key}" missing in English`);
+      for (const key of en) if (!fr.has(key)) problems.push(`${file} · ${name} · "${key}" extra in English`);
     }
     assert.deepEqual(problems, []);
   });
 
-  it('gardent la même forme de pluriel des deux côtés', async () => {
+  it('keep the same plural shape on both sides', async () => {
     const problems = [];
     for (const { file, name, bundle } of await loadBundles()) {
       for (const [key, entry] of Object.entries(bundle.fr)) {
@@ -148,12 +146,12 @@ describe('les dictionnaires du panel', () => {
         const frPlural = typeof entry !== 'string';
         const enPlural = typeof other !== 'string';
         if (frPlural !== enPlural) {
-          problems.push(`${file} · ${name} · « ${key} » est au pluriel d'un seul côté`);
+          problems.push(`${file} · ${name} · "${key}" is plural on one side only`);
         }
         if (frPlural && enPlural) {
           for (const form of ['one', 'other']) {
             if (typeof other[form] !== 'string') {
-              problems.push(`${file} · ${name} · « ${key} » n'a pas de forme « ${form} » en anglais`);
+              problems.push(`${file} · ${name} · "${key}" has no "${form}" form in English`);
             }
           }
         }
@@ -162,7 +160,7 @@ describe('les dictionnaires du panel', () => {
     assert.deepEqual(problems, []);
   });
 
-  it('conservent leurs substitutions', async () => {
+  it('keep their substitutions', async () => {
     const problems = [];
     for (const { file, name, bundle } of await loadBundles()) {
       const fr = flatten(bundle.fr);
@@ -174,7 +172,7 @@ describe('les dictionnaires du panel', () => {
         const actual = [...placeholdersOf(enText)].sort();
         if (expected.join(',') !== actual.join(',')) {
           problems.push(
-            `${file} · ${name} · « ${key} » : {${expected.join('} {')}} d'un côté, {${actual.join('} {')}} de l'autre`,
+            `${file} · ${name} · "${key}": {${expected.join('} {')}} on one side, {${actual.join('} {')}} on the other`,
           );
         }
       }
@@ -182,22 +180,22 @@ describe('les dictionnaires du panel', () => {
     assert.deepEqual(problems, []);
   });
 
-  it("n'ont pas laissé de français du côté anglais", async () => {
+  it('left no French on the English side', async () => {
     const problems = [];
     for (const { file, name, bundle } of await loadBundles()) {
       for (const [key, text] of flatten(bundle.en)) {
-        if (isFrench(text)) problems.push(`${file} · ${name} · « ${key} » : « ${text} »`);
+        if (isFrench(text)) problems.push(`${file} · ${name} · "${key}": "${text}"`);
       }
     }
     assert.deepEqual(problems, []);
   });
 
-  it("n'ont pas de valeur vide", async () => {
+  it('have no empty value', async () => {
     const problems = [];
     for (const { file, name, bundle } of await loadBundles()) {
       for (const lang of ['fr', 'en']) {
         for (const [key, text] of flatten(bundle[lang])) {
-          if (String(text).trim() === '') problems.push(`${file} · ${name} · ${lang} · « ${key} »`);
+          if (String(text).trim() === '') problems.push(`${file} · ${name} · ${lang} · "${key}"`);
         }
       }
     }
@@ -205,14 +203,14 @@ describe('les dictionnaires du panel', () => {
   });
 });
 
-describe('les catalogues de @pupitre/core', () => {
-  it('apparient leurs clés et ne laissent pas de français en anglais', async () => {
+describe('@pupitre/core’s catalogs', () => {
+  it('pair their keys and leave no French in English', async () => {
     let core;
     try {
       core = await import('@pupitre/core');
     } catch (error) {
       assert.fail(
-        `@pupitre/core n'est pas construit — lance « pnpm build:packages » avant les tests (${error.message})`,
+        `@pupitre/core is not built — run "pnpm build:packages" before the tests (${error.message})`,
       );
     }
 
@@ -221,29 +219,29 @@ describe('les catalogues de @pupitre/core', () => {
       if (!isBundle(value)) continue;
       const fr = new Set(Object.keys(value.fr));
       const en = new Set(Object.keys(value.en));
-      for (const key of fr) if (!en.has(key)) problems.push(`${name} · « ${key} » manque en anglais`);
-      for (const key of en) if (!fr.has(key)) problems.push(`${name} · « ${key} » en trop en anglais`);
+      for (const key of fr) if (!en.has(key)) problems.push(`${name} · "${key}" missing in English`);
+      for (const key of en) if (!fr.has(key)) problems.push(`${name} · "${key}" extra in English`);
       for (const [key, text] of flatten(value.en)) {
-        if (isFrench(text)) problems.push(`${name} · « ${key} » : « ${text} »`);
+        if (isFrench(text)) problems.push(`${name} · "${key}": "${text}"`);
       }
     }
     assert.deepEqual(problems, []);
   });
 });
 
-describe('la garde de compilation elle-même', () => {
+describe('the build guard itself', () => {
   /**
-   * `Translated<typeof fr>` est la garde principale : c'est elle qui rend une
-   * clé orpheline impossible à livrer. Mais elle ne s'applique que si
-   * quelqu'un l'écrit. Un contributeur qui déclare `const en = { … }` sans
-   * l'annotation obtient un dictionnaire qui compile, marche en français, et
-   * n'a plus aucune parité vérifiée — la garde s'est désarmée elle-même, en
-   * silence, et rien ne le dirait avant le premier écran mi-anglais.
+   * `Translated<typeof fr>` is the main guard: it is what makes an orphan key
+   * impossible to ship. But it only applies if someone writes it. A contributor who
+   * declares `const en = { … }` without the annotation gets a dictionary that
+   * compiles, works in French, and no longer has any checked parity — the guard
+   * disarmed itself, silently, and nothing would say so before the first
+   * half-English screen.
    *
-   * Ce test vérifie donc la garde plutôt que les traductions : tout fichier
-   * qui déclare un `const fr` doit déclarer son `en` annoté juste à côté.
+   * This test therefore checks the guard rather than the translations: every file
+   * that declares a `const fr` must declare its annotated `en` right next to it.
    */
-  it("est armée partout où il y a un dictionnaire", () => {
+  it('is armed wherever there is a dictionary', () => {
     const roots = [messagesRoot, path.join(webRoot, '..', '..', 'packages', 'core', 'src')];
     const problems = [];
     for (const root of roots) {
@@ -251,8 +249,8 @@ describe('la garde de compilation elle-même', () => {
         const source = readFileSync(file, 'utf8');
         if (!/\bconst fr\b\s*[:=]/.test(source)) continue;
         if (source.includes('Translated<typeof fr>')) continue;
-        // `satisfies Bundle<…>` sur l'objet entier contraint les deux colonnes
-        // par le même type : c'est la même garantie, écrite autrement.
+        // `satisfies Bundle<…>` on the whole object constrains both columns by the same
+        // type: it is the same guarantee, written differently.
         if (/satisfies Bundle</.test(source)) continue;
         problems.push(path.relative(webRoot, file));
       }
@@ -261,8 +259,8 @@ describe('la garde de compilation elle-même', () => {
   });
 });
 
-describe('les écrans', () => {
-  it("n'écrivent plus une seule chaîne visible en dur", () => {
+describe('the screens', () => {
+  it('no longer hard-code a single visible string', () => {
     const problems = [];
     for (const file of walk(srcRoot)) {
       if (under(file, NOT_UI) || under(file, NOT_YET_TRANSLATED)) continue;
@@ -273,17 +271,17 @@ describe('les écrans', () => {
       for (const { value, line } of [...strings, ...jsxTexts]) {
         if (!isFrench(value)) continue;
         if (exempted(lines, line)) continue;
-        problems.push(`${relative}:${line} — « ${value.slice(0, 80)} »`);
+        problems.push(`${relative}:${line} — "${value.slice(0, 80)}"`);
       }
     }
     assert.deepEqual(problems, []);
   });
 
-  it('ne fabriquent plus de pluriel à la main', () => {
+  it('no longer make plurals by hand', () => {
     /**
-     * `${n > 1 ? 's' : ''}` ne survit pas à l'anglais : « 0 targets » prend un
-     * « s » que la condition ne donne pas. Le motif est cherché tel quel parce
-     * qu'il ne peut rien vouloir dire d'autre.
+     * `${n > 1 ? 's' : ''}` does not survive English: "0 targets" takes an "s" the
+     * condition does not give. The pattern is looked for as is because it cannot mean
+     * anything else.
      */
     const pattern = /[><=]\s*1\s*\?\s*['"]s['"]|\?\s*['"]s['"]\s*:\s*['"]{2}/;
     const problems = [];

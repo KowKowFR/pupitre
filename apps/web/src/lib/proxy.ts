@@ -8,6 +8,7 @@ import {
   type ProxyCapabilities,
   type ProxyKind,
   type RouteCertificate,
+  type UiLanguage,
   isPrivateAddress,
 } from '@pupitre/core';
 import type { ProxyLinkRow, ProxyView, RouteView } from '@pupitre/db';
@@ -17,16 +18,15 @@ import { ConflictError, msg } from './errors';
 import { getRedis } from './redis';
 
 /**
- * Ce que les routes et les écrans des reverse proxies partagent : la forme sous
- * laquelle une connexion et un domaine sortent de l'API, et l'attente d'une
- * tâche courte sur `ops`.
+ * What the reverse proxies' routes and screens share: the shape in which a
+ * connection and a domain leave the API, and waiting for a short job on `ops`.
  */
 
 declare global {
   var __tpOpsQueueEvents: QueueEvents | undefined;
 }
 
-/** Les événements de la file `ops` — pour attendre l'issue d'une tâche courte. */
+/** The `ops` queue's events — to wait for a short job's outcome. */
 export function opsQueueEvents(): QueueEvents {
   globalThis.__tpOpsQueueEvents ??= new QueueEvents(OPS_QUEUE, {
     connection: getRedis(),
@@ -34,19 +34,20 @@ export function opsQueueEvents(): QueueEvents {
   return globalThis.__tpOpsQueueEvents;
 }
 
-/** Ce que rend le test d'un proxy (`ProxyCheck`), tel que l'écran le lit. */
+/** What a proxy's test returns (`ProxyCheck`), as the screen reads it. */
 export type ProxyCheckResult = {
   ok: boolean;
   checks: Array<{ key: string; label: string; ok: boolean; detail: string | null }>;
 };
 
 /**
- * 45 secondes : quelques requêtes vers l'API du proxy et son entrée, plus
- * l'attente en file. Au-delà, `null` — le test finira, et l'écran le relira.
+ * 45 seconds: a few requests to the proxy's API and its entry, plus waiting in the
+ * queue. Beyond that, `null` — the test will finish, and the screen will read it
+ * again.
  */
 const CHECK_TIMEOUT_MS = 45_000;
 
-/** L'issue du test d'un proxy, attendue — ou `null` s'il tarde. */
+/** A proxy test's outcome, awaited — or `null` if it is late. */
 export async function waitForProxyCheck(job: Job): Promise<ProxyCheckResult | null> {
   try {
     return ((await job.waitUntilFinished(opsQueueEvents(), CHECK_TIMEOUT_MS)) ??
@@ -54,7 +55,7 @@ export async function waitForProxyCheck(job: Job): Promise<ProxyCheckResult | nu
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (/timed out/i.test(message)) return null;
-    // Le test lui-même a échoué : c'est un résultat, pas une panne de la route.
+    // The test itself failed: it is a result, not an outage of the route.
     return { ok: false, checks: [{ key: 'error', label: 'Test', ok: false, detail: message }] };
   }
 }
@@ -67,23 +68,23 @@ export type ProxyViewForUi = {
   status: ProxyView['status'];
   description: string;
   capabilities: ProxyCapabilities;
-  /** L'autorité de certification réglée par Pupitre (e-mail, serveur), s'il y en a une. */
+  /** The certificate authority set by Pupitre (email, server), if there is one. */
   acme: { email: string; server: string } | null;
   lastCheckedAt: string | null;
   lastCheckError: string | null;
   checks: Array<{ key: string; label: string; ok: boolean; detail: string | null }>;
 };
 
-export function proxyViewForUi(proxy: ProxyView): ProxyViewForUi {
+export function proxyViewForUi(proxy: ProxyView, language: UiLanguage): ProxyViewForUi {
   let description: string;
   let capabilities: ProxyCapabilities;
   let acme: ProxyViewForUi['acme'] = null;
   try {
-    description = describeProxy(proxy.kind, proxy.config);
+    description = describeProxy(proxy.kind, proxy.config, language);
     capabilities = proxyCapabilities(proxy.kind, proxy.config);
     acme = proxyAcme(proxy.kind, proxy.config);
   } catch {
-    // Une installation en cours n'a pas encore sa configuration définitive.
+    // An installation in progress does not have its final configuration yet.
     description = proxy.kind;
     capabilities = {
       autoTls: false,
@@ -114,7 +115,7 @@ export type RouteViewForUi = {
   hostname: string;
   tls: boolean;
   redirectHttps: boolean;
-  /** La protection, pour un proxy qui est aussi un WAF. */
+  /** The protection, for a proxy that is also a WAF. */
   waf: RouteView['waf'];
   status: RouteView['status'];
   lastError: string | null;
@@ -146,7 +147,7 @@ export function routeViewForUi(route: RouteView): RouteViewForUi {
   };
 }
 
-/** Refuse ce que le proxy ne sait pas servir, en le nommant. */
+/** Refuses what the proxy cannot serve, naming it. */
 export function assertServable(
   routes: Array<{ hostname: string; tls: boolean }>,
   capabilities: ProxyCapabilities,
@@ -161,8 +162,8 @@ export function assertServable(
 }
 
 /**
- * Une connexion à un proxy distant, pour l'écran : sa configuration se montre
- * — adresse, compte —, ses secrets jamais. `linkCount` : les machines qu'il sert.
+ * A connection to a remote proxy, for the screen: its configuration shows —
+ * address, account —, its secrets never. `linkCount`: the machines it serves.
  */
 export type RemoteProxyViewForUi = ProxyViewForUi & {
   config: Record<string, unknown>;
@@ -171,21 +172,26 @@ export type RemoteProxyViewForUi = ProxyViewForUi & {
 
 export function remoteProxyViewForUi(
   proxy: ProxyView & { linkCount?: number },
+  language: UiLanguage,
 ): RemoteProxyViewForUi {
-  return { ...proxyViewForUi(proxy), config: proxy.config, linkCount: proxy.linkCount ?? 0 };
+  return {
+    ...proxyViewForUi(proxy, language),
+    config: proxy.config,
+    linkCount: proxy.linkCount ?? 0,
+  };
 }
 
 export type LinkViewForUi = {
   proxy: ProxyViewForUi;
-  /** Un proxy distant, hors des cibles : sa connexion, pour la modifier. */
+  /** A remote proxy, outside the targets: its connection, to change it. */
   remote: RemoteProxyViewForUi | null;
   hostTargetId: string | null;
-  /** La machine du proxy — ou, pour un proxy distant, le nom de sa connexion. */
+  /** The proxy's machine — or, for a remote proxy, its connection's name. */
   hostTargetName: string;
   address: string;
   sourceAddress: string | null;
   bindable: boolean;
-  /** L'adresse est privée : le trafic en clair entre les deux machines y reste. */
+  /** The address is private: the plain traffic between the two machines stays there. */
   privateAddress: boolean;
   status: ProxyLinkRow['status'];
   lastCheckedAt: string | null;
@@ -196,10 +202,11 @@ export function linkViewForUi(
   link: ProxyLinkRow,
   proxy: ProxyView,
   hostTargetName: string,
+  language: UiLanguage,
 ): LinkViewForUi {
   return {
-    proxy: proxyViewForUi(proxy),
-    remote: proxyPlacement(proxy.kind) === 'remote' ? remoteProxyViewForUi(proxy) : null,
+    proxy: proxyViewForUi(proxy, language),
+    remote: proxyPlacement(proxy.kind) === 'remote' ? remoteProxyViewForUi(proxy, language) : null,
     hostTargetId: proxy.hostTargetId,
     hostTargetName,
     address: link.address,

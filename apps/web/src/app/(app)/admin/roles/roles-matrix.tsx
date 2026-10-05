@@ -11,10 +11,10 @@ import { cn } from '@/lib/utils';
 import type { PermissionGroup, RoleRow } from './roles-editor';
 
 /**
- * La matrice des droits : les rôles en colonnes, les familles de permissions
- * en lignes. Chaque case aligne une pastille par permission de la famille —
- * pleine si le rôle la porte, creuse sinon ; en losange orangé quand elle est
- * sensible. Le survol dit lesquelles ; le clic ouvre le rôle.
+ * The rights matrix: the roles in columns, the permission families in rows.
+ * Each cell lines up one dot per permission of the family — filled if the role
+ * carries it, hollow otherwise; an orange diamond when it is sensitive. Hovering
+ * says which ones; clicking opens the role.
  */
 export function RolesMatrix({
   roles,
@@ -224,8 +224,8 @@ function MatrixCell({
 }
 
 /**
- * Une permission. La forme dit la nature (losange : sensible), le
- * remplissage dit l'accord (plein : portée) — la couleur ne fait que doubler.
+ * A permission. The shape says the nature (diamond: sensitive), the fill says
+ * the grant (filled: carried) — the color only doubles it.
  */
 function Pip({ held, sensitive }: { held: boolean; sensitive: boolean }) {
   return (

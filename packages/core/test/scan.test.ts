@@ -31,12 +31,12 @@ import {
 } from '../src/scanners/index.js';
 
 /**
- * Le point clé de la normalisation : deux scanners qui voient la même CVE sur le même
- * paquet doivent produire le *même* `Finding`. Ces tests comparent les deux
- * traductions sur des sorties réelles, sans jamais ouvrir de session SSH.
+ * The key point of normalization: two scanners that see the same CVE on the same
+ * package must produce the *same* `Finding`. These tests compare both
+ * translations on real outputs, without ever opening an SSH session.
  */
 
-/** Extrait de `trivy image --format json` sur une image Alpine ancienne. */
+/** Excerpt of `trivy image --format json` on an old Alpine image. */
 const TRIVY_OUTPUT = {
   ArtifactName: 'node:16-alpine',
   Results: [
@@ -61,7 +61,7 @@ const TRIVY_OUTPUT = {
           PrimaryURL: 'https://avd.aquasec.com/nvd/cve-2022-3602',
         },
         {
-          // Sans identifiant ni paquet : rien à normaliser, on écarte.
+          // Without an identifier or a package: nothing to normalize, we discard.
           Severity: 'HIGH',
         },
       ],
@@ -70,7 +70,7 @@ const TRIVY_OUTPUT = {
   ],
 };
 
-/** La même image, vue par `grype -o json`. */
+/** The same image, seen by `grype -o json`. */
 const GRYPE_OUTPUT = {
   matches: [
     {
@@ -108,8 +108,8 @@ const GRYPE_OUTPUT = {
   ],
 };
 
-describe('normalisation des rapports', () => {
-  it('Trivy et Grype produisent le même Finding pour la même CVE', () => {
+describe('reports normalization', () => {
+  it('Trivy and Grype produce the same Finding for the same CVE', () => {
     const trivy = normalizeTrivyReport(TRIVY_OUTPUT);
     const grype = normalizeGrypeReport(GRYPE_OUTPUT);
 
@@ -117,10 +117,10 @@ describe('normalisation des rapports', () => {
       const fromTrivy = trivy.find((finding) => finding.cveId === cve);
       const fromGrype = grype.find((finding) => finding.cveId === cve);
 
-      assert.ok(fromTrivy, `${cve} absente du rapport Trivy`);
-      assert.ok(fromGrype, `${cve} absente du rapport Grype`);
+      assert.ok(fromTrivy, `${cve} missing from the Trivy report`);
+      assert.ok(fromGrype, `${cve} missing from the Grype report`);
 
-      assert.equal(fromGrype.severity, fromTrivy.severity, `${cve} : sévérités divergentes`);
+      assert.equal(fromGrype.severity, fromTrivy.severity, `${cve}: diverging severities`);
       assert.equal(fromGrype.package, fromTrivy.package);
       assert.equal(fromGrype.installedVersion, fromTrivy.installedVersion);
       assert.equal(fromGrype.fixedVersion, fromTrivy.fixedVersion);
@@ -129,31 +129,31 @@ describe('normalisation des rapports', () => {
     }
   });
 
-  it("écarte les entrées Trivy sans identifiant ni paquet", () => {
+  it("discards the Trivy entries without an identifier or a package", () => {
     assert.equal(normalizeTrivyReport(TRIVY_OUTPUT).length, 2);
   });
 
-  it('Trivy : une sévérité en minuscules est ramenée sur l’échelle commune', () => {
+  it('Trivy: a lowercase severity is brought onto the common scale', () => {
     const finding = normalizeTrivyReport(TRIVY_OUTPUT).find(
       (candidate) => candidate.cveId === 'CVE-2022-3602',
     );
     assert.equal(finding?.severity, 'CRITICAL');
-    // Pas de correctif publié : `FixedVersion` absent chez Trivy, tableau vide
-    // chez Grype — les deux donnent `null`.
+    // No published fix: `FixedVersion` absent at Trivy, empty array at Grype —
+    // both give `null`.
     assert.equal(finding?.fixedVersion, null);
   });
 
-  it('Grype : Negligible devient LOW', () => {
+  it('Grype: Negligible becomes LOW', () => {
     const finding = normalizeGrypeReport(GRYPE_OUTPUT).find(
       (candidate) => candidate.cveId === 'CVE-2021-0000',
     );
     assert.equal(finding?.severity, 'LOW');
-    // Description vide : on se rabat sur la vulnérabilité liée.
+    // Empty description: we fall back on the related vulnerability.
     assert.equal(finding?.title, 'sans gravité');
     assert.equal(finding?.primaryUrl, 'https://example.test');
   });
 
-  it('une sévérité inconnue ne traverse pas la frontière telle quelle', () => {
+  it('an unknown severity does not cross the boundary as is', () => {
     const trivy = normalizeTrivyReport({
       Results: [{ Vulnerabilities: [{ VulnerabilityID: 'X', PkgName: 'p', Severity: 'BIZARRE' }] }],
     });
@@ -165,25 +165,25 @@ describe('normalisation des rapports', () => {
   });
 });
 
-describe('seuil de blocage', () => {
+describe('blocking threshold', () => {
   const findings: Finding[] = [
     finding('CVE-1', 'HIGH'),
     finding('CVE-2', 'MEDIUM'),
     finding('CVE-3', 'LOW'),
   ];
 
-  it('CRITICAL ne bloque pas sur un HIGH', () => {
+  it('CRITICAL does not block on a HIGH', () => {
     assert.equal(blocks('HIGH', 'CRITICAL'), false);
     assert.equal(verdictFor('vulnerability', findings, 'CRITICAL'), 'pass');
   });
 
-  it('HIGH bloque sur un HIGH comme sur un CRITICAL', () => {
+  it('HIGH blocks on a HIGH as on a CRITICAL', () => {
     assert.equal(blocks('HIGH', 'HIGH'), true);
     assert.equal(blocks('CRITICAL', 'HIGH'), true);
     assert.equal(verdictFor('vulnerability', findings, 'HIGH'), 'fail');
   });
 
-  it('NONE ne bloque jamais, pas même sur un CRITICAL', () => {
+  it('NONE never blocks, not even on a CRITICAL', () => {
     assert.equal(blocks('CRITICAL', 'NONE'), false);
     assert.equal(
       verdictFor('vulnerability', [...findings, finding('CVE-4', 'CRITICAL')], 'NONE'),
@@ -191,48 +191,48 @@ describe('seuil de blocage', () => {
     );
   });
 
-  it('un SBOM ne bloque jamais, quel que soit le seuil', () => {
+  it('an SBOM never blocks, whatever the threshold', () => {
     assert.equal(verdictFor('sbom', [], 'CRITICAL'), 'pass');
   });
 
-  it('compte et pire sévérité', () => {
+  it('count and worst severity', () => {
     const counts = countBySeverity(findings);
     assert.deepEqual(counts, { CRITICAL: 0, HIGH: 1, MEDIUM: 1, LOW: 1, UNKNOWN: 0 });
     assert.equal(worstSeverity(counts), 'HIGH');
     assert.equal(worstSeverity(countBySeverity([])), null);
   });
 
-  it('le tri place les critiques en tête', () => {
+  it('sorting puts the critical ones first', () => {
     const order: Severity[] = ['LOW', 'CRITICAL', 'UNKNOWN', 'HIGH'];
     assert.deepEqual([...order].sort(compareSeverity), ['CRITICAL', 'HIGH', 'LOW', 'UNKNOWN']);
   });
 });
 
-describe('configuration de scan', () => {
-  it("par défaut, l'API ne scanne rien", () => {
+describe('scan configuration', () => {
+  it('by default, the API scans nothing', () => {
     assert.deepEqual(scanConfigSchema.parse({}), EMPTY_SCAN_CONFIG);
     assert.deepEqual(parseScanConfig(null), EMPTY_SCAN_CONFIG);
     assert.deepEqual(parseScanConfig({ scanners: ['inconnu'] }), EMPTY_SCAN_CONFIG);
   });
 
-  it('le formulaire, lui, coche tout et bloque sur CRITICAL', () => {
+  it('the form ticks everything and blocks on CRITICAL', () => {
     assert.deepEqual(DEFAULT_UI_SCAN_CONFIG.scanners, [...SCANNER_KEYS]);
     assert.equal(DEFAULT_UI_SCAN_CONFIG.failOn, 'CRITICAL');
   });
 
-  it('une sélection partielle est valide', () => {
+  it('a partial selection is valid', () => {
     const config = parseScanConfig({ scanners: ['grype'], failOn: 'CRITICAL' });
     assert.deepEqual(config.scanners, ['grype']);
     assert.equal(config.failOn, 'CRITICAL');
   });
 
-  it('un scanner coché deux fois ne tourne qu’une fois', () => {
+  it('a scanner ticked twice only runs once', () => {
     assert.deepEqual(parseScanConfig({ scanners: ['trivy', 'trivy'] }).scanners, ['trivy']);
   });
 });
 
-describe('fabrique', () => {
-  it('chaque clé du vocabulaire a une implémentation cohérente', () => {
+describe('factory', () => {
+  it('each vocabulary key has a consistent implementation', () => {
     assert.deepEqual(availableScanners(), [...SCANNER_KEYS]);
     for (const key of SCANNER_KEYS) {
       const scanner = getScanner(key);
@@ -241,7 +241,7 @@ describe('fabrique', () => {
     }
   });
 
-  it('un scanner « sbom » déclare un format, un scanner de vulnérabilités non', () => {
+  it('an “sbom” scanner declares a format, a vulnerability scanner does not', () => {
     for (const key of SCANNER_KEYS) {
       const descriptor = SCANNERS[key];
       assert.equal(descriptor.sbomFormat !== null, descriptor.kind === 'sbom');
@@ -249,14 +249,14 @@ describe('fabrique', () => {
   });
 });
 
-describe('correspondance avec les enums Postgres', () => {
-  it('aller-retour sur toute l’échelle', () => {
+describe('match with the Postgres enums', () => {
+  it('round trip over the whole scale', () => {
     for (const severity of ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'UNKNOWN'] as Severity[]) {
       assert.equal(severityFromDb(severityToDb(severity)), severity);
     }
   });
 
-  it("`negligible`, hérité du schéma d'origine, est relu en LOW", () => {
+  it("`negligible`, inherited from the original schema, is read back as LOW", () => {
     assert.equal(severityFromDb('negligible'), 'LOW');
   });
 });
@@ -273,7 +273,7 @@ function finding(cveId: string, severity: Severity): Finding {
   };
 }
 
-describe('scanners — où lire les images', () => {
+describe('scanners — where to read the images', () => {
   const docker = { kind: 'docker' } as const;
   const k3s = {
     kind: 'containerd',
@@ -282,7 +282,7 @@ describe('scanners — où lire les images', () => {
     elevated: true,
   } as const;
 
-  it('sur Docker, les trois commandes restent celles d’avant, sans élévation', () => {
+  it('on Docker, the three commands stay the ones from before, without elevation', () => {
     const trivy = trivyCommand('app-blog/web:3', docker, 600_000);
     assert.equal(trivy.sudo, false);
     assert.doesNotMatch(trivy.command, /CONTAINERD|image-src|sudo/);
@@ -298,7 +298,7 @@ describe('scanners — où lire les images', () => {
     assert.match(syft.command, /syft scan 'app-blog\/web:3' -o cyclonedx-json$/);
   });
 
-  it('sur le containerd de k3s, chaque outil y est pointé, puis retombe sur le registry', () => {
+  it('on k3s’s containerd, each tool is pointed there, then falls back on the registry', () => {
     for (const { command, sudo } of [
       trivyCommand('app-blog/web:3', k3s, 600_000),
       grypeCommand('app-blog/web:3', k3s),
@@ -311,7 +311,7 @@ describe('scanners — où lire les images', () => {
       );
       assert.match(command, /SUDO_USER/);
     }
-    // Containerd ne connaît que les noms complets : Trivy échouait sous le nom court.
+    // Containerd only knows complete names: Trivy failed under the short name.
     assert.match(
       trivyCommand('app-blog/web:3', k3s, 600_000).command,
       /--image-src containerd,remote 'docker\.io\/app-blog\/web:3'$/m,
@@ -330,18 +330,18 @@ describe('scanners — où lire les images', () => {
     );
   });
 
-  it('un containerd ouvert à l’utilisateur ne demande pas sudo', () => {
+  it('a containerd open to the user does not ask for sudo', () => {
     const open = { ...k3s, elevated: false };
     const trivy = trivyCommand('x', open, 600_000);
     assert.equal(trivy.sudo, false);
     assert.doesNotMatch(trivy.command, /SUDO_USER/);
   });
 
-  it('sous sudo, l’outil retrouve le HOME de l’utilisateur et garde son code de sortie', () => {
+  it('under sudo, the tool finds the user’s HOME and keeps its exit code', () => {
     const user = userInfo().username;
     const script = asToolOwner('printf %s "$HOME"; exit 3', '"$HOME"/.inexistant');
     const run = spawnSync('sh', ['-c', script], {
-      // Ce que sudo laisse derrière lui : le HOME de root, et qui l'a appelé.
+      // What sudo leaves behind: root's HOME, and who called it.
       env: { PATH: process.env.PATH, HOME: '/var/root-de-test', SUDO_USER: user },
       encoding: 'utf8',
     });
@@ -349,7 +349,7 @@ describe('scanners — où lire les images', () => {
     assert.equal(run.stdout, homedir());
   });
 
-  it('sans sudo, rien ne change', () => {
+  it('without sudo, nothing changes', () => {
     const run = spawnSync('sh', ['-c', asToolOwner('printf %s "$HOME"', '/nulle-part')], {
       env: { PATH: process.env.PATH, HOME: '/maison' },
       encoding: 'utf8',
@@ -358,10 +358,10 @@ describe('scanners — où lire les images', () => {
     assert.equal(run.stdout, '/maison');
   });
 
-  it('la plateforme suit uname -m', () => {
+  it('the platform follows uname -m', () => {
     const run = spawnSync('sh', ['-c', `echo ${MACHINE_PLATFORM_FLAG}`], { encoding: 'utf8' });
     const arch = ({ x64: 'amd64', arm64: 'arm64' } as Record<string, string>)[process.arch];
-    assert.ok(arch, `architecture de test inattendue : ${process.arch}`);
+    assert.ok(arch, `unexpected test architecture: ${process.arch}`);
     assert.equal(run.stdout.trim(), `--platform linux/${arch}`);
   });
 });

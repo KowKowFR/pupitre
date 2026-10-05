@@ -1,11 +1,11 @@
 import type { Translated } from '@pupitre/core';
 
 /**
- * Les reverse proxies : les refus des routes, la carte de la cible, l'étape de
- * l'assistant, les domaines d'une application.
+ * Reverse proxies: the routes' refusals, the target's card, the assistant's step,
+ * an application's domains.
  */
 const fr = {
-  // ── refus ────────────────────────────────────────────────────────────────
+  // ── refusals ─────────────────────────────────────────────────────────────
   'error.targetNotFound': 'Cible introuvable.',
   'error.routeTaken': 'le domaine « {hostname} » est déjà routé vers « {application} »',
   'error.routeTakenElsewhere': 'le domaine « {hostname} » est déjà routé',
@@ -39,7 +39,7 @@ const fr = {
     'Ce genre de proxy tourne sur une machine : il se trouve ou s’installe depuis la page de la cible.',
   'error.remoteCheckFailed': 'La connexion ne marche pas — {problems}',
 
-  // ── la carte de la cible ─────────────────────────────────────────────────
+  // ── the target's card ────────────────────────────────────────────────────
   'card.title': 'Reverse proxy',
   'card.description':
     'Ce qui reçoit les visiteurs sur les ports 80 et 443 de la machine, et les mène à la bonne application selon le domaine demandé.',
@@ -98,7 +98,7 @@ const fr = {
   'remove.queued': 'Retrait lancé',
   'connect.done': 'Proxy relié — test en cours',
 
-  // ── le proxy central ─────────────────────────────────────────────────────
+  // ── the central proxy ────────────────────────────────────────────────────
   'link.title': 'Ou passer par un autre reverse proxy',
   'link.help':
     'Celui d’une autre machine, ou un Nginx Proxy Manager connecté à Pupitre. Il reçoit les visiteurs et les mène jusqu’ici. Entre les deux, le trafic n’est pas chiffré : préférez une adresse privée — réseau privé de l’hébergeur, VLAN, WireGuard.',
@@ -134,7 +134,7 @@ const fr = {
   'action.checkRemote': 'Tester le proxy',
   'remote.checks': 'Dernier test du proxy',
   'remote.checked': 'Test du proxy lancé',
-  // ── la connexion à Nginx Proxy Manager ───────────────────────────────────
+  // ── the connection to Nginx Proxy Manager ────────────────────────────────
   'npm.title.new': 'Connecter un Nginx Proxy Manager',
   'npm.title.edit': 'Modifier la connexion',
   'npm.kind': 'Reverse proxy distant',
@@ -185,7 +185,7 @@ const fr = {
   'waf.off': 'Sans WAF',
   'route.waf': 'WAF : {mode}',
 
-  // ── les domaines ─────────────────────────────────────────────────────────
+  // ── the domains ──────────────────────────────────────────────────────────
   'domains.title': 'Domaines',
   'domains.help': 'Servis par le reverse proxy de « {target} » ({proxy}).',
   'domains.helpAcme': ' Certificats HTTPS obtenus automatiquement.',

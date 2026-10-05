@@ -11,9 +11,9 @@ export const dynamic = 'force-dynamic';
 const bodySchema = z.object({ enabled: z.boolean() });
 
 /**
- * Activer la sauvegarde automatique de la base du panel : crée (ou réactive)
- * la tâche planifiée « Sauvegarde du panel ». Sa cadence se règle ensuite
- * dans « Tâches », comme toutes les autres.
+ * Enabling the panel database's automatic backup: creates (or re-enables) the
+ * "Panel backup" scheduled task. Its cadence is then set in "Tasks", like all the
+ * others.
  */
 export const PUT = apiRoute(async (request) => {
   const auth = await requirePermission(request, 'settings:manage');

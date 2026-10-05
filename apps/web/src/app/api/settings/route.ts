@@ -30,31 +30,31 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Paramètres d'instance.
+ * Instance settings.
  *
- * La clé d'API du fournisseur d'IA n'est **jamais** renvoyée, pas même
- * partiellement masquée : seulement le fait qu'elle soit posée et ses quatre
- * derniers caractères, qui suffisent à reconnaître laquelle est en place sans
- * permettre de s'en servir. Ce que `@pupitre/db` expose en lecture ne contient
- * physiquement pas la clé — impossible de la laisser fuir par oubli.
+ * The AI provider's API key is **never** returned, not even partially masked:
+ * only the fact that it is set and its last four characters, which are enough to
+ * recognize which one is in place without allowing to use it. What `@pupitre/db`
+ * exposes for reading physically does not contain the key — impossible to let it
+ * leak by omission.
  */
 
 /**
- * `aiApiKey` distingue trois intentions, et le schéma doit les préserver :
- *   champ absent → clé inchangée
- *   `null`       → clé effacée
- *   chaîne       → clé remplacée
- * `.nullable().optional()` est donc exigé : `.nullish()` ferait la même chose
- * ici, mais l'écrire en deux temps rappelle que `undefined` et `null` ne sont
- * pas interchangeables sur ce champ.
+ * `aiApiKey` tells three intentions apart, and the schema must preserve them:
+ *   absent field → key unchanged
+ *   `null`       → key cleared
+ *   string       → key replaced
+ * `.nullable().optional()` is therefore required: `.nullish()` would do the same
+ * thing here, but writing it in two steps recalls that `undefined` and `null` are
+ * not interchangeable on this field.
  */
 const patchSchema = appSettingsPatchSchema.extend({
   aiApiKey: z.string().trim().min(8).max(400).nullable().optional(),
-  /** Même convention que `aiApiKey` : absent, inchangé ; `null`, effacé. */
+  /** The same convention as `aiApiKey`: absent, unchanged; `null`, cleared. */
   ssoClientSecret: z.string().trim().min(1).max(400).nullable().optional(),
 });
 
-/** Vocabulaire nécessaire à l'écran de réglage — pas de liste figée côté client. */
+/** The vocabulary the settings screen needs — no frozen list on the client side. */
 function vocabulary() {
   return {
     timezones: supportedTimeZones(),
@@ -71,7 +71,7 @@ async function present(record: AppSettingsRecord) {
     aiApiKeyConfigured: record.aiApiKeyConfigured,
     aiApiKeyLast4: record.aiApiKeyLast4,
     ssoClientSecretConfigured: record.ssoClientSecretConfigured,
-    /** Ce que la connexion unique est **réellement**, une fois la découverte lue. */
+    /** What single sign-on **really** is, once the discovery is read. */
     ssoStatus: {
       active: sso.runtime !== null,
       error: sso.problem ? describeSsoProblem(sso.problem, t) : null,
@@ -92,8 +92,8 @@ export const PATCH = apiRoute(async (request) => {
   const auth = await requirePermission(request, 'settings:manage');
   const patch = await readJsonBody(request, patchSchema);
 
-  // Un rôle qui n'existe pas donnerait, à la connexion, le rôle par défaut sans
-  // rien dire : on le refuse ici, où l'on peut encore le dire.
+  // A role that does not exist would give, at sign-in, the default role without
+  // saying anything: we refuse it here, where it can still be said.
   if (patch.sso) {
     const keys = [
       ...(patch.sso.defaultRole ? [patch.sso.defaultRole] : []),
@@ -106,8 +106,8 @@ export const PATCH = apiRoute(async (request) => {
     }
   }
 
-  // Exiger le second facteur sans l'avoir soi-même : l'enregistrement fermerait
-  // aussitôt le panel à celui qui l'a fait. On le dit plutôt ici.
+  // Requiring the second factor without having it oneself: the save would right
+  // away close the panel to whoever made it. We say so here instead.
   const policy = patch.accounts?.twoFactorPolicy;
   if (
     policy &&
@@ -119,11 +119,11 @@ export const PATCH = apiRoute(async (request) => {
   }
 
   const { before, after, keyChange, ssoSecretChange } = await updateAppSettings(patch, auth.userId);
-  // La connexion unique se reconstruit sur ce qui vient d'être écrit — et dit
-  // tout de suite, dans la réponse, si le fournisseur répond.
+  // Single sign-on is rebuilt on what was just written — and says right away, in
+  // the response, whether the provider answers.
   if (patch.sso || Object.hasOwn(patch, 'ssoClientSecret')) await refreshSso();
-  // La durée des sessions est lue par Better Auth à sa construction : la
-  // politique relue, `getAuth()` reconstruit son instance.
+  // The sessions' duration is read by Better Auth at its construction: the policy
+  // read again, `getAuth()` rebuilds its instance.
   if (patch.accounts) {
     const policy = await refreshSessionPolicy();
     if (after.settings.accounts.sessionIdleHours < before.settings.accounts.sessionIdleHours) {
@@ -132,16 +132,15 @@ export const PATCH = apiRoute(async (request) => {
   }
 
   /**
-   * L'audit porte les réglages en clair — ils n'ont rien de secret — mais la
-   * clé y est réduite à un marqueur d'état. Une entrée d'audit est lue par
-   * beaucoup de monde et conservée longtemps : c'est le dernier endroit où
-   * l'on voudrait retrouver un secret.
+   * The audit carries the settings in clear — they have nothing secret — but the
+   * key is reduced to a state marker there. An audit entry is read by many people
+   * and kept for a long time: it is the last place one would want to find a secret.
    */
-  // i18n-ignore — valeur écrite dans le journal d'activité. Une entrée d'audit
-  // est une trace figée : la traduire à l'écriture fixerait sa langue pour
-  // toujours, et la relire dans une autre demanderait qu'elle soit une donnée,
-  // pas une phrase. Elle reste donc dans la langue du projet.
-  const keyMarker = (configured: boolean): string => (configured ? '(défini)' : '(effacé)');
+  // i18n-ignore — a value written to the activity log. An audit entry is a frozen
+  // trace: translating it at write time would fix its language forever, and reading
+  // it in another would require it to be data, not a sentence. It therefore stays
+  // in the project's language.
+  const keyMarker = (configured: boolean): string => (configured ? '(set)' : '(cleared)');
 
   await logAudit({
     actorId: auth.userId,

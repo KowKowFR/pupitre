@@ -6,12 +6,13 @@ import { logger } from '../logger.js';
 import { providerForConnection } from './provider.js';
 
 /**
- * Ce que Pupitre écrit sur un commit — GitHub, GitLab ou Gitea : l'état de son déploiement, cible
- * par cible (`pupitre/prod-1`), ou le sort réservé au commit (`pupitre`).
+ * What Pupitre writes on a commit — GitHub, GitLab or Gitea: its deployment's
+ * state, target by target (`pupitre/prod-1`), or the fate given to the commit
+ * (`pupitre`).
  *
- * Écrit dans la langue de l'instance, comme les alertes : c'est l'équipe qui
- * lit ces statuts, dans l'onglet du commit. Un statut qui ne part pas ne fait
- * jamais échouer un déploiement — c'est une information, pas une étape.
+ * Written in the instance's language, like the alerts: it is the team that reads
+ * these statuses, in the commit's tab. A status that does not go out never fails
+ * a deployment — it is information, not a step.
  */
 const fr = {
   pending: 'Déploiement #{number} en cours sur {target}',
@@ -39,7 +40,7 @@ const en: Translated<typeof fr> = {
 
 const STATUS_TEXT = { fr, en };
 
-/** La langue de l'instance — voir `instanceLanguage()`. */
+/** The instance's language — see `instanceLanguage()`. */
 export const statusLanguage = instanceLanguage;
 
 export function statusText(
@@ -50,7 +51,7 @@ export function statusText(
   return renderMessage(STATUS_TEXT, language, key, vars);
 }
 
-/** L'URL du panel, pour le lien du statut. Absente : un statut sans lien. */
+/** The panel's URL, for the status's link. Absent: a status without a link. */
 export function panelUrl(): string | null {
   const raw = process.env.BETTER_AUTH_URL?.trim();
   if (!raw) return null;
@@ -61,7 +62,7 @@ export function panelUrl(): string | null {
   }
 }
 
-/** Le dépôt d'une liaison, par la connexion qui l'ouvre. */
+/** A link's repository, through the connection that opens it. */
 export type LinkedRepository = {
   connectionId: string;
   repository: string;
@@ -69,8 +70,8 @@ export type LinkedRepository = {
 };
 
 /**
- * Publie un statut sur le commit, chez le fournisseur de la liaison, sans
- * jamais lever : l'échec se dit dans les logs du worker.
+ * Publishes a status on the commit, at the link's provider, without ever
+ * throwing: the failure is told in the worker's logs.
  */
 export async function reportCommitStatus(
   source: LinkedRepository,
@@ -88,14 +89,14 @@ export async function reportCommitStatus(
   } catch (error) {
     logger.warn(
       { err: error, repository: source.repository, sha, context: status.context },
-      'statut de commit non publié',
+      'commit status not published',
     );
   }
 }
 
 /**
- * L'état d'un run, renvoyé sur le commit qui l'a déclenché. Sans liaison (le
- * run ne vient pas d'un dépôt, ou la liaison a été supprimée), rien à dire.
+ * A run's state, sent back on the commit that triggered it. Without a link (the
+ * run does not come from a repository, or the link was deleted), nothing to say.
  */
 export async function reportDeploymentStatus(
   deploymentId: string,
@@ -129,6 +130,6 @@ export async function reportDeploymentStatus(
       targetUrl: base ? `${base}/deployments/${deploymentId}` : null,
     });
   } catch (error) {
-    logger.warn({ err: error, deploymentId }, 'statut de déploiement non publié');
+    logger.warn({ err: error, deploymentId }, 'deployment status not published');
   }
 }

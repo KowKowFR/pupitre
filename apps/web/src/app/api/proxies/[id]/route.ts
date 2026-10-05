@@ -19,6 +19,7 @@ import { apiRoute, readJsonBody } from '@/lib/http';
 import { remoteProxyViewForUi, waitForProxyCheck } from '@/lib/proxy';
 import { getOpsQueue } from '@/lib/queue';
 import { requirePermission } from '@/lib/rbac';
+import { currentLanguage } from '@/i18n/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -37,15 +38,17 @@ async function remoteOr404(id: string) {
 const patchSchema = z.object({
   name: z.string().trim().min(1).max(80).optional(),
   config: z.record(z.string(), z.unknown()),
-  /** Absents : les identifiants d'avant restent. */
+  /** Absent: the previous credentials stay. */
   secrets: z.record(z.string(), z.unknown()).optional(),
 });
 
 /**
- * Changer une connexion distante — son adresse, son compte. Le test repart et
- * la route rend son issue : en échec, la connexion le reste, et le dit.
+ * Changing a remote connection — its address, its account. The test starts again
+ * and the route returns its outcome: on failure, the connection stays failed, and
+ * says so.
  */
 export const PATCH = apiRoute<Context>(async (request, context) => {
+  const language = await currentLanguage();
   const auth = await requirePermission(request, 'target:update');
   const { id } = paramsSchema.parse(await context.params);
   const before = await remoteOr404(id);
@@ -70,13 +73,13 @@ export const PATCH = apiRoute<Context>(async (request, context) => {
     ip: auth.ip,
   });
   const saved = await getProxy(id);
-  return NextResponse.json({ proxy: saved ? remoteProxyViewForUi(saved) : null, check });
+  return NextResponse.json({ proxy: saved ? remoteProxyViewForUi(saved, language) : null, check });
 });
 
 /**
- * Retirer la connexion. Refusé tant que des domaines passent par ce proxy ;
- * les machines qu'il servait sans domaine sont déliées avec elle. Rien n'est
- * désinstallé : Pupitre n'a rien installé.
+ * Removing the connection. Refused as long as domains go through this proxy; the
+ * machines it served without a domain are unlinked with it. Nothing is
+ * uninstalled: Pupitre installed nothing.
  */
 export const DELETE = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'target:update');

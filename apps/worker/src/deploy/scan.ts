@@ -27,14 +27,14 @@ import { logger } from '../logger.js';
 import { workerSay } from '../messages.js';
 
 /**
- * Étape « scan » du pipeline.
+ * The pipeline's "scan" step.
  *
- * Le worker ne connaît aucun scanner : il lit `deployment.scan_config`, demande
- * les classes à la fabrique, les lance en parallèle et compare le pire finding
- * au seuil. Aucun `if (scanner === …)` ici — les divergences (comment
- * s'installer, comment parler, comment traduire une sévérité) sont des
- * responsabilités de l'implémentation, exactement comme les divergences de
- * runtime sont des responsabilités du driver.
+ * The worker knows no scanner: it reads `deployment.scan_config`, asks the
+ * factory for the classes, runs them in parallel and compares the worst finding
+ * with the threshold. No `if (scanner === …)` here — the divergences (how to
+ * install, how to talk, how to translate a severity) are the implementation's
+ * responsibilities, exactly as runtime divergences are the driver's
+ * responsibilities.
  */
 
 export type ScanRunOutcome = {
@@ -45,16 +45,16 @@ export type ScanRunOutcome = {
   counts: SeverityCounts;
   durationMs: number;
   error: string | null;
-  /** Findings de cette exécution qui atteignent le seuil. */
+  /** This run's findings that reach the threshold. */
   blocking: Finding[];
 };
 
 export type ScanStepResult = {
-  /** `true` quand au moins un finding atteint le seuil de blocage. */
+  /** `true` when at least one finding reaches the blocking threshold. */
   blocked: boolean;
   runs: ScanRunOutcome[];
   counts: SeverityCounts;
-  /** Findings qui atteignent le seuil, dédoublonnés par CVE. */
+  /** Findings that reach the threshold, deduplicated by CVE. */
   blocking: Array<{ cveId: string; severity: string; package: string }>;
 };
 
@@ -64,43 +64,42 @@ export type ScanStepInput = {
   config: ScanConfig;
   images: readonly string[];
   /**
-   * Où le runtime garde ces images — `driver.imageStore(ctx)`. Le worker le
-   * transmet sans le lire : c'est chaque scanner qui sait s'en servir.
+   * Where the runtime keeps these images — `driver.imageStore(ctx)`. The worker
+   * passes it on without reading it: it is each scanner that knows how to use it.
    */
   store: ImageStore;
   onLog: (line: string) => void;
   /**
-   * Effacer les exécutions précédentes du déploiement avant de rescanner.
+   * Erase the deployment's previous runs before scanning again.
    *
-   * Vrai dans le pipeline : une relance rejoue l'étape et doit repartir d'une
-   * ardoise propre, sinon la page de sécurité cumulerait deux rapports sans
-   * moyen de les distinguer. Faux pour le scan **périodique**, dont
-   * tout l'intérêt est justement d'empiler les rapports dans le temps sur un
-   * déploiement qui, lui, n'a pas bougé.
+   * True in the pipeline: a retry replays the step and must start again from a
+   * clean slate, otherwise the security page would add up two reports with no way
+   * to tell them apart. False for the **periodic** scan, whose whole point is
+   * precisely to stack reports over time on a deployment that did not move.
    */
   clearPrevious?: boolean;
 };
 
 /**
- * Exécute les scanners sélectionnés sur toutes les images du déploiement.
+ * Runs the selected scanners on all of the deployment's images.
  *
- * Une exécution = un couple (scanner, image), et donc une ligne `scan_runs`.
- * C'est le modèle le plus honnête : la table porte une colonne `image_ref` au
- * singulier depuis l'origine, et un rapport agrégé sur plusieurs images
- * rendrait le verdict impossible à rattacher à quoi que ce soit.
+ * One run = one (scanner, image) pair, hence one `scan_runs` row. It is the most
+ * honest model: the table carries a singular `image_ref` column since the
+ * beginning, and a report aggregated over several images would make the verdict
+ * impossible to attach to anything.
  */
 export async function runSecurityScan(input: ScanStepInput): Promise<ScanStepResult> {
   const { deploymentId, ctx, config, images, onLog } = input;
   const say = workerSay(ctx.language);
 
   if (input.clearPrevious !== false) {
-    // Une relance rejoue l'étape : on repart d'une ardoise propre.
+    // A retry replays the step: we start again from a clean slate.
     const removed = await clearScanRuns(deploymentId);
     if (removed > 0) onLog(say('scan.cleared', { count: removed }));
   }
 
-  // Les failles acceptées valent au moment du scan : c'est l'application qui
-  // les porte, pas la version gelée.
+  // Accepted vulnerabilities hold at scan time: it is the application that carries
+  // them, not the frozen version.
   const acceptances = await activeAcceptancesForDeployment(deploymentId);
   const policy: ScanPolicy = {
     failOn: config.failOn,
@@ -119,8 +118,8 @@ export async function runSecurityScan(input: ScanStepInput): Promise<ScanStepRes
     }),
   );
 
-  // Installation d'abord, en parallèle entre outils distincts : deux exécutions
-  // du même scanner sur deux images se disputeraient sinon le même fichier.
+  // Installation first, in parallel across distinct tools: two runs of the same
+  // scanner on two images would otherwise fight over the same file.
   await Promise.allSettled(
     config.scanners.map(async (key) => {
       const prefix = `[${key}]`;
@@ -128,9 +127,9 @@ export async function runSecurityScan(input: ScanStepInput): Promise<ScanStepRes
         const version = await getScanner(key).ensureInstalled(ctx.sshSession, (line) =>
           onLog(`${prefix} ${line}`),
         );
-        logger.info({ scanner: key, version }, 'scanner disponible sur la cible');
+        logger.info({ scanner: key, version }, 'scanner available on the target');
       } catch (error) {
-        // L'échec est reproduit — et enregistré — au moment du `run`.
+        // The failure is reproduced — and recorded — at `run` time.
         onLog(say('scan.installFailed', { prefix, error: errorMessage(error) }));
       }
     }),
@@ -149,8 +148,8 @@ export async function runSecurityScan(input: ScanStepInput): Promise<ScanStepRes
       runs.push(result.value);
       continue;
     }
-    // `runOne` capture déjà ses erreurs : un rejet ici signale un problème
-    // d'écriture en base, pas un scanner en défaut. On le rend visible.
+    // `runOne` already catches its errors: a rejection here signals a database write
+    // problem, not a faulty scanner. We make it visible.
     const task = tasks[index];
     const message = errorMessage(result.reason);
     onLog(say('scan.unrecorded', { scanner: task?.scanner ?? '?', error: message }));
@@ -181,7 +180,7 @@ export async function runSecurityScan(input: ScanStepInput): Promise<ScanStepRes
   return { blocked, runs, counts, blocking };
 }
 
-/** Findings qui bloquent, dédoublonnés par CVE et paquet. */
+/** Findings that block, deduplicated by CVE and package. */
 function collectBlocking(runs: readonly ScanRunOutcome[]) {
   const seen = new Set<string>();
   const blockingFindings: Array<{ cveId: string; severity: string; package: string }> = [];
@@ -236,8 +235,8 @@ async function runOne(
       status: 'success',
       verdict,
       findings: report.findings,
-      // Pour un scanner `sbom`, `raw` EST le document : c'est ce que sert la
-      // route de téléchargement. Voir `packages/db/src/scans.ts`.
+      // For an `sbom` scanner, `raw` IS the document: it is what the download route
+      // serves. See `packages/db/src/scans.ts`.
       raw: report.raw,
     });
 
@@ -267,7 +266,7 @@ async function runOne(
       counts,
       durationMs: report.durationMs,
       error: null,
-      // Un SBOM ne bloque jamais : c'est le `kind` qui le dit, pas le nom.
+      // An SBOM never blocks: it is the `kind` that says so, not the name.
       blocking:
         report.kind === 'vulnerability'
           ? report.findings.filter((finding) => findingBlocks(finding, policy))
@@ -276,12 +275,12 @@ async function runOne(
   } catch (error) {
     const message = errorMessage(error);
     onLog(`${prefix} ✗ ${message}`);
-    logger.error({ err: error, scanner: task.scanner, image: task.image }, 'scanner en échec');
+    logger.error({ err: error, scanner: task.scanner, image: task.image }, 'scanner failed');
 
     await finishScanRun(run.id, {
       status: 'failed',
-      // Un scanner qui plante ne prononce aucun verdict : il ne bloque pas, et
-      // il ne dédouane pas non plus. `unknown` dit exactement cela.
+      // A scanner that crashes gives no verdict: it does not block, and it does not
+      // clear either. `unknown` says exactly that.
       verdict: 'unknown',
       error: message,
     });

@@ -52,7 +52,7 @@ export const CATEGORY_ICON: Record<CatalogCategory, LucideIcon> = {
   demo: Sparkles,
 };
 
-/** Deux lettres du nom, sur un cartouche : « Uptime Kuma » → UK, « n8n » → N8. */
+/** Two letters of the name, on a cartouche: "Uptime Kuma" → UK, "n8n" → N8. */
 function monogramOf(name: string): string {
   const words = name.split(/[\s.-]+/).filter(Boolean);
   const letters =
@@ -76,8 +76,8 @@ export function Monogram({ name, size = 'md' }: { name: string; size?: 'md' | 'l
 }
 
 /**
- * La vitrine. Une recherche, les catégories, puis une carte par modèle ;
- * une carte ouvre son tiroir — ce qui va tourner, et l'installation.
+ * The showcase. A search, the categories, then one card per template; a card
+ * opens its drawer — what will run, and the installation.
  */
 export function CatalogView({
   templates,

@@ -11,25 +11,25 @@ import { logger } from '../logger.js';
 import { allowedCidrs } from '../monitors/policy.js';
 
 /**
- * Le relevé d'un domaine, demandé par son tiroir : où mène le nom, à qui il
- * appartient, quel certificat il présente.
+ * A domain's reading, asked by its drawer: where the name leads, who it belongs
+ * to, which certificate it presents.
  *
- * Le panel n'envoie que l'identifiant de la route : le nom, la présence de TLS
- * et la machine du proxy se relisent ici, en base — la question ne peut pas
- * porter sur autre chose qu'un domaine de l'instance.
+ * The panel only sends the route's identifier: the name, the presence of TLS and
+ * the proxy's machine are read again here, in the database — the question cannot
+ * be about anything other than one of the instance's domains.
  *
- * Aucune écriture : ni au journal (une lecture de ce qu'on a le droit de voir),
- * ni sur la route (son état est celui que le proxy constate, depuis la
- * machine ; ce relevé est vu du worker, et ne le remplace pas).
+ * No write: neither to the log (a read of what one is allowed to see), nor on the
+ * route (its state is the one the proxy observes, from the machine; this reading
+ * is seen from the worker, and does not replace it).
  */
 export async function handleDomainInspect(job: Job): Promise<DomainInspection> {
   const { routeId } = domainInspectJobDataSchema.parse(job.data);
   const route = await getRouteById(routeId);
-  if (!route) throw new Error('domaine introuvable');
+  if (!route) throw new Error('domain not found');
 
-  // La machine qui porte le proxy du nom — la sienne, ou celle d'un proxy
-  // central. Un proxy distant (joint par son API) n'en a pas : on ne sait
-  // alors pas où le nom devrait mener.
+  // The machine carrying the name's proxy — its own, or a central proxy's. A remote
+  // proxy (reached through its API) has none: we then do not know where the name
+  // should lead.
   const serving = (await listServingProxies()).get(route.targetId);
   const hostTarget = serving?.proxy.hostTargetId
     ? await getTarget(serving.proxy.hostTargetId)
@@ -53,7 +53,7 @@ export async function handleDomainInspect(job: Job): Promise<DomainInspection> {
       certificate: inspection.certificate.status,
       pointing: inspection.pointing.status,
     },
-    'relevé de domaine terminé',
+    'domain reading completed',
   );
   return domainInspectionSchema.parse(inspection);
 }

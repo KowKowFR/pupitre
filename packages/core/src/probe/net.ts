@@ -10,20 +10,20 @@ import type { UiLanguage } from '../i18n.js';
 import { probeSay } from './messages.js';
 
 /**
- * La résolution contrôlée, partagée par toutes les sondes.
+ * The guarded resolution, shared by every probe.
  *
- * C'est le seul chemin par lequel un nom devient une adresse dans ce projet.
- * Toute implémentation de sonde passe par ici : la politique SSRF ne peut donc
- * pas être oubliée par un type qui arrive plus tard.
+ * It is the only path by which a name becomes an address in this project. Every
+ * probe implementation goes through here: the SSRF policy therefore cannot be
+ * forgotten by a type that comes later.
  */
 
 /**
- * L'erreur porte le refus **en donnée**, pas seulement en phrase.
+ * The error carries the refusal **as data**, not only as a sentence.
  *
- * `reason` reste ce qu'il était — la phrase française, celle que les sondes
- * recopient en `detail` d'un relevé et que Pino journalise. `refusal` est la
- * même chose non rendue : le panel s'en sert pour dire la même chose dans la
- * langue de l'instance, sans avoir à retraduire une phrase déjà écrite.
+ * `reason` stays what it was — the French sentence, the one probes copy into a
+ * reading's `detail` and Pino logs. `refusal` is the same thing, not rendered:
+ * the panel uses it to say the same thing in the instance's language, without
+ * having to translate an already written sentence again.
  */
 export class SsrfBlockedError extends Error {
   override readonly name = 'SsrfBlockedError';
@@ -39,17 +39,17 @@ export class SsrfBlockedError extends Error {
 
 export type ResolvedTarget = {
   hostname: string;
-  /** Adresse littérale retenue pour la connexion. */
+  /** Literal address chosen for the connection. */
   address: string;
   family: 4 | 6;
-  /** Toutes les adresses rendues par le résolveur, toutes contrôlées. */
+  /** All the addresses returned by the resolver, all checked. */
   addresses: string[];
 };
 
 /**
- * Résout un nom et contrôle **toutes** les adresses rendues, pas seulement
- * celle qu'on retiendra : un nom qui pointe à la fois sur une adresse publique
- * et sur `127.0.0.1` est une attaque, pas une redondance.
+ * Resolves a name and checks **all** the returned addresses, not only the one
+ * that will be kept: a name pointing both at a public address and at
+ * `127.0.0.1` is an attack, not redundancy.
  */
 export async function resolveGuarded(
   hostname: string,
@@ -63,8 +63,8 @@ export async function resolveGuarded(
 
   let records: Array<{ address: string; family: number }>;
   try {
-    // `verbatim` conserve l'ordre du résolveur — on ne réordonne rien, on
-    // contrôle tout.
+    // `verbatim` keeps the resolver's order — we reorder nothing, we check
+    // everything.
     records = await dnsLookup(host, { all: true, verbatim: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -90,7 +90,7 @@ export async function resolveGuarded(
   };
 }
 
-/** Résout l'hôte d'une URL, après contrôle de sa forme. */
+/** Resolves a URL's host, after checking its shape. */
 export async function resolveUrlGuarded(
   url: string,
   allowlist: readonly Cidr[],
@@ -114,8 +114,8 @@ export async function resolveUrlGuarded(
 }
 
 /**
- * Un délai dépassé, en donnée : `messageOf()` le dit dans la langue de qui
- * lira le relevé, comme le refus d'un `SsrfBlockedError`.
+ * A timeout, as data: `messageOf()` says it in the language of whoever will read
+ * the reading, like an `SsrfBlockedError`'s refusal.
  */
 export class ProbeTimeoutError extends Error {
   override readonly name = 'ProbeTimeoutError';

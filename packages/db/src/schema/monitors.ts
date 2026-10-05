@@ -18,21 +18,21 @@ import { users } from './auth.js';
 import { applications } from './infra.js';
 
 /**
- * Supervision de sites — sondée depuis le worker, vers la cible publique.
+ * Site monitoring — probed from the worker, toward the public target.
  *
- * À ne pas confondre avec `deployments.health_status`, que remplit la tâche
- * `health:periodic` en interrogeant la machine cible par SSH. Celle-ci part de
- * l'extérieur : c'est le seul moyen de voir un pare-feu refermé, un proxy
- * cassé, un certificat expiré ou un DNS mort.
+ * Not to be confused with `deployments.health_status`, which the
+ * `health:periodic` task fills by querying the target machine over SSH. This one
+ * comes from outside: it is the only way to see a firewall closed again, a
+ * broken proxy, an expired certificate or a dead DNS.
  *
- * ── Pourquoi la table ne décrit pas une requête HTTP ─────────────────────────
- * Six types de surveillance sont visés (HTTP, mot-clé, TLS, DNS, expiration de
- * domaine, empreinte de contenu). Ce ne sont pas six fonctionnalités mais une
- * abstraction et six implémentations. La table porte donc **le commun** — type,
- * cadence, état, seuils, rattachement — et la configuration propre au type vit
- * dans `config`, en JSONB, validée par le schéma Zod de ce type
- * (`packages/core/src/monitors/catalog.ts`). Ajouter un type ne touche pas
- * cette table.
+ * ── Why the table does not describe an HTTP request ─────────────────────────
+ * Six kinds of monitoring are targeted (HTTP, keyword, TLS, DNS, domain expiry,
+ * content fingerprint). They are not six features but one abstraction and six
+ * implementations. The table therefore carries **what is common** — type,
+ * interval, state, thresholds, attachment — and the type-specific configuration
+ * lives in `config`, as JSONB, validated by that type's Zod schema
+ * (`packages/core/src/monitors/catalog.ts`). Adding a type does not touch this
+ * table.
  */
 export const monitors = pgTable(
   'monitors',
@@ -40,47 +40,48 @@ export const monitors = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     name: text('name').notNull(),
     /**
-     * Type de sonde. Volontairement du `text` et non un enum Postgres : un enum
-     * ajouterait une migration à la liste de ce qu'il faut faire pour ajouter un
-     * type, et c'est précisément la chirurgie qu'on veut éviter. Le vocabulaire
-     * reste fermé — il vit dans `MONITOR_TYPES` et Zod le fait respecter à
-     * chaque entrée. Une valeur inconnue en base (retour arrière du code) fait
-     * suspendre la sonde avec son motif, jamais planter le balayage.
+     * Probe type. Deliberately `text` and not a Postgres enum: an enum would add a
+     * migration to the list of what must be done to add a type, and that is
+     * precisely the surgery we want to avoid. The vocabulary stays closed — it lives
+     * in `MONITOR_TYPES` and Zod enforces it at each input. An unknown value in the
+     * database (code rolled back) pauses the probe with its reason, never crashes the
+     * sweep.
      */
     type: text('type').$type<MonitorType>().notNull().default('http'),
-    /** Configuration propre au type, validée par le schéma Zod de ce type. */
+    /** Type-specific configuration, validated by that type's Zod schema. */
     config: jsonb('config').$type<Record<string, unknown>>().notNull().default({}),
 
     intervalSeconds: integer('interval_seconds').notNull().default(60),
     /**
-     * Seuil de confirmation. Un rebond — une mesure qui rate puis repasse — ne
-     * doit pas produire d'incident ni de message : il faut `failure_threshold`
-     * échecs consécutifs pour ouvrir, `recovery_threshold` succès pour refermer.
+     * Confirmation threshold. A bounce — a measurement that fails then passes again
+     * — must produce neither an incident nor a message: it takes
+     * `failure_threshold` consecutive failures to open, `recovery_threshold`
+     * successes to close.
      */
     failureThreshold: integer('failure_threshold').notNull().default(3),
     recoveryThreshold: integer('recovery_threshold').notNull().default(2),
     enabled: boolean('enabled').notNull().default(true),
-    /** Renseigné quand la sonde a été suspendue par le panel, pas par un humain. */
+    /** Filled in when the probe was paused by the panel, not by a human. */
     pausedReason: text('paused_reason'),
     /**
-     * Rattachement à une application déployée par le panel. `null` = sonde
-     * libre, sur un site qu'il n'a pas déployé. La cible reste copiée dans
-     * `config` : une sonde doit survivre à la version qui l'a inspirée.
+     * Attachment to an application deployed by the panel. `null` = a free probe, on
+     * a site it did not deploy. The target stays copied in `config`: a probe must
+     * outlive the version that inspired it.
      */
     applicationId: uuid('application_id').references(() => applications.id, {
       onDelete: 'cascade',
     }),
     /**
-     * URL du webhook d'alerte, chiffrée AES-256-GCM sous `MASTER_KEY` — même
-     * traitement que les credentials SSH. Une URL de webhook Slack ou Discord
-     * *est* le secret : qui la détient poste dans le salon. Jamais rendue par
-     * l'API, jamais journalisée.
+     * The alert webhook's URL, encrypted with AES-256-GCM under `MASTER_KEY` — the
+     * same treatment as SSH credentials. A Slack or Discord webhook URL *is* the
+     * secret: whoever holds it posts in the channel. Never returned by the API,
+     * never logged.
      */
     webhookUrlEncrypted: text('webhook_url_encrypted'),
 
-    /** État **confirmé**. Ne bouge qu'aux transitions, jamais au premier échec. */
+    /** **Confirmed** state. Only moves at transitions, never at the first failure. */
     status: healthStatusEnum('status').notNull().default('unknown'),
-    /** Dernier verdict brut, confirmé ou non. C'est lui qui dit « 1 échec sur 3 ». */
+    /** Last raw verdict, confirmed or not. It is what says "1 failure out of 3". */
     lastOutcome: healthStatusEnum('last_outcome'),
     consecutiveFailures: integer('consecutive_failures').notNull().default(0),
     consecutiveSuccesses: integer('consecutive_successes').notNull().default(0),
@@ -88,15 +89,15 @@ export const monitors = pgTable(
     lastLatencyMs: integer('last_latency_ms'),
     lastDetail: text('last_detail'),
     /**
-     * Mesures du dernier relevé. En JSONB, et non en colonnes : une sonde HTTP
-     * rend une latence et un code, une sonde TLS des jours restants et un
-     * émetteur. Le catalogue dit à l'écran comment afficher chaque clé.
+     * Measurements of the last reading. As JSONB, and not as columns: an HTTP probe
+     * returns a latency and a code, a TLS probe days left and an issuer. The catalog
+     * tells the screen how to show each key.
      */
     lastMetrics: jsonb('last_metrics').$type<CheckMetrics>(),
     /**
-     * Échéance de la prochaine mesure. C'est la colonne que le balayage
-     * interroge, et qu'il avance **avant** de sonder : une sonde lente n'est
-     * pas reprise par le balayage suivant.
+     * Due date of the next measurement. It is the column the sweep queries, and
+     * moves **before** probing: a slow probe is not picked up again by the next
+     * sweep.
      */
     nextCheckAt: timestamp('next_check_at', { withTimezone: true }).notNull().defaultNow(),
 
@@ -105,14 +106,14 @@ export const monitors = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    // La requête du balayage, et la seule qui tourne en boucle : « les sondes
-    // actives dont l'échéance est passée ». Index partiel : une sonde suspendue
-    // n'a aucune raison d'occuper l'index de travail.
+    // The sweep's query, and the only one that runs in a loop: "the active probes
+    // whose due date has passed". Partial index: a paused probe has no reason to
+    // take up the working index.
     index('monitors_due_idx').on(t.nextCheckAt).where(sql`${t.enabled}`),
     index('monitors_application_id_idx').on(t.applicationId),
-    // Bornes **absolues**, tous types confondus. La cadence minimale propre à
-    // chaque type (30 s pour HTTP, 1 h pour TLS) vit dans le catalogue : c'est
-    // une connaissance du type, pas de la table, et elle changerait avec lui.
+    // **Absolute** bounds, all types together. Each type's own minimum interval
+    // (30 s for HTTP, 1 h for TLS) lives in the catalog: it is knowledge of the
+    // type, not of the table, and it would change with it.
     check(
       'monitors_interval_check',
       sql`${t.intervalSeconds} >= 30 and ${t.intervalSeconds} <= 2592000`,
@@ -125,12 +126,12 @@ export const monitors = pgTable(
 );
 
 /**
- * La série temporelle.
+ * The time series.
  *
- * Elle grandit sans fin par nature : une sonde à la minute écrit 43 200 lignes
- * par mois. Sa rétention est de **30 jours** (`MONITOR_CHECK_RETENTION_DAYS`),
- * appliquée par le balayage — voir le commentaire de la constante pour le
- * raisonnement. Une table qui gonfle en silence est un défaut.
+ * It grows endlessly by nature: a probe every minute writes 43,200 rows a month.
+ * Its retention is **30 days** (`MONITOR_CHECK_RETENTION_DAYS`), applied by the
+ * sweep — see the constant's comment for the reasoning. A table that swells
+ * silently is a flaw.
  */
 export const monitorChecks = pgTable(
   'monitor_checks',
@@ -140,45 +141,45 @@ export const monitorChecks = pgTable(
       .notNull()
       .references(() => monitors.id, { onDelete: 'cascade' }),
     checkedAt: timestamp('checked_at', { withTimezone: true }).notNull().defaultNow(),
-    /** Jamais `unknown` : une mesure a toujours tranché. */
+    /** Never `unknown`: a measurement has always decided. */
     outcome: healthStatusEnum('outcome').notNull(),
-    /** `null` quand rien n'a répondu — il n'y a alors pas de durée à mesurer. */
+    /** `null` when nothing answered — there is then no duration to measure. */
     latencyMs: integer('latency_ms'),
     detail: text('detail'),
-    /** Les mesures du type : code HTTP et redirections, ou jours restants et émetteur. */
+    /** The type's measurements: HTTP code and redirects, or days left and issuer. */
     metrics: jsonb('metrics').$type<CheckMetrics>().notNull().default({}),
   },
   (t) => [
-    // Les deux seules requêtes que l'écran fait vraiment :
-    //   « les N derniers résultats d'une sonde »   → ORDER BY checked_at DESC LIMIT n
-    //   « le taux sur 24 h / 7 j »                 → WHERE checked_at >= now() - …
-    // Un seul index composite les sert toutes les deux.
+    // The only two queries the screen really makes:
+    //   "a probe's last N results"   → ORDER BY checked_at DESC LIMIT n
+    //   "the rate over 24 h / 7 d"   → WHERE checked_at >= now() - …
+    // A single composite index serves both.
     index('monitor_checks_monitor_time_idx').on(t.monitorId, t.checkedAt.desc()),
-    // La purge, elle, balaie toutes sondes confondues : elle a besoin du temps
-    // seul, sinon elle relit la table entière chaque heure.
+    // The purge sweeps all probes together: it needs the time alone, otherwise it
+    // reads the whole table every hour.
     index('monitor_checks_checked_at_idx').on(t.checkedAt),
   ],
 );
 
 /**
- * Les incidents. **Une table, pas une dérivation à la lecture.**
+ * The incidents. **A table, not a derivation at read time.**
  *
- * Trois raisons, dans l'ordre d'importance :
+ * Three reasons, in order of importance:
  *
- *  1. L'alerte doit partir **une seule fois**. Cela demande une trace durable
- *     du « j'ai déjà prévenu », et cette trace, c'est la ligne d'incident. Un
- *     calcul à la lecture ne saurait pas si le message est parti.
- *  2. Le seuil de confirmation est réglable **par sonde**. Dériver les
- *     incidents à la lecture ferait que baisser le seuil réécrirait le passé :
- *     des incidents apparaîtraient rétroactivement dans une chronologie qu'un
- *     humain avait déjà lue. Un incident est une décision prise à un instant,
- *     avec les réglages de cet instant ; elle doit être immuable.
- *  3. Le coût. Dériver, c'est rejouer la machine à états sur toute la série à
- *     chaque affichage — sur la table précisément conçue pour grandir.
+ *  1. The alert must go out **only once**. That requires a durable trace of "I
+ *     already warned", and that trace is the incident row. A computation at read
+ *     time would not know whether the message went out.
+ *  2. The confirmation threshold is adjustable **per probe**. Deriving the
+ *     incidents at read time would make lowering the threshold rewrite the past:
+ *     incidents would appear retroactively in a timeline a human had already
+ *     read. An incident is a decision taken at an instant, with that instant's
+ *     settings; it must be immutable.
+ *  3. The cost. Deriving means replaying the state machine over the whole series
+ *     at each display — on precisely the table designed to grow.
  *
- * L'index unique **partiel** sur `(monitor_id) where resolved_at is null` est
- * la garantie qu'une sonde n'a jamais deux incidents ouverts. Comme
- * l'anti-collision de ports : une contrainte, pas un `if`.
+ * The **partial** unique index on `(monitor_id) where resolved_at is null` is the
+ * guarantee that a probe never has two open incidents. Like port collision
+ * avoidance: a constraint, not an `if`.
  */
 export const monitorIncidents = pgTable(
   'monitor_incidents',
@@ -189,11 +190,11 @@ export const monitorIncidents = pgTable(
       .references(() => monitors.id, { onDelete: 'cascade' }),
     startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
     resolvedAt: timestamp('resolved_at', { withTimezone: true }),
-    /** Nature de la panne à l'ouverture : `unhealthy` ou `unreachable`. */
+    /** The outage's nature at opening: `unhealthy` or `unreachable`. */
     cause: healthStatusEnum('cause').notNull(),
     detail: text('detail'),
     metrics: jsonb('metrics').$type<CheckMetrics>().notNull().default({}),
-    /** Combien d'échecs consécutifs ont confirmé l'ouverture. */
+    /** How many consecutive failures confirmed the opening. */
     failureCount: integer('failure_count').notNull().default(1),
     alertSentAt: timestamp('alert_sent_at', { withTimezone: true }),
     alertError: text('alert_error'),
@@ -209,37 +210,36 @@ export const monitorIncidents = pgTable(
 );
 
 /**
- * **Ce que la sonde a vu.**
+ * **What the probe saw.**
  *
- * Une image de la page, prise au moment où un incident s'ouvre ou se referme,
- * plus une image de référence prise pendant que tout allait bien. Le
- * raisonnement — pourquoi trois moments et pas un, pourquoi du JPEG, pourquoi
- * une borne dure de taille — vit dans `packages/core/src/monitors/capture.ts`,
- * avec le reste du vocabulaire. Ici : où les octets habitent, et comment la
- * table reste bornée.
+ * An image of the page, taken when an incident opens or closes, plus a reference
+ * image taken while all was well. The reasoning — why three moments and not one,
+ * why JPEG, why a hard size cap — lives in
+ * `packages/core/src/monitors/capture.ts`, with the rest of the vocabulary.
+ * Here: where the bytes live, and how the table stays bounded.
  *
- * ── Pourquoi les octets sont dans Postgres et non dans un volume ────────────
- * Un volume serait plus léger pour la base. Il ajouterait en revanche une
- * **seconde chose à sauvegarder**, et ce projet n'a aujourd'hui *aucune*
- * histoire de sauvegarde : ajouter un second support à ne pas oublier quand on
- * n'en sauvegarde déjà pas un, c'est choisir de perdre les images. En base, la
- * capture suit l'incident partout où il va — le `pg_dump` que quelqu'un finira
- * par écrire, la copie de la base vers un poste de test, la suppression en
- * cascade d'une sonde. Et il n'y a pas de volume à monter dans deux conteneurs
- * (le worker écrit, le panel sert), donc pas de chemin partagé à tenir d'accord.
+ * ── Why the bytes are in Postgres and not in a volume ───────────────────────
+ * A volume would be lighter for the database. It would, however, add a **second
+ * thing to back up**, and this project has *no* backup story today: adding a
+ * second medium not to forget when one is already not backed up is choosing to
+ * lose the images. In the database, the capture follows the incident wherever it
+ * goes — the `pg_dump` someone will end up writing, the copy of the database to
+ * a test workstation, a probe's cascading deletion. And there is no volume to
+ * mount in two containers (the worker writes, the panel serves), hence no shared
+ * path to keep in agreement.
  *
- * Le coût est réel, et il est **borné par construction** :
- *   — une seule référence vivante par sonde (l'index unique partiel ci-dessous) ;
- *   — au plus deux images par incident ;
- *   — les octets purgés à 90 jours, la ligne conservée.
- * Cinquante sondes et cent incidents dans l'année, ce sont quelques dizaines de
- * mégaoctets — à comparer au vidage d'une base qui porte déjà tout l'historique
- * des déploiements.
+ * The cost is real, and it is **bounded by construction**:
+ *   — a single live reference per probe (the partial unique index below);
+ *   — at most two images per incident;
+ *   — the bytes purged at 90 days, the row kept.
+ * Fifty probes and a hundred incidents in a year make a few tens of megabytes —
+ * to compare with the dump of a database that already carries the whole
+ * deployment history.
  *
- * ⚠ `image` ne doit **jamais** partir dans un `select *` : les écrans listent
- * des dizaines de captures et n'ont besoin que des métadonnées. Les lectures
- * passent par `packages/db/src/captures.ts`, qui nomme ses colonnes et ne charge
- * les octets que pour la route qui sert l'image.
+ * ⚠ `image` must **never** go out in a `select *`: the screens list dozens of
+ * captures and only need the metadata. Reads go through
+ * `packages/db/src/captures.ts`, which names its columns and only loads the
+ * bytes for the route that serves the image.
  */
 export const monitorCaptures = pgTable(
   'monitor_captures',
@@ -249,11 +249,10 @@ export const monitorCaptures = pgTable(
       .notNull()
       .references(() => monitors.id, { onDelete: 'cascade' }),
     /**
-     * `null` = référence **vivante**, celle qui servira de « avant » au prochain
-     * incident. Renseigné = image rattachée à cet incident, conservée avec lui.
-     * C'est ce qui « épingle » la référence à l'instant où la panne commence :
-     * la comparaison avant/après reste vraie même quand une référence plus
-     * fraîche est prise ensuite.
+     * `null` = **live** reference, the one that will serve as "before" for the next
+     * incident. Filled in = image attached to that incident, kept with it. That is
+     * what "pins" the reference at the instant the outage starts: the before/after
+     * comparison stays true even when a fresher reference is taken afterwards.
      */
     incidentId: uuid('incident_id').references(() => monitorIncidents.id, {
       onDelete: 'cascade',
@@ -262,50 +261,49 @@ export const monitorCaptures = pgTable(
     kind: text('kind').$type<CaptureKind>().notNull(),
     takenAt: timestamp('taken_at', { withTimezone: true }).notNull().defaultNow(),
 
-    /** L'URL demandée, et celle réellement rendue après redirections. */
+    /** The requested URL, and the one really rendered after redirects. */
     url: text('url').notNull(),
     finalUrl: text('final_url'),
-    /** Code de la réponse principale, quand le navigateur l'a vu passer. */
+    /** Code of the main response, when the browser saw it go by. */
     httpStatus: integer('http_status'),
     pageTitle: text('page_title'),
 
     width: integer('width').notNull(),
     height: integer('height').notNull(),
     format: text('format').notNull().default('jpeg'),
-    /** Taille en octets. Conservée après la purge : elle documente ce qui a été. */
+    /** Size in bytes. Kept after the purge: it documents what was. */
     bytes: integer('bytes').notNull(),
-    /** La page était plus haute que la borne de rendu. Dit, jamais caché. */
+    /** The page was taller than the render cap. Said, never hidden. */
     truncated: boolean('truncated').notNull().default(false),
-    /** Durée de la capture. Une page qui met 20 s à rendre est une information. */
+    /** The capture's duration. A page taking 20 s to render is information. */
     elapsedMs: integer('elapsed_ms'),
 
     /**
-     * Les octets. `null` après la purge de rétention — la ligne, elle, reste :
-     * une chronologie qui dit ce qu'elle a perdu vaut mieux qu'une chronologie
-     * amputée en silence.
+     * The bytes. `null` after the retention purge — the row stays: a timeline that
+     * says what it lost is better than a timeline silently truncated.
      */
     image: bytea('image'),
     purgedAt: timestamp('purged_at', { withTimezone: true }),
   },
   (t) => [
     /**
-     * **Une seule référence vivante par sonde.** Une contrainte, pas un `if` —
-     * même discipline que l'anti-collision de ports et que l'incident ouvert
-     * unique. C'est elle qui borne la table : sans elle, une référence toutes
-     * les six heures ferait cent vingt images par sonde et par mois.
+     * **A single live reference per probe.** A constraint, not an `if` — the same
+     * discipline as port collision avoidance and the single open incident. It is
+     * what bounds the table: without it, a reference every six hours would make a
+     * hundred and twenty images per probe per month.
      *
-     * Épingler la référence à un incident (`incident_id` renseigné) la fait
-     * sortir de l'index, ce qui libère la place pour la suivante. La rotation
-     * est donc un effet de la contrainte, pas une tâche de ménage.
+     * Pinning the reference to an incident (`incident_id` filled in) takes it out of
+     * the index, which frees the place for the next one. Rotation is therefore an
+     * effect of the constraint, not a cleanup task.
      */
     uniqueIndex('monitor_captures_live_reference_idx')
       .on(t.monitorId)
       .where(sql`${t.kind} = 'reference' and ${t.incidentId} is null`),
-    // Ce que l'écran de détail demande : les images d'un incident.
+    // What the detail screen asks for: an incident's images.
     index('monitor_captures_incident_idx').on(t.incidentId),
     index('monitor_captures_monitor_taken_idx').on(t.monitorId, t.takenAt.desc()),
-    // La purge balaie toutes sondes confondues : il lui faut le temps seul, et
-    // seulement les lignes qui portent encore des octets.
+    // The purge sweeps all probes together: it needs the time alone, and only the
+    // rows that still carry bytes.
     index('monitor_captures_taken_at_idx')
       .on(t.takenAt)
       .where(sql`${t.image} is not null`),
@@ -314,8 +312,8 @@ export const monitorCaptures = pgTable(
       sql`${t.kind} in ('reference', 'incident_open', 'incident_resolved')`,
     ),
     /**
-     * Une image d'incident sans incident n'a pas de sens. Le couple est
-     * contraint ici plutôt que dans le code qui insère.
+     * An incident image without an incident makes no sense. The pair is constrained
+     * here rather than in the code that inserts.
      */
     check(
       'monitor_captures_incident_check',

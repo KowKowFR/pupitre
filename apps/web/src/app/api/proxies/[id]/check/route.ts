@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic';
 const paramsSchema = z.object({ id: z.string().uuid() });
 type Context = { params: Promise<{ id: string }> };
 
-/** « Tester » un proxy distant : par la file ; le résultat se lit sur la connexion. */
+/** "Test" a remote proxy: through the queue; the result is read on the connection. */
 export const POST = apiRoute<Context>(async (request, context) => {
   await requirePermission(request, 'target:update');
   const { id } = paramsSchema.parse(await context.params);

@@ -1,11 +1,10 @@
 import { translator, type Translate, type Translated, type UiLanguage } from '@pupitre/core';
 
 /**
- * Ce que ce paquet écrit pour quelqu'un — le refus d'une purge, le verdict
- * posé sur un déploiement abandonné —, dans la langue que l'appelant lui donne
- * (celle de l'instance). Le verdict d'abandon est écrit une fois, dans l'erreur
- * du déploiement, et garde la langue qu'il avait ce jour-là — comme le journal
- * du déploiement.
+ * What this package writes for someone — a purge's refusal, the verdict given on
+ * an abandoned deployment —, in the language the caller gives it (the
+ * instance's). The abandonment verdict is written once, in the deployment's
+ * error, and keeps the language it had that day — like the deployment's log.
  */
 const fr = {
   'purge.identity': '{slug} v{version} sur {target}',

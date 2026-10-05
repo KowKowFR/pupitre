@@ -15,9 +15,9 @@ import type { FormatSettings } from '@/lib/format';
 import { toast } from '@/lib/toast';
 
 /**
- * Les domaines d'une application, cible par cible : leur état à travers le
- * reverse proxy, leur certificat, et leur modification — posée aussitôt sur le
- * proxy si l'application tourne, sans la redéployer.
+ * An application's domains, target by target: their state through the reverse
+ * proxy, their certificate, and their change — set right away on the proxy if
+ * the application runs, without redeploying it.
  */
 
 type TargetDomains = {
@@ -25,7 +25,7 @@ type TargetDomains = {
   name: string;
   live: boolean;
   proxy: ProxyViewForUi | null;
-  /** La machine du proxy, quand c'est celui d'une autre. */
+  /** The proxy's machine, when it is another's. */
   via: string | null;
   routes: RouteViewForUi[];
 };
@@ -68,8 +68,8 @@ export function ApplicationDomains({
     };
   }, [load]);
 
-  // Après « Enregistrer » : les domaines sont posés puis éprouvés par la file —
-  // on relit quelques secondes, le temps qu'ils passent de « en attente » à leur état.
+  // After "Save": the domains are set then tried by the queue — we read again for
+  // a few seconds, the time for them to go from "pending" to their state.
   const watching = watchUntil > 0;
   useEffect(() => {
     if (!watching) return;

@@ -16,21 +16,21 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Les rôles viennent de la base, pas d'une constante du code : un rôle créé
- * depuis l'écran d'administration doit apparaître ici sans recompilation.
+ * The roles come from the database, not from a code constant: a role created
+ * from the administration screen must appear here without recompiling.
  */
 export const GET = apiRoute(async (request) => {
   await requirePermission(request, 'role:read');
   const items = await listRolesWithPermissions();
 
-  // Les clés sont le contrat ; les descriptions ne sont que des libellés, et
-  // partent donc dans la langue de l'instance.
+  // The keys are the contract; the descriptions are only labels, and therefore go
+  // out in the instance's language.
   const describe = translator(permissionDescriptions, await currentLanguage());
 
   return NextResponse.json({
     items,
     total: items.length,
-    // Le vocabulaire complet, pour que l'écran d'édition sache quoi proposer.
+    // The complete vocabulary, so that the editing screen knows what to offer.
     vocabulary: {
       permissions: PERMISSIONS.map((key) => ({
         key,

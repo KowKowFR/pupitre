@@ -17,24 +17,24 @@ import { workerSay } from '../messages.js';
 import { openProxy } from './connect.js';
 
 /**
- * Le proxy central, éprouvé : la machine du proxy ouvre-t-elle vraiment une
- * connexion vers celle qu'il sert ? Le test de la liaison (« Tester la
- * liaison », et à sa création) et le préflight d'un déploiement passent par
- * ici, et en retiennent le résultat sur la liaison — l'écran le montre,
- * `exposureFor()` en tire l'adresse à qui ouvrir le port.
+ * The central proxy, tested: does the proxy's machine really open a connection
+ * to the one it serves? The link's test ("Test the link", and at its creation)
+ * and a deployment's preflight go through here, and keep the result on the link
+ * — the screen shows it, `exposureFor()` draws from it the address to open the
+ * port to.
  */
 
 export type LinkCheck = {
   result: ReachResult;
-  /** Le nom du proxy, pour le dire : sa machine, ou la connexion distante. */
+  /** The proxy's name, to say it: its machine, or the remote connection. */
   proxyHostName: string;
 };
 
 export async function verifyTargetLink(input: {
   targetId: string;
-  /** Une session déjà ouverte vers la machine servie — celle du déploiement. */
+  /** A session already open to the served machine — the deployment's. */
   served?: TargetContext;
-  /** La plage où l'application sera publiée ; à défaut, celle de la cible. */
+  /** The range where the application will be published; otherwise, the target's. */
   portRange?: PortRange;
   onLog?: LogSink;
 }): Promise<LinkCheck | null> {
@@ -43,8 +43,8 @@ export async function verifyTargetLink(input: {
   const proxy = await getProxy(link.proxyId);
   if (!proxy) throw new Error(workerSay(await instanceLanguage())('link.gone'));
 
-  // Un port libre de la plage, hors des réservations du panel : là où le
-  // driver publiera, donc là où un pare-feu bloquerait l'application.
+  // A free port of the range, outside the panel's reservations: where the driver
+  // will publish, hence where a firewall would block the application.
   const report = await getTargetPortReport(input.targetId);
   if (!report) {
     throw new Error(workerSay(await instanceLanguage())('notFound.target', { id: input.targetId }));
@@ -64,8 +64,8 @@ export async function verifyTargetLink(input: {
       reserved,
       ...(input.onLog ? { onLog: input.onLog } : {}),
     });
-    // Pas pu éprouver la connexion, ou pas su d'où le proxy arrive : la
-    // liaison reste utilisable, l'avertissement est retenu à sa place.
+    // Could not test the connection, or did not know where the proxy arrives from:
+    // the link stays usable, the warning is kept in its place.
     await setTargetLinkCheck(input.targetId, {
       status: result.ok === false ? 'failed' : 'ok',
       sourceAddress: reachSource(result),
@@ -80,14 +80,13 @@ export async function verifyTargetLink(input: {
 }
 
 /**
- * Au préflight d'un déploiement servi par le proxy d'une autre machine — et
- * seulement s'il a des domaines —, éprouver la connexion **avant** de rien
- * construire. Une machine que le proxy ne joint pas fait échouer le
- * déploiement tout de suite, en disant quoi ouvrir, plutôt qu'au bout d'un
- * build par un domaine muet.
+ * At the preflight of a deployment served by another machine's proxy — and only
+ * if it has domains —, test the connection **before** building anything. A
+ * machine the proxy does not reach makes the deployment fail right away, saying
+ * what to open, rather than after a build through a silent domain.
  *
- * `true` : éprouvée (la liaison est à jour, l'exposition est à relire) ;
- * `false` : sans objet.
+ * `true`: tested (the link is up to date, the exposure must be read again);
+ * `false`: not applicable.
  */
 export async function verifyLinkBeforeDeploy(input: {
   applicationId: string;

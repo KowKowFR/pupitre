@@ -1,25 +1,25 @@
 import { z } from 'zod';
 
 /**
- * Métriques d'hôte — ce que fait la machine, pas ce qu'elle porte.
+ * Host metrics — what the machine does, not what it carries.
  *
- * **Pourquoi ce n'est pas dans le `DeploymentDriver`.** Charge, mémoire,
- * disque, uptime, noyau : rien de tout cela ne dépend du runtime. Une machine
- * Linux est une machine Linux, qu'elle porte Docker ou K3s ; `/proc/loadavg`
- * ne connaît ni l'un ni l'autre. Les mettre dans les drivers obligerait à les
- * écrire deux fois et à les maintenir en double, pour un résultat qui doit être
- * identique des deux côtés. Leur place est à côté du preflight, qui inspecte
- * déjà l'hôte de la même façon — d'où la symétrie de ce fichier avec
- * `preflight.ts` : les *types* ici, la sonde SSH dans `ssh/host-metrics.ts`,
- * pour que le panel Next puisse lire les uns sans tirer `ssh2` dans son graphe.
+ * **Why it is not in the `DeploymentDriver`.** Load, memory, disk, uptime,
+ * kernel: none of this depends on the runtime. A Linux machine is a Linux
+ * machine, whether it carries Docker or K3s; `/proc/loadavg` knows neither.
+ * Putting them in the drivers would force writing them twice and maintaining
+ * them twice, for a result that must be identical on both sides. Their place is
+ * next to the preflight, which already inspects the host the same way — hence
+ * this file's symmetry with `preflight.ts`: the *types* here, the SSH probe in
+ * `ssh/host-metrics.ts`, so that the Next panel can read the former without
+ * pulling `ssh2` into its graph.
  *
- * **`null` veut dire « je ne sais pas ».** Aucune métrique n'a de valeur de
- * repli : un zéro affiché à la place d'un disque non mesuré ferait croire à un
- * disque vide, et un 100 % à un disque plein. Chaque relevé est indépendant —
- * un `nproc` absent laisse la charge lisible, il ne fait pas échouer le reste.
+ * **`null` means "I don't know".** No metric has a fallback value: a zero shown
+ * instead of an unmeasured disk would suggest an empty disk, and 100% a full
+ * disk. Each reading is independent — a missing `nproc` leaves the load
+ * readable, it does not fail the rest.
  */
 
-/** Un relevé élémentaire, et ce qu'il a coûté. Miroir de `PreflightCheck`. */
+/** An elementary reading, and what it cost. Mirror of `PreflightCheck`. */
 export const hostProbeSchema = z.object({
   key: z.string().min(1),
   label: z.string().min(1),
@@ -31,30 +31,30 @@ export const hostProbeSchema = z.object({
 export type HostProbe = z.infer<typeof hostProbeSchema>;
 
 /**
- * Charge moyenne, rapportée au nombre de cœurs.
+ * Load average, relative to the number of cores.
  *
- * Une charge de 4 ne dit rien tant qu'on ne sait pas sur combien de cœurs :
- * c'est confortable sur 16, c'est le double de la capacité sur 2. `perCore` est
- * la seule valeur réellement comparable d'une machine à l'autre — elle reste
- * `null` quand `nproc` est absent, plutôt que de supposer un cœur.
+ * A load of 4 says nothing until we know on how many cores: it is comfortable on
+ * 16, it is twice the capacity on 2. `perCore` is the only value really
+ * comparable from one machine to another — it stays `null` when `nproc` is
+ * missing, rather than assuming one core.
  */
 export const hostLoadSchema = z.object({
   one: z.number().nonnegative(),
   five: z.number().nonnegative(),
   fifteen: z.number().nonnegative(),
   cores: z.number().int().positive().nullable(),
-  /** `one / cores`, ou `null` si le nombre de cœurs est inconnu. */
+  /** `one / cores`, or `null` if the number of cores is unknown. */
   perCore: z.number().nonnegative().nullable(),
 });
 export type HostLoad = z.infer<typeof hostLoadSchema>;
 
 /**
- * Mémoire, en kibioctets tels que `/proc/meminfo` les donne.
+ * Memory, in kibibytes as `/proc/meminfo` gives them.
  *
- * `MemAvailable` et non `MemFree` : sous Linux, la mémoire « libre » est de la
- * mémoire gaspillée — le cache de pages l'occupe et la rend au premier
- * demandeur. Un panel qui afficherait `MemFree` annoncerait une machine
- * saturée sur un serveur parfaitement à l'aise.
+ * `MemAvailable` and not `MemFree`: under Linux, "free" memory is wasted memory
+ * — the page cache takes it and gives it back to the first requester. A panel
+ * that showed `MemFree` would announce a saturated machine on a perfectly
+ * comfortable server.
  */
 export const hostMemorySchema = z.object({
   totalKb: z.number().int().nonnegative(),
@@ -65,14 +65,14 @@ export const hostMemorySchema = z.object({
 export type HostMemory = z.infer<typeof hostMemorySchema>;
 
 /**
- * Disque de la partition qui **porte les déploiements**, pas `/`.
+ * Disk of the partition that **carries the deployments**, not `/`.
  *
- * Sur une machine où `/opt` est un volume séparé, mesurer `/` répondrait à côté
- * de la question : c'est la partition sur laquelle le driver écrit qui décide
- * si un déploiement passe. `path` dit ce qui a réellement été mesuré.
+ * On a machine where `/opt` is a separate volume, measuring `/` would miss the
+ * question: it is the partition the driver writes on that decides whether a
+ * deployment goes through. `path` says what was really measured.
  */
 export const hostDiskSchema = z.object({
-  /** Chemin effectivement mesuré — l'ancêtre existant le plus proche de la racine du driver. */
+  /** Path actually measured — the existing ancestor closest to the driver's root. */
   path: z.string().min(1),
   filesystem: z.string().min(1),
   sizeKb: z.number().int().nonnegative(),
@@ -83,7 +83,7 @@ export const hostDiskSchema = z.object({
 });
 export type HostDisk = z.infer<typeof hostDiskSchema>;
 
-/** Identité du système. Chaque champ est indépendamment inconnu. */
+/** The system's identity. Each field is independently unknown. */
 export const hostOsSchema = z.object({
   kernel: z.string().nullable(),
   name: z.string().nullable(),
@@ -93,20 +93,19 @@ export const hostOsSchema = z.object({
 export type HostOs = z.infer<typeof hostOsSchema>;
 
 /**
- * Un relevé complet, vrai à la seconde où il est pris.
+ * A complete reading, true at the second it is taken.
  *
- * Il ne se stocke pas : il voyage par la valeur de retour du job. Le mettre en
- * base demanderait une table, une migration et une politique de fraîcheur pour
- * une donnée qui n'a pas d'histoire — la charge d'il y a une heure n'apprend
- * rien à personne.
+ * It is not stored: it travels through the job's return value. Putting it in the
+ * database would take a table, a migration and a freshness policy for data that
+ * has no history — the load of an hour ago teaches nobody anything.
  */
 export const hostMetricsSchema = z.object({
   targetId: z.string().uuid(),
   checkedAt: z.string(),
   reachable: z.boolean(),
-  /** Temps d'établissement de la session SSH. `null` si elle n'a pas abouti. */
+  /** Time to establish the SSH session. `null` if it did not succeed. */
   latencyMs: z.number().int().nonnegative().nullable(),
-  /** Renseigné uniquement quand la machine est injoignable. */
+  /** Filled in only when the machine is unreachable. */
   error: z.string().nullable(),
   load: hostLoadSchema.nullable(),
   memory: hostMemorySchema.nullable(),
@@ -117,7 +116,7 @@ export const hostMetricsSchema = z.object({
 });
 export type HostMetrics = z.infer<typeof hostMetricsSchema>;
 
-/** Le relevé d'une machine qu'on n'a pas pu joindre. Aucune métrique, une raison. */
+/** The reading of a machine that could not be reached. No metric, a reason. */
 export function unreachableHostMetrics(
   targetId: string,
   error: string,

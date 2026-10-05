@@ -1,9 +1,9 @@
 import { boolean, index, integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 
 /**
- * Tables compatibles Better Auth (+ plugin `admin`).
- * Better Auth est branché avec un mapping `modelName` vers ces
- * noms de tables au pluriel.
+ * Better Auth-compatible tables (+ `admin` plugin).
+ * Better Auth is plugged in with a `modelName` mapping to these plural table
+ * names.
  */
 
 export const users = pgTable(
@@ -14,13 +14,13 @@ export const users = pgTable(
     email: text('email').notNull().unique(),
     emailVerified: boolean('email_verified').notNull().default(false),
     image: text('image'),
-    // Plugin admin
+    // Admin plugin
     role: text('role'),
     banned: boolean('banned').notNull().default(false),
     banReason: text('ban_reason'),
     banExpires: timestamp('ban_expires', { withTimezone: true }),
-    // Plugin two-factor — miroir de l'état, l'écran de connexion s'en sert
-    // pour savoir s'il doit réclamer un code.
+    // two-factor plugin — mirror of the state, the sign-in screen uses it to know
+    // whether it must ask for a code.
     twoFactorEnabled: boolean('two_factor_enabled').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -39,7 +39,7 @@ export const sessions = pgTable(
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     ipAddress: text('ip_address'),
     userAgent: text('user_agent'),
-    // Plugin admin
+    // Admin plugin
     impersonatedBy: text('impersonated_by'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -69,7 +69,7 @@ export const accounts = pgTable(
   (t) => [index('accounts_user_id_idx').on(t.userId)],
 );
 
-/** Requise par Better Auth (vérification d'e-mail, reset de mot de passe). */
+/** Required by Better Auth (email verification, password reset). */
 export const verifications = pgTable(
   'verifications',
   {
@@ -84,15 +84,15 @@ export const verifications = pgTable(
 );
 
 /**
- * Second facteur TOTP (plugin `twoFactor` de Better Auth).
+ * TOTP second factor (Better Auth's `twoFactor` plugin).
  *
- * `secret` et `backup_codes` arrivent déjà chiffrés par Better Auth avec
- * `BETTER_AUTH_SECRET` : rien de lisible ne se pose ici, et rien de tout cela
- * ne ressort d'une réponse HTTP en dehors de l'activation.
+ * `secret` and `backup_codes` arrive already encrypted by Better Auth with
+ * `BETTER_AUTH_SECRET`: nothing readable lands here, and none of it leaves an
+ * HTTP response outside activation.
  *
- * `verified` distingue un secret généré (en attente du premier code valide)
- * d'un second facteur réellement armé : sans elle, une activation interrompue
- * enfermerait dehors un utilisateur dont l'application est mal réglée.
+ * `verified` tells a generated secret (waiting for the first valid code) from a
+ * really armed second factor: without it, an interrupted activation would lock
+ * out a user whose app is misconfigured.
  */
 export const twoFactors = pgTable(
   'two_factors',
@@ -104,7 +104,7 @@ export const twoFactors = pgTable(
     secret: text('secret').notNull(),
     backupCodes: text('backup_codes').notNull(),
     verified: boolean('verified').notNull().default(true),
-    /** Compteur d'échecs consécutifs — sert au verrouillage de compte du plugin. */
+    /** Consecutive failures counter — used by the plugin's account lockout. */
     failedVerificationCount: integer('failed_verification_count').notNull().default(0),
     lockedUntil: timestamp('locked_until', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

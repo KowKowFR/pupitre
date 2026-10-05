@@ -2,9 +2,9 @@ import { boolean, primaryKey, pgTable, text, timestamp, uuid } from 'drizzle-orm
 import { users } from './auth.js';
 
 /**
- * RBAC. Les permissions sont des chaînes `ressource:action`
- * (`deployment:create`, `target:delete`, `user:manage`, ...).
- * Le câblage réel passe par `requirePermission()`.
+ * RBAC. Permissions are `resource:action` strings (`deployment:create`,
+ * `target:delete`, `user:manage`, ...). The real wiring goes through
+ * `requirePermission()`.
  */
 
 export const roles = pgTable('roles', {
@@ -13,9 +13,9 @@ export const roles = pgTable('roles', {
   label: text('label').notNull(),
   description: text('description'),
   /**
-   * Un rôle verrouillé ne peut être ni renommé, ni vidé, ni supprimé.
-   * Seul `admin` l'est : c'est le garde-fou qui empêche un administrateur de
-   * se retirer les droits dont il a besoin pour se les rendre.
+   * A locked role can be neither renamed, nor emptied, nor deleted. Only `admin`
+   * is: it is the safeguard that prevents an administrator from removing the
+   * rights they need to give them back.
    */
   locked: boolean('locked').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

@@ -1,23 +1,21 @@
 /**
- * Un mini-analyseur lexical de TypeScript/TSX — juste assez pour répondre à
- * une question : « où sont les chaînes de caractères et les textes JSX, et
- * qu'est-ce qui n'est qu'un commentaire ? »
+ * A mini lexer of TypeScript/TSX — just enough to answer one question: "where are
+ * the strings and the JSX texts, and what is only a comment?"
  *
- * Pourquoi pas une expression régulière : parce qu'elle se trompe sur
- * `'http://exemple'` (qu'elle prend pour un commentaire), sur `// il a dit "x"`
- * (dont elle extrait une fausse chaîne) et sur les gabarits imbriqués. Une
- * garde qui crie au loup une fois sur dix finit désactivée, et une seconde
- * langue meurt le jour où sa garde est désactivée.
+ * Why not a regular expression: because it gets `'http://exemple'` wrong (it
+ * takes it for a comment), `// il a dit "x"` (from which it extracts a false
+ * string) and nested templates. A guard that cries wolf one time in ten ends up
+ * disabled, and a second language dies the day its guard is disabled.
  *
- * Pourquoi pas le compilateur TypeScript : il est là, mais le charger
- * rendrait ce test lent et dépendant. Le balayage ci-dessous fait cent lignes,
- * il est exact sur ce qu'on lui demande, et il ne coûte rien.
+ * Why not the TypeScript compiler: it is there, but loading it would make this
+ * test slow and dependent. The scan below is a hundred lines, it is exact on what
+ * it is asked, and it costs nothing.
  */
 
 /**
- * Rend les chaînes littérales et les textes JSX d'un source, chacun avec sa
- * ligne. Les commentaires sont ignorés : la langue du projet est le français,
- * et ce fichier n'a rien à dire dessus.
+ * Returns a source's string literals and JSX texts, each with its line. Comments
+ * are ignored: the project's language is English, and this file has nothing to
+ * say about them.
  */
 export function scanSource(source, { jsx = true } = {}) {
   const strings = [];
@@ -30,12 +28,12 @@ export function scanSource(source, { jsx = true } = {}) {
   const at = (offset = 0) => source[i + offset];
 
   /**
-   * Dernier caractère qui compte pour la grammaire — ni espace, ni commentaire.
-   * Il ne sert qu'à trancher entre une division et une expression régulière.
+   * The last character that counts for the grammar — neither a space nor a comment.
+   * It only serves to decide between a division and a regular expression.
    */
   let lastSignificant = '';
 
-  /** Un `/` ici ouvre-t-il une expression régulière plutôt qu'une division ? */
+  /** Does a `/` here open a regular expression rather than a division? */
   function startsRegex() {
     if (lastSignificant === '') return true;
     return !/[)\]}\w$'"`]/.test(lastSignificant);
@@ -48,7 +46,7 @@ export function scanSource(source, { jsx = true } = {}) {
     }
   }
 
-  /** Avale un gabarit `…`, en relevant ses morceaux littéraux. */
+  /** Swallows a `…` template, noting its literal pieces. */
   function readTemplate() {
     const startLine = line;
     advance(); // le backtick ouvrant
@@ -67,9 +65,9 @@ export function scanSource(source, { jsx = true } = {}) {
         if (chunk !== '') strings.push({ value: chunk, line: startLine });
         chunk = '';
         advance(2);
-        // On saute l'interpolation en comptant les accolades. Le code qu'elle
-        // contient est réanalysé au tour suivant seulement s'il porte lui-même
-        // un gabarit — ce que le comptage traverse sans le manger.
+        // We skip the interpolation by counting the braces. The code it contains is only
+        // scanned again at the next round if it carries a template itself — which the
+        // counting crosses without eating it.
         let depth = 1;
         while (i < n && depth > 0) {
           if (at() === '{') depth += 1;
@@ -91,7 +89,7 @@ export function scanSource(source, { jsx = true } = {}) {
     if (chunk !== '') strings.push({ value: chunk, line: startLine });
   }
 
-  /** Avale une chaîne `'…'` ou `"…"`. */
+  /** Swallows a `'…'` or `"…"` string. */
   function readQuoted(quote) {
     const startLine = line;
     advance();
@@ -102,7 +100,7 @@ export function scanSource(source, { jsx = true } = {}) {
         advance(2);
         continue;
       }
-      if (at() === '\n') break; // chaîne non terminée : on ne devine pas
+      if (at() === '\n') break; // unterminated string: we do not guess
       value += at();
       advance();
     }
@@ -111,26 +109,25 @@ export function scanSource(source, { jsx = true } = {}) {
   }
 
   /**
-   * Trois appels dont le contenu n'est jamais montré à personne, et que la
-   * garde doit donc traverser sans rien relever :
+   * Three calls whose content is never shown to anyone, and which the guard must
+   * therefore cross without noting anything:
    *
-   *   `logger.*()`   — la journalisation Pino, `log.*()` compris (un logger
-   *                    enfant, dans le worker). La langue du projet est le
-   *                    français, c'est écrit dans le brief, et un opérateur qui
-   *                    lit `docker compose logs` n'est pas un utilisateur.
-   *   `console.*()`  — les avertissements de démarrage, même statut.
-   *   `new Error()`  — un invariant de programmation. Il n'a pas d'écran ; s'il
-   *                    s'affiche un jour, c'est déjà un bug plus grave que sa
-   *                    langue. Les erreurs *destinées* à l'utilisateur passent
-   *                    par `HttpError` et ses sous-classes, qui ne sont pas
-   *                    couvertes par cette exception.
+   *   `logger.*()`   — Pino logging, `log.*()` included (a child logger, in the
+   *                    worker). The project's language is English, as CLAUDE.md
+   *                    says, and an operator reading `docker compose logs` is not
+   *                    a user.
+   *   `console.*()`  — the startup warnings, the same status.
+   *   `new Error()`  — a programming invariant. It has no screen; if it is ever
+   *                    shown, it is already a more serious bug than its language.
+   *                    The errors *meant* for the user go through `HttpError` and
+   *                    its subclasses, which are not covered by this exception.
    *
-   * On saute l'appel entier, parenthèses équilibrées, en respectant les
-   * chaînes qu'il contient — sinon une parenthèse dans un message fermerait le
-   * comptage trop tôt.
+   * We skip the whole call, balanced parentheses, respecting the strings it
+   * contains — otherwise a parenthesis in a message would close the counting too
+   * early.
    */
   function atIgnoredCall() {
-    // En début de mot seulement : `dialog.info(` n'est pas un appel à `log`.
+    // At the start of a word only: `dialog.info(` is not a call to `log`.
     if (i > 0 && /[\w$]/.test(source[i - 1] ?? '')) return false;
     const rest = source.slice(i, i + 40);
     return (
@@ -189,17 +186,17 @@ export function scanSource(source, { jsx = true } = {}) {
     }
 
     /**
-     * Une expression régulière, avalée en bloc.
+     * A regular expression, swallowed in one block.
      *
-     * Sans ce cas, `/(`+'`'+`[^`+'`'+`]+`+'`'+`|\\*\\*[^*]+\\*\\*)/g` ouvrait un faux gabarit :
-     * le lexer partait à la recherche d'un backtick fermant et engloutissait
-     * les quatre-vingts lignes suivantes, commentaires compris, qu'il rendait
-     * ensuite comme une chaîne « française ». La garde accusait alors le seul
-     * fichier qui avait pris la peine de se rendre traduisible.
+     * Without this case, `/(`+'`'+`[^`+'`'+`]+`+'`'+`|\\*\\*[^*]+\\*\\*)/g` opened a false template:
+     * the lexer went looking for a closing backtick and swallowed the eighty
+     * following lines, comments included, which it then returned as a "French"
+     * string. The guard then accused the only file that had taken the trouble of
+     * making itself translatable.
      *
-     * Distinguer une expression régulière d'une division demande le contexte :
-     * après une valeur (`)`, `]`, un identifiant, un nombre) le `/` divise ;
-     * après un opérateur, une virgule ou une ouvrante, il ouvre une regex.
+     * Telling a regular expression from a division requires context: after a value
+     * (`)`, `]`, an identifier, a number) the `/` divides; after an operator, a comma
+     * or an opening one, it opens a regex.
      */
     if (c === '/' && startsRegex()) {
       advance();
@@ -234,16 +231,15 @@ export function scanSource(source, { jsx = true } = {}) {
     }
 
     /**
-     * Texte JSX. On ne suit pas la grammaire : on relève ce qui sépare un `>`
-     * d'un `<`, d'un `{` ou d'un autre `>`. Un `a > b` en code produit un
-     * fragment sans mot français, donc sans conséquence.
+     * JSX text. We do not follow the grammar: we note what separates a `>` from a
+     * `<`, a `{` or another `>`. A `a > b` in code produces a fragment without a
+     * French word, hence without consequence.
      *
-     * Le balayage s'arrête aussi sur un début de commentaire : sans cela, un
-     * `=>` suivi d'un bloc `/** … *\/` ferait passer la prose du commentaire
-     * pour du texte affiché — et la garde signalerait des commentaires, ce
-     * qu'elle n'a aucun droit de faire.
+     * The scan also stops at a comment's start: without that, a `=>` followed by a
+     * `/** … *\/` block would make the comment's prose pass for displayed text — and
+     * the guard would report comments, which it has no right to do.
      *
-     * Les fichiers `.ts` n'ont pas de JSX du tout : on ne le cherche pas.
+     * `.ts` files have no JSX at all: we do not look for it.
      */
     if (c === '>' && jsx) {
       const startLine = line;

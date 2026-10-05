@@ -9,9 +9,9 @@ import type { DirectoryEntry } from '@/lib/chat';
 import { cn } from '@/lib/utils';
 
 /**
- * Le corps d'un message : du texte, jamais du HTML — React l'échappe — et des
- * mentions rendues en pastilles. Seules les adresses `http(s)://` deviennent
- * des liens ; rien d'autre ne s'interprète.
+ * A message's body: text, never HTML — React escapes it — and mentions rendered
+ * as chips. Only `http(s)://` addresses become links; nothing else is
+ * interpreted.
  */
 
 const URL_PATTERN = /(https?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)\]])/g;
@@ -58,7 +58,7 @@ function Mention({
   me: string;
 }) {
   const t = useT(messages);
-  // Le nom d'aujourd'hui si on le connaît, sinon celui du jour du message.
+  // Today's name if we know it, otherwise the one from the message's day.
   const known = directory.find((entry) => entry.kind === kind && entry.id === id);
   const label =
     known?.label ??
@@ -87,7 +87,7 @@ function Mention({
   );
   const className =
     'mono inline-flex translate-y-[1px] items-center gap-1 rounded border border-border bg-surface-2 px-1.5 text-[12.5px] leading-[18px] text-text';
-  // Un objet que le lecteur ne peut pas ouvrir reste nommé, sans lien.
+  // An object the reader cannot open stays named, without a link.
   return known ? (
     <Link
       href={MENTION_HREF[kind](id) as never}

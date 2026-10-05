@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic';
 const paramsSchema = z.object({ id: z.string().uuid() });
 type Context = { params: Promise<{ id: string }> };
 
-/** Redéploie la version précédente. Le travail réel appartient au worker. */
+/** Redeploys the previous version. The real work belongs to the worker. */
 export const POST = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'deployment:rollback', {
     applicationScoped: true,

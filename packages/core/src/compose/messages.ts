@@ -1,11 +1,11 @@
 import { defineMessages } from '../i18n.js';
 
 /**
- * Ce que l'import d'un `docker-compose.yml` dit de ce qu'il a fait.
+ * What importing a `docker-compose.yml` says about what it did.
  *
- * Un message par code : le code est stable (les tests et l'écran s'y
- * accrochent), la phrase peut changer. Chaque phrase dit ce qui a été fait
- * **et** ce que la personne doit en conclure — « ignoré » seul ne suffit pas.
+ * One message per code: the code is stable (the tests and the screen hold on to
+ * it), the sentence can change. Each sentence says what was done **and** what
+ * the person must conclude from it — "ignored" alone is not enough.
  */
 export const composeImportMessages = defineMessages({
   fr: {
@@ -144,8 +144,8 @@ export const composeImportMessages = defineMessages({
 export type ComposeIssueCode = keyof typeof composeImportMessages.fr;
 
 /**
- * Les motifs des clés ignorées ou intraduisibles. À part des codes : la même
- * phrase « ignoré : {reason} » sert vingt clés, chacune avec sa raison.
+ * The reasons of the ignored or untranslatable keys. Apart from the codes: the
+ * same "ignored: {reason}" sentence serves twenty keys, each with its reason.
  */
 export const composeReasons = defineMessages({
   fr: {

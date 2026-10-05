@@ -2,9 +2,9 @@ import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 
 /**
- * Ce que les exports et la liste des sessions promettent, vérifié sur les
- * modules purs qui le portent : les cellules CSV qu'un tableur ne doit pas
- * exécuter, l'URL que la liste et l'export partagent, le nom d'un appareil.
+ * What the exports and the sessions list promise, checked on the pure modules
+ * that carry it: the CSV cells a spreadsheet must not execute, the URL the list
+ * and the export share, a device's name.
  */
 
 const { csvCell, csvRow } = await import('../src/lib/csv.ts');
@@ -12,44 +12,44 @@ const { filterParams } = await import('../src/app/(app)/deployments/filters.ts')
 const { describeUserAgent } = await import('../src/lib/user-agent.ts');
 const { compactIp } = await import('../src/lib/ip.ts');
 
-describe('CSV des exports', () => {
-  it('neutralise ce qu’un tableur exécuterait comme une formule', () => {
+describe('exports CSV', () => {
+  it('neutralizes what a spreadsheet would execute as a formula', () => {
     for (const value of ['=HYPERLINK("x")', '+1', '-2', '@SUM(A1)', '\tx', '\rx']) {
-      assert.ok(csvCell(value).replace(/^"/, '').startsWith("'"), `non neutralisé : ${value}`);
+      assert.ok(csvCell(value).replace(/^"/, '').startsWith("'"), `not neutralized: ${value}`);
     }
   });
 
-  it('laisse les nombres négatifs tels quels : ce sont des données, pas du texte', () => {
+  it('leaves negative numbers as is: they are data, not text', () => {
     assert.equal(csvCell(-3), '-3');
   });
 
-  it('cite les virgules, guillemets et retours à la ligne (RFC 4180)', () => {
+  it('quotes commas, quotes and line breaks (RFC 4180)', () => {
     assert.equal(csvCell('a,b'), '"a,b"');
-    assert.equal(csvCell('dit "non"'), '"dit ""non"""');
+    assert.equal(csvCell('said "no"'), '"said ""no"""');
     assert.equal(csvCell('ligne\nsuivante'), '"ligne\nsuivante"');
   });
 
-  it('écrit une cellule vide pour null, et termine la ligne par CRLF', () => {
+  it('writes an empty cell for null, and ends the line with CRLF', () => {
     assert.equal(csvRow([129, null, 'docs', undefined]), '129,,docs,\r\n');
   });
 });
 
-describe('filtres de la liste des runs', () => {
-  it('traduit « bloqués par un scan » en blocked=scan, pas en statut', () => {
+describe('runs list filters', () => {
+  it('translates "blocked by a scan" into blocked=scan, not into a status', () => {
     assert.equal(filterParams('scan_blocked', '').toString(), 'blocked=scan');
   });
 
-  it('garde statut et recherche ensemble, pour la liste comme pour l’export', () => {
+  it('keeps status and search together, for the list as for the export', () => {
     assert.equal(filterParams('failed', '#127').toString(), 'status=failed&q=%23127');
   });
 
-  it('n’écrit rien sans filtre', () => {
+  it('writes nothing without a filter', () => {
     assert.equal(filterParams(null, '').toString(), '');
   });
 });
 
-describe('appareil d’une session', () => {
-  it('nomme navigateur, version majeure et système', () => {
+describe('a session’s device', () => {
+  it('names browser, major version and system', () => {
     assert.equal(
       describeUserAgent(
         'Mozilla/5.0 (X11; Linux x86_64; rv:131.0) Gecko/20100101 Firefox/131.0',
@@ -64,7 +64,7 @@ describe('appareil d’une session', () => {
     );
   });
 
-  it('ne confond pas Edge avec Chrome, qu’il imite', () => {
+  it('does not mistake Edge for Chrome, which it imitates', () => {
     assert.equal(
       describeUserAgent(
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36 Edg/129.0.0.0',
@@ -73,21 +73,21 @@ describe('appareil d’une session', () => {
     );
   });
 
-  it('montre le premier jeton d’un agent qui n’est pas un navigateur', () => {
+  it('shows the first token of an agent that is not a browser', () => {
     assert.equal(describeUserAgent('curl/8.4.0'), 'curl/8.4.0');
     assert.equal(describeUserAgent('   '), null);
     assert.equal(describeUserAgent(null), null);
   });
 });
 
-describe('adresse d’une session', () => {
-  it('raccourcit une IPv6 écrite en entier', () => {
+describe('a session’s address', () => {
+  it('shortens an IPv6 written in full', () => {
     assert.equal(compactIp('0000:0000:0000:0000:0000:0000:0000:0001'), '::1');
     assert.equal(compactIp('0000:0000:0000:0000:0000:0000:0000:0000'), '::');
     assert.equal(compactIp('2001:0db8:0000:0000:0000:ff00:0042:8329'), '2001:db8::ff00:42:8329');
   });
 
-  it('laisse passer une IPv4, une IPv6 déjà courte, et rien', () => {
+  it('lets an IPv4, an already short IPv6, and nothing through', () => {
     assert.equal(compactIp('192.168.10.12'), '192.168.10.12');
     assert.equal(compactIp('fe80::1'), 'fe80::1');
     assert.equal(compactIp(null), null);
@@ -96,28 +96,28 @@ describe('adresse d’une session', () => {
 
 const { expandDayRange, zonedDayStart } = await import('../src/lib/day-range.ts');
 
-describe('jours du filtre du journal', () => {
-  it('lit un jour dans le fuseau de l’instance, pas en UTC', () => {
+describe('log filter days', () => {
+  it('reads a day in the instance’s time zone, not in UTC', () => {
     assert.equal(zonedDayStart('2026-09-30', 'Europe/Paris')?.toISOString(), '2026-09-29T22:00:00.000Z');
     assert.equal(zonedDayStart('2026-09-30', 'UTC')?.toISOString(), '2026-09-30T00:00:00.000Z');
   });
 
-  it('tient compte du changement d’heure', () => {
-    // Heure d'été le 29 mars 2026 à 2 h : minuit est encore en UTC+1.
+  it('accounts for the daylight saving change', () => {
+    // Daylight saving time on March 29, 2026 at 2 a.m.: midnight is still UTC+1.
     assert.equal(zonedDayStart('2026-03-29', 'Europe/Paris')?.toISOString(), '2026-03-28T23:00:00.000Z');
     assert.equal(zonedDayStart('2026-03-30', 'Europe/Paris')?.toISOString(), '2026-03-29T22:00:00.000Z');
   });
 
-  it('fait couvrir à « Au » la journée entière', () => {
+  it('makes "To" cover the whole day', () => {
     const range = expandDayRange({ from: '2026-09-29', to: '2026-09-30', action: 'x' }, 'Europe/Paris');
     assert.equal(range.from, '2026-09-28T22:00:00.000Z');
     assert.equal(range.to, '2026-09-30T21:59:59.999Z');
     assert.equal(range.action, 'x');
   });
 
-  it('laisse un instant ISO tel quel, et retombe sur UTC pour un fuseau inconnu', () => {
+  it('leaves an ISO instant as is, and falls back on UTC for an unknown time zone', () => {
     const iso = '2026-09-30T08:30:00.000Z';
     assert.equal(expandDayRange({ to: iso }, 'Europe/Paris').to, iso);
-    assert.equal(zonedDayStart('2026-09-30', 'Nulle/Part')?.toISOString(), '2026-09-30T00:00:00.000Z');
+    assert.equal(zonedDayStart('2026-09-30', 'Nowhere/Else')?.toISOString(), '2026-09-30T00:00:00.000Z');
   });
 });

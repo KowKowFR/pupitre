@@ -14,18 +14,17 @@ type Context = { params: Promise<{ id: string }> };
 
 const bodySchema = z.object({
   /**
-   * `accept` : la machine a été réinstallée, sa nouvelle clé devient la clé
-   * retenue. `dismiss` : on garde l'ancienne — les connexions restent refusées
-   * tant que la machine présente l'autre.
+   * `accept`: the machine was reinstalled, its new key becomes the kept key.
+   * `dismiss`: we keep the old one — the connections stay refused as long as the
+   * machine presents the other.
    */
   decision: z.enum(['accept', 'dismiss']),
 });
 
 /**
- * Trancher une clé d'hôte inattendue. Le worker l'a notée en refusant la
- * connexion ; seul un humain sait si la machine a été réinstallée ou si une
- * autre se fait passer pour elle. La décision est tracée, avec les deux
- * empreintes.
+ * Deciding on an unexpected host key. The worker noted it while refusing the
+ * connection; only a human knows whether the machine was reinstalled or another
+ * one is impersonating it. The decision is traced, with both fingerprints.
  */
 export const POST = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'target:update');

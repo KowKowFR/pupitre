@@ -64,13 +64,13 @@ export type ApplicationRow = {
   version: string;
   services: ServiceRow[];
   ingress: { host: string | null; service: string; tls: boolean } | null;
-  /** `null` : la session ne lit pas les déploiements. */
+  /** `null`: the session does not read deployments. */
   live: Array<{ id: string; targetName: string; health: string; ago: string | null }> | null;
-  /** La politique de sauvegarde est-elle réglée, et y a-t-il quelque chose à sauvegarder ? */
+  /** Is the backup policy set, and is there something to back up? */
   backup: { configured: boolean; hasData: boolean };
-  /** Ce que la vérification des images a trouvé ; `null` : rien à signaler. */
+  /** What the images check found; `null`: nothing to report. */
   imageUpdates: { outdated: number; newerTags: number } | null;
-  /** Ses domaines, par cible — ce que le prochain déploiement gardera. */
+  /** Its domains, per target — what the next deployment will keep. */
   domains: Record<string, DomainDraft[]>;
 };
 
@@ -82,16 +82,16 @@ export type DeployTarget = {
   dockerVersion: string | null;
   k3sVersion: string | null;
   healthy: boolean;
-  /** Son reverse proxy, s'il en a un : c'est lui qui servira les domaines. */
+  /** Its reverse proxy, if it has one: it is the one that will serve the domains. */
   proxy: { description: string; capabilities: ProxyCapabilities; via?: string | null } | null;
 };
 
 type ApiError = { error?: { message?: string } };
 
 /**
- * Le catalogue. Une ligne par application ; un clic ouvre sa fiche dans un
- * tiroir : ce qui va tourner et le déploiement rapide d'abord, puis ses
- * versions, son code, ses domaines, ses secrets, ses sauvegardes, ses images.
+ * The catalog. One row per application; a click opens its record in a drawer:
+ * what will run and the quick deployment first, then its versions, its code, its
+ * domains, its secrets, its backups, its images.
  */
 export function ApplicationsView({
   items,
@@ -110,28 +110,28 @@ export function ApplicationsView({
   canCreate: boolean;
   canDeploy: boolean;
   canDelete: boolean;
-  /** L'état de la génération par IA, pour « Nouvelle application ». `null` sans `application:create`. */
+  /** The state of AI generation, for "New application". `null` without `application:create`. */
   ai: NewApplicationAi | null;
-  /** Le choix de sauvegarde au premier déploiement — `null` sans `backup:manage`. */
+  /** The backup choice at the first deployment — `null` without `backup:manage`. */
   backupOptions: { hasDestination: boolean } | null;
   canReadBackups: boolean;
   canReadScans?: boolean;
-  /** La fiche de l'application ouverte, rendue au serveur. */
+  /** The open application's record, rendered on the server. */
   record: ApplicationRecordView | null;
 }) {
   const t = useT(messages);
   const tc = useT(common);
   const router = useRouter();
   const search = useSearchParams();
-  // Cochée par défaut : perdre une version qui marchait parce qu'on a oublié
-  // une case est le mauvais défaut.
+  // Checked by default: losing a version that worked because a box was forgotten
+  // is the wrong default.
   const [autoRollback, setAutoRollback] = useState(true);
   const [firstBackup, setFirstBackup] = useState<FirstDeployBackupChoice>({
     enabled: true,
     beforeDeploy: true,
   });
-  // Les domaines saisis, par application et par cible : changer de cible dans
-  // le tiroir ne perd pas ce qui a été tapé pour l'autre.
+  // The typed domains, per application and per target: changing target in the
+  // drawer does not lose what was typed for the other.
   const [domainDrafts, setDomainDrafts] = useState<Record<string, DomainDraft[]>>({});
   const [deleting, setDeleting] = useState<ApplicationRow | null>(null);
   const [busy, setBusy] = useState(false);
@@ -139,27 +139,27 @@ export function ApplicationsView({
   const drawer = useRecordSelection(
     'app',
     items.map((item) => item.slug),
-    // Un ancien lien `/applications/<uuid>` arrive avec l'identifiant.
+    // An old `/applications/<uuid>` link arrives with the identifier.
     (value) => items.find((item) => item.slug === value || item.id === value)?.slug ?? null,
   );
   const current = items.find((item) => item.slug === drawer.selected) ?? null;
-  // La palette arrive ici avec `?app=…&deploy=1` : l'aperçu s'ouvre sur le
-  // déploiement.
+  // The palette arrives here with `?app=…&deploy=1`: the overview opens on the
+  // deployment.
   const focusDeploy = search.get('deploy') === '1';
-  // « Nouvelle application » vit dans l'URL comme l'aperçu : `?add=new` l'ouvre
-  // depuis la palette ou l'ancienne adresse `/applications/new`.
+  // "New application" lives in the URL like the overview: `?add=new` opens it
+  // from the palette or the old `/applications/new` address.
   const adding = useDrawerSelection('add');
   const pathname = usePathname();
 
-  /** L'application enregistrée : le tiroir de création se ferme, son aperçu s'ouvre. */
+  /** The application saved: the creation drawer closes, its overview opens. */
   function saved(application: { id: string; name: string }) {
     window.history.replaceState(
       null,
       '',
       hrefWithSelection(pathname, window.location.search, 'add', null),
     );
-    // La fiche se lit au serveur : on l'ouvre par une navigation, qui relit
-    // aussi la liste avec la nouvelle application.
+    // The record is read on the server: it is opened through a navigation, which
+    // also reads the list again with the new application.
     drawer.open(application.id);
     toast({
       title: t('toast.created', { name: application.name }),
@@ -169,8 +169,8 @@ export function ApplicationsView({
   }
 
   /**
-   * Le premier déploiement d'une application qui a des données, et dont la
-   * politique n'a jamais été réglée : on propose d'activer sa sauvegarde.
+   * The first deployment of an application that has data, and whose policy was
+   * never set: we offer to enable its backup.
    */
   function offersBackupChoice(application: ApplicationRow): boolean {
     return (
@@ -182,9 +182,9 @@ export function ApplicationsView({
   }
 
   /**
-   * Les domaines proposés : ceux déjà posés sur cette cible ; à défaut, au
-   * premier déploiement sur elle, celui de l'AppSpec. Une application qui y
-   * tourne sans domaine n'en reçoit pas d'office : on les lui avait retirés.
+   * The domains offered: those already set on this target; failing that, at the
+   * first deployment on it, the AppSpec's. An application running there without a
+   * domain does not receive one automatically: they had been removed from it.
    */
   function domainsFor(application: ApplicationRow, target: DeployTarget): DomainDraft[] {
     const drafted = domainDrafts[`${application.id}:${target.id}`];
@@ -229,8 +229,8 @@ export function ApplicationsView({
       setError(body.error?.message ?? tc('http.failure', { status: response.status }));
       return;
     }
-    // La route répond 202 sans attendre : le run est enfilé, on le dit, et on
-    // donne le lien pour le suivre.
+    // The route answers 202 without waiting: the run is queued, we say so, and give
+    // the link to follow it.
     const { id, number } = (await response.json()) as { id: string; number: number };
     toast({
       title: t('toast.deployed', { slug: application.slug, version: application.version }),
@@ -238,7 +238,7 @@ export function ApplicationsView({
       tone: 'accent',
       action: { label: t('toast.follow'), href: `/deployments?run=${id}` },
     });
-    // La fiche reste ouverte : sa nouvelle version y apparaît.
+    // The record stays open: its new version shows up there.
     router.refresh();
   }
 
@@ -472,8 +472,8 @@ export function ApplicationsView({
         onDelete={() => setDeleting(current)}
       />
 
-      {/* La confirmation NOMME ce qui disparaît — cible, projet, port — plutôt
-          que de demander « êtes-vous sûr ? ». */}
+      {/* The confirmation NAMES what disappears — target, project, port — rather
+          than asking "are you sure?". */}
       {deleting !== null ? (
         <DeleteApplicationDialog
           application={deleting}
@@ -493,7 +493,7 @@ export function ApplicationsView({
   );
 }
 
-/** Les services d'une application ; l'exposé en badge plein, les autres en code. */
+/** An application's services; the exposed one as a filled badge, the others as code. */
 export function ServiceChips({ services }: { services: ServiceRow[] }) {
   return (
     <span className="flex flex-wrap items-center gap-1">

@@ -7,11 +7,11 @@ import { backupSay, type BackupSay } from '../messages.js';
 import { EMPTY_SHA256, encodeKeyPath, sha256Hex, signV4 } from './sigv4.js';
 
 /**
- * Une destination compatible S3 — AWS, Scaleway, Backblaze B2, Wasabi, MinIO.
+ * An S3-compatible destination — AWS, Scaleway, Backblaze B2, Wasabi, MinIO.
  *
- * L'envoi est découpé en parties de 16 Mio (envoi multipartie au-delà) :
- * une archive de plusieurs gigaoctets ne tient jamais en mémoire, et chaque
- * partie est signée avec l'empreinte de son contenu.
+ * The upload is split into 16 MiB parts (multipart upload beyond that): an
+ * archive of several gigabytes never fits in memory, and each part is signed
+ * with its content's hash.
  */
 
 const PART_BYTES = 16 * 1024 * 1024;
@@ -57,7 +57,7 @@ export class S3BackupStore implements BackupStore {
     return this.config.prefix ? `${this.config.prefix}/${key}` : key;
   }
 
-  /** L'hôte et le chemin encodé d'une clé, selon le style d'adressage. */
+  /** A key's host and encoded path, according to the addressing style. */
   private locate(key: string | null): { host: string; path: string } {
     const basePath = this.base.pathname.replace(/\/+$/, '');
     const encoded = key === null ? '' : `/${encodeKeyPath(key)}`;
@@ -95,7 +95,10 @@ export class S3BackupStore implements BackupStore {
       await assertEgressAllowed(url);
     } catch (error) {
       if (!(error instanceof EgressRefusedError)) throw error;
-      throw new BackupStoreError(`S3 : ${error.describe(this.language)}`, error);
+      throw new BackupStoreError(
+        this.say('s3.egress', { detail: error.describe(this.language) }),
+        error,
+      );
     }
     let response: Response;
     try {
@@ -107,7 +110,10 @@ export class S3BackupStore implements BackupStore {
       });
     } catch (error) {
       throw new BackupStoreError(
-        `stockage S3 injoignable (${this.base.host}) : ${error instanceof Error ? error.message : String(error)}`,
+        this.say('s3.unreachable', {
+          host: this.base.host,
+          detail: error instanceof Error ? error.message : String(error),
+        }),
         error,
       );
     }
@@ -159,7 +165,7 @@ export class S3BackupStore implements BackupStore {
         if (size >= PART_BYTES) await flushPart();
       }
       if (uploadId === null) {
-        // Tout a tenu dans une partie : un seul PUT.
+        // Everything fit in one part: a single PUT.
         await this.request('PUT', objectKey, { body: Buffer.concat(buffered) });
         return total;
       }
@@ -178,7 +184,7 @@ export class S3BackupStore implements BackupStore {
         body: Buffer.from(completion),
         headers: { 'content-type': 'application/xml' },
       });
-      // S3 peut répondre 200 avec une erreur dans le corps.
+      // S3 can answer 200 with an error in the body.
       const text = await done.text();
       if (text.includes('<Error>')) {
         throw new BackupStoreError(
@@ -197,7 +203,7 @@ export class S3BackupStore implements BackupStore {
   async get(key: string): Promise<Readable> {
     const response = await this.request('GET', this.objectKey(key));
     if (response.status === 404 || !response.body) {
-      throw new BackupStoreError(`S3 : « ${key} » introuvable`);
+      throw new BackupStoreError(this.say('s3.notFound', { key }));
     }
     return Readable.fromWeb(response.body as import('node:stream/web').ReadableStream);
   }

@@ -11,12 +11,12 @@ import { logger } from './logger.js';
 import { getPublisher } from './redis.js';
 
 /**
- * Le worker, côté temps réel : il dit aux écrans ouverts que quelque chose a
- * bougé. Il ne pousse jamais de données — un signal, un sujet, et c'est la
- * page qui se relit avec ses propres permissions.
+ * The worker, real-time side: it tells open screens that something moved. It
+ * never pushes data — a signal, a topic, and it is the page that reads itself
+ * again with its own permissions.
  *
- * Publier ne doit jamais gêner le travail : une erreur Redis ici est écrite
- * dans les logs, et le déploiement continue.
+ * Publishing must never hinder the work: a Redis error here is written to the
+ * logs, and the deployment goes on.
  */
 
 function publish(event: RealtimeEvent): void {
@@ -25,7 +25,7 @@ function publish(event: RealtimeEvent): void {
   getPublisher()
     .publish(REALTIME_CHANNEL, JSON.stringify(parsed.data))
     .catch((error: unknown) => {
-      logger.warn({ err: error, type: event.type }, 'événement temps réel non publié');
+      logger.warn({ err: error, type: event.type }, 'real-time event not published');
     });
 }
 
@@ -33,12 +33,12 @@ function onJob(job: Job | undefined, phase: 'active' | 'settled'): void {
   if (!job) return;
   const topic = liveTopicOfJob(job.name);
   if (!topic) return;
-  // Le départ n'intéresse que ce qui s'affiche « en cours » : un déploiement.
+  // The start only interests what shows "in progress": a deployment.
   if (phase === 'active' && topic !== 'deployments') return;
   publish({ type: 'live', topic, source: 'job', detail: job.name.slice(0, 120) });
 }
 
-/** Branche les workers BullMQ sur le canal temps réel. */
+/** Plugs the BullMQ workers into the real-time channel. */
 export function installRealtimeJobEvents(workers: readonly Worker[]): void {
   for (const worker of workers) {
     worker.on('active', (job) => onJob(job, 'active'));
@@ -48,8 +48,8 @@ export function installRealtimeJobEvents(workers: readonly Worker[]): void {
 }
 
 /**
- * Chaque ligne du journal écrite par le worker devient un signal : l'activité
- * pour qui peut lire le journal, et le sujet pour les écrans concernés.
+ * Each log line written by the worker becomes a signal: the activity for whoever
+ * can read the log, and the topic for the screens concerned.
  */
 export function installRealtimeAudit(): void {
   setNamedAuditObserver('realtime', (row) => {

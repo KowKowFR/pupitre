@@ -11,23 +11,22 @@ import { logger } from './logger';
 import { foreignWrite, originOf } from './same-origin';
 
 /**
- * Le seul endroit du panel qui rend un message d'erreur d'API dans la langue
- * du lecteur.
+ * The only place in the panel that renders an API error message in the reader's
+ * language.
  *
- * Il est asynchrone, et c'est la raison même de son existence : une erreur se
- * lance depuis du code synchrone, mais la langue vit en base. On repousse donc
- * la traduction jusqu'ici, où l'on a déjà le droit d'attendre.
+ * It is asynchronous, and that is its very reason for being: an error is thrown
+ * from synchronous code, but the language lives in the database. So the
+ * translation is pushed back to here, where we are already allowed to wait.
  *
- * `code` n'est jamais touché. Un script qui filtre sur `error.code` ne voit
- * aucune différence entre une instance française et une instance anglaise ;
- * c'est à cela que sert un code.
+ * `code` is never touched. A script filtering on `error.code` sees no difference
+ * between a French instance and an English one; that is what a code is for.
  */
 async function localize(message: MessageRef | undefined, fallback: string): Promise<string> {
   if (!message) return fallback;
   return renderRef(message, await currentLanguage());
 }
 
-/** Raccourci pour les erreurs que ce module fabrique lui-même. */
+/** A shortcut for the errors this module makes itself. */
 async function localizeKey(key: ErrorKey): Promise<string> {
   return renderMessage(errors, await currentLanguage(), key);
 }
@@ -49,12 +48,12 @@ function jsonError(
 }
 
 /**
- * Wrapper de Route Handler. Il traduit les erreurs typées en réponses HTTP :
- * aucune route ne vérifie de permission ni ne fabrique d'erreur à la main.
+ * The Route Handler wrapper. It turns the typed errors into HTTP responses: no
+ * route checks a permission or makes an error by hand.
  *
- * Il refuse aussi, avant toute chose, une écriture qu'un navigateur enverrait
- * depuis une autre origine que le panel — voir `foreignWrite()`. Le refus est
- * tracé : c'est la marque d'une page piégée, pas d'une fausse manœuvre.
+ * It also refuses, before anything else, a write a browser would send from
+ * another origin than the panel — see `foreignWrite()`. The refusal is traced:
+ * it is the mark of a booby-trapped page, not of a mistake.
  */
 export function apiRoute<Context>(
   handler: (request: Request, context: Context) => Promise<Response>,
@@ -83,8 +82,8 @@ export function apiRoute<Context>(
         );
       }
       if (error instanceof z.ZodError) {
-        // Les reproches des schémas de Pupitre portent leur clé : on les redit
-        // dans la langue de l'écran avant de les aplatir.
+        // Pupitre's schema complaints carry their key: we say them again in the screen's
+        // language before flattening them.
         return jsonError(
           422,
           'validation_failed',
@@ -94,14 +93,14 @@ export function apiRoute<Context>(
       }
       logger.error(
         { err: error, method: request.method, url: request.url },
-        'erreur non gérée dans une route',
+        'unhandled error in a route',
       );
       return jsonError(500, 'internal_error', await localizeKey('internal'));
     }
   };
 }
 
-/** Variante qui throw : le wrapper `apiRoute()` traduit le `ZodError` en 422. */
+/** A throwing variant: the `apiRoute()` wrapper turns the `ZodError` into a 422. */
 export async function readJsonBody<T extends z.ZodTypeAny>(
   request: Request,
   schema: T,
@@ -117,10 +116,10 @@ export async function readJsonBody<T extends z.ZodTypeAny>(
 }
 
 /**
- * Le corps brut d'une requête, borné : la lecture s'arrête **pendant** le
- * transfert dès que la borne est franchie, sans attendre d'avoir tout reçu.
- * L'en-tête `content-length`, quand il est là, permet de refuser avant même de
- * lire. Sert aux envois d'images, qui ne passent pas par JSON.
+ * A request's raw body, bounded: the read stops **during** the transfer as soon
+ * as the bound is crossed, without waiting to have received everything. The
+ * `content-length` header, when present, allows refusing before even reading.
+ * Serves image uploads, which do not go through JSON.
  */
 export async function readLimitedBody(request: Request, maxBytes: number): Promise<Buffer> {
   const tooLarge = () =>
@@ -145,7 +144,7 @@ export async function readLimitedBody(request: Request, maxBytes: number): Promi
   return Buffer.concat(chunks);
 }
 
-/** Un formulaire `multipart/form-data`, borné comme `readLimitedBody()`. */
+/** A `multipart/form-data` form, bounded like `readLimitedBody()`. */
 export async function readLimitedFormData(request: Request, maxBytes: number): Promise<FormData> {
   const body = await readLimitedBody(request, maxBytes);
   try {
@@ -157,12 +156,12 @@ export async function readLimitedFormData(request: Request, maxBytes: number): P
   }
 }
 
-/** Valide les paramètres de query string. */
+/** Validates the query string parameters. */
 export function readSearchParams<T extends z.ZodTypeAny>(request: Request, schema: T): z.infer<T> {
   return schema.parse(searchParamsOf(request));
 }
 
-/** Les paramètres d'URL non vides, à plat — avant validation. */
+/** The non-empty URL parameters, flat — before validation. */
 export function searchParamsOf(request: Request): Record<string, string> {
   const url = new URL(request.url);
   const entries: Record<string, string> = {};
@@ -173,9 +172,8 @@ export function searchParamsOf(request: Request): Record<string, string> {
 }
 
 /**
- * IP réelle de l'appelant derrière un reverse proxy.
- * `x-forwarded-for` est une liste « client, proxy1, proxy2 » : le client est
- * le premier élément.
+ * The caller's real IP behind a reverse proxy. `x-forwarded-for` is a "client,
+ * proxy1, proxy2" list: the client is the first element.
  */
 export function clientIp(request: Request): string | null {
   const forwarded = request.headers.get('x-forwarded-for');

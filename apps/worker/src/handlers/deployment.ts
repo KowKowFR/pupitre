@@ -19,14 +19,14 @@ import { getPublisher } from '../redis.js';
 import { reportDeploymentStatus } from '../sources/status.js';
 
 /**
- * Verdict du pipeline → action d'audit. Une table, pas une chaîne de ternaires :
- * un quatrième verdict s'ajouterait ici et nulle part ailleurs.
+ * Pipeline verdict → audit action. A table, not a chain of ternaries: a fourth
+ * verdict would be added here and nowhere else.
  *
- * `deployment.rolled_back` dit **où en est** le déploiement. C'est une entrée
- * distincte de `deployment.rolled_back.automatic`, écrite par le pipeline, qui
- * dit **pourquoi** et **vers quoi** — deux questions, deux traces. Les
- * confondre sous un même nom donnerait deux charges utiles différentes pour une
- * même action, et rendrait le journal illisible à la requête.
+ * `deployment.rolled_back` says **where** the deployment stands. It is an entry
+ * distinct from `deployment.rolled_back.automatic`, written by the pipeline,
+ * which says **why** and **to what** — two questions, two traces. Merging them
+ * under one name would give two different payloads for one action, and would
+ * make the log unreadable to query.
  */
 const DEPLOYMENT_AUDIT_ACTION = {
   success: 'deployment.succeeded',
@@ -34,14 +34,14 @@ const DEPLOYMENT_AUDIT_ACTION = {
   rolled_back: 'deployment.rolled_back',
 } as const;
 
-/** Déploiement complet : le pipeline, étape par étape. */
+/** Complete deployment: the pipeline, step by step. */
 export async function handleDeploymentRun(
   job: Job<unknown, DeploymentJobResult>,
 ): Promise<DeploymentJobResult> {
   const data = deploymentJobDataSchema.parse(job.data);
   const log = logger.child({ jobId: job.id, deploymentId: data.deploymentId });
 
-  log.info('pipeline de déploiement démarré');
+  log.info('deployment pipeline started');
 
   try {
     const outcome = await runDeploymentPipeline(data.deploymentId, getPublisher(), {
@@ -49,8 +49,8 @@ export async function handleDeploymentRun(
       ip: data.ip,
     });
 
-    // Ce que le message dira : « api-facturation version 12 sur prod-1 ». Sans
-    // ces noms, un déploiement réussi ne serait qu'un identifiant.
+    // What the message will say: "api-invoicing version 12 on prod-1". Without these
+    // names, a successful deployment would only be an identifier.
     const summary = await getDeploymentSummary(data.deploymentId).catch(() => null);
     await logAudit({
       actorId: data.actorId,
@@ -72,9 +72,9 @@ export async function handleDeploymentRun(
       ip: data.ip,
     });
 
-    log.info({ status: outcome.status, url: outcome.url }, 'pipeline terminé');
+    log.info({ status: outcome.status, url: outcome.url }, 'pipeline completed');
 
-    // Un run venu d'un dépôt lié dit son issue sur le commit GitHub.
+    // A run coming from a linked repository says its outcome on the GitHub commit.
     await reportDeploymentStatus(data.deploymentId, outcome.status, outcome.failedStep);
 
     return {
@@ -84,9 +84,10 @@ export async function handleDeploymentRun(
       failedStep: outcome.failedStep,
     };
   } catch (error) {
-    // Échec hors pipeline : cible introuvable, SSH impossible, AppSpec illisible.
+    // Failure outside the pipeline: target not found, SSH impossible, AppSpec
+    // unreadable.
     const message = error instanceof Error ? error.message : String(error);
-    log.error({ err: error }, 'pipeline interrompu avant son terme');
+    log.error({ err: error }, 'pipeline interrupted before its end');
 
     await finishDeployment(data.deploymentId, 'failed', { error: message });
     getPublisher()
@@ -118,7 +119,7 @@ export async function handleDeploymentRun(
   }
 }
 
-/** Retour à la version précédente. */
+/** Return to the previous version. */
 export async function handleDeploymentRollback(
   job: Job<unknown, DeploymentJobResult>,
 ): Promise<DeploymentJobResult> {
@@ -137,9 +138,9 @@ export async function handleDeploymentRollback(
     const driver = getDriver(deployment.runtime);
     await driver.rollback(ctx, (line) => stream.line('deploy', line));
 
-    // Contrôle informatif : un rollback demandé à la main reste un rollback
-    // réussi même si l'ancienne version boite. C'est l'opérateur qui décide de
-    // la suite, on lui donne l'information plutôt qu'un statut de plus.
+    // Informative check: a manually requested rollback stays a successful rollback
+    // even if the old version limps. It is the operator who decides what comes next,
+    // we give them the information rather than one more status.
     const health = await driver.healthcheck(ctx);
     const say = workerSay(ctx.language);
     stream.line(
@@ -158,12 +159,12 @@ export async function handleDeploymentRollback(
     });
 
     /**
-     * Un rollback remet des services en marche : il relance la release
-     * précédente en Compose, il remonte les répliques en Kubernetes. Si
-     * l'application était marquée arrêtée, la marque ne correspond donc plus à
-     * rien, et la laisser ferait taire la sonde périodique sur une application
-     * qui, elle, sert du trafic. On réconcilie plutôt que de refuser le geste :
-     * l'écran prévient que revenir en arrière redémarre l'application.
+     * A rollback starts services again: it restarts the previous release with
+     * Compose, it scales the replicas back up with Kubernetes. If the application
+     * was marked stopped, the mark therefore no longer matches anything, and leaving
+     * it would silence the periodic probe on an application that does serve traffic.
+     * We reconcile rather than refuse the gesture: the screen warns that going back
+     * restarts the application.
      */
     await setDeploymentStopped(data.deploymentId, null);
     stream.event({
@@ -187,7 +188,7 @@ export async function handleDeploymentRollback(
       ip: data.ip,
     });
 
-    log.info({ to: ctx.previousDeployment.version }, 'rollback effectué');
+    log.info({ to: ctx.previousDeployment.version }, 'rollback done');
 
     return {
       deploymentId: data.deploymentId,
@@ -204,20 +205,20 @@ export async function handleDeploymentRollback(
 export type DestroyOptions = {
   actorId: string | null;
   ip: string | null;
-  /** Borne la tentative d'ouverture de session. Défaut : celui du SSH. */
+  /** Bounds the session opening attempt. Default: the SSH one. */
   connect?: ConnectOptions;
 };
 
 /**
- * Destruction : compose down, répertoire supprimé, port libéré, proxy retiré.
+ * Destruction: compose down, directory removed, port released, proxy removed.
  *
- * Extraite du handler pour que la suppression en cascade d'une application
- * l'appelle telle quelle, déploiement par déploiement. Composer plutôt que
- * réécrire : le jour où la destruction apprend un geste de plus — retirer une
- * entrée DNS, prévenir un proxy —, la cascade l'apprend sans qu'on y touche.
+ * Extracted from the handler so that an application's cascading deletion calls
+ * it as is, deployment by deployment. Composing rather than rewriting: the day
+ * destruction learns one more gesture — removing a DNS entry, warning a proxy —,
+ * the cascade learns it without being touched.
  *
- * Elle **throw** quand la cible est injoignable, et c'est le contrat : c'est à
- * l'appelant de décider si un échec est fatal ou s'il se rapporte.
+ * It **throws** when the target is unreachable, and that is the contract: it is
+ * for the caller to decide whether a failure is fatal or gets reported.
  */
 export async function destroyDeployment(
   deploymentId: string,
@@ -230,8 +231,8 @@ export async function destroyDeployment(
 
   try {
     const driver = getDriver(deployment.runtime);
-    // Les domaines suivent l'application en service sur la cible : détruire
-    // une version qui ne l'est plus ne doit rien retirer au proxy.
+    // The domains follow the application in service on the target: destroying a
+    // version that no longer is must remove nothing from the proxy.
     const [live] = await listLiveDeployments({
       applicationId: deployment.applicationId,
       targetId: deployment.targetId,
@@ -269,7 +270,7 @@ export async function destroyDeployment(
   }
 }
 
-/** Destruction unitaire, déclenchée depuis `DELETE /api/deployments/:id`. */
+/** Single destruction, triggered from `DELETE /api/deployments/:id`. */
 export async function handleDeploymentDestroy(
   job: Job<unknown, DeploymentJobResult>,
 ): Promise<DeploymentJobResult> {
@@ -277,7 +278,7 @@ export async function handleDeploymentDestroy(
   const log = logger.child({ jobId: job.id, deploymentId: data.deploymentId });
 
   await destroyDeployment(data.deploymentId, { actorId: data.actorId, ip: data.ip });
-  log.info('déploiement détruit');
+  log.info('deployment destroyed');
 
   return { deploymentId: data.deploymentId, status: 'destroyed', url: null, failedStep: null };
 }

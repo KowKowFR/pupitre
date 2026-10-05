@@ -29,22 +29,22 @@ export function loadFixture(name: string): unknown {
 }
 
 describe('AppSpec', () => {
-  describe('fixtures valides', () => {
-    it('simple.json est accepté et reçoit ses defaults', () => {
+  describe('valid fixtures', () => {
+    it('simple.json is accepted and gets its defaults', () => {
       const spec = parseAppSpec(loadFixture('simple'));
       assert.equal(spec.name, 'demo-api');
       assert.equal(spec.services.length, 1);
 
       const [service] = spec.services;
       assert.ok(service);
-      assert.equal(service.replicas, 1, 'replicas défaut à 1');
+      assert.equal(service.replicas, 1, 'replicas defaults to 1');
       assert.deepEqual(service.secrets, []);
       assert.deepEqual(service.volumes, []);
       assert.deepEqual(service.dependsOn, []);
       assert.equal(service.resources.cpuMilli, 500);
     });
 
-    it('fullstack.json est accepté avec volumes, secrets et dependsOn', () => {
+    it('fullstack.json is accepted with volumes, secrets and dependsOn', () => {
       const spec = parseAppSpec(loadFixture('fullstack'));
       assert.equal(spec.services.length, 3);
       assert.equal(exposedService(spec).name, 'front');
@@ -58,21 +58,21 @@ describe('AppSpec', () => {
       assert.equal(api.volumes[0]?.size, '5Gi');
     });
 
-    it('ordonne les services par dépendance', () => {
+    it('orders the services by dependency', () => {
       const spec = parseAppSpec(loadFixture('fullstack'));
       const order = topologicalOrder(spec).map((s) => s.name);
       assert.ok(
         order.indexOf('postgres') < order.indexOf('api'),
-        `postgres doit précéder api : ${order.join(' → ')}`,
+        `postgres must come before api: ${order.join(' → ')}`,
       );
       assert.ok(order.indexOf('api') < order.indexOf('front'));
     });
   });
 
-  describe('invalid.json est rejeté', () => {
+  describe('invalid.json is rejected', () => {
     const result = safeParseAppSpec(loadFixture('invalid'));
 
-    it('échoue globalement', () => {
+    it('fails globally', () => {
       assert.equal(result.success, false);
     });
 
@@ -90,10 +90,10 @@ describe('AppSpec', () => {
     ];
 
     for (const [label, pattern] of expectations) {
-      it(`signale : ${label}`, () => {
+      it(`reports: ${label}`, () => {
         assert.ok(
           messages.some((message) => pattern.test(message)),
-          `aucun message ne correspond à ${pattern}\nmessages : ${messages.join(' | ')}`,
+          `no message matches ${pattern}\nmessages: ${messages.join(' | ')}`,
         );
       });
     }
@@ -108,11 +108,11 @@ describe('AppSpec', () => {
       ],
     };
 
-    it('exige au moins un service', () => {
+    it('requires at least one service', () => {
       assert.equal(safeParseAppSpec({ ...base, services: [] }).success, false);
     });
 
-    it('exige exactement un service exposed — zéro échoue', () => {
+    it('requires exactly one exposed service — zero fails', () => {
       const result = safeParseAppSpec({
         ...base,
         services: [{ ...base.services[0], exposed: false }],
@@ -124,7 +124,7 @@ describe('AppSpec', () => {
       );
     });
 
-    it('exige exactement un service exposed — deux échouent', () => {
+    it('requires exactly one exposed service — two fail', () => {
       const result = safeParseAppSpec({
         ...base,
         services: [
@@ -139,7 +139,7 @@ describe('AppSpec', () => {
       );
     });
 
-    it('refuse un service qui dépend de lui-même', () => {
+    it('refuses a service that depends on itself', () => {
       const result = safeParseAppSpec({
         ...base,
         services: [{ ...base.services[0], dependsOn: ['web'] }],
@@ -151,7 +151,7 @@ describe('AppSpec', () => {
       );
     });
 
-    it('détecte un cycle indirect front → api → cache → front', () => {
+    it('detects an indirect cycle front → api → cache → front', () => {
       const result = safeParseAppSpec({
         name: 'app',
         version: '1.0.0',
@@ -168,7 +168,7 @@ describe('AppSpec', () => {
       );
     });
 
-    it('accepte un graphe en losange, qui n’est pas un cycle', () => {
+    it('accepts a diamond graph, which is not a cycle', () => {
       const result = safeParseAppSpec({
         name: 'app',
         version: '1.0.0',
@@ -186,7 +186,7 @@ describe('AppSpec', () => {
       );
     });
 
-    it('refuse une clé déclarée à la fois en env et en secret', () => {
+    it('refuses a key declared both in env and as a secret', () => {
       const result = safeParseAppSpec({
         ...base,
         services: [{ ...base.services[0], env: { TOKEN: 'x' }, secrets: ['TOKEN'] }],
@@ -194,7 +194,7 @@ describe('AppSpec', () => {
       assert.equal(result.success, false);
     });
 
-    it('findDependencyCycle retourne le cycle trouvé', () => {
+    it('findDependencyCycle returns the cycle found', () => {
       const cycle = findDependencyCycle([
         { name: 'api', dependsOn: ['cache'] },
         { name: 'cache', dependsOn: ['api'] },
@@ -204,12 +204,12 @@ describe('AppSpec', () => {
   });
 
   /**
-   * Deux images, un seul mot de passe, deux noms de variable. C'est le cas de
-   * WordPress + MariaDB et de GLPI + MariaDB, et il était cassé par
-   * construction : le magasin tirait une valeur par nom.
+   * Two images, a single password, two variable names. It is the case of
+   * WordPress + MariaDB and of GLPI + MariaDB, and it was broken by construction:
+   * the store drew one value per name.
    */
-  describe('secrets partagés par alias', () => {
-    /** Le squelette de l'exemple canonique de l'invite de génération. */
+  describe('secrets shared by alias', () => {
+    /** The skeleton of the generation prompt's canonical example. */
     function pair(secrets: {
       app: readonly unknown[];
       db: readonly unknown[];
@@ -236,19 +236,19 @@ describe('AppSpec', () => {
       };
     }
 
-    it('relit une AppSpec ancienne, en chaînes nues', () => {
+    it('reads an old AppSpec back, with bare strings', () => {
       const spec = parseAppSpec(
         pair({ app: ['WORDPRESS_DB_PASSWORD'], db: ['MARIADB_PASSWORD'] }),
       );
       assert.deepEqual(spec.services[0]?.secrets, ['WORDPRESS_DB_PASSWORD']);
-      // Deux racines : c'est bien la panne d'origine, et elle reste lisible.
+      // Two roots: it is indeed the original failure, and it stays readable.
       assert.deepEqual(storedSecretNames(spec).sort(), [
         'MARIADB_PASSWORD',
         'WORDPRESS_DB_PASSWORD',
       ]);
     });
 
-    it('accepte un alias et ne compte qu’une racine', () => {
+    it('accepts an alias and only counts one root', () => {
       const spec = parseAppSpec(
         pair({
           app: [{ name: 'WORDPRESS_DB_PASSWORD', from: 'MARIADB_PASSWORD' }],
@@ -270,7 +270,7 @@ describe('AppSpec', () => {
       );
     });
 
-    it('suit une chaîne d’alias jusqu’à la racine', () => {
+    it('follows an alias chain up to the root', () => {
       const spec = parseAppSpec(
         pair({
           app: [
@@ -284,7 +284,7 @@ describe('AppSpec', () => {
       assert.equal(secretRootName(secretBindings(spec), 'A'), 'MARIADB_PASSWORD');
     });
 
-    it('refuse un alias vers un secret inexistant, en le nommant', () => {
+    it('refuses an alias to a nonexistent secret, naming it', () => {
       const result = safeParseAppSpec(
         pair({ app: [{ name: 'WORDPRESS_DB_PASSWORD', from: 'ABSENT' }], db: [] }),
       );
@@ -295,7 +295,7 @@ describe('AppSpec', () => {
       );
     });
 
-    it('refuse un alias vers lui-même', () => {
+    it('refuses an alias to itself', () => {
       const result = safeParseAppSpec(
         pair({ app: [{ name: 'PASSWORD', from: 'PASSWORD' }], db: [] }),
       );
@@ -306,7 +306,7 @@ describe('AppSpec', () => {
       );
     });
 
-    it('refuse deux alias qui se pointent l’un l’autre', () => {
+    it('refuses two aliases pointing at each other', () => {
       const result = safeParseAppSpec(
         pair({ app: [{ name: 'A', from: 'B' }], db: [{ name: 'B', from: 'A' }] }),
       );
@@ -317,7 +317,7 @@ describe('AppSpec', () => {
       );
     });
 
-    it('refuse un nom déclaré nu ici et aliasé ailleurs', () => {
+    it('refuses a name declared bare here and aliased elsewhere', () => {
       const result = safeParseAppSpec(
         pair({
           app: [{ name: 'MARIADB_PASSWORD', from: 'AUTRE' }],
@@ -331,7 +331,7 @@ describe('AppSpec', () => {
       );
     });
 
-    it('refuse deux alias contradictoires pour un même nom', () => {
+    it('refuses two contradictory aliases for the same name', () => {
       const result = safeParseAppSpec(
         pair({
           app: [{ name: 'P', from: 'X' }],
@@ -345,7 +345,7 @@ describe('AppSpec', () => {
       );
     });
 
-    it('refuse deux fois le même nom dans un service', () => {
+    it('refuses the same name twice in a service', () => {
       const result = safeParseAppSpec(
         pair({ app: ['P', 'P'], db: [] }),
       );
@@ -356,7 +356,7 @@ describe('AppSpec', () => {
       );
     });
 
-    it('refuse un alias dont le nom est déjà dans env', () => {
+    it('refuses an alias whose name is already in env', () => {
       const result = safeParseAppSpec({
         name: 'boutique',
         version: '1.0.0',
@@ -374,7 +374,7 @@ describe('AppSpec', () => {
       assert.equal(result.success, false);
     });
 
-    it('completeSecretValues donne la même valeur aux deux noms', () => {
+    it('completeSecretValues gives the same value to both names', () => {
       const spec = parseAppSpec(
         pair({
           app: [{ name: 'WORDPRESS_DB_PASSWORD', from: 'MARIADB_PASSWORD' }],
@@ -388,7 +388,7 @@ describe('AppSpec', () => {
       });
     });
 
-    it('nomme la racine, pas l’alias, quand la valeur manque', () => {
+    it('names the root, not the alias, when the value is missing', () => {
       const spec = parseAppSpec(
         pair({
           app: [{ name: 'WORDPRESS_DB_PASSWORD', from: 'MARIADB_PASSWORD' }],
@@ -404,19 +404,19 @@ describe('AppSpec', () => {
     });
   });
 
-  describe('neutralité vis-à-vis du runtime', () => {
-    it('aucun champ du schéma ne nomme un runtime', () => {
+  describe('runtime neutrality', () => {
+    it('no schema field names a runtime', () => {
       const source = readFileSync(
         path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'spec', 'app-spec.ts'),
         'utf8',
       );
-      // On inspecte les clés déclarées, pas les commentaires.
+      // We inspect the declared keys, not the comments.
       const declaredKeys = [...source.matchAll(/^\s{2}([a-zA-Z][a-zA-Z0-9]*):\s/gm)].map(
         (match) => match[1] ?? '',
       );
       const forbidden = /compose|kubernetes|k8s|k3s|imagepullpolicy|restartpolicy|namespace/i;
       const offenders = declaredKeys.filter((key) => forbidden.test(key));
-      assert.deepEqual(offenders, [], `champs spécifiques à un runtime : ${offenders.join(', ')}`);
+      assert.deepEqual(offenders, [], `runtime-specific fields: ${offenders.join(', ')}`);
     });
   });
 });

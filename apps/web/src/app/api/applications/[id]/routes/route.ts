@@ -19,6 +19,7 @@ import { apiRoute, readJsonBody } from '@/lib/http';
 import { assertServable, proxyViewForUi, routeViewForUi } from '@/lib/proxy';
 import { getOpsQueue } from '@/lib/queue';
 import { requirePermission } from '@/lib/rbac';
+import { currentLanguage } from '@/i18n/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -27,11 +28,12 @@ const paramsSchema = z.object({ id: z.string().uuid() });
 type Context = { params: Promise<{ id: string }> };
 
 /**
- * Les domaines d'une application, cible par cible : là où elle tourne, et là
- * où elle a des domaines sans tourner. Avec, pour chaque cible, ce que son
- * proxy sait faire — l'écran ne propose que cela.
+ * An application's domains, target by target: where it runs, and where it has
+ * domains without running. With, for each target, what its proxy can do — the
+ * screen only offers that.
  */
 export const GET = apiRoute<Context>(async (request, context) => {
+  const language = await currentLanguage();
   await requirePermission(request, 'application:read');
   const { id } = paramsSchema.parse(await context.params);
   const application = await getApplication(id);
@@ -58,8 +60,8 @@ export const GET = apiRoute<Context>(async (request, context) => {
           id: target.id,
           name: target.name,
           live: live.some((couple) => couple.targetId === target.id && couple.inService),
-          proxy: serving ? proxyViewForUi(serving.proxy) : null,
-          /** Le proxy, quand c'est celui d'une autre machine ou un proxy distant. */
+          proxy: serving ? proxyViewForUi(serving.proxy, language) : null,
+          /** The proxy, when it is another machine's or a remote proxy. */
           via: serving?.link
             ? (nameOf.get(serving.proxy.hostTargetId ?? '') ?? serving.proxy.name)
             : null,
@@ -75,9 +77,9 @@ const putSchema = z.object({
 });
 
 /**
- * Remplace les domaines de l'application sur une cible, et les pose aussitôt
- * sur le proxy si elle y tourne — sans redéploiement. Sinon, le prochain
- * déploiement les posera.
+ * Replaces the application's domains on a target, and sets them right away on
+ * the proxy if it runs there — without redeployment. Otherwise, the next
+ * deployment will set them.
  */
 export const PUT = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'deployment:create');

@@ -41,7 +41,7 @@ async function failure(response: Response, fallback: string): Promise<string> {
   return body.error?.message ?? fallback;
 }
 
-/** Le ton d'une phase : une panne qu'on cherche, qu'on tient, qu'on a réglée. */
+/** A phase's tone: an outage being investigated, held, resolved. */
 const PHASE_BADGE: Record<StatusUpdatePhase, 'danger' | 'warn' | 'accent' | 'ok' | 'idle'> = {
   investigating: 'danger',
   identified: 'warn',
@@ -86,9 +86,9 @@ function timing(subject: AnnounceSubjectJson, t: T, when: (value: string) => str
 }
 
 /**
- * Les annonces : les pannes et les maintenances des sondes de vos pages, et
- * pour chacune un tiroir (`?annonce=incident:<id>`) où publier ce que les
- * visiteurs liront.
+ * The announcements: the outages and maintenance windows of your pages' probes,
+ * and for each one a drawer (`?annonce=incident:<id>`) where to publish what the
+ * visitors will read.
  */
 export function Announcements({
   subjects,
@@ -312,7 +312,7 @@ function AnnounceDrawer({
   );
 }
 
-/** Une annonce déjà publiée : on la lit, on la corrige, on la retire. */
+/** An already published announcement: one reads it, corrects it, removes it. */
 function PublishedUpdate({
   update,
   phases,

@@ -17,8 +17,8 @@ const bodySchema = z.object({
 });
 
 /**
- * Enfile une tâche de fumée dans la queue `ops`.
- * La route ne fait qu'enfiler : le travail réel appartient au worker.
+ * Queues a smoke job on the `ops` queue. The route only queues: the real work
+ * belongs to the worker.
  */
 export const POST = apiRoute(async (request) => {
   const auth = await requirePermission(request, 'job:manage');
@@ -45,7 +45,7 @@ export const POST = apiRoute(async (request) => {
     ip: auth.ip,
   });
 
-  logger.info({ jobId: job.id, actorId: auth.userId }, 'ping enfilé');
+  logger.info({ jobId: job.id, actorId: auth.userId }, 'ping queued');
 
   return NextResponse.json(
     { jobId: job.id, queue: job.queueName, message: data.message, state: 'queued' },

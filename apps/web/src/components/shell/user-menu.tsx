@@ -23,12 +23,12 @@ import { applyTheme, THEME_CHOICES, type ThemeChoice } from '@/lib/theme';
 import { useShell } from './shell-provider';
 
 /**
- * Le bloc utilisateur du pied de rail et son menu : Mon compte, Thème,
- * Raccourcis, Documentation, puis la déconnexion, seule en rouge, en dernier.
+ * The user block at the bottom of the rail and its menu: My account, Theme,
+ * Shortcuts, Documentation, then sign-out, alone in red, last.
  *
- * Le thème se règle ici, en trois segments. Le choix courant est donné par le
- * serveur (le cookie qu'il a lu pour peindre la page) : pas de clignotement du
- * contrôle à l'hydratation.
+ * The theme is set here, in three segments. The current choice is given by the
+ * server (the cookie it read to paint the page): no flicker of the control at
+ * hydration.
  */
 export function UserMenu({
   name,

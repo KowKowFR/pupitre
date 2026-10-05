@@ -5,14 +5,14 @@ import { auth as messages } from '@/i18n/messages/auth';
 import { getT } from '@/i18n/server';
 
 /**
- * 404 hors de toute section.
+ * A 404 outside any section.
  *
- * Sans ce fichier, Next sert sa page par défaut : fond noir, « This page could
- * not be found. » en anglais, aucun lien. Une faute de frappe dans l'URL
- * éjectait donc du panel, sans moyen d'y revenir autrement que par le bouton
- * « précédent ». Elle reprend la forme de `/forbidden` — même carte centrée,
- * même sortie de secours — parce que les deux répondent à la même question :
- * « je suis quelque part où il n'y a rien, comment je rentre ? »
+ * Without this file, Next serves its default page: black background, "This page
+ * could not be found." in English, no link. A typo in the URL therefore ejected
+ * one from the panel, with no way back other than the "back" button. It takes the
+ * shape of `/forbidden` — the same centered card, the same emergency exit —
+ * because both answer the same question: "I am somewhere where there is nothing,
+ * how do I get back?"
  */
 export default async function NotFoundPage() {
   const t = await getT(messages);

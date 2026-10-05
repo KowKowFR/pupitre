@@ -10,13 +10,13 @@ export async function generateMetadata(): Promise<Metadata> {
 export const dynamic = 'force-dynamic';
 
 /**
- * Atterrissage d'un lien d'invitation.
+ * Landing of an invitation link.
  *
- * Techniquement identique à `/reset-password` — même jeton, même route de
- * consommation, même composant. Ce qui diffère est la situation : la personne
- * n'a jamais eu de mot de passe ici, et lui parler de « réinitialisation »
- * serait faux. C'est `sendResetPassword()` qui choisit laquelle des deux pages
- * le lien vise, à partir de l'état du compte et non d'un paramètre d'URL.
+ * Technically identical to `/reset-password` — same token, same consumption
+ * route, same component. What differs is the situation: the person never had a
+ * password here, and talking to them about a "reset" would be wrong. It is
+ * `sendResetPassword()` that chooses which of the two pages the link targets, from
+ * the account's state and not from a URL parameter.
  */
 export default async function InvitationPage({
   searchParams,

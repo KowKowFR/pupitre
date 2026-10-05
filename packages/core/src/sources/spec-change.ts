@@ -1,24 +1,24 @@
 import type { AppSpec, Service } from '../spec/index.js';
 
 /**
- * Ce qu'un commit change à l'AppSpec, et si c'est du **code** ou de
- * l'**infrastructure**.
+ * What a commit changes in the AppSpec, and whether it is **code** or
+ * **infrastructure**.
  *
- * C'est le cœur du mode « automatique sauf changement d'infra » : un commit
- * qui ne touche que le code (et la `version`) part tout seul ; un commit qui
- * ouvre un port au monde, change un domaine, monte un volume ou réclame un
- * secret attend qu'un humain ait vu le diff. Une fusion ne doit pas pouvoir
- * exposer une base de données sans que personne ne l'ait lu.
+ * It is the heart of the "automatic unless infra changes" mode: a commit that
+ * only touches code (and the `version`) goes out on its own; a commit that opens
+ * a port to the world, changes a domain, mounts a volume or asks for a secret
+ * waits for a human to have seen the diff. A merge must not be able to expose a
+ * database without anybody having read it.
  *
- * La liste des champs d'infra est volontairement large : on préfère demander
- * une validation de trop qu'en oublier une. `env` en fait partie — une
- * variable peut rediriger l'application vers une autre base.
+ * The list of infra fields is deliberately wide: we prefer asking for one
+ * approval too many than forgetting one. `env` is part of it — a variable can
+ * redirect the application to another database.
  */
 
 export type SpecChangeKind = 'code' | 'infra';
 
 export type SpecChange = {
-  /** Chemin lisible : `services.web.port`, `ingress.host`, `services.worker`. */
+  /** Readable path: `services.web.port`, `ingress.host`, `services.worker`. */
   path: string;
   kind: SpecChangeKind;
   /** `added`, `removed`, ou `changed`. */
@@ -26,12 +26,12 @@ export type SpecChange = {
 };
 
 export type SpecChangeReport = {
-  /** Au moins un changement d'infrastructure. */
+  /** At least one infrastructure change. */
   infra: boolean;
   changes: SpecChange[];
 };
 
-/** Champs d'un service dont un changement relève de l'infrastructure. */
+/** A service's fields whose change counts as infrastructure. */
 const INFRA_SERVICE_FIELDS = [
   'port',
   'exposed',
@@ -42,12 +42,12 @@ const INFRA_SERVICE_FIELDS = [
   'volumes',
 ] as const satisfies ReadonlyArray<keyof Service>;
 
-/** Champs d'un service dont un changement relève du code. */
+/** A service's fields whose change counts as code. */
 const CODE_SERVICE_FIELDS = ['healthcheck', 'dependsOn'] as const satisfies ReadonlyArray<
   keyof Service
 >;
 
-/** Comparaison structurelle, indifférente à l'ordre des clés d'un objet. */
+/** Structural comparison, indifferent to the order of an object's keys. */
 function same(a: unknown, b: unknown): boolean {
   return canonical(a) === canonical(b);
 }
@@ -66,9 +66,9 @@ function canonical(value: unknown): string {
 function compareService(previous: Service, next: Service, changes: SpecChange[]): void {
   const base = `services.${next.name}`;
 
-  // La source : changer d'image ou de tag, c'est livrer du code. Passer d'une
-  // image toute faite à un build (ou l'inverse), c'est changer la façon dont
-  // l'application est fabriquée — de l'infra.
+  // The source: changing image or tag is delivering code. Going from a ready-made
+  // image to a build (or the reverse) is changing how the application is made —
+  // infra.
   if (previous.source.type !== next.source.type) {
     changes.push({ path: `${base}.source`, kind: 'infra', change: 'changed' });
   } else if (!same(previous.source, next.source)) {
@@ -88,8 +88,8 @@ function compareService(previous: Service, next: Service, changes: SpecChange[])
 }
 
 /**
- * Compare la spec en service à celle du commit. Sans spec précédente — la
- * première fois —, tout est nouveau, donc de l'infra.
+ * Compares the spec in service with the commit's. Without a previous spec — the
+ * first time —, everything is new, hence infra.
  */
 export function classifySpecChange(previous: AppSpec | null, next: AppSpec): SpecChangeReport {
   const changes: SpecChange[] = [];

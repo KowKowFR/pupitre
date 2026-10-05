@@ -25,40 +25,40 @@ import { clientIp } from './http';
 import { sessionPolicy } from './session-policy';
 
 /**
- * Contrôle d'accès. Point d'entrée unique : `requirePermission()`.
- * Aucune route ne compare de rôle ni de permission à la main.
+ * Access control. A single entry point: `requirePermission()`. No route compares a
+ * role or a permission by hand.
  */
 
 export type AuthContext = {
   userId: string;
   email: string;
   name: string;
-  /** L'URL versionnée de sa photo de profil, ou `null`. */
+  /** The versioned URL of their profile picture, or `null`. */
   image: string | null;
   roles: RoleKey[];
   permissions: Permission[];
   ip: string | null;
-  /** Test local, sans nouvelle requête en base. */
+  /** A local test, without a new database query. */
   can: (permission: Permission) => boolean;
   /**
-   * Le jeton d'API qui authentifie la requête, `null` pour une session de
-   * navigateur. `applications` : celles qu'il couvre, `null` pour toutes.
+   * The API token that authenticates the request, `null` for a browser session.
+   * `applications`: those it covers, `null` for all of them.
    */
   token: { id: string; name: string; applications: ReadonlySet<string> | null } | null;
   /**
-   * Le second facteur du compte, au regard de la politique de l'instance.
-   * `mustEnroll` : exigé et absent — le compte n'a accès qu'à « Mon compte »,
-   * le temps de l'activer : `can()` répond non à tout, `permissions` dit ce que
-   * ses rôles lui donneront.
+   * The account's second factor, with regard to the instance's policy.
+   * `mustEnroll`: required and absent — the account only has access to "My
+   * account", the time to enable it: `can()` answers no to everything,
+   * `permissions` says what its roles will give it.
    */
   twoFactor: { enabled: boolean; required: boolean; mustEnroll: boolean };
 };
 
 /**
- * Le second facteur exigé et absent. Un compte sans mot de passe — qui n'entre
- * que par la connexion unique — n'y est pas tenu : il ne pourrait pas
- * l'activer (Better Auth le demande avec le mot de passe), et sa protection
- * est l'affaire du fournisseur d'identité.
+ * The second factor required and absent. An account without a password — which
+ * only comes in through single sign-on — is not bound by it: it could not enable
+ * it (Better Auth asks for it with the password), and its protection is the
+ * identity provider's business.
  */
 async function twoFactorState(
   userId: string,
@@ -72,8 +72,8 @@ async function twoFactorState(
 }
 
 /**
- * Une route qui ne se fait que depuis le panel a reçu un jeton d'API : 403, dit
- * comme tel — un 401 ferait croire à la CI que son jeton ne vaut rien.
+ * A route that is only done from the panel received an API token: 403, said as
+ * such — a 401 would make the CI believe its token is worthless.
  */
 async function refuseApiToken(request: Request, resourceId: string | null): Promise<never> {
   await logAudit({
@@ -91,9 +91,9 @@ async function refuseApiToken(request: Request, resourceId: string | null): Prom
 }
 
 /**
- * Session de navigateur authentifiée, sans contrôle de permission. 401 sinon.
- * Un jeton d'API n'en tient pas lieu : ce qui ne demande qu'une session — son
- * compte, son mot de passe, la discussion, ses jetons — se fait depuis le panel.
+ * An authenticated browser session, without a permission check. 401 otherwise. An
+ * API token does not stand in for it: what only requires a session — one's
+ * account, one's password, the chat, one's tokens — is done from the panel.
  */
 export async function requireSession(request: Request): Promise<AuthContext> {
   if (bearerToken(request.headers) !== null) return refuseApiToken(request, null);
@@ -116,8 +116,8 @@ export async function requireSession(request: Request): Promise<AuthContext> {
     throw new AccountDisabledError();
   }
 
-  // Le plafond absolu : au-delà, même active, la session se ferme — et elle
-  // est retirée de la base, pas seulement refusée.
+  // The absolute ceiling: beyond it, even active, the session closes — and it is
+  // removed from the database, not only refused.
   const { maxSeconds } = sessionPolicy();
   const openedAt = new Date(session.session.createdAt).getTime();
   if (maxSeconds !== null && Date.now() - openedAt > maxSeconds * 1000) {
@@ -157,13 +157,13 @@ export async function requireSession(request: Request): Promise<AuthContext> {
 }
 
 /**
- * Une requête qui présente `Authorization: Bearer pup_…` s'authentifie par ce
- * jeton, et par lui seul : un cookie qui l'accompagnerait est ignoré.
+ * A request that presents `Authorization: Bearer pup_…` authenticates through this
+ * token, and through it alone: a cookie going with it is ignored.
  *
- * Le jeton agit au nom de son auteur, avec l'intersection de ce qu'il demande
- * et de ce que l'auteur peut **aujourd'hui** : un rôle retiré lui retire ce
- * qu'il retire, un compte désactivé le désactive. Il ne peut jamais en faire
- * plus que son auteur.
+ * The token acts on behalf of its author, with the intersection of what it asks
+ * for and what the author can do **today**: a removed role takes away from it what
+ * it takes away, a disabled account disables it. It can never do more than its
+ * author.
  */
 async function authenticateToken(
   request: Request,
@@ -236,21 +236,21 @@ async function authenticateToken(
 }
 
 /**
- * Membre de l'équipe : une session dont le rôle porte au moins une permission.
+ * A team member: a session whose role carries at least one permission.
  *
- * La discussion et la présence ne demandent aucune permission — elles sont à
- * toute l'équipe —, mais un compte sans accès, typiquement une inscription qui
- * attend qu'on lui choisisse un rôle, n'en fait pas encore partie : il n'y lit
- * rien, et personne ne le voit en ligne. Un compte qui doit encore activer son
- * second facteur non plus, le temps de le faire.
+ * The chat and the presence require no permission — they belong to the whole team
+ * —, but an account without access, typically a sign-up waiting for a role to be
+ * chosen for it, is not part of it yet: it reads nothing there, and nobody sees it
+ * online. Neither is an account that still has to enable its second factor, the
+ * time to do it.
  */
 export function isTeamMember(auth: Pick<AuthContext, 'permissions' | 'twoFactor'>): boolean {
   return auth.permissions.length > 0 && !auth.twoFactor.mustEnroll;
 }
 
 /**
- * Session d'un membre de l'équipe : 401 sans session, 403 sans aucune
- * permission — ou tant que le second facteur exigé n'est pas activé.
+ * A team member's session: 401 without a session, 403 without any permission — or
+ * as long as the required second factor is not enabled.
  */
 export async function requireTeamMember(request: Request): Promise<AuthContext> {
   const auth = await requireSession(request);
@@ -291,26 +291,26 @@ export async function requireTeamMember(request: Request): Promise<AuthContext> 
 
 export type PermissionOptions = {
   /**
-   * La route vérifie elle-même, par `requireApplicationScope()`, que
-   * l'application visée est couverte par le jeton. Sans cette déclaration, un
-   * jeton limité à des applications est refusé : une route qui n'y pense pas
-   * ne doit pas le laisser agir sur tout.
+   * The route checks itself, through `requireApplicationScope()`, that the targeted
+   * application is covered by the token. Without this declaration, a token limited
+   * to applications is refused: a route that does not think about it must not let
+   * it act on everything.
    */
   applicationScoped?: boolean;
-  /** La route ne se fait que depuis le panel : aucun jeton d'API. */
+  /** The route is only done from the panel: no API token. */
   sessionOnly?: boolean;
 };
 
 /**
- * Exige une permission.
- *   → retourne le contexte d'authentification si autorisé
- *   → `UnauthenticatedError` (401) si aucune session, `InvalidApiTokenError`
- *     (401) pour un jeton d'API mal formé, inconnu, révoqué ou échu
- *   → `ForbiddenError` (403) si la permission manque, `ApiTokenScopeError`
- *     (403) si le jeton n'a pas cours sur cette route
+ * Requires a permission.
+ *   → returns the authentication context if allowed
+ *   → `UnauthenticatedError` (401) if no session, `InvalidApiTokenError` (401)
+ *     for a malformed, unknown, revoked or expired API token
+ *   → `ForbiddenError` (403) if the permission is missing, `ApiTokenScopeError`
+ *     (403) if the token is not valid on this route
  *
- * Une session de navigateur ou un jeton d'API (`Authorization: Bearer`).
- * Tout refus est journalisé dans `audit_logs` avec l'acteur et son IP.
+ * A browser session or an API token (`Authorization: Bearer`). Every refusal is
+ * logged in `audit_logs` with the actor and their IP.
  */
 export async function requirePermission(
   request: Request,
@@ -343,8 +343,8 @@ export async function requirePermission(
     throw error;
   }
 
-  // Exigé et absent : rien d'autre que « Mon compte », le temps de l'activer.
-  // Un jeton de ce compte ne vaut pas mieux que lui.
+  // Required and absent: nothing other than "My account", the time to enable it. A
+  // token of this account is worth no more than it.
   if (auth.twoFactor.mustEnroll) {
     await logAudit({
       actorId: auth.userId,
@@ -399,8 +399,8 @@ export async function requirePermission(
 }
 
 /**
- * Pour une route déclarée `applicationScoped` : l'application visée doit être
- * couverte par le jeton. Une session, ou un jeton sans limite, passe toujours.
+ * For a route declared `applicationScoped`: the targeted application must be
+ * covered by the token. A session, or a token without limits, always passes.
  */
 export async function requireApplicationScope(
   request: Request,

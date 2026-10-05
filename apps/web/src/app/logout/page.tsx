@@ -12,8 +12,8 @@ export default async function LogoutPage({
 }: {
   searchParams: Promise<{ next?: string }>;
 }) {
-  // Arrivé ici parce qu'une session a été fermée ailleurs : la page demandée
-  // est transmise à `/login`, qui la valide avant de s'en servir.
+  // Arrived here because a session was closed elsewhere: the requested page is
+  // passed on to `/login`, which validates it before using it.
   const { next } = await searchParams;
   return (
     <div className="flex min-h-dvh items-center justify-center p-6">

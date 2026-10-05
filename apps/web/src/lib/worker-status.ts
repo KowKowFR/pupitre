@@ -3,17 +3,16 @@ import { cache } from 'react';
 import { getOpsQueue } from './queue';
 
 /**
- * Le worker est-il là ? La réponse de la pastille « Worker actif » de la
- * barre haute.
+ * Is the worker there? The answer of the top bar's "Worker active" chip.
  *
- * BullMQ nomme les connexions de ses workers ; `getWorkers()` les relit dans
- * la liste des clients Redis. C'est une lecture seule, sans rien demander au
- * worker : s'il consomme la file, sa connexion est là, et `idle` dit depuis
- * combien de secondes elle n'a rien envoyé à Redis — son dernier battement.
+ * BullMQ names its workers' connections; `getWorkers()` reads them again in the
+ * list of Redis clients. It is a read only, without asking the worker anything:
+ * if it consumes the queue, its connection is there, and `idle` says for how many
+ * seconds it has sent nothing to Redis — its last heartbeat.
  *
- * La lecture est bornée à 800 ms : une pastille ne vaut pas qu'un Redis lent
- * retienne le rendu de chaque page. Sans réponse, l'état est « inconnu », et
- * la pastille le dit plutôt que d'affirmer quoi que ce soit.
+ * The read is bounded to 800 ms: a chip is not worth a slow Redis holding back
+ * every page's render. Without an answer, the state is "unknown", and the chip
+ * says so rather than assert anything.
  */
 
 export type WorkerStatus =

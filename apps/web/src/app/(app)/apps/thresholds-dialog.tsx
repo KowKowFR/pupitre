@@ -24,27 +24,27 @@ import { toast } from '@/lib/toast';
 import type { HistoryMetric, ThresholdView } from './host-history';
 
 /**
- * Réglage des seuils d'une machine.
+ * Setting a machine's thresholds.
  *
- * ── Pourquoi ce bouton existe ───────────────────────────────────────────────
- * Un seuil qu'on ne peut pas régler est un seuil qu'on désactive — mentalement
- * d'abord, puis pour de bon. Le serveur de build qui vit à 95 % de disque doit
- * pouvoir dire « ici, c'est 98 », sinon son exploitant apprend en une semaine à
- * ignorer les alertes de disque. Y compris la vraie.
+ * ── Why this button exists ──────────────────────────────────────────────────
+ * A threshold that cannot be set is a threshold that gets turned off — mentally
+ * first, then for good. The build server that lives at 95% disk must be able to
+ * say "here, it is 98", otherwise its operator learns in a week to ignore the
+ * disk alerts. Including the real one.
  *
- * ── Ce que la modale montre, et qui n'est pas décoratif ─────────────────────
- * **D'où vient le seuil affiché** : du panel, du défaut de l'instance, ou de
- * cette machine. Sans cette mention, personne ne sait s'il est en train de
- * changer une valeur ou d'en créer une ; et « Rendre au défaut » n'aurait pas
- * de sens visible.
+ * ── What the modal shows, and which is not decorative ───────────────────────
+ * **Where the displayed threshold comes from**: from the panel, from the
+ * instance's default, or from this machine. Without this mention, nobody knows
+ * whether they are changing a value or creating one; and "Reset to default"
+ * would make no visible sense.
  *
- * ── Pourquoi pas de champ pour le nombre de relevés consécutifs ─────────────
- * Il existe en base et dans l'API — le catalogue lui donne une valeur pensée par
- * métrique (1 pour le disque, qui ne rebondit pas ; 3 pour la charge, qui n'est
- * que du bruit à l'échelle d'un relevé). Le sortir à l'écran, c'est demander à
- * l'exploitant de trancher une question d'hystérésis qu'il n'a aucune raison de
- * se poser pour changer un pourcentage. Il reste réglable par l'API, qui est le
- * bon endroit pour un réglage rare.
+ * ── Why no field for the number of consecutive readings ─────────────────────
+ * It exists in the database and in the API — the catalog gives it a value
+ * designed per metric (1 for the disk, which does not bounce; 3 for the load,
+ * which is only noise at the scale of one reading). Bringing it to the screen
+ * would ask the operator to settle a hysteresis question they have no reason to
+ * ask themselves in order to change a percentage. It stays settable through the
+ * API, which is the right place for a rare setting.
  */
 
 type MessageKey = keyof typeof servers.fr;
@@ -132,8 +132,8 @@ export function ThresholdsDialog({
         title: t('thresholds.saved', { name: targetName }),
         description: t('thresholds.saved.detail'),
       });
-      // Les seuils décident de la couleur des voyants et du trait de la frise :
-      // la page doit se relire pour que l'écran dise la vérité tout de suite.
+      // The thresholds decide the indicators' color and the strip's line: the page
+      // must read itself again so that the screen tells the truth right away.
       router.refresh();
     } catch {
       setError(t('thresholds.unreachable'));
@@ -142,7 +142,7 @@ export function ThresholdsDialog({
     }
   }, [draft, router, t, targetId, targetName]);
 
-  /** Retire la surcharge de cette machine : la couche du dessous reprend. */
+  /** Removes this machine's override: the layer below takes over again. */
   const reset = useCallback(
     async (metric: HistoryMetric) => {
       setBusy(true);

@@ -11,16 +11,16 @@ import {
 } from '../src/permissions.js';
 
 /**
- * Les rôles de départ. Ce ne sont que des valeurs posées sur une base vierge,
- * mais ce sont celles que presque tout le monde garde : ce qu'elles ouvrent se
- * vérifie ici, permission par permission.
+ * The starting roles. They are only values set on an empty database, but they
+ * are the ones almost everybody keeps: what they open is checked here,
+ * permission by permission.
  */
 
 const READS = PERMISSIONS.filter((permission) => permission.endsWith(':read'));
 const ADMINISTRATION = ['user:read', 'role:read', 'audit:read', 'settings:read'] as const;
 
-describe('rôles de départ', () => {
-  it('chaque rôle de départ a sa définition, et ne porte que des permissions connues', () => {
+describe('starting roles', () => {
+  it('each starting role has its definition, and only carries known permissions', () => {
     for (const key of SEEDED_ROLES) {
       const definition = ROLE_DEFINITIONS[key];
       assert.ok(definition, key);
@@ -30,17 +30,17 @@ describe('rôles de départ', () => {
     }
   });
 
-  it("l'auditeur lit tout, et n'écrit rien", () => {
+  it('the auditor reads everything, and writes nothing', () => {
     assert.deepEqual([...ROLE_DEFINITIONS.auditor.permissions].sort(), [...READS].sort());
   });
 
-  it("l'observateur lit l'exploitation, pas l'administration", () => {
+  it('the viewer reads operations, not administration', () => {
     const viewer = ROLE_DEFINITIONS.viewer.permissions;
     for (const permission of ADMINISTRATION) {
-      assert.ok(!viewer.includes(permission), `l'observateur porte ${permission}`);
+      assert.ok(!viewer.includes(permission), `the viewer carries ${permission}`);
     }
     for (const permission of viewer) {
-      assert.ok(permission.endsWith(':read'), `l'observateur écrit : ${permission}`);
+      assert.ok(permission.endsWith(':read'), `the viewer writes: ${permission}`);
     }
     for (const permission of [
       'target:read',
@@ -49,25 +49,25 @@ describe('rôles de départ', () => {
       'monitor:read',
       'scan:read',
     ] as const) {
-      assert.ok(viewer.includes(permission), `l'observateur ne lit pas ${permission}`);
+      assert.ok(viewer.includes(permission), `the viewer does not read ${permission}`);
     }
   });
 
-  it("une inscription publique n'ouvre rien", () => {
+  it('a public sign-up opens nothing', () => {
     assert.equal(SIGNUP_ROLE, 'no-access');
     assert.deepEqual(ROLE_DEFINITIONS[SIGNUP_ROLE].permissions, []);
   });
 });
 
-describe('second facteur exigé', () => {
-  it('les permissions sensibles existent, et aucune n’est une lecture', () => {
+describe('second factor required', () => {
+  it('the sensitive permissions exist, and none is a read', () => {
     for (const permission of SENSITIVE_PERMISSIONS) {
       assert.ok(isPermission(permission), permission);
       assert.ok(!permission.endsWith(':read'), permission);
     }
   });
 
-  it('« sensibles » y soumet l’administrateur et l’opérateur, pas qui ne fait que lire', () => {
+  it('“sensitive” binds the administrator and the operator, not whoever only reads', () => {
     const required = (role: keyof typeof ROLE_DEFINITIONS) =>
       requiresTwoFactor(ROLE_DEFINITIONS[role].permissions, 'sensitive');
     assert.equal(required('admin'), true);
@@ -77,12 +77,12 @@ describe('second facteur exigé', () => {
     assert.equal(required('no-access'), false);
   });
 
-  it('un rôle sur mesure qui ne fait que déployer y est soumis : déployer, c’est exécuter', () => {
+  it('a custom role that only deploys is bound: deploying is running code', () => {
     assert.equal(requiresTwoFactor(['deployment:read', 'deployment:create'], 'sensitive'), true);
     assert.equal(requiresTwoFactor(['deployment:read', 'deployment:rollback'], 'sensitive'), false);
   });
 
-  it('« tous » et « personne » ne regardent pas les permissions', () => {
+  it('“all” and “nobody” do not look at permissions', () => {
     assert.equal(requiresTwoFactor([], 'all'), true);
     assert.equal(requiresTwoFactor([...PERMISSIONS], 'off'), false);
   });

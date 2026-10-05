@@ -5,11 +5,11 @@ import { TraefikProvider } from './traefik/provider.js';
 import { ProxyError, type ProxyProvider, type RemoteProxyProvider } from './types.js';
 
 /**
- * Les reverse proxies que le panel sait piloter. Une entrée par genre : en
- * ajouter un, c'est écrire sa classe et la déclarer ici — rien d'autre ne change.
- * Ceux qui tournent sur une machine pilotée en SSH d'un côté, ceux qu'on joint
- * par leur API de l'autre : deux contrats, parce que les seconds n'ont ni
- * machine à inspecter ni rien à y installer.
+ * The reverse proxies the panel can drive. One entry per kind: adding one means
+ * writing its class and declaring it here — nothing else changes. Those running
+ * on a machine driven over SSH on one side, those reached through their API on
+ * the other: two contracts, because the latter have neither a machine to inspect
+ * nor anything to install on it.
  */
 const onTargets: Partial<Record<ProxyKind, () => ProxyProvider>> = {
   traefik: () => new TraefikProvider(),
@@ -23,18 +23,18 @@ const remote: Partial<Record<ProxyKind, () => RemoteProxyProvider>> = {
 export function getProxyProvider(kind: ProxyKind): ProxyProvider {
   const make = onTargets[kind];
   if (!make) {
-    throw new ProxyError(`le proxy « ${kind} » ne tourne pas sur une cible`, kind, 'registry');
+    throw new ProxyError(`proxy "${kind}" does not run on a target`, kind, 'registry');
   }
   return make();
 }
 
 export function getRemoteProxyProvider(kind: ProxyKind): RemoteProxyProvider {
   const make = remote[kind];
-  if (!make) throw new ProxyError(`le proxy « ${kind} » n'est pas distant`, kind, 'registry');
+  if (!make) throw new ProxyError(`proxy "${kind}" is not remote`, kind, 'registry');
   return make();
 }
 
-/** Les genres qu'on peut trouver ou installer sur une machine. */
+/** The kinds that can be found or installed on a machine. */
 export function implementedProxyKinds(): ProxyKind[] {
   return Object.keys(onTargets) as ProxyKind[];
 }

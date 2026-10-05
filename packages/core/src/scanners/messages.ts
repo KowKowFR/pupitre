@@ -1,9 +1,9 @@
 import { translator, type Translate, type Translated, type UiLanguage } from '../i18n.js';
 
 /**
- * Ce que disent les scanners dans le journal d'un déploiement — installation
- * de l'outil, bilan d'un scan — et dans l'échec d'un scan, dans la langue de
- * l'instance (celle de la session SSH, `SshSession.language`).
+ * What the scanners say in a deployment's log — installing the tool, a scan's
+ * summary — and in a scan's failure, in the instance's language (that of the SSH
+ * session, `SshSession.language`).
  */
 const fr = {
   'install.present': '{binary} {version} déjà présent',

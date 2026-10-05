@@ -10,11 +10,11 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Les dépôts que Pupitre peut lire, tous fournisseurs confondus — pour le
- * tiroir de liaison et la création depuis un dépôt. Chacun dit son fournisseur.
+ * The repositories Pupitre can read, all providers together — for the link
+ * drawer and the creation from a repository. Each one says its provider.
  *
- * Un fournisseur qui ne répond pas n'empêche pas de voir les autres : son
- * erreur est rendue à part, nommée.
+ * A provider that does not answer does not prevent seeing the others: its error
+ * is returned separately, named.
  */
 export const GET = apiRoute(async (request) => {
   await requirePermission(request, 'application:update');

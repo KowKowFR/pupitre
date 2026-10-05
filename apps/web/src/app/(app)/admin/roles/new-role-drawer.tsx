@@ -18,12 +18,12 @@ import type { PermissionGroup } from './roles-editor';
 type ApiError = { error?: { message?: string } };
 
 /**
- * « Nouveau rôle », en deux étapes : qui il est, puis ce qu'il peut faire.
+ * "New role", in two steps: who it is, then what it can do.
  *
- * Le rôle n'est créé qu'à la fin, en un seul appel qui porte ses permissions :
- * fermer le tiroir en route ne laisse pas un rôle à moitié défini, et le
- * journal ne garde qu'une entrée. Aucune permission n'est cochée d'avance — un
- * rôle ne porte que ce qu'on lui accorde, délibérément.
+ * The role is only created at the end, in a single call that carries its
+ * permissions: closing the drawer midway does not leave a half-defined role, and
+ * the log only keeps one entry. No permission is checked in advance — a role
+ * only carries what is granted to it, deliberately.
  */
 export function NewRoleDrawer({
   open,
@@ -88,7 +88,7 @@ function NewRoleSteps({
     [groups],
   );
 
-  // Ce qui empêche de passer à l'étape suivante, dit en clair sous le bouton.
+  // What prevents moving to the next step, spelled out under the button.
   const identityProblem = taken
     ? t('roles.form.keyTaken')
     : label.trim().length < 2
@@ -243,9 +243,9 @@ function NewRoleSteps({
 }
 
 /**
- * Les deux étapes, lisibles d'un coup d'œil : l'étape faite porte une coche,
- * l'étape en cours la teinte d'accent, la suivante reste neutre. Le numéro et
- * le libellé disent la même chose sans couleur.
+ * The two steps, readable at a glance: the done step carries a check mark, the
+ * current step the accent tint, the next one stays neutral. The number and the
+ * label say the same thing without color.
  */
 function Stepper({ step, labels }: { step: 1 | 2; labels: [string, string] }) {
   const t = useT(admin);

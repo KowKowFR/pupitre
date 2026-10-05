@@ -19,10 +19,10 @@ import { monitors } from './schema/monitors.js';
 import { routes } from './schema/proxies.js';
 
 /**
- * Les fenêtres de maintenance en base : les fenêtres et leurs sujets, la
- * question « qu'est-ce qui couvre ce sujet maintenant ? » que pose la
- * distribution des notifications, et les alertes retenues. Les règles (phase,
- * validité, ce qui part à la fin) sont dans `@pupitre/core`.
+ * Maintenance windows in the database: the windows and their subjects, the
+ * question "what covers this subject now?" the notification delivery asks, and
+ * the held alerts. The rules (phase, validity, what goes out at the end) are in
+ * `@pupitre/core`.
  */
 
 export type { MaintenanceHeldAlertRow, MaintenanceWindowRow };
@@ -30,7 +30,7 @@ export type { MaintenanceHeldAlertRow, MaintenanceWindowRow };
 export type MaintenanceWindowView = MaintenanceWindowRow & {
   targets: Array<{ id: string; name: string }>;
   monitors: Array<{ id: string; name: string }>;
-  /** Alertes retenues par la fenêtre, et celles qui sont parties à sa fin. */
+  /** Alerts held by the window, and those that went out at its end. */
   held: number;
   released: number;
 };
@@ -129,12 +129,12 @@ export async function createMaintenanceWindow(
         createdBy,
       })
       .returning({ id: maintenanceWindows.id });
-    if (!row) throw new Error('fenêtre de maintenance non créée');
+    if (!row) throw new Error('maintenance window not created');
     await writeSubjects(tx as unknown as Database, row.id, input);
     return row.id;
   });
   const created = await getMaintenanceWindow(id, db);
-  if (!created) throw new Error('fenêtre de maintenance introuvable après création');
+  if (!created) throw new Error('maintenance window not found after creation');
   return created;
 }
 
@@ -149,7 +149,8 @@ export async function updateMaintenanceWindow(
       .set({
         ...(patch.title !== undefined ? { title: patch.title } : {}),
         ...(patch.note !== undefined ? { note: patch.note } : {}),
-        // Un début repoussé dans le futur sera annoncé de nouveau, le moment venu.
+        // A start pushed back into the future will be announced again, when the time
+        // comes.
         ...(patch.startsAt !== undefined
           ? {
               startsAt: new Date(patch.startsAt),
@@ -188,8 +189,8 @@ export async function getMaintenanceWindow(
 }
 
 /**
- * Les fenêtres à montrer : en cours et à venir, puis les `endedLimit`
- * dernières terminées. Les plus proches d'abord.
+ * The windows to show: ongoing and upcoming, then the last `endedLimit`
+ * finished ones. The closest first.
  */
 export async function listMaintenanceWindows(
   options: { endedLimit?: number; now?: Date } = {},
@@ -212,9 +213,9 @@ export async function listMaintenanceWindows(
   return viewsOf([...current, ...ended], db);
 }
 
-// ─── Ce qui couvre un sujet ───────────────────────────────────────────────────
+// ─── What covers a subject ────────────────────────────────────────────────────
 
-/** Les fenêtres actives à `at` qui nomment l'une de ces cibles, la plus tardive d'abord. */
+/** The windows active at `at` that name one of these targets, the latest first. */
 async function windowsForTargets(
   targetIds: string[],
   at: Date,
@@ -238,15 +239,15 @@ async function windowsForTargets(
 }
 
 /**
- * Les fenêtres qui couvrent ce sujet à l'instant `at`, celle qui finit le plus
- * tard d'abord — c'est elle qui garde l'alerte, pour qu'elle ne parte qu'une
- * fois toutes les fenêtres refermées.
+ * The windows that cover this subject at instant `at`, the one ending latest
+ * first — it is the one that keeps the alert, so that it only goes out once all
+ * windows are closed.
  *
- * - une cible : les fenêtres qui la nomment ;
- * - une sonde : celles qui la nomment, et celles qui nomment une cible où
- *   tourne l'application qu'elle surveille (`listLiveDeployments`, l'unique
- *   définition de « ce qui tourne ») ;
- * - un domaine : celles qui nomment sa cible.
+ * - a target: the windows that name it;
+ * - a probe: those that name it, and those that name a target where the
+ *   application it monitors runs (`listLiveDeployments`, the single definition
+ *   of "what runs");
+ * - a domain: those that name its target.
  */
 export async function windowsCovering(
   subject: MaintenanceSubject,
@@ -294,16 +295,16 @@ export async function windowsCovering(
 }
 
 export type MaintenanceCoverage = {
-  /** Par cible, les fenêtres actives qui la couvrent. */
+  /** Per target, the active windows covering it. */
   targets: Map<string, Array<{ id: string; title: string; endsAt: Date }>>;
-  /** Par sonde, les fenêtres actives qui la couvrent, directement ou par sa cible. */
+  /** Per probe, the active windows covering it, directly or through its target. */
   monitors: Map<string, Array<{ id: string; title: string; endsAt: Date }>>;
 };
 
 /**
- * Tout ce que couvrent les fenêtres actives à `at`, d'un coup : pour les écrans
- * qui marquent leurs lignes « en maintenance » sans poser la question sujet
- * par sujet.
+ * Everything the windows active at `at` cover, at once: for the screens that mark
+ * their rows "under maintenance" without asking the question subject by
+ * subject.
  */
 export async function maintenanceCoverage(
   at: Date = new Date(),
@@ -359,7 +360,7 @@ export async function maintenanceCoverage(
   return coverage;
 }
 
-// ─── Les alertes retenues ─────────────────────────────────────────────────────
+// ─── Held alerts ──────────────────────────────────────────────────────────────
 
 export async function holdMaintenanceAlert(
   alert: {
@@ -408,12 +409,12 @@ export async function markMaintenanceAlertsReleased(
     .where(inArray(maintenanceHeldAlerts.id, ids));
 }
 
-// ─── Le balayage ──────────────────────────────────────────────────────────────
+// ─── The sweep ────────────────────────────────────────────────────────────────
 
 /**
- * Les fenêtres dont le début est passé et pas encore annoncé — prises d'un
- * coup, pour qu'un second balayage concurrent ne les annonce pas deux fois.
- * Une fenêtre déjà finie n'est pas annoncée : sa fin le sera.
+ * The windows whose start has passed and is not announced yet — taken at once,
+ * so that a second concurrent sweep does not announce them twice. A window
+ * already finished is not announced: its end will be.
  */
 export async function claimMaintenanceStarts(
   now: Date = new Date(),
@@ -432,7 +433,7 @@ export async function claimMaintenanceStarts(
     .returning();
 }
 
-/** Les fenêtres dont la fin est passée et pas encore traitée, prises d'un coup. */
+/** The windows whose end has passed and is not handled yet, taken at once. */
 export async function claimMaintenanceEnds(
   now: Date = new Date(),
   db: Database = getDb(),

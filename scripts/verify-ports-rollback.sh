@@ -1,25 +1,24 @@
 #!/usr/bin/env bash
 #
-# Cycle de vie : allocation de ports, ufw, et rollback automatique.
+# Life cycle: port allocation, ufw, and automatic rollback.
 #
-#   1. Deux apps sur la MÊME cible Docker → deux ports distincts, deux règles ufw
-#      (ou, si ufw est inactif, l'avertissement attendu et rien de cassé)
-#   2. Destroy de la première → port libéré, règle retirée, la seconde intacte
-#   3. Une v1 saine, puis une v2 dont le healthcheck échoue → rollback
-#      automatique → l'URL répond toujours la v1, statut `rolled_back`,
-#      diagnostic visible dans les logs
-#   4. `pnpm typecheck` couvre scripts/test-parity.ts — la parité Docker / K3s
-#      elle-même se joue par `pnpm test:parity`, qui exige deux cibles
+#   1. Two apps on the SAME Docker target → two distinct ports, two ufw rules
+#      (or, if ufw is inactive, the expected warning and nothing broken)
+#   2. Destroying the first one → port released, rule removed, the second intact
+#   3. A healthy v1, then a v2 whose healthcheck fails → automatic rollback →
+#      the URL still answers the v1, `rolled_back` status, diagnostic visible in
+#      the logs
+#   4. `pnpm typecheck` covers scripts/test-parity.ts — the Docker / K3s parity
+#      itself is played by `pnpm test:parity`, which requires two targets
 #
-# Le script emprunte exactement les mêmes routes que l'UI. Prérequis : une cible
-# Docker déployable — `./scripts/setup-test-target.sh` en provisionne une.
+# The script takes exactly the same routes as the UI. Prerequisite: a deployable
+# Docker target — `./scripts/setup-test-target.sh` provisions one.
 #
-# Usage :
+# Usage:
 #   ./scripts/verify-ports-rollback.sh
-#   BASE_URL=http://localhost:3100 TARGET_NAME=ma-vm ./scripts/verify-ports-rollback.sh
+#   BASE_URL=http://localhost:3100 TARGET_NAME=my-vm ./scripts/verify-ports-rollback.sh
 #
-# Relançable : les applications de test sont détruites puis recréées à chaque
-# passage.
+# Rerunnable: the test applications are destroyed then recreated at each pass.
 #
 set -euo pipefail
 
@@ -28,11 +27,11 @@ ADMIN_EMAIL="${ADMIN_EMAIL:-admin@example.test}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-motdepasse-tres-long}"
 TARGET_NAME="${TARGET_NAME:-cible-de-verification}"
 CLIENT_IP="${CLIENT_IP:-198.51.100.42}"
-# Plage volontairement étroite : elle prouve que la plage est bien lue sur la
-# cible, et elle reste dans les dix ports que le conteneur de test publie.
+# Deliberately narrow range: it proves that the range is indeed read on the
+# target, and it stays within the ten ports the test container publishes.
 RANGE_START="${RANGE_START:-30000}"
 RANGE_END="${RANGE_END:-30009}"
-# Conteneur portant la cible de test : sert aux contrôles ufw « au plus près ».
+# Container carrying the test target: used for the "closest" ufw checks.
 TARGET_CONTAINER="${TARGET_CONTAINER:-ssh-target}"
 
 WORK="$(mktemp -d)"
@@ -40,7 +39,7 @@ JAR="$WORK/admin.jar"
 BODY="$WORK/body.json"
 trap 'rm -rf "$WORK"' EXIT
 
-command -v jq >/dev/null || { echo "jq est requis"; exit 1; }
+command -v jq >/dev/null || { echo "jq is required"; exit 1; }
 
 pass() { printf '  \033[32m✓\033[0m %s\n' "$1"; }
 fail() { printf '  \033[31m✗\033[0m %s\n' "$1"; exit 1; }
@@ -57,9 +56,9 @@ req() {
   curl "${args[@]}"
 }
 
-# Better Auth limite les connexions répétées depuis une même IP. Les scripts de
-# vérification s'enchaînent : on patiente plutôt que de retomber par erreur sur
-# l'inscription, qui donnerait un message trompeur.
+# Better Auth limits repeated sign-ins from the same IP. The verification
+# scripts follow one another: we wait rather than fall back by mistake on the
+# sign-up, which would give a misleading message.
 login() {
   local code
   for _ in 1 2 3 4 5; do
@@ -74,32 +73,32 @@ login() {
 
   code=$(req POST /api/auth/sign-up/email \
     "{\"name\":\"Admin\",\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}")
-  [ "$code" = "200" ] || fail "connexion impossible (HTTP $code) : $(cat "$BODY")"
+  [ "$code" = "200" ] || fail "sign-in failed (HTTP $code): $(cat "$BODY")"
   assert_admin
 }
 
-# Le compte doit être administrateur. Se contenter d'une connexion réussie
-# laisserait le script échouer bien plus loin, sur un 403 énigmatique : c'est
-# exactement ce qui arrive quand quelqu'un a déjà créé SON compte (qui devient
-# admin), et que l'inscription de repli fabrique un simple viewer.
+# The account must be an administrator. Settling for a successful sign-in would
+# let the script fail much further, on a cryptic 403: that is exactly what
+# happens when someone already created THEIR account (which becomes admin), and
+# the fallback sign-up makes a mere viewer.
 assert_admin() {
   local role
   role=$(jq -r '.user.role // empty' "$BODY")
   [ "$role" = "admin" ] && return 0
 
-  printf '  \033[31m✗\033[0m %s\n' "« $ADMIN_EMAIL » a le rôle « ${role:-aucun} », pas « admin »."
-  printf '    Le premier compte créé sur une base vierge devient administrateur ;\n'
-  printf '    les suivants sont de simples viewers.\n\n'
-  printf '    Deux issues :\n'
-  printf '      1. relancez avec VOTRE compte admin :\n'
-  printf '         ADMIN_EMAIL=vous@exemple.fr ADMIN_PASSWORD=... %s\n' "$0"
-  printf '      2. ou promouvez ce compte depuis %s/admin/users\n' "$BASE_URL"
+  printf '  \033[31m✗\033[0m %s\n' "\"$ADMIN_EMAIL\" has the role \"${role:-none}\", not \"admin\"."
+  printf '    The first account created on a blank database becomes administrator;\n'
+  printf '    the following ones are mere viewers.\n\n'
+  printf '    Two ways out:\n'
+  printf '      1. rerun with YOUR admin account:\n'
+  printf '         ADMIN_EMAIL=you@example.com ADMIN_PASSWORD=... %s\n' "$0"
+  printf '      2. or promote this account from %s/admin/users\n' "$BASE_URL"
   exit 1
 }
 
-# ─── helpers métier ───────────────────────────────────────────────────────────
+# ─── domain helpers ───────────────────────────────────────────────────────────
 
-# AppSpec minimale : un service exposé, une image, une route de santé.
+# Minimal AppSpec: an exposed service, an image, a health route.
 spec_json() {
   local name="$1" version="$2" image="$3" health_path="$4"
   jq -n --arg n "$name" --arg v "$version" --arg i "$image" --arg p "$health_path" \
@@ -112,19 +111,19 @@ spec_json() {
       }]}'
 }
 
-# AppSpec dont **la sonde du pipeline** échoue, mais dont le conteneur se porte
-# bien.
+# AppSpec whose **pipeline probe** fails, but whose container is fine.
 #
-# La nuance est nécessaire : `docker compose up --wait` refuse déjà de rendre la
-# main si le healthcheck du conteneur échoue, et l'étape en défaut serait alors
-# `deploy`, pas `healthcheck`. Or le rollback automatique se déclenche sur
-# `healthcheck` — c'est là que la question « ce déploiement sert-il vraiment
-# l'application ? » est posée.
+# The nuance is necessary: `docker compose up --wait` already refuses to give
+# control back if the container's healthcheck fails, and the faulty step would
+# then be `deploy`, not `healthcheck`. Yet the automatic rollback triggers on
+# `healthcheck` — it is there that the question "does this deployment really
+# serve the application?" is asked.
 #
-# On sépare donc les deux sondes : `healthcheck.port` (80) est celui où le
-# serveur écoute réellement, donc le conteneur est sain ; `port` (8080) est
-# celui que le driver publie, et personne n'écoute derrière. Le pipeline sonde
-# le port publié depuis la cible et trouve porte close : issue « injoignable ».
+# So the two probes are separated: `healthcheck.port` (80) is the one where the
+# server really listens, so the container is healthy; `port` (8080) is the one
+# the driver publishes, and nobody listens behind it. The pipeline probes the
+# published port from the target and finds a closed door: "unreachable"
+# outcome.
 spec_json_broken() {
   local name="$1" version="$2" image="$3"
   jq -n --arg n "$name" --arg v "$version" --arg i "$image" \
@@ -137,7 +136,7 @@ spec_json_broken() {
       }]}'
 }
 
-# Crée l'application, ou remplace son AppSpec si elle existe déjà.
+# Creates the application, or replaces its AppSpec if it already exists.
 upsert_app() {
   local slug="$1" spec="$2" id code
   req GET /api/applications >/dev/null
@@ -146,23 +145,23 @@ upsert_app() {
   if [ -n "$id" ]; then
     jq -n --argjson spec "$spec" '{appSpec:$spec}' > "$WORK/patch.json"
     code=$(req PATCH "/api/applications/$id" "@$WORK/patch.json")
-    [ "$code" = "200" ] || fail "PATCH /api/applications/$id → HTTP $code : $(cat "$BODY")"
+    [ "$code" = "200" ] || fail "PATCH /api/applications/$id → HTTP $code: $(cat "$BODY")"
     printf '%s' "$id"
     return
   fi
 
   jq -n --argjson spec "$spec" '{appSpec:$spec}' > "$WORK/create.json"
   code=$(req POST /api/applications "@$WORK/create.json")
-  [ "$code" = "201" ] || fail "POST /api/applications → HTTP $code : $(cat "$BODY")"
+  [ "$code" = "201" ] || fail "POST /api/applications → HTTP $code: $(cat "$BODY")"
   jq -r .id "$BODY"
 }
 
-# Déploie et attend le verdict. Écho : "<deploymentId> <statut>".
+# Deploys and waits for the verdict. Echoes: "<deploymentId> <status>".
 deploy_and_wait() {
   local app_id="$1" target_id="$2" auto_rollback="${3:-true}" code id status
   code=$(req POST /api/deployments \
     "{\"applicationId\":\"$app_id\",\"targetId\":\"$target_id\",\"runtime\":\"docker\",\"proxy\":\"traefik\",\"autoRollback\":$auto_rollback}")
-  [ "$code" = "202" ] || fail "POST /api/deployments → HTTP $code : $(cat "$BODY")"
+  [ "$code" = "202" ] || fail "POST /api/deployments → HTTP $code: $(cat "$BODY")"
   id=$(jq -r .id "$BODY")
 
   for _ in $(seq 1 150); do
@@ -173,13 +172,13 @@ deploy_and_wait() {
       success|failed|rolled_back|destroyed) printf '%s %s' "$id" "$status"; return ;;
     esac
   done
-  fail "le déploiement $id n'a pas abouti en 5 minutes (statut « $status »)"
+  fail "deployment $id did not complete in 5 minutes (status \"$status\")"
 }
 
 destroy_and_wait() {
   local id="$1" code status
   code=$(req DELETE "/api/deployments/$id")
-  [ "$code" = "202" ] || fail "DELETE /api/deployments/$id → HTTP $code : $(cat "$BODY")"
+  [ "$code" = "202" ] || fail "DELETE /api/deployments/$id → HTTP $code: $(cat "$BODY")"
 
   for _ in $(seq 1 90); do
     sleep 2
@@ -187,102 +186,102 @@ destroy_and_wait() {
     status=$(jq -r .status "$BODY")
     [ "$status" = "destroyed" ] && return
   done
-  fail "le déploiement $id n'a pas été détruit en 3 minutes (statut « $status »)"
+  fail "deployment $id was not destroyed in 3 minutes (status \"$status\")"
 }
 
-# Journal complet d'un déploiement, toutes étapes confondues.
+# A deployment's complete log, all steps together.
 deployment_log() {
   req GET "/api/deployments/$1" >/dev/null
   jq -r '[.steps[].log] | join("")' "$BODY"
 }
 
-# `ufw status` sur la cible. Vide si l'on ne peut pas y accéder directement.
+# `ufw status` on the target. Empty if it cannot be reached directly.
 ufw_status() {
   docker compose exec -T "$TARGET_CONTAINER" sh -lc 'ufw status 2>/dev/null || true' 2>/dev/null || true
 }
 
-# ─── 1. Contexte ──────────────────────────────────────────────────────────────
+# ─── 1. Context ───────────────────────────────────────────────────────────────
 
-step "1. Connexion et cible"
+step "1. Sign-in and target"
 login
-pass "connecté en tant que $ADMIN_EMAIL"
+pass "signed in as $ADMIN_EMAIL"
 
 req GET /api/targets >/dev/null
 TARGET_ID=$(jq -r --arg n "$TARGET_NAME" '.items[] | select(.name == $n) | .id' "$BODY")
-[ -n "$TARGET_ID" ] || fail "cible « $TARGET_NAME » introuvable — lancez ./scripts/setup-test-target.sh"
+[ -n "$TARGET_ID" ] || fail "target \"$TARGET_NAME\" not found — run ./scripts/setup-test-target.sh"
 jq -e --arg n "$TARGET_NAME" \
   '.items[] | select(.name == $n) | .runtimesAvailable.docker.available == true' "$BODY" >/dev/null \
-  || fail "la cible « $TARGET_NAME » n'a pas de runtime Docker — lancez un preflight"
+  || fail "the target \"$TARGET_NAME\" has no Docker runtime — run a preflight"
 pass "$TARGET_NAME — $TARGET_ID"
 
-step "2. Plage de ports par cible"
+step "2. Port range per target"
 code=$(req PATCH "/api/targets/$TARGET_ID" \
   "{\"portRangeStart\":$RANGE_START,\"portRangeEnd\":$RANGE_END}")
-[ "$code" = "200" ] || fail "PATCH /api/targets/$TARGET_ID → HTTP $code : $(cat "$BODY")"
+[ "$code" = "200" ] || fail "PATCH /api/targets/$TARGET_ID → HTTP $code: $(cat "$BODY")"
 jq -e --argjson s "$RANGE_START" --argjson e "$RANGE_END" \
   '.portRangeStart == $s and .portRangeEnd == $e' "$BODY" >/dev/null \
-  || fail "la plage n'a pas été enregistrée : $(jq -c '{portRangeStart, portRangeEnd}' "$BODY")"
-pass "plage de « $TARGET_NAME » fixée à $RANGE_START-$RANGE_END"
+  || fail "the range was not saved: $(jq -c '{portRangeStart, portRangeEnd}' "$BODY")"
+pass "range of \"$TARGET_NAME\" set to $RANGE_START-$RANGE_END"
 
-# Une plage inversée doit être refusée — c'est une donnée, pas un vœu pieux.
+# An inverted range must be refused — it is data, not wishful thinking.
 code=$(req PATCH "/api/targets/$TARGET_ID" \
   "{\"portRangeStart\":$RANGE_END,\"portRangeEnd\":$RANGE_START}")
-[ "$code" = "409" ] || fail "une plage inversée devrait être refusée (HTTP $code)"
-pass "une plage inversée est refusée (HTTP 409)"
+[ "$code" = "409" ] || fail "an inverted range should be refused (HTTP $code)"
+pass "an inverted range is refused (HTTP 409)"
 
 code=$(req GET "/api/targets/$TARGET_ID/ports")
-[ "$code" = "200" ] || fail "GET /api/targets/$TARGET_ID/ports → HTTP $code : $(cat "$BODY")"
+[ "$code" = "200" ] || fail "GET /api/targets/$TARGET_ID/ports → HTTP $code: $(cat "$BODY")"
 jq -e --argjson s "$RANGE_START" --argjson e "$RANGE_END" \
   '.range.min == $s and .range.max == $e and .capacity == ($e - $s + 1)' "$BODY" >/dev/null \
-  || fail "GET /ports ne reflète pas la plage : $(jq -c '{range, capacity}' "$BODY")"
-pass "GET /api/targets/:id/ports — plage, capacité, occupation, ports libres"
+  || fail "GET /ports does not reflect the range: $(jq -c '{range, capacity}' "$BODY")"
+pass "GET /api/targets/:id/ports — range, capacity, occupancy, free ports"
 info "$(jq -c '{range, capacity, used, free}' "$BODY")"
 
-# ─── 3. Deux applications, deux ports ─────────────────────────────────────────
+# ─── 3. Two applications, two ports ───────────────────────────────────────────
 
-step "3. Deux applications sur la même cible → deux ports distincts"
+step "3. Two applications on the same target → two distinct ports"
 
 APP_A=$(upsert_app 'cycle-alpha' "$(spec_json cycle-alpha 1.0.0 docker.io/library/nginx:1.29-alpine /)")
 APP_B=$(upsert_app 'cycle-beta'  "$(spec_json cycle-beta  1.0.0 docker.io/library/nginx:1.29-alpine /)")
-pass "applications cycle-alpha et cycle-beta prêtes"
+pass "applications cycle-alpha and cycle-beta ready"
 
 read -r DEPLOY_A STATUS_A <<< "$(deploy_and_wait "$APP_A" "$TARGET_ID")"
 [ "$STATUS_A" = "success" ] \
-  || fail "cycle-alpha : statut « $STATUS_A » — $(deployment_log "$DEPLOY_A" | tail -c 500)"
+  || fail "cycle-alpha: status \"$STATUS_A\" — $(deployment_log "$DEPLOY_A" | tail -c 500)"
 req GET "/api/deployments/$DEPLOY_A" >/dev/null
 PORT_A=$(jq -r '.publishedPort // empty' "$BODY")
-pass "cycle-alpha déployée — port $PORT_A"
+pass "cycle-alpha deployed — port $PORT_A"
 
 read -r DEPLOY_B STATUS_B <<< "$(deploy_and_wait "$APP_B" "$TARGET_ID")"
 [ "$STATUS_B" = "success" ] \
-  || fail "cycle-beta : statut « $STATUS_B » — $(deployment_log "$DEPLOY_B" | tail -c 500)"
+  || fail "cycle-beta: status \"$STATUS_B\" — $(deployment_log "$DEPLOY_B" | tail -c 500)"
 req GET "/api/deployments/$DEPLOY_B" >/dev/null
 PORT_B=$(jq -r '.publishedPort // empty' "$BODY")
-pass "cycle-beta déployée — port $PORT_B"
+pass "cycle-beta deployed — port $PORT_B"
 
-[ -n "$PORT_A" ] && [ -n "$PORT_B" ] || fail "un déploiement n'a publié aucun port"
-[ "$PORT_A" != "$PORT_B" ] || fail "les deux applications ont reçu le même port ($PORT_A)"
-pass "deux ports distincts : $PORT_A ≠ $PORT_B"
+[ -n "$PORT_A" ] && [ -n "$PORT_B" ] || fail "a deployment published no port"
+[ "$PORT_A" != "$PORT_B" ] || fail "the two applications got the same port ($PORT_A)"
+pass "two distinct ports: $PORT_A ≠ $PORT_B"
 
 for port in "$PORT_A" "$PORT_B"; do
   [ "$port" -ge "$RANGE_START" ] && [ "$port" -le "$RANGE_END" ] \
-    || fail "le port $port sort de la plage $RANGE_START-$RANGE_END déclarée par la cible"
+    || fail "port $port falls outside the $RANGE_START-$RANGE_END range declared by the target"
 done
-pass "les deux ports tiennent dans la plage $RANGE_START-$RANGE_END de la cible"
+pass "both ports fit in the target's $RANGE_START-$RANGE_END range"
 
 for port in "$PORT_A" "$PORT_B"; do
   http=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "http://127.0.0.1:$port" || echo 000)
   [ "$http" = "200" ] || fail "http://127.0.0.1:$port → HTTP $http"
 done
-pass "les deux URLs répondent — HTTP 200 sur $PORT_A et $PORT_B"
+pass "both URLs answer — HTTP 200 on $PORT_A and $PORT_B"
 
 req GET "/api/targets/$TARGET_ID/ports" >/dev/null
 jq -e --argjson a "$PORT_A" --argjson b "$PORT_B" \
   '([.allocations[].port] | index($a)) != null and ([.allocations[].port] | index($b)) != null' \
-  "$BODY" >/dev/null || fail "GET /ports ne montre pas les deux réservations"
+  "$BODY" >/dev/null || fail "GET /ports does not show both reservations"
 jq -e '[.allocations[] | select(.applicationSlug == "cycle-alpha")] | length == 1' "$BODY" >/dev/null \
-  || fail "GET /ports n'attribue pas le port à la bonne application"
-pass "GET /ports attribue chaque port à son application"
+  || fail "GET /ports does not assign the port to the right application"
+pass "GET /ports assigns each port to its application"
 info "$(jq -rc '[.allocations[] | "\(.applicationSlug)→\(.port)"] | join("  ")' "$BODY")"
 
 # ─── 4. Pare-feu ──────────────────────────────────────────────────────────────
@@ -294,162 +293,162 @@ LOG_A="$(deployment_log "$DEPLOY_A")"
 if printf '%s' "$UFW_OUT" | grep -qi 'Status: active'; then
   UFW_MODE=active
   printf '%s' "$UFW_OUT" | grep -q "$PORT_A/tcp" \
-    || fail "aucune règle ufw pour le port $PORT_A"
+    || fail "no ufw rule for port $PORT_A"
   printf '%s' "$UFW_OUT" | grep "$PORT_A/tcp" | grep -q 'pupitre:cycle-alpha' \
-    || fail "la règle du port $PORT_A ne porte pas le commentaire « pupitre:cycle-alpha »"
+    || fail "the rule of port $PORT_A does not carry the \"pupitre:cycle-alpha\" comment"
   printf '%s' "$UFW_OUT" | grep "$PORT_B/tcp" | grep -q 'pupitre:cycle-beta' \
-    || fail "la règle du port $PORT_B ne porte pas le commentaire « pupitre:cycle-beta »"
-  pass "deux règles ufw créées, chacune avec son commentaire pupitre:{slug}"
+    || fail "the rule of port $PORT_B does not carry the \"pupitre:cycle-beta\" comment"
+  pass "two ufw rules created, each with its pupitre:{slug} comment"
 elif printf '%s' "$UFW_OUT" | grep -qi 'Status: inactive'; then
   UFW_MODE=inactive
   printf '%s' "$LOG_A" | grep -qE 'ufw inactif|ufw is inactive' \
-    || fail "ufw est inactif sur la cible, mais aucun avertissement dans les logs du déploiement"
-  pass "ufw inactif sur la cible → avertissement émis, et rien n'a cassé"
-  info "$(printf '%s' "$LOG_A" | grep -o 'ufw inactif[^"]*' | head -1)"
-  warn "chemin « ufw actif » non testé ici : la cible de test ne l'active pas"
+    || fail "ufw is inactive on the target, but there is no warning in the deployment's logs"
+  pass "ufw inactive on the target → warning emitted, and nothing broke"
+  info "$(printf '%s' "$LOG_A" | grep -oE 'ufw (inactif|is inactive)[^"]*' | head -1)"
+  warn "\"ufw active\" path not tested here: the test target does not enable it"
 else
   UFW_MODE=unknown
-  warn "impossible de lire « ufw status » sur $TARGET_CONTAINER — contrôle par les logs seuls"
+  warn "could not read \"ufw status\" on $TARGET_CONTAINER — check through the logs alone"
   printf '%s' "$LOG_A" | grep -qE 'ufw (allow|inactif|absent|is inactive|is not installed)' \
-    || fail "le déploiement n'a rien dit du pare-feu"
-  pass "le déploiement a bien statué sur le pare-feu"
+    || fail "the deployment said nothing about the firewall"
+  pass "the deployment did rule on the firewall"
 fi
 
-# ─── 5. Destroy : le port est rendu, le voisin est intact ─────────────────────
+# ─── 5. Destroy: the port is given back, the neighbor is intact ───────────────
 
-step "5. Destroy de la première → port libéré, la seconde intacte"
+step "5. Destroying the first one → port released, the second intact"
 destroy_and_wait "$DEPLOY_A"
-pass "cycle-alpha détruite"
+pass "cycle-alpha destroyed"
 
 req GET "/api/targets/$TARGET_ID/ports" >/dev/null
 jq -e --argjson a "$PORT_A" '([.allocations[].port] | index($a)) == null' "$BODY" >/dev/null \
-  || fail "le port $PORT_A est toujours réservé après le destroy"
-pass "port $PORT_A libéré — il est de nouveau allouable"
+  || fail "port $PORT_A is still reserved after the destroy"
+pass "port $PORT_A released — it can be allocated again"
 
 jq -e --argjson b "$PORT_B" '([.allocations[].port] | index($b)) != null' "$BODY" >/dev/null \
-  || fail "le destroy de cycle-alpha a emporté la réservation de cycle-beta"
-pass "la réservation de cycle-beta est intacte"
+  || fail "destroying cycle-alpha took away cycle-beta's reservation"
+pass "cycle-beta's reservation is intact"
 
 http=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "http://127.0.0.1:$PORT_B" || echo 000)
-[ "$http" = "200" ] || fail "cycle-beta ne répond plus après le destroy du voisin (HTTP $http)"
-pass "cycle-beta répond toujours — HTTP 200 sur $PORT_B"
+[ "$http" = "200" ] || fail "cycle-beta no longer answers after its neighbor's destroy (HTTP $http)"
+pass "cycle-beta still answers — HTTP 200 on $PORT_B"
 
 http=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "http://127.0.0.1:$PORT_A" || echo 000)
-[ "$http" != "200" ] || fail "cycle-alpha répond encore sur $PORT_A après destruction"
-pass "plus rien n'écoute sur $PORT_A"
+[ "$http" != "200" ] || fail "cycle-alpha still answers on $PORT_A after destruction"
+pass "nothing listens on $PORT_A any more"
 
 if [ "$UFW_MODE" = active ]; then
   UFW_OUT="$(ufw_status)"
   printf '%s' "$UFW_OUT" | grep -q "$PORT_A/tcp" \
-    && fail "la règle ufw du port $PORT_A survit au destroy"
+    && fail "the ufw rule of port $PORT_A survives the destroy"
   printf '%s' "$UFW_OUT" | grep "$PORT_B/tcp" | grep -q 'pupitre:cycle-beta' \
-    || fail "le destroy a emporté la règle ufw de cycle-beta"
-  pass "règle ufw de $PORT_A retirée par son commentaire, celle de $PORT_B intacte"
+    || fail "the destroy took away cycle-beta's ufw rule"
+  pass "ufw rule of $PORT_A removed through its comment, the one of $PORT_B intact"
 else
   LOG_A="$(deployment_log "$DEPLOY_A")"
   printf '%s' "$LOG_A" | grep -qE 'ufw (inactif|absent|is inactive|is not installed)' \
-    || fail "le destroy n'a rien dit du pare-feu"
-  pass "ufw $UFW_MODE : le destroy le signale et n'échoue pas"
+    || fail "the destroy said nothing about the firewall"
+  pass "ufw $UFW_MODE: the destroy flags it and does not fail"
 fi
 
-# ─── 6. Rollback automatique ──────────────────────────────────────────────────
+# ─── 6. Automatic rollback ────────────────────────────────────────────────────
 
-step "6. v1 saine, v2 au healthcheck cassé → rollback automatique"
+step "6. Healthy v1, v2 with a broken healthcheck → automatic rollback"
 
 APP_C=$(upsert_app 'cycle-rollback' \
   "$(spec_json cycle-rollback 1.0.0 docker.io/library/nginx:1.29-alpine /)")
 read -r DEPLOY_V1 STATUS_V1 <<< "$(deploy_and_wait "$APP_C" "$TARGET_ID")"
 [ "$STATUS_V1" = "success" ] \
-  || fail "la v1 devait réussir, statut « $STATUS_V1 » — $(deployment_log "$DEPLOY_V1" | tail -c 500)"
+  || fail "the v1 was supposed to succeed, status \"$STATUS_V1\" — $(deployment_log "$DEPLOY_V1" | tail -c 500)"
 req GET "/api/deployments/$DEPLOY_V1" >/dev/null
 PORT_C=$(jq -r '.publishedPort // empty' "$BODY")
 V1_BODY="$(curl -s --max-time 15 "http://127.0.0.1:$PORT_C" || true)"
 printf '%s' "$V1_BODY" | grep -qi 'nginx' \
-  || fail "la v1 ne sert pas la page nginx attendue sur $PORT_C"
-pass "v1 (nginx) déployée et saine — port $PORT_C"
+  || fail "the v1 does not serve the expected nginx page on $PORT_C"
+pass "v1 (nginx) deployed and healthy — port $PORT_C"
 
-# La v2 change d'image et publie un port derrière lequel rien n'écoute : le
-# conteneur démarre et se déclare sain, mais l'application est injoignable par
-# le chemin que le panel expose. C'est l'étape `healthcheck` qui le découvre —
-# exactement le cas que le rollback automatique doit rattraper.
+# The v2 changes image and publishes a port behind which nothing listens: the
+# container starts and declares itself healthy, but the application is
+# unreachable through the path the panel exposes. It is the `healthcheck` step
+# that finds out — exactly the case the automatic rollback must catch.
 upsert_app 'cycle-rollback' \
   "$(spec_json_broken cycle-rollback 2.0.0 docker.io/library/httpd:2.4-alpine)" >/dev/null
 read -r DEPLOY_V2 STATUS_V2 <<< "$(deploy_and_wait "$APP_C" "$TARGET_ID" true)"
 
 [ "$STATUS_V2" = "rolled_back" ] \
-  || fail "attendu « rolled_back », obtenu « $STATUS_V2 » — $(deployment_log "$DEPLOY_V2" | tail -c 800)"
-pass "statut « rolled_back » — distinct de « failed »"
+  || fail "expected \"rolled_back\", got \"$STATUS_V2\" — $(deployment_log "$DEPLOY_V2" | tail -c 800)"
+pass "\"rolled_back\" status — distinct from \"failed\""
 
 req GET "/api/deployments/$DEPLOY_V2" >/dev/null
 jq -e '.failedStep == "healthcheck"' "$BODY" >/dev/null \
-  || fail "l'étape en échec devrait être « healthcheck » : $(jq -r .failedStep "$BODY")"
+  || fail "the failed step should be \"healthcheck\": $(jq -r .failedStep "$BODY")"
 jq -e '[.steps[] | select(.key == "rollback" and .status == "success")] | length == 1' "$BODY" >/dev/null \
-  || fail "la step « rollback » n'a pas réussi : $(jq -c '[.steps[] | {key, status}]' "$BODY")"
-pass "step « healthcheck » en échec, step « rollback » réussie"
+  || fail "the \"rollback\" step did not succeed: $(jq -c '[.steps[] | {key, status}]' "$BODY")"
+pass "\"healthcheck\" step failed, \"rollback\" step succeeded"
 
-# Le diagnostic est capturé avant que le rollback n'efface la scène.
+# The diagnostic is captured before the rollback wipes the scene.
 HEALTH_ERROR=$(jq -r '[.steps[] | select(.key == "healthcheck") | .error] | join("")' "$BODY")
 printf '%s' "$HEALTH_ERROR" | grep -q 'docker compose ps' \
-  || fail "le diagnostic n'a pas été capturé dans deployment_steps.error"
+  || fail "the diagnostic was not captured in deployment_steps.error"
 printf '%s' "$HEALTH_ERROR" | grep -q 'docker compose logs' \
-  || fail "les logs des services manquent au diagnostic"
+  || fail "the services' logs are missing from the diagnostic"
 printf '%s' "$HEALTH_ERROR" | grep -qiE 'injoignable|unreachable' \
-  || fail "l'issue « unreachable » n'est pas nommée : $(printf '%s' "$HEALTH_ERROR" | head -c 120)"
-pass "diagnostic capturé — docker compose ps + logs, issue « injoignable »"
+  || fail "the \"unreachable\" outcome is not named: $(printf '%s' "$HEALTH_ERROR" | head -c 120)"
+pass "diagnostic captured — docker compose ps + logs, \"unreachable\" outcome"
 info "$(printf '%s' "$HEALTH_ERROR" | head -1 | cut -c1-110)"
 
 LOG_V2="$(deployment_log "$DEPLOY_V2")"
 printf '%s' "$LOG_V2" | grep -q 'docker compose ps' \
-  || fail "le diagnostic n'a pas été diffusé dans le flux de logs"
-pass "diagnostic présent aussi dans le flux (donc dans le SSE)"
+  || fail "the diagnostic was not broadcast in the log stream"
+pass "diagnostic present in the stream too (so in the SSE)"
 
 V2_BODY="$(curl -s --max-time 15 "http://127.0.0.1:$PORT_C" || true)"
 printf '%s' "$V2_BODY" | grep -qi 'nginx' \
-  || fail "après rollback, l'URL ne sert pas la v1 : $(printf '%s' "$V2_BODY" | head -c 120)"
+  || fail "after the rollback, the URL does not serve the v1: $(printf '%s' "$V2_BODY" | head -c 120)"
 printf '%s' "$V2_BODY" | grep -qi 'it works' \
-  && fail "après rollback, c'est encore la v2 (httpd) qui répond"
-pass "http://127.0.0.1:$PORT_C sert de nouveau la v1 (nginx)"
+  && fail "after the rollback, it is still the v2 (httpd) that answers"
+pass "http://127.0.0.1:$PORT_C serves the v1 (nginx) again"
 
 req GET "/api/targets/$TARGET_ID/ports" >/dev/null
 jq -e --argjson c "$PORT_C" '([.allocations[].port] | index($c)) != null' "$BODY" >/dev/null \
-  || fail "le rollback a relâché le port $PORT_C, alors que la v1 tourne dessus"
-pass "port $PORT_C conservé : une version tourne toujours dessus"
+  || fail "the rollback released port $PORT_C, although the v1 runs on it"
+pass "port $PORT_C kept: a version still runs on it"
 
-step "7. Traçabilité du rollback"
+step "7. Traceability of the rollback"
 code=$(req GET "/api/audit-logs?resourceType=deployment&pageSize=50")
 [ "$code" = "200" ] || fail "GET /api/audit-logs → HTTP $code"
 jq -e --arg id "$DEPLOY_V2" \
   '[.items[] | select(.action == "deployment.rolled_back.automatic" and .resourceId == $id)] | length > 0' \
-  "$BODY" >/dev/null || fail "aucun « deployment.rolled_back.automatic » dans le journal d'audit"
+  "$BODY" >/dev/null || fail "no \"deployment.rolled_back.automatic\" in the audit log"
 AUDIT=$(jq -c --arg id "$DEPLOY_V2" \
   'first(.items[] | select(.action == "deployment.rolled_back.automatic" and .resourceId == $id))
    | {from: .before.version, to: .after.restoredVersion, reason: (.after.reason | tostring | .[0:60])}' \
   "$BODY")
-pass "audit : deployment.rolled_back.automatic"
+pass "audit: deployment.rolled_back.automatic"
 info "$AUDIT"
-printf '%s' "$AUDIT" | grep -q '"from":"2.0.0"' || fail "l'audit ne dit pas de quelle version on vient"
-printf '%s' "$AUDIT" | grep -q '"to":"1.0.0"' || fail "l'audit ne dit pas vers quelle version on va"
-pass "l'audit nomme la version quittée, la version restaurée et la raison"
+printf '%s' "$AUDIT" | grep -q '"from":"2.0.0"' || fail "the audit does not say which version we come from"
+printf '%s' "$AUDIT" | grep -q '"to":"1.0.0"' || fail "the audit does not say which version we go to"
+pass "the audit names the version left, the version restored and the reason"
 
-step "8. Historique des versions et redéploiement"
+step "8. Version history and redeployment"
 code=$(req GET "/api/applications/$APP_C/versions")
 [ "$code" = "200" ] || fail "GET /api/applications/$APP_C/versions → HTTP $code"
-jq -e '.items | length >= 2' "$BODY" >/dev/null || fail "l'historique devrait porter au moins deux versions"
+jq -e '.items | length >= 2' "$BODY" >/dev/null || fail "the history should carry at least two versions"
 jq -e '[.items[] | select(.status == "rolled_back")] | length >= 1' "$BODY" >/dev/null \
-  || fail "l'historique ne montre pas la version rollbackée"
+  || fail "the history does not show the rolled-back version"
 jq -e '[.items[] | select(.appVersion == "1.0.0" and .redeployable)] | length >= 1' "$BODY" >/dev/null \
-  || fail "la v1 devrait être redéployable (AppSpec figée)"
-pass "GET /api/applications/:id/versions — $(jq -r '.items | length' "$BODY") version(s), cible, statut, auteur"
+  || fail "the v1 should be redeployable (frozen AppSpec)"
+pass "GET /api/applications/:id/versions — $(jq -r '.items | length' "$BODY") version(s), target, status, author"
 info "$(jq -rc '[.items[] | "#\(.version) \(.appVersion) \(.status)"] | join("  ")' "$BODY")"
 
 V1_ID=$(jq -r 'first(.items[] | select(.appVersion == "1.0.0" and .redeployable) | .deploymentId)' "$BODY")
 code=$(req POST "/api/applications/$APP_C/redeploy" \
   "{\"versionId\":\"$V1_ID\",\"targetId\":\"$TARGET_ID\"}")
-[ "$code" = "202" ] || fail "POST /api/applications/:id/redeploy → HTTP $code : $(cat "$BODY")"
+[ "$code" = "202" ] || fail "POST /api/applications/:id/redeploy → HTTP $code: $(cat "$BODY")"
 REDEPLOY_ID=$(jq -r .id "$BODY")
 jq -e '.appVersion == "1.0.0"' "$BODY" >/dev/null \
-  || fail "le redéploiement ne rejoue pas l'AppSpec de la version demandée"
-pass "POST /api/applications/:id/redeploy — rejoue l'AppSpec 1.0.0 figée"
+  || fail "the redeployment does not replay the requested version's AppSpec"
+pass "POST /api/applications/:id/redeploy — replays the frozen 1.0.0 AppSpec"
 
 for _ in $(seq 1 150); do
   sleep 2
@@ -458,41 +457,41 @@ for _ in $(seq 1 150); do
   case "$REDEPLOY_STATUS" in success|failed|rolled_back) break ;; esac
 done
 [ "$REDEPLOY_STATUS" = "success" ] \
-  || fail "le redéploiement a fini en « $REDEPLOY_STATUS » — $(deployment_log "$REDEPLOY_ID" | tail -c 500)"
-pass "le redéploiement de la v1 a réussi"
+  || fail "the redeployment ended as \"$REDEPLOY_STATUS\" — $(deployment_log "$REDEPLOY_ID" | tail -c 500)"
+pass "the v1 redeployment succeeded"
 
-# Rétention : les cinq versions les plus récentes, plus celle vers laquelle
-# pointe `current` si elle n'en fait pas partie — ce qui est le cas après un
-# rollback. D'où six au pire, et jamais davantage.
+# Retention: the five most recent versions, plus the one `current` points to if
+# it is not among them — which is the case after a rollback. Hence six at worst,
+# and never more.
 RELEASES=$(docker compose exec -T "$TARGET_CONTAINER" \
   sh -lc 'ls -1d /opt/bootstrap/apps/cycle-rollback/*/ 2>/dev/null | grep -v /current/ | wc -l' \
   2>/dev/null | tr -d ' \r' || echo '')
 if [ -n "$RELEASES" ] && [ "$RELEASES" -gt 0 ] 2>/dev/null; then
-  [ "$RELEASES" -le 6 ] || fail "$RELEASES répertoires de version sur la cible, la rétention en garde 5 (+ current)"
-  pass "rétention : $RELEASES répertoire(s) de version conservé(s) sur la cible (5 + current)"
+  [ "$RELEASES" -le 6 ] || fail "$RELEASES version directories on the target, the retention keeps 5 (+ current)"
+  pass "retention: $RELEASES version directory(ies) kept on the target (5 + current)"
 else
-  warn "répertoires de version illisibles depuis ce poste — rétention non vérifiée"
+  warn "version directories unreadable from this workstation — retention not checked"
 fi
 
-# ─── 9. Parité ────────────────────────────────────────────────────────────────
+# ─── 9. Parity ────────────────────────────────────────────────────────────────
 
-step "9. Parité Docker / K3s"
+step "9. Docker / K3s parity"
 if pnpm typecheck >"$WORK/typecheck.log" 2>&1; then
-  pass "pnpm typecheck passe — scripts/test-parity.ts compile toujours"
+  pass "pnpm typecheck passes — scripts/test-parity.ts still compiles"
 else
   tail -20 "$WORK/typecheck.log"
-  fail "pnpm typecheck échoue"
+  fail "pnpm typecheck fails"
 fi
-warn "test-parity.ts n'est PAS exécuté ici : il exige deux cibles — voir \`pnpm test:parity\`"
+warn "test-parity.ts is NOT run here: it requires two targets — see \`pnpm test:parity\`"
 
-# ─── ménage ───────────────────────────────────────────────────────────────────
+# ─── cleanup ──────────────────────────────────────────────────────────────────
 
-step "10. Ménage"
+step "10. Cleanup"
 destroy_and_wait "$REDEPLOY_ID"
 destroy_and_wait "$DEPLOY_B"
-pass "déploiements de test détruits"
+pass "test deployments destroyed"
 
-printf '\n\033[32m✓ Ports, ufw et rollback vérifiés.\033[0m\n'
-printf '\033[2m  ufw : %s · ports %s et %s alloués puis rendus · rollback %s → %s\033[0m\n' \
+printf '\n\033[32m✓ Ports, ufw and rollback verified.\033[0m\n'
+printf '\033[2m  ufw: %s · ports %s and %s allocated then given back · rollback %s → %s\033[0m\n' \
   "$UFW_MODE" "$PORT_A" "$PORT_B" "2.0.0" "1.0.0"
 printf '\n'

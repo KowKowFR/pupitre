@@ -2,8 +2,8 @@ import { Redis } from 'ioredis';
 import { env } from './env.js';
 
 /**
- * BullMQ exige `maxRetriesPerRequest: null` sur la connexion d'un Worker,
- * sinon les commandes bloquantes sont interrompues.
+ * BullMQ requires `maxRetriesPerRequest: null` on a Worker's connection,
+ * otherwise blocking commands are interrupted.
  */
 export function createRedisConnection(): Redis {
   return new Redis(env.REDIS_URL, {
@@ -15,9 +15,8 @@ export function createRedisConnection(): Redis {
 let publisher: Redis | null = null;
 
 /**
- * Connexion dédiée à la publication des logs.
- * Séparée de celle de BullMQ : une connexion occupée par des commandes
- * bloquantes ne peut pas servir à publier.
+ * Connection dedicated to publishing logs. Separate from BullMQ's: a connection
+ * busy with blocking commands cannot be used to publish.
  */
 export function getPublisher(): Redis {
   publisher ??= new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
@@ -27,10 +26,9 @@ export function getPublisher(): Redis {
 let reader: Redis | null = null;
 
 /**
- * Connexion de lecture, pour les clés que le worker consulte pendant qu'il
- * travaille — la présence d'un spectateur, par exemple. Distincte de celle de
- * publication : une connexion occupée à publier ne doit pas être bloquée par
- * une lecture, ni l'inverse.
+ * Read connection, for the keys the worker consults while it works — a viewer's
+ * presence, for example. Distinct from the publishing one: a connection busy
+ * publishing must not be blocked by a read, nor the reverse.
  */
 export function getRedis(): Redis {
   reader ??= new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });

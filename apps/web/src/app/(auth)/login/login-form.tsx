@@ -14,9 +14,9 @@ import { Input } from '@/components/ui/input';
 import { AuthCard } from '../auth-card';
 
 /**
- * Quand un compte porte un second facteur, Better Auth ne pose pas de session
- * à la connexion : il répond 200 avec `twoFactorRedirect` et un cookie de défi
- * de courte durée. Le mot de passe seul ne vaut donc plus rien.
+ * When an account carries a second factor, Better Auth does not set a session at
+ * sign-in: it answers 200 with `twoFactorRedirect` and a short-lived challenge
+ * cookie. The password alone is therefore no longer worth anything.
  */
 function needsSecondFactor(data: unknown): boolean {
   return (
@@ -27,7 +27,7 @@ function needsSecondFactor(data: unknown): boolean {
   );
 }
 
-/** Les refus que Better Auth renvoie au retour du fournisseur, et qu'on sait dire en clair. */
+/** The refusals Better Auth sends back on return from the provider, which we can spell out. */
 const SSO_ERRORS = ['signup_disabled', 'account_not_linked', 'banned'] as const;
 
 export function LoginForm({
@@ -38,13 +38,13 @@ export function LoginForm({
   ssoError,
 }: {
   next: string;
-  /** L'instance sait-elle envoyer un e-mail ? Sinon le lien de secours est masqué. */
+  /** Can the instance send an email? Otherwise the recovery link is hidden. */
   canRecoverPassword: boolean;
-  /** L'inscription est-elle ouverte ? Sinon le lien mènerait à un refus. */
+  /** Is sign-up open? Otherwise the link would lead to a refusal. */
   signupOpen: boolean;
-  /** La connexion unique, quand elle est active et que son fournisseur répond. */
+  /** Single sign-on, when it is active and its provider answers. */
   sso: { label: string } | null;
-  /** Le code d'erreur d'un retour du fournisseur (`?error=`), s'il y en a un. */
+  /** The error code of a return from the provider (`?error=`), if there is one. */
   ssoError: string | null;
 }) {
   const t = useT(messages);
@@ -58,8 +58,8 @@ export function LoginForm({
   const [reveal, setReveal] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
 
-  // Better Auth écrit ses codes tantôt en minuscules (`signup_disabled`),
-  // tantôt en majuscules (`BANNED_USER`) : on les ramène à une forme.
+  // Better Auth writes its codes sometimes in lowercase (`signup_disabled`),
+  // sometimes in uppercase (`BANNED_USER`): we bring them back to one form.
   const ssoCode = ssoError?.toLowerCase().replace(/^banned_user$/, 'banned') ?? null;
   const ssoMessage = ssoCode
     ? (SSO_ERRORS as readonly string[]).includes(ssoCode)
@@ -68,9 +68,9 @@ export function LoginForm({
     : null;
 
   /**
-   * Better Auth rend l'adresse du fournisseur (état et PKCE déjà posés dans un
-   * cookie) ; le navigateur y part. Au retour, la session est posée et l'on
-   * arrive sur `next` — ou sur `/login?error=…` si quelque chose a refusé.
+   * Better Auth returns the provider's address (state and PKCE already set in a
+   * cookie); the browser goes there. On return, the session is set and one lands
+   * on `next` — or on `/login?error=…` if something refused.
    */
   async function signInWithSso() {
     setRedirecting(true);
@@ -101,7 +101,7 @@ export function LoginForm({
     });
 
     if (result.error) {
-      // Message volontairement générique : ne pas révéler si le compte existe.
+      // A deliberately generic message: do not reveal whether the account exists.
       setError(t('login.rejected'));
       setPending(false);
       return;

@@ -1,42 +1,42 @@
 import type { Translated } from '@pupitre/core';
 
 /**
- * La supervision de sites — la liste des sondes, le détail de l'une d'elles,
- * ses figures et ses captures d'incident.
+ * Site monitoring — the probes list, one probe's detail, its figures and its
+ * incident captures.
  *
- * Le catalogue des types de sonde n'est **pas** ici : il vit dans
- * `packages/core/src/monitors/catalog.ts`, avec sa propre paire fr/en, parce
- * que le worker lit la même table. Ce module ne porte que ce que le panel
- * écrit lui-même autour.
+ * The catalog of probe types is **not** here: it lives in
+ * `packages/core/src/monitors/catalog.ts`, with its own fr/en pair, because the
+ * worker reads the same table. This module only carries what the panel writes
+ * itself around it.
  *
- * Deux pluriels français sont volontairement identiques au singulier et au
- * pluriel : « {count} échec sur {threshold} » et « {count} mesures ». Ils
- * reproduisent la chaîne qui existait, y compris son accord approximatif ; la
- * forme anglaise, elle, accorde. Corriger le français est un autre commit.
+ * Two French plurals are deliberately identical in the singular and the plural:
+ * "{count} échec sur {threshold}" and "{count} mesures". They reproduce the string
+ * that existed, including its approximate agreement; the English form, for its
+ * part, agrees. Fixing the French is another commit.
  */
 const fr = {
-  // ── En-tête de l'écran ──────────────────────────────────────────────────
+  // ── The screen's header ─────────────────────────────────────────────────
   'page.title': 'Sondes',
   'page.description':
     "Une sonde part du worker vers l'adresse publique d'un service. Elle voit ce que le healthcheck SSH ne voit pas : le pare-feu, le proxy, le certificat.",
 
-  // ── Verdicts d'une mesure ───────────────────────────────────────────────
+  // ── A measurement's verdicts ────────────────────────────────────────────
   'outcome.healthy': 'sain',
   'outcome.unhealthy': 'répond mal',
   'outcome.unreachable': 'injoignable',
   'outcome.unknown': 'inconnu',
 
   /**
-   * Le voyant `HealthDot` porte son propre vocabulaire, celui de l'écran des
-   * applications : « en marche » plutôt que « sain ». On le reprend mot pour
-   * mot au lieu d'imposer le nôtre — un seul voyant, une seule lecture.
+   * The `HealthDot` indicator carries its own vocabulary, the applications
+   * screen's: "running" rather than "healthy". We take it word for word instead of
+   * imposing ours — a single indicator, a single reading.
    */
   'health.healthy': 'en marche',
   'health.unhealthy': 'répond mal',
   'health.unreachable': 'injoignable',
   'health.unknown': 'état inconnu',
 
-  // ── Liste ───────────────────────────────────────────────────────────────
+  // ── List ────────────────────────────────────────────────────────────────
   'empty.title': 'Aucune sonde',
   'empty.hint.canManage':
     "Une sonde part du worker vers l'adresse publique de ce qu'elle surveille. C'est un point de vue différent du healthcheck : elle voit le pare-feu, le proxy et le certificat.",
@@ -50,19 +50,19 @@ const fr = {
   },
 
 
-  // ── Carte d'une sonde ───────────────────────────────────────────────────
+  // ── A probe's card ──────────────────────────────────────────────────────
   'card.action.probe': 'Sonder',
   'card.action.pause': 'Suspendre',
   'card.action.resume': 'Reprendre',
   'card.action.detail': 'Détail',
   'card.paused': 'Sonde suspendue — {reason}. Elle se reprend avec « Reprendre ».',
   /**
-   * Les motifs de suspension **automatiques**, rendus à la lecture.
+   * The **automatic** pause reasons, rendered at read time.
    *
-   * La colonne `paused_reason` porte une clé (`auto:orphaned`, …), pas une
-   * phrase : traduire à l'écriture aurait figé la langue du jour du balayage.
-   * L'écran retombe sur la valeur brute pour ce qu'il ne reconnaît pas — une
-   * ligne écrite par une version d'avant, ou un motif saisi à la main.
+   * The `paused_reason` column carries a key (`auto:orphaned`, …), not a sentence:
+   * translating at write time would have frozen the language of the sweep's day.
+   * The screen falls back on the raw value for what it does not recognize — a row
+   * written by an earlier version, or a reason typed by hand.
    */
   'card.paused.orphaned': 'application plus déployée — sonde suspendue automatiquement',
   'card.paused.unknownType': 'type de sonde « {type} » inconnu de cette version du panel',
@@ -77,7 +77,7 @@ const fr = {
   'card.window.week': '7 j',
   'card.incidentOpen': 'Incident ouvert depuis {since}.',
   'card.incidentTimeline': 'Voir la chronologie',
-  /** Type absent du catalogue : la ligne le dit plutôt que d'afficher un code nu. */
+  /** A type absent from the catalog: the row says so rather than show a bare code. */
   'type.unknown': 'type inconnu « {type} »',
   'target.unknownType': '(type inconnu)',
 
@@ -129,7 +129,7 @@ const fr = {
     '{typeLabel}, {cadence}. Panne confirmée après {failures}, rétablissement après {recovery} succès.',
   'adopt.action': 'Superviser {slug}',
 
-  // ── Formulaire de création ──────────────────────────────────────────────
+  // ── Creation form ───────────────────────────────────────────────────────
   'create.title': 'Nouvelle sonde',
   'create.name.label': 'Nom',
   'create.name.placeholder': 'Site vitrine',
@@ -169,11 +169,11 @@ const fr = {
   'edit.unchanged': 'Aucune modification à enregistrer.',
   'toast.updated': 'Sonde {name} enregistrée',
 
-  // ── Champs de configuration, rendus depuis le catalogue ─────────────────
+  // ── Configuration fields, rendered from the catalog ─────────────────────
   'config.optional': 'facultatif',
   'config.advanced': 'Options avancées',
 
-  // ── Détail ──────────────────────────────────────────────────────────────
+  // ── Detail ──────────────────────────────────────────────────────────────
   'detail.failures': {
     one: '{count} échec consécutif',
     other: '{count} échecs consécutifs',
@@ -181,8 +181,8 @@ const fr = {
 
   'detail.readout.title': 'Dernier relevé',
   /**
-   * `count` porte la valeur absolue — un certificat expiré rend « -3 jours » —
-   * et `value` la valeur signée, celle qui s'affiche.
+   * `count` carries the absolute value — an expired certificate returns "-3 days" —
+   * and `value` the signed value, the one that shows.
    */
   'detail.metric.days': { one: '{value} jour', other: '{value} jours' },
 
@@ -261,17 +261,16 @@ const fr = {
     "Pas d'image de référence pour cet incident : la sonde n'avait pas encore été photographiée en bon état. La comparaison avant/après apparaîtra au prochain.",
   'captures.incomplete': "Il manque une des deux images : la comparaison n'est pas possible.",
 
-  // ── Erreurs d'API ───────────────────────────────────────────────────────
+  // ── API errors ──────────────────────────────────────────────────────────
   'error.monitorNotFound': 'Sonde « {id} » introuvable',
   'error.applicationNotFound': 'Application « {id} » introuvable',
   'error.captureNotFound': 'Capture « {id} » introuvable',
   'error.noJobId': "La tâche n'a pas reçu d'identifiant",
 
   /**
-   * Les deux refus que `@pupitre/db` lève en donnée et que cette route met en
-   * phrase. `{issue}` est le message du schéma Zod du type : il voyage tel
-   * quel, en français, parce que les schémas de `@pupitre/core` ne sont pas
-   * traduits.
+   * The two refusals `@pupitre/db` raises as data and this route puts into a
+   * sentence. `{issue}` is the type's Zod schema message: it travels as is, in
+   * French, because `@pupitre/core`'s schemas are not translated.
    */
   'error.configInvalid': 'configuration de sonde « {label} » invalide — {path} : {issue}',
   'error.intervalTooShort':

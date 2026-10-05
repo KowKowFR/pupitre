@@ -48,13 +48,13 @@ const STATUS_VARIANT = {
 const ACCEPT = '.tar.gz,.tgz,.tar,.zip,application/gzip,application/x-tar,application/zip';
 
 /**
- * La carte « Code de l'application » : l'archive en service, ce que chaque
- * service construit y trouve, et les précédentes.
+ * The "Application code" card: the archive in service, what each service builds
+ * finds in it, and the previous ones.
  *
- * L'envoi passe par `XMLHttpRequest` plutôt que `fetch` : c'est la seule API du
- * navigateur qui dise où en est un envoi, et une archive de 80 Mo mérite une
- * barre d'avancement. La lecture qui suit est l'affaire du worker ; la carte se
- * relit seule quand elle aboutit (`LiveRefresh` de la fiche).
+ * Uploading goes through `XMLHttpRequest` rather than `fetch`: it is the only
+ * browser API that says how far an upload has got, and an 80 MB archive
+ * deserves a progress bar. The reading that follows is the worker's business;
+ * the card reads itself again when it completes (the record's `LiveRefresh`).
  */
 export function ApplicationArchive({
   applicationId,
@@ -65,9 +65,9 @@ export function ApplicationArchive({
 }: {
   applicationId: string;
   archives: ArchiveView[];
-  /** Pour l'archive en service, quand elle est prête. */
+  /** For the archive in service, when it is ready. */
   checks: DockerfileCheck[];
-  /** Un service au moins se construit depuis un Dockerfile. */
+  /** At least one service builds from a Dockerfile. */
   builds: boolean;
   canEdit: boolean;
 }) {
@@ -93,7 +93,7 @@ export function ApplicationArchive({
     setUpload({ name: file.name, percent: 0 });
     const request = new XMLHttpRequest();
     request.open('POST', `/api/applications/${applicationId}/archives`);
-    // Un en-tête n'accepte que de l'ASCII : le nom voyage encodé.
+    // A header only accepts ASCII: the name travels encoded.
     request.setRequestHeader('x-archive-name', encodeURIComponent(file.name));
     request.setRequestHeader('content-type', file.type || 'application/octet-stream');
     request.upload.onprogress = (event) => {
@@ -112,7 +112,7 @@ export function ApplicationArchive({
       try {
         message = (JSON.parse(request.responseText) as ApiError).error?.message ?? message;
       } catch {
-        /* le statut suffit */
+        /* the status is enough */
       }
       setError(t('upload.failed', { error: message }));
     };

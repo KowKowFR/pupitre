@@ -1,8 +1,8 @@
 import type { Translated } from '@pupitre/core';
 
 /**
- * La discussion d'équipe et la présence : la page Discussion, le compositeur
- * et ses mentions, les pastilles d'état, le menu « Mon statut ».
+ * The team chat and presence: the Chat page, the composer and its mentions, the
+ * state chips, the "My status" menu.
  */
 const fr = {
   'page.title': 'Discussion',

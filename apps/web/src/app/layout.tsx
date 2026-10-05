@@ -10,24 +10,24 @@ import { cn } from '@/lib/utils';
 import './globals.css';
 
 /**
- * Le panel n'a aucune page statique : chacune lit la base, et depuis que la
- * langue vient des paramètres d'instance, ce layout aussi. Le déclarer ici
- * plutôt que page par page évite qu'une page oubliée se retrouve figée dans la
- * langue qu'avait l'instance au moment du `next build`.
+ * The panel has no static page: each one reads the database, and since the
+ * language comes from the instance settings, this layout does too. Declaring it
+ * here rather than page by page avoids a forgotten page ending up frozen in the
+ * language the instance had at `next build` time.
  */
 export const dynamic = 'force-dynamic';
 
 /**
- * Deux faces, deux rôles — chargées par `next/font` pour être auto-hébergées
- * et préchargées : pas d'appel à un tiers au rendu, pas de saut de police.
+ * Two faces, two roles — loaded through `next/font` to be self-hosted and
+ * preloaded: no call to a third party at render time, no font jump.
  *
- * Instrument Sans porte l'interface. Elle est chargée en police variable avec
- * son axe de largeur : les titres se condensent à 88–96 % (`font-stretch`)
- * sans une seconde famille. `wght` est implicite pour une police variable, on
- * ne déclare que l'axe en plus.
+ * Instrument Sans carries the interface. It is loaded as a variable font with its
+ * width axis: the titles condense to 88–96% (`font-stretch`) without a second
+ * family. `wght` is implicit for a variable font, only the extra axis is
+ * declared.
  *
- * Geist Mono porte tout ce qui est identifiant : slug, hôte, port, version,
- * date, clé de permission, ligne de log.
+ * Geist Mono carries everything that is an identifier: slug, host, port,
+ * version, date, permission key, log line.
  */
 const instrumentSans = Instrument_Sans({
   subsets: ['latin', 'latin-ext'],
@@ -53,13 +53,12 @@ const FALLBACK_METADATA: Metadata = {
 };
 
 /**
- * Le titre du document suit les paramètres d'instance, comme le nom en haut à
- * gauche : les deux doivent dire la même chose.
+ * The document's title follows the instance settings, like the name at the top
+ * left: both must say the same thing.
  *
- * L'accès à la base est enveloppé dans un `try` parce que ce layout est aussi
- * traversé pendant `next build`, où aucun PostgreSQL n'écoute. Un titre est un
- * agrément, jamais une raison de faire échouer une compilation — on retombe
- * alors sur le libellé historique.
+ * The database access is wrapped in a `try` because this layout is also crossed
+ * during `next build`, where no PostgreSQL is listening. A title is a nicety,
+ * never a reason to fail a build — we then fall back on the historical label.
  */
 export async function generateMetadata(): Promise<Metadata> {
   try {
@@ -75,8 +74,8 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 /**
- * Les deux thèmes sont tenus : le navigateur peut peindre son cadre en
- * conséquence. Un choix forcé dans le menu utilisateur l'emporte sur le média.
+ * Both themes are supported: the browser can paint its frame accordingly. A
+ * choice forced in the user menu wins over the media query.
  */
 export async function generateViewport(): Promise<Viewport> {
   const theme = parseTheme((await cookies()).get(THEME_COOKIE)?.value);
@@ -92,14 +91,14 @@ export async function generateViewport(): Promise<Viewport> {
 }
 
 /**
- * La langue se pose ici, une fois, pour les trois groupes de routes — le panel,
- * l'écran de connexion et l'assistant de démarrage. Le `lang` du document n'est
- * pas cosmétique : il commande la coupure des mots, la voix des lecteurs
- * d'écran et la traduction automatique du navigateur. Il était figé à « fr ».
+ * The language is set here, once, for the three route groups — the panel, the
+ * sign-in screen and the onboarding assistant. The document's `lang` is not
+ * cosmetic: it drives hyphenation, screen readers' voice and the browser's
+ * automatic translation. It used to be frozen at "fr".
  */
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const language = await currentLanguage();
-  // Le thème est posé par le serveur : la première image est la bonne.
+  // The theme is set by the server: the first frame is the right one.
   const theme = parseTheme((await cookies()).get(THEME_COOKIE)?.value);
 
   return (

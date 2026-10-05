@@ -20,25 +20,24 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Le garde-fou de volume : son réglage, et son état à cet instant.
+ * The volume guardrail: its setting, and its state at this instant.
  *
- * ── Pourquoi exposer l'état et pas seulement le réglage ─────────────────────
- * Un opérateur qui ne reçoit rien doit pouvoir distinguer « rien ne s'est
- * passé » de « quarante alertes sont retenues, le résumé part dans deux
- * minutes ». Sans cette lecture, un regroupement actif est indiscernable d'une
- * couche de notification en panne — et la première réaction devant une couche
- * de notification suspectée en panne est de la reconfigurer, c'est-à-dire de
- * faire du bruit pour rien.
+ * ── Why expose the state and not only the setting ───────────────────────────
+ * An operator who receives nothing must be able to tell "nothing happened" from
+ * "forty alerts are held, the digest goes out in two minutes". Without this read,
+ * an active grouping is indistinguishable from a broken notification layer — and
+ * the first reaction to a notification layer suspected broken is to reconfigure
+ * it, that is to make noise for nothing.
  *
- * ── Pourquoi le réglage est borné et non libre ──────────────────────────────
- * `NOTIFICATION_DIGEST_WINDOW_MS_MIN` interdit de descendre la fenêtre à zéro.
- * Un garde-fou de volume désactivable est un garde-fou désactivé au premier
- * agacement, et l'on retrouverait cinquante messages pour cinquante pannes. On
- * peut raccourcir la fenêtre — jusqu'à quinze secondes, ce qui revient à
- * n'attendre que le temps d'une rafale —, jamais la supprimer.
+ * ── Why the setting is bounded and not free ─────────────────────────────────
+ * `NOTIFICATION_DIGEST_WINDOW_MS_MIN` forbids bringing the window down to zero. A
+ * volume guardrail that can be turned off is a guardrail turned off at the first
+ * annoyance, and one would get fifty messages for fifty outages again. The window
+ * can be shortened — down to fifteen seconds, which amounts to only waiting for a
+ * burst —, never removed.
  *
- * `settings:read` / `settings:manage`, comme les canaux eux-mêmes : c'est le
- * même réglage d'instance, vu sous un autre angle.
+ * `settings:read` / `settings:manage`, like the channels themselves: it is the
+ * same instance setting, seen from another angle.
  */
 
 const patchSchema = z.object({
@@ -49,13 +48,13 @@ const patchSchema = z.object({
     .max(NOTIFICATION_DIGEST_WINDOW_MS_MAX),
 });
 
-/** Les bornes, envoyées à l'écran : aucune valeur figée dans le composant. */
+/** The bounds, sent to the screen: no value frozen in the component. */
 function vocabulary(windowMs: number) {
   return {
     minWindowMs: NOTIFICATION_DIGEST_WINDOW_MS_MIN,
     maxWindowMs: NOTIFICATION_DIGEST_WINDOW_MS_MAX,
     maxEscalation: NOTIFICATION_DIGEST_MAX_ESCALATION,
-    /** Plafond réel de la fenêtre après élargissements, pour la base courante. */
+    /** The window's real cap after widenings, for the current database. */
     widestWindowMs: notificationDigestWindowMs(windowMs, NOTIFICATION_DIGEST_MAX_ESCALATION),
     itemLimit: NOTIFICATION_DIGEST_ITEM_LIMIT,
   };
@@ -71,8 +70,8 @@ export const GET = apiRoute(async (request) => {
 
   return NextResponse.json({
     policy,
-    // Seuls les groupes réellement en cours intéressent l'écran : une ligne
-    // « silencieux » par événement du catalogue n'apprendrait rien.
+    // Only the groups really in progress interest the screen: a "silent" row per
+    // catalog event would teach nothing.
     states: states.filter((state) => state.windowEndsAt !== null),
     vocabulary: vocabulary(policy.windowMs),
   });

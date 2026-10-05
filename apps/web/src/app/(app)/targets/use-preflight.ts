@@ -15,9 +15,9 @@ const POLL_INTERVAL_MS = 1000;
 const POLL_TIMEOUT_MS = 120_000;
 
 /**
- * Lance un preflight et suit la tâche BullMQ jusqu'à son terme, puis
- * rafraîchit les données du Server Component. C'est ce qui fait apparaître
- * « Docker ✓ / K3s ✗ » sans rechargement manuel.
+ * Starts a preflight and follows the BullMQ job until it ends, then refreshes the
+ * Server Component's data. That is what makes "Docker ✓ / K3s ✗" appear without a
+ * manual reload.
  */
 export function usePreflight({ onError }: { onError: (message: string | null) => void }) {
   const router = useRouter();
@@ -65,7 +65,7 @@ export function usePreflight({ onError }: { onError: (message: string | null) =>
           if (job.state === 'completed') {
             setPhase(targetId, t('phase.done'));
             router.refresh();
-            // Laisse le rafraîchissement serveur remplacer la mention.
+            // Lets the server refresh replace the mention.
             setTimeout(() => setPhase(targetId, null), 1500);
             return;
           }

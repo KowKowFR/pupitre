@@ -3,9 +3,9 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
 /**
- * Puce de filtre avec compteur — « Opérationnelles 2 ». Active, elle prend
- * l'outremer doux : c'est une sélection, pas un état. Bouton pour un filtre
- * local, lien pour un filtre porté par l'URL.
+ * A filter chip with a counter — "Operational 2". Active, it takes the soft
+ * ultramarine: it is a selection, not a state. A button for a local filter, a
+ * link for a filter carried by the URL.
  */
 function FilterChip({
   active,

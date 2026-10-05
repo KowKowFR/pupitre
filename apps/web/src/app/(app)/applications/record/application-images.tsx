@@ -15,13 +15,13 @@ import { common } from '@/i18n/messages/common';
 import { toast } from '@/lib/toast';
 
 /**
- * Les images de l'application, comparées à leurs registres.
+ * The application's images, compared with their registries.
  *
- * Deux nouvelles possibles, qui n'appellent pas le même geste : un tag
- * **republié** (`postgres:16` désigne un autre contenu) se rattrape en
- * redéployant la version en service, sans rien changer d'autre — c'est le
- * bouton « Mettre à jour » ; un **tag plus récent** (`16.6` après `16.4`) est
- * une modification de l'AppSpec, que l'écran signale sans la faire.
+ * Two possible pieces of news, which do not call for the same gesture: a
+ * **republished** tag (`postgres:16` designates another content) is caught up by
+ * redeploying the version in service, without changing anything else — that is
+ * the "Update" button; a **more recent tag** (`16.6` after `16.4`) is a change to
+ * the AppSpec, which the screen points out without making it.
  */
 
 export type ImageRowView = {
@@ -72,9 +72,9 @@ export function ApplicationImages({
   applicationId: string;
   applicationSlug: string;
   rows: ImageRowView[];
-  /** Services dont l'image vient d'un registre. Zéro : tout est construit sur la cible. */
+  /** Services whose image comes from a registry. Zero: everything is built on the target. */
   checkable: number;
-  /** Le plus récent des relevés : quand il change, la vérification demandée est revenue. */
+  /** The most recent of the findings: when it changes, the requested check has come back. */
   checkedAt: string | null;
   checkedAgo: string | null;
   canDeploy: boolean;
@@ -87,7 +87,7 @@ export function ApplicationImages({
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<ImageRowView | null>(null);
 
-  // Le relevé a changé sous nos pieds : la vérification demandée est revenue.
+  // The finding changed under our feet: the requested check has come back.
   const [seenCheck, setSeenCheck] = useState(checkedAt);
   if (seenCheck !== checkedAt) {
     setSeenCheck(checkedAt);
@@ -106,8 +106,8 @@ export function ApplicationImages({
       setChecking(false);
       return;
     }
-    // Le résultat revient par le signal `applications`, qui rafraîchit la page ;
-    // le bouton se libère de lui-même au bout d'un moment s'il n'arrive pas.
+    // The result comes back through the `applications` signal, which refreshes the
+    // page; the button frees itself after a while if it does not arrive.
     toast({ title: t('images.check.queued'), tone: 'accent' });
     window.setTimeout(() => setChecking(false), 20_000);
   }

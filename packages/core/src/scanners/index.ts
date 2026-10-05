@@ -12,12 +12,12 @@ export { GrypeScanner, GRYPE_VERSION, normalizeGrypeReport, type GrypeOutput } f
 export { SyftSBOM, SYFT_VERSION } from './syft.js';
 
 /**
- * Fabrique de scanners.
+ * Scanner factory.
  *
- * Ajouter un scanner = ajouter une classe et une entrée ici (plus la valeur
- * dans l'enum Postgres et son libellé dans `SCANNERS`, qui sont des données).
- * Ni le worker, ni les routes, ni l'UI n'ont à changer — c'est le critère de
- * qualité posé par CLAUDE.md.
+ * Adding a scanner = adding a class and an entry here (plus the value in the
+ * Postgres enum and its label in `SCANNERS`, which are data). Neither the
+ * worker, nor the routes, nor the UI have to change — it is the quality bar set
+ * by CLAUDE.md.
  */
 const registry: Record<ScannerKey, () => Scanner> = {
   trivy: () => new TrivyScanner(),

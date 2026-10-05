@@ -3,18 +3,17 @@ import { getAppSettings, getDb, gt, sessions } from '@pupitre/db';
 import { logger } from './logger';
 
 /**
- * La durée des sessions, telle que Better Auth et `requireSession()` s'en
- * servent à l'instant.
+ * The sessions' duration, as Better Auth and `requireSession()` use it right now.
  *
- * Better Auth fige la durée d'une session à la construction de son instance :
- * comme pour la connexion unique, la politique effective vit sur `globalThis`
- * et `getAuth()` reconstruit son instance quand elle change. Elle est relue au
- * démarrage et après chaque enregistrement des réglages.
+ * Better Auth freezes a session's duration when its instance is built: as for
+ * single sign-on, the effective policy lives on `globalThis` and `getAuth()`
+ * rebuilds its instance when it changes. It is read again at startup and after
+ * each save of the settings.
  */
 export type SessionPolicy = {
-  /** Sans activité pendant cette durée, la session se ferme. */
+  /** Without activity for this duration, the session closes. */
   idleSeconds: number;
-  /** Au-delà, la session se ferme même active. `null` : pas de plafond. */
+  /** Beyond this, the session closes even when active. `null`: no ceiling. */
   maxSeconds: number | null;
 };
 
@@ -29,12 +28,12 @@ export function sessionPolicy(): SessionPolicy {
 }
 
 /**
- * Raccourcir la durée sans activité vaut aussi pour les sessions déjà
- * ouvertes. Better Auth ne prolonge une session qu'à l'approche de son
- * échéance — calculée avec l'ancienne durée — : sans rien faire, une session
- * ouverte pour sept jours le resterait. On ramène donc chaque échéance à
- * « maintenant plus la nouvelle durée » ; une session utilisée sera prolongée
- * comme les autres. Rend le nombre de sessions raccourcies.
+ * Shortening the duration without activity also holds for the sessions already
+ * open. Better Auth only extends a session as its expiry approaches — computed
+ * with the old duration —: doing nothing, a session opened for seven days would
+ * stay so. We therefore bring each expiry back to "now plus the new duration"; a
+ * used session will be extended like the others. Returns the number of shortened
+ * sessions.
  */
 export async function clampOpenSessions(idleSeconds: number): Promise<number> {
   const limit = new Date(Date.now() + idleSeconds * 1000);
@@ -54,7 +53,7 @@ export async function refreshSessionPolicy(): Promise<SessionPolicy> {
       maxSeconds: accounts.sessionMaxHours === null ? null : accounts.sessionMaxHours * 3600,
     };
   } catch (error) {
-    logger.error({ err: error }, 'durée des sessions illisible — valeurs par défaut');
+    logger.error({ err: error }, 'sessions duration unreadable — default values');
   }
   return sessionPolicy();
 }

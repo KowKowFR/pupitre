@@ -57,7 +57,7 @@ export type TargetRow = {
   labels: Record<string, string>;
   runtimesAvailable: RuntimesAvailable;
   status: TargetHealth;
-  /** Date courte du dernier preflight (« 30/09 14:05 »), formatée par le serveur. */
+  /** The last preflight's short date ("30/09 14:05"), formatted by the server. */
   lastCheck: string | null;
   lastCheckClock: string | null;
   testedAgo: string | null;
@@ -71,9 +71,9 @@ export type TargetRow = {
   error: string | null;
   portRange: { start: number; end: number };
   portsUsed: number | null;
-  /** `null` : la session ne lit pas les déploiements. */
+  /** `null`: the session does not read deployments. */
   apps: Array<{ id: string; slug: string; health: string }> | null;
-  /** `null` : la session ne peut pas supprimer, le décompte n'a pas été lu. */
+  /** `null`: the session cannot delete, the count was not read. */
   deployments: { live: number; history: number } | null;
 };
 
@@ -82,13 +82,13 @@ export type Limits = { load: number; memory: number; disk: number };
 
 const STATUSES: TargetHealth[] = ['ok', 'degraded', 'unreachable', 'unknown'];
 
-/** En-dessous, un champ de recherche encombre plus qu'il ne sert. */
+/** Below this, a search field clutters more than it helps. */
 const SEARCH_THRESHOLD = 5;
 
-/** Ce qu'une ligne de tableau peut porter d'étiquettes sans se déformer. */
+/** What a table row can carry in labels without warping. */
 const ROW_LABEL_MAX = 3;
 
-/** Accents et casse ignorés : on cherche « acmé » en tapant « acme ». */
+/** Accents and case ignored: one finds "acmé" by typing "acme". */
 function fold(text: string): string {
   return text
     .normalize('NFD')
@@ -97,12 +97,12 @@ function fold(text: string): string {
 }
 
 /**
- * La liste des cibles et leur aperçu.
+ * The targets list and their overview.
  *
- * Le filtrage est intégralement en mémoire : un parc réaliste est déjà chargé
- * en entier, et repasser par le serveur pour retirer trois lignes coûterait un
- * aller-retour par frappe. Les filtres sont reportés dans l'URL par l'API
- * History — partageables, sans relancer le rendu serveur.
+ * Filtering is entirely in memory: a realistic fleet is already fully loaded, and
+ * going through the server again to remove three rows would cost a round trip per
+ * keystroke. The filters are carried over into the URL through the History API —
+ * shareable, without restarting the server rendering.
  */
 export function TargetsView({
   targets,
@@ -129,7 +129,7 @@ export function TargetsView({
   initialLabels: string[];
   initialStatus: string;
   canReadWorkloads: boolean;
-  /** La fiche de la cible ouverte, rendue au serveur. */
+  /** The open target's record, rendered on the server. */
   record: TargetRecordView | null;
 }) {
   const router = useRouter();
@@ -162,9 +162,9 @@ export function TargetsView({
   }, [query, selectedLabels, status]);
 
   /*
-   * Facettes : toutes les paires présentes dans le parc, les plus portées
-   * d'abord — l'étiquette qui découpe le parc en deux est plus utile comme
-   * filtre que celle qui n'en désigne qu'une machine.
+   * Facets: all the pairs present in the fleet, the most carried first — the label
+   * that cuts the fleet in two is more useful as a filter than one that only
+   * designates a single machine.
    */
   const facets = useMemo(() => {
     const counts = new Map<string, { key: string; value: string; count: number }>();
@@ -182,9 +182,9 @@ export function TargetsView({
   }, [targets]);
 
   /*
-   * Deux paires de la même clé se lisent en OU, deux clés différentes en ET :
-   * « (env=prod OU env=staging) ET client=acme » est exactement la question
-   * qu'on se pose devant un parc.
+   * Two pairs of the same key read as OR, two different keys as AND:
+   * "(env=prod OR env=staging) AND client=acme" is exactly the question one asks in
+   * front of a fleet.
    */
   const selectedByKey = useMemo(() => {
     const groups = new Map<string, Set<string>>();
@@ -201,8 +201,8 @@ export function TargetsView({
 
   const selectedPairs = useMemo(() => new Set(selectedLabels), [selectedLabels]);
 
-  // Les cibles qui passent le filtre texte et étiquettes — avant l'état, pour
-  // que les compteurs des puces d'état disent ce qu'on obtiendrait en cliquant.
+  // The targets that pass the text and labels filter — before the state, so that
+  // the state chips' counters say what one would get by clicking.
   const matching = useMemo(() => {
     const needle = fold(query.trim());
     return targets.filter((target) => {
@@ -229,25 +229,25 @@ export function TargetsView({
   const drawer = useRecordSelection(
     'target',
     visible.map((target) => target.name),
-    // Un ancien lien `/targets/<uuid>` arrive avec l'identifiant.
+    // An old `/targets/<uuid>` link arrives with the identifier.
     (value) => targets.find((target) => target.name === value || target.id === value)?.name ?? null,
   );
   const current = targets.find((target) => target.name === drawer.selected) ?? null;
   const [editParam, setEditParam] = useRecordParam('edit');
-  // « Ajouter une cible » vit dans l'URL comme l'aperçu : `?add=new` l'ouvre
-  // depuis un lien, la palette ou l'ancienne adresse `/targets/new`.
+  // "Add a target" lives in the URL like the overview: `?add=new` opens it from a
+  // link, the palette or the old `/targets/new` address.
   const adding = useDrawerSelection('add');
   const pathname = usePathname();
 
-  /** La cible créée : le tiroir d'ajout se ferme, son aperçu s'ouvre, prêt à tester. */
+  /** The created target: the add drawer closes, its overview opens, ready to test. */
   function created(target: CreatedTarget) {
     window.history.replaceState(
       null,
       '',
       hrefWithSelection(pathname, window.location.search, 'add', null),
     );
-    // La fiche se lit au serveur : on l'ouvre par une navigation, qui relit
-    // aussi la liste avec la nouvelle cible.
+    // The record is read on the server: it is opened through a navigation, which
+    // also reads the list again with the new target.
     drawer.open(target.name);
     toast({
       title: t('toast.created', { name: target.name }),
@@ -570,8 +570,8 @@ export function TargetsView({
         onEdit={(editing) => setEditParam(editing ? '1' : null)}
         onEdited={(saved) => {
           toast({ title: t('toast.updated', { name: saved.name }), tone: 'ok' });
-          // Un nom changé change la clé du tiroir : on rouvre la fiche sous
-          // son nouveau nom, relue par le serveur.
+          // A changed name changes the drawer's key: we reopen the record under its new
+          // name, read again by the server.
           drawer.open(saved.name);
           router.refresh();
         }}
@@ -633,9 +633,9 @@ export function Runtimes({ runtimes }: { runtimes: RuntimesAvailable }) {
 }
 
 /**
- * La charge sur 24 h : la forme de la courbe, puis la mémoire et le disque.
- * Une machine qui ne répond plus le dit en rouge à la place des jauges ; une
- * machine jamais relevée le dit en toutes lettres.
+ * The load over 24 h: the curve's shape, then the memory and the disk. A machine
+ * that no longer answers says so in red in place of the gauges; a machine never
+ * read says so in words.
  */
 function LoadCell({ target, limits }: { target: TargetRow; limits: Limits }) {
   const t = useT(messages);

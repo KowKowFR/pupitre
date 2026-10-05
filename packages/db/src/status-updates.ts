@@ -10,17 +10,17 @@ import { monitorIncidents, monitors } from './schema/monitors.js';
 import { statusUpdates, type StatusUpdateRow } from './schema/status-updates.js';
 
 /**
- * Les annonces des pages de statut, en base. Ce qui convient à quel sujet, et
- * ce qu'un visiteur en lit, est décidé dans `@pupitre/core`
- * (`status-updates.ts`) ; ici, des lectures et des écritures.
+ * Status page announcements, in the database. What suits which subject, and
+ * what a visitor reads of it, is decided in `@pupitre/core`
+ * (`status-updates.ts`); here, reads and writes.
  */
 
 export type { StatusUpdateRow };
 
-/** Une annonce, avec le nom de qui l'a publiée — pour l'écran, jamais pour une page publique. */
+/** An announcement, with its publisher's name — for the screen, never for a public page. */
 export type StatusUpdateView = StatusUpdateRow & { authorName: string | null };
 
-/** Le sujet d'une ligne : la contrainte de la table garantit qu'il y en a un, et un seul. */
+/** A row's subject: the table's constraint guarantees there is one, and only one. */
 export function statusUpdateSubjectOf(row: StatusUpdateRow): StatusUpdateSubject {
   return row.monitorIncidentId
     ? { type: 'incident', id: row.monitorIncidentId }
@@ -42,7 +42,7 @@ export async function createStatusUpdate(
       createdBy,
     })
     .returning();
-  if (!row) throw new Error('annonce non créée');
+  if (!row) throw new Error('announcement not created');
   return row;
 }
 
@@ -55,9 +55,10 @@ export async function getStatusUpdate(
 }
 
 /**
- * Corrige une annonce. L'heure de publication ne bouge pas : c'est celle qu'on
- * a lue. `updated_at` prend l'heure de la base, comme `created_at` : les
- * comparer dit si l'annonce a été corrigée, sans dépendre de l'horloge du panel.
+ * Corrects an announcement. The publication time does not move: it is the one
+ * that was read. `updated_at` takes the database's time, like `created_at`:
+ * comparing them says whether the announcement was corrected, without depending
+ * on the panel's clock.
  */
 export async function updateStatusUpdate(
   id: string,
@@ -80,7 +81,7 @@ export async function deleteStatusUpdate(id: string, db: Database = getDb()): Pr
   return rows.length > 0;
 }
 
-/** Les annonces de ces sujets, des plus anciennes aux plus récentes. */
+/** The announcements of these subjects, from oldest to newest. */
 export async function listStatusUpdates(
   subjects: { incidentIds?: readonly string[]; windowIds?: readonly string[] },
   db: Database = getDb(),
@@ -101,7 +102,7 @@ export async function listStatusUpdates(
   return rows.map((row) => ({ ...row.update, authorName: row.authorName }));
 }
 
-/** Combien d'annonces porte chacun de ces incidents. */
+/** How many announcements each of these incidents carries. */
 export async function countStatusUpdatesByIncident(
   incidentIds: readonly string[],
   db: Database = getDb(),
@@ -126,9 +127,9 @@ export type AnnounceableIncident = {
 };
 
 /**
- * Les pannes qu'on peut annoncer sur ces sondes : celles en cours, et celles
- * refermées depuis `resolvedAfter` — le temps d'écrire « résolu » et ce
- * qu'on a appris. Les plus récentes d'abord.
+ * The outages that can be announced on these probes: the ongoing ones, and those
+ * closed since `resolvedAfter` — time to write "resolved" and what was learned.
+ * The most recent first.
  */
 export async function announceableIncidents(
   monitorIds: readonly string[],
@@ -156,7 +157,7 @@ export async function announceableIncidents(
     .limit(50);
 }
 
-/** Un incident de sonde, quelle que soit la sonde : pour l'annoncer depuis sa fiche. */
+/** A probe incident, whatever the probe: to announce it from its record. */
 export async function getAnnounceableIncident(
   id: string,
   db: Database = getDb(),

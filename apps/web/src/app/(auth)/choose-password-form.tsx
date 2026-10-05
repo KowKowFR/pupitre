@@ -15,28 +15,27 @@ import { Input } from '@/components/ui/input';
 import { AuthCard } from './auth-card';
 
 /**
- * Choisir un mot de passe à partir d'un lien.
+ * Choosing a password from a link.
  *
- * **Un seul composant pour deux écrans** — accepter une invitation et
- * réinitialiser son mot de passe. Le mécanisme est rigoureusement le même : un
- * jeton à usage unique fabriqué et consommé par Better Auth, un `POST
- * /api/auth/reset-password`. Ce qui change est la situation de la personne, donc
- * les mots ; en faire deux formulaires ferait deux endroits où corriger le même
- * bug.
+ * **A single component for two screens** — accepting an invitation and resetting
+ * one's password. The mechanism is strictly the same: a single-use token made and
+ * consumed by Better Auth, a `POST /api/auth/reset-password`. What changes is the
+ * person's situation, hence the words; making two forms of it would make two
+ * places where to fix the same bug.
  *
- * Rien n'est réimplémenté ici : ni la validation du jeton, ni son expiration,
- * ni son usage unique, ni la fermeture des sessions. Cet écran saisit un mot de
- * passe et lit une réponse.
+ * Nothing is reimplemented here: neither the token's validation, nor its expiry,
+ * nor its single use, nor the closing of sessions. This screen takes a password
+ * and reads an answer.
  */
 
 export type ChoosePasswordCopy = {
   title: string;
   description: string;
   submit: string;
-  /** Ce qu'on affiche quand tout s'est bien passé. */
+  /** What is shown when everything went well. */
   doneTitle: string;
   doneBody: string;
-  /** Ce qu'on affiche quand le lien est mort. */
+  /** What is shown when the link is dead. */
   deadTitle: string;
   deadBody: string;
 };
@@ -46,9 +45,9 @@ export function ChoosePasswordForm({
   linkError,
   copy,
 }: {
-  /** Jeton extrait de l'URL. `null` si le lien n'en portait pas. */
+  /** The token extracted from the URL. `null` if the link did not carry one. */
   token: string | null;
-  /** Code d'erreur posé par Better Auth sur le lien (`INVALID_TOKEN`…). */
+  /** The error code set by Better Auth on the link (`INVALID_TOKEN`…). */
   linkError: string | null;
   copy: ChoosePasswordCopy;
 }) {
@@ -59,9 +58,9 @@ export function ChoosePasswordForm({
   const [done, setDone] = useState(false);
   const [pending, setPending] = useState(false);
   /**
-   * Le jeton a été refusé **à la soumission**. Distingué d'un lien mort dès
-   * l'arrivée : ici la personne a tapé un mot de passe pour rien, et lui
-   * réafficher le formulaire l'inviterait à recommencer indéfiniment.
+   * The token was refused **at submission**. Told apart from a link dead on arrival:
+   * here the person typed a password for nothing, and showing them the form again
+   * would invite them to start over endlessly.
    */
   const [consumed, setConsumed] = useState(false);
 
@@ -77,9 +76,8 @@ export function ChoosePasswordForm({
       setError(t('password.tooShort', { count: PASSWORD_MIN_LENGTH }));
       return;
     }
-    // Vérifiée ici et pas côté serveur : c'est une garde contre la faute de
-    // frappe, pas une règle de sécurité. Le serveur n'a aucune raison de
-    // recevoir deux fois la même chaîne.
+    // Checked here and not on the server side: it is a guard against typos, not a
+    // security rule. The server has no reason to receive the same string twice.
     if (password !== confirmation) {
       setError(t('choose.mismatch'));
       return;
@@ -94,7 +92,7 @@ export function ChoosePasswordForm({
     setPending(false);
 
     if (result.error) {
-      // Un jeton refusé ne se réessaie pas : il a expiré, ou il a déjà servi.
+      // A refused token is not retried: it expired, or it was already used.
       if (result.error.status === 400) {
         setConsumed(true);
         return;
@@ -122,8 +120,8 @@ export function ChoosePasswordForm({
     );
   }
 
-  // Lien mort — soit refusé d'entrée par le contrôle de Better Auth, soit refusé
-  // à la soumission parce qu'il venait de servir.
+  // Dead link — either refused on arrival by Better Auth's check, or refused at
+  // submission because it had just been used.
   if (consumed || linkError || !token) {
     return (
       <AuthCard title={copy.deadTitle} description={copy.deadBody}>

@@ -8,8 +8,8 @@ declare global {
 }
 
 /**
- * Producteur de la queue `ops`.
- * Toute opération longue passe par ici — jamais dans le corps d'une route.
+ * The `ops` queue's producer. Every long-running operation goes through here —
+ * never in a route's body.
  */
 export function getOpsQueue(): Queue {
   globalThis.__tpOpsQueue ??= new Queue(OPS_QUEUE, {

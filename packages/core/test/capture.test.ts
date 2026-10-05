@@ -18,74 +18,75 @@ import { captureUrl } from '../src/capture/cdp.js';
 import { createCaptureEgress } from '../src/capture/egress.js';
 
 /**
- * Ce que ces tests couvrent, et ce qu'ils ne couvrent pas.
+ * What these tests cover, and what they do not.
  *
- * Pas de test de rendu : « le navigateur a produit une image » ne se vérifie
- * qu'avec un vrai navigateur, et un tel test serait une simulation de Chromium
- * qui prouverait surtout que la simulation fonctionne. La preuve du rendu est
- * une capture réelle, montrée à la revue.
+ * No rendering test: "the browser produced an image" can only be checked with a
+ * real browser, and such a test would be a simulation of Chromium that would
+ * mostly prove the simulation works. The proof of rendering is a real capture,
+ * shown at review.
  *
- * Ce qui **est** testé ici est ce qui peut casser en silence :
- *   — les bornes (hauteur, cadence de référence, URL capturable) ;
- *   — la garde SSRF du mandataire de sortie, sur un vrai socket ;
- *   — et surtout : **qu'une capture impossible ne lève jamais**. C'est la
- *     règle dont dépend « une capture ne fait jamais échouer une sonde ».
+ * What **is** tested here is what can break silently:
+ *   — the bounds (height, reference interval, capturable URL);
+ *   — the egress proxy's SSRF guard, on a real socket;
+ *   — and above all: **that an impossible capture never throws**. It is the
+ *     rule "a capture never fails a probe" depends on.
  */
 
-// ─── bornes ───────────────────────────────────────────────────────────────────
+// ─── bounds ───────────────────────────────────────────────────────────────────
 
-test('la hauteur rendue est bornée, et le dit quand elle tronque', () => {
+test('the rendered height is bounded, and says so when it truncates', () => {
   assert.deepEqual(captureHeightFor(1_200), { height: 1_200, truncated: false });
   assert.deepEqual(captureHeightFor(20_000), {
     height: MONITOR_CAPTURE_MAX_HEIGHT,
     truncated: true,
   });
-  // Une page qui se déclare vide doit quand même produire une image : « la page
-  // était blanche » est précisément l'un des diagnostics recherchés.
+  // A page that declares itself empty must still produce an image: "the page was
+  // blank" is precisely one of the diagnoses looked for.
   assert.deepEqual(captureHeightFor(0), {
     height: MONITOR_CAPTURE_VIEWPORT_HEIGHT,
     truncated: false,
   });
   assert.equal(captureHeightFor(Number.NaN).truncated, false);
-  // Jamais une bande de 3 px de haut, illisible.
+  // Never an unreadable strip 3 px high.
   assert.ok(captureHeightFor(12).height >= 200);
 });
 
-test('les bornes de poids et de qualité restent celles qui ont été arbitrées', () => {
+test('the weight and quality bounds stay the ones that were decided', () => {
   assert.equal(MONITOR_CAPTURE_QUALITY, 70);
   assert.equal(MONITOR_CAPTURE_MAX_BYTES, 1_500_000);
   assert.equal(MONITOR_CAPTURE_MAX_HEIGHT, 2_400);
 });
 
-test('la cadence de référence se compte en heures, pas en mesures', () => {
+test('the reference interval counts in hours, not in measurements', () => {
   const now = new Date('2026-01-01T12:00:00Z');
-  assert.equal(referenceIsDue(null, now), true, 'jamais photographiée : due');
+  assert.equal(referenceIsDue(null, now), true, 'never photographed: due');
   const recent = new Date(now.getTime() - 3_600_000);
   assert.equal(referenceIsDue(recent, now), false);
   const old = new Date(now.getTime() - (MONITOR_CAPTURE_REFERENCE_EVERY_HOURS + 1) * 3_600_000);
   assert.equal(referenceIsDue(old, now), true);
 });
 
-// Leurs libellés sont ceux de l'écran des captures (`capture.kind.*`), dans
-// la langue de l'instance : le cœur ne garde que les moments.
-test('il n’y a que trois moments de capture', () => {
+// Their labels are the captures screen's (`capture.kind.*`), in the instance's
+// language: the core only keeps the moments.
+test('there are only three capture moments', () => {
   assert.deepEqual([...CAPTURE_KINDS], ['reference', 'incident_open', 'incident_resolved']);
 });
 
-test("seules les URL qu'un navigateur peut ouvrir sont capturables", () => {
+test('only the URLs a browser can open are capturable', () => {
   assert.equal(captureUrlFor('https://exemple.fr/etat'), 'https://exemple.fr/etat');
   assert.equal(captureUrlFor('http://exemple.fr:8080/'), 'http://exemple.fr:8080/');
   assert.equal(captureUrlFor('ftp://exemple.fr/'), null);
   assert.equal(captureUrlFor('file:///etc/passwd'), null);
-  assert.equal(captureUrlFor('pas une url'), null);
-  // Le fragment ne sert à rien au rendu et se recopierait en clair en base.
+  assert.equal(captureUrlFor('not a url'), null);
+  // The fragment is useless for rendering and would be copied in clear into the
+  // database.
   assert.equal(captureUrlFor('https://exemple.fr/a#jeton'), 'https://exemple.fr/a');
 });
 
-// ─── la règle : une capture ne lève jamais ────────────────────────────────────
+// ─── the rule: a capture never throws ─────────────────────────────────────────
 
-test('un navigateur injoignable rend un verdict, pas une exception', async () => {
-  // Port fermé : c'est exactement le cas « le profil Compose n'est pas démarré ».
+test('an unreachable browser returns a verdict, not an exception', async () => {
+  // Closed port: it is exactly the case "the Compose profile is not started".
   const outcome = await captureUrl({
     cdpUrl: 'http://127.0.0.1:1/',
     url: 'https://exemple.fr/',
@@ -95,9 +96,9 @@ test('un navigateur injoignable rend un verdict, pas une exception', async () =>
   assert.equal(outcome.ok === false && outcome.reason, 'browser-unavailable');
 });
 
-test('un point CDP qui répond n’importe quoi rend aussi un verdict', async () => {
+test('a CDP endpoint that answers nonsense returns a verdict too', async () => {
   const server = createServer((_req, res) => {
-    res.writeHead(200, { 'content-type': 'application/json' }).end('{"pas":"ce qu\'on attend"}');
+    res.writeHead(200, { 'content-type': 'application/json' }).end('{"not":"what we expect"}');
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const { port } = server.address() as AddressInfo;
@@ -114,13 +115,12 @@ test('un point CDP qui répond n’importe quoi rend aussi un verdict', async ()
   }
 });
 
-// ─── le mandataire de sortie ──────────────────────────────────────────────────
+// ─── the egress proxy ─────────────────────────────────────────────────────────
 
 /**
- * Le mandataire est testé **sur un vrai socket**, pas sur une simulation : sa
- * raison d'être est d'être le seul chemin de sortie du navigateur, et un test
- * qui appellerait la fonction de garde directement ne prouverait pas qu'elle
- * est branchée sur ce chemin-là.
+ * The proxy is tested **on a real socket**, not on a simulation: its reason for
+ * being is to be the browser's only way out, and a test that called the guard
+ * function directly would not prove it is plugged into that path.
  */
 async function withEgress<T>(
   allowlist: string,
@@ -140,24 +140,23 @@ async function withEgress<T>(
   }
 }
 
-test('le mandataire refuse une adresse privée, avec le motif de la politique SSRF', async () => {
+test('the proxy refuses a private address, with the SSRF policy’s reason', async () => {
   await withEgress('', async (base, blocked) => {
     const response = await fetch(`${base}/`, {
       method: 'GET',
-      // Forme absolue : c'est ainsi qu'un navigateur parle à son mandataire.
-      // `fetch` ne sait pas l'émettre, on passe donc par une requête brute.
+      // Absolute form: that is how a browser talks to its proxy. `fetch` cannot emit
+      // it, so we go through a raw request.
       headers: { 'x-inutile': '1' },
     }).catch(() => null);
-    // Une requête non absolue est refusée en 400 : le mandataire ne sert pas de
-    // serveur web.
+    // A non-absolute request is refused with a 400: the proxy is not a web server.
     assert.equal(response?.status, 400);
-    assert.equal(blocked.length, 0, 'rien à bloquer : la requête était malformée');
+    assert.equal(blocked.length, 0, 'nothing to block: the request was malformed');
   });
 });
 
-test('le mandataire laisse passer le public et bloque le privé', async () => {
+test('the proxy lets public through and blocks private', async () => {
   await withEgress('', async (base, blocked) => {
-    // On parle au mandataire comme un navigateur : requête en forme absolue.
+    // We talk to the proxy like a browser: a request in absolute form.
     const ask = async (target: string): Promise<number> => {
       const url = new URL(base);
       const { createConnection } = await import('node:net');
@@ -170,7 +169,7 @@ test('le mandataire laisse passer le public et bloque le privé', async () => {
         let buffer = '';
         socket.setTimeout(8_000, () => {
           socket.destroy();
-          reject(new Error('mandataire muet'));
+          reject(new Error('silent proxy'));
         });
         socket.on('data', (chunk) => {
           buffer += chunk.toString('utf8');
@@ -183,19 +182,19 @@ test('le mandataire laisse passer le public et bloque le privé', async () => {
       });
     };
 
-    assert.equal(await ask('http://127.0.0.1:9/'), 403, 'le bouclage est refusé');
-    assert.equal(await ask('http://10.1.2.3:80/'), 403, 'le privé est refusé');
+    assert.equal(await ask('http://127.0.0.1:9/'), 403, 'loopback is refused');
+    assert.equal(await ask('http://10.1.2.3:80/'), 403, 'private is refused');
     assert.equal(
       await ask('http://169.254.169.254/latest/meta-data/'),
       403,
-      'le service de métadonnées est refusé, et aucune liste ne peut le débloquer',
+      'the metadata service is refused, and no list can unlock it',
     );
-    assert.equal(blocked.length, 3, 'chaque refus est signalé à l’exploitant');
+    assert.equal(blocked.length, 3, 'each refusal is reported to the operator');
     assert.ok(blocked.some((line) => line.includes('169.254.169.254')));
   });
 });
 
-test('une plage explicitement autorisée passe — la garde est ouvrable, pas absolue', async () => {
+test('an explicitly allowed range passes — the guard can be opened, it is not absolute', async () => {
   const target = createServer((_req, res) => {
     res.writeHead(204).end();
   });
@@ -215,7 +214,7 @@ test('une plage explicitement autorisée passe — la garde est ouvrable, pas ab
         let buffer = '';
         socket.setTimeout(8_000, () => {
           socket.destroy();
-          reject(new Error('mandataire muet'));
+          reject(new Error('silent proxy'));
         });
         socket.on('data', (chunk) => {
           buffer += chunk.toString('utf8');
@@ -223,7 +222,7 @@ test('une plage explicitement autorisée passe — la garde est ouvrable, pas ab
         socket.on('end', () => resolve(Number(/^HTTP\/1\.\d (\d{3})/.exec(buffer)?.[1] ?? 0)));
         socket.on('error', reject);
       });
-      assert.equal(status, 204, 'MONITOR_ALLOWED_CIDRS ouvre la même plage pour le navigateur');
+      assert.equal(status, 204, 'MONITOR_ALLOWED_CIDRS opens the same range for the browser');
     });
   } finally {
     target.close();
@@ -231,6 +230,6 @@ test('une plage explicitement autorisée passe — la garde est ouvrable, pas ab
 });
 
 after(() => {
-  // Rien à nettoyer : chaque test referme ce qu'il a ouvert. Ce bloc existe pour
-  // que `node --test` n'attende pas un descripteur oublié si un test échoue.
+  // Nothing to clean up: each test closes what it opened. This block exists so
+  // that `node --test` does not wait for a forgotten descriptor if a test fails.
 });

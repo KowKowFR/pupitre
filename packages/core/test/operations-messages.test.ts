@@ -12,8 +12,8 @@ import { scannerCopy } from '../src/scanners/messages.js';
 import { issueMessage } from '../src/validation.js';
 
 /**
- * Les messages des opérations — sauvegardes, scanners, sortie réseau,
- * masquage des secrets, fenêtres de maintenance — dans les deux langues.
+ * The operations messages — backups, scanners, network egress, secret masking,
+ * maintenance windows — in both languages.
  */
 
 const MASTER_KEY = 'a'.repeat(64);
@@ -32,29 +32,29 @@ function placeholders(value: Entry): string[] {
   return [...names].sort();
 }
 
-describe('Messages des opérations — deux langues', () => {
+describe('Operations messages — two languages', () => {
   for (const [name, bundle] of Object.entries({ backup: backupCopy, scanner: scannerCopy })) {
-    it(`${name} : mêmes variables, pas de français dans l'anglais`, () => {
+    it(`${name}: same variables, no French in the English`, () => {
       const fr = bundle.fr as Record<string, Entry>;
       const en = bundle.en as Record<string, Entry>;
       for (const key of Object.keys(fr)) {
-        assert.ok(en[key] !== undefined, `${key} manque en anglais`);
+        assert.ok(en[key] !== undefined, `${key} missing in English`);
         assert.deepEqual(placeholders(en[key] as Entry), placeholders(fr[key] as Entry), key);
         for (const form of forms(en[key] as Entry)) {
-          assert.doesNotMatch(form, /[éèêàçùœ«»]/, `${key} : « ${form} »`);
+          assert.doesNotMatch(form, /[éèêàçùœ«»]/, `${key}: “${form}”`);
         }
       }
     });
   }
 });
 
-describe('Messages des opérations — rendus en anglais', () => {
-  it('une destination de sauvegarde absente', async () => {
+describe('Operations messages — rendered in English', () => {
+  it('a missing backup destination', async () => {
     const store = new LocalBackupStore({ path: '/pupitre-test-absent' }, 'en');
     await assert.rejects(store.check(), /does not exist in the worker container/);
   });
 
-  it('un fichier de sauvegarde tronqué', async () => {
+  it('a truncated backup file', async () => {
     const sealed = await encryptBuffer(Buffer.from('pupitre'), MASTER_KEY);
     const truncated = sealed.subarray(0, sealed.length - 4);
     await assert.rejects(
@@ -69,7 +69,7 @@ describe('Messages des opérations — rendus en anglais', () => {
     );
   });
 
-  it('une sortie réseau refusée', async () => {
+  it('a refused network egress', async () => {
     const refused = await assertEgressAllowed('http://169.254.169.254/latest').then(
       () => null,
       (error: unknown) => error,
@@ -79,14 +79,14 @@ describe('Messages des opérations — rendus en anglais', () => {
     assert.match(refused.message, /lien-local/);
   });
 
-  it('un secret masqué', () => {
+  it('a masked secret', () => {
     assert.equal(
       redactSecrets('token abcdefghijkl refused', { token: 'abcdefghijkl' }, 'en'),
       'token [redacted secret] refused',
     );
   });
 
-  it('une fenêtre de maintenance mal formée', () => {
+  it('a malformed maintenance window', () => {
     const parsed = createMaintenanceSchema.safeParse({
       title: 'Migration',
       startsAt: '2026-10-05T10:00:00Z',

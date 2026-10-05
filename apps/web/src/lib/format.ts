@@ -1,35 +1,34 @@
 import type { AppSettings, DateStyleName } from '@pupitre/core';
 
 /**
- * Formatage des dates **et des nombres**, à partir des paramètres d'instance.
+ * Formatting dates **and numbers**, from the instance settings.
  *
- * Pas de `'server-only'` ici : `targets-view.tsx` est un composant *client*,
- * `audit-table.tsx` un composant *serveur*, et les deux doivent afficher la
- * même chaîne pour la même date. C'est aussi pourquoi le fuseau est toujours
- * explicite et jamais celui du navigateur — un `Intl.DateTimeFormat` sans
- * `timeZone` rendrait « 14:32 » côté serveur (UTC dans le conteneur) et
- * « 15:32 » côté client (Europe/Paris), et Next signalerait une erreur
- * d'hydratation à la première table de dates.
+ * No `'server-only'` here: `targets-view.tsx` is a *client* component,
+ * `audit-table.tsx` a *server* component, and both must show the same string for
+ * the same date. That is also why the time zone is always explicit and never the
+ * browser's — an `Intl.DateTimeFormat` without `timeZone` would render "14:32" on
+ * the server side (UTC in the container) and "15:32" on the client side
+ * (Europe/Paris), and Next would report a hydration error at the first table of
+ * dates.
  *
- * **Descente par props, pas par contexte React.** Un contexte posé dans
- * `(app)/layout.tsx` serait plus court à écrire, mais un contexte n'est
- * lisible que depuis un composant client : `audit-table.tsx`, qui est rendu
- * sur le serveur, ne pourrait pas s'en servir, et il faudrait le convertir en
- * composant client pour la seule raison d'afficher une date. Les props
- * traversent les deux mondes sans rien convertir.
+ * **Passed down through props, not through a React context.** A context set in
+ * `(app)/layout.tsx` would be shorter to write, but a context is only readable
+ * from a client component: `audit-table.tsx`, which is rendered on the server,
+ * could not use it, and it would have to be converted into a client component
+ * for the sole reason of showing a date. Props cross both worlds without
+ * converting anything.
  *
- * **Les nombres suivent exactement la même règle, et pour la même raison.**
- * `1 234,5` en français, `1,234.5` en anglais : c'est la locale d'instance qui
- * tranche, jamais `navigator.language`, jamais `undefined`. Un
- * `toLocaleString()` sans locale prend celle du navigateur côté client et
- * celle du conteneur côté serveur — deux chaînes différentes pour le même
- * nombre, et Next signale une erreur d'hydratation. La locale voyage donc dans
- * `FormatSettings`, à côté du fuseau, et les deux mondes lisent la même valeur.
+ * **Numbers follow exactly the same rule, and for the same reason.** `1 234,5` in
+ * French, `1,234.5` in English: it is the instance's locale that decides, never
+ * `navigator.language`, never `undefined`. A `toLocaleString()` without a locale
+ * takes the browser's on the client side and the container's on the server side
+ * — two different strings for the same number, and Next reports a hydration
+ * error. The locale therefore travels in `FormatSettings`, next to the time zone,
+ * and both worlds read the same value.
  *
- * `settings.locale` est utilisé **tel quel** (`fr-FR`, `en-GB`) et jamais
- * réduit à ses deux premières lettres : `en-GB` et `en-US` n'écrivent pas la
- * même date, et rien ne garantit qu'`Intl` rende pour `fr` ce qu'il rend pour
- * `fr-FR`.
+ * `settings.locale` is used **as is** (`fr-FR`, `en-GB`) and never reduced to its
+ * first two letters: `en-GB` and `en-US` do not write the same date, and nothing
+ * guarantees that `Intl` renders for `fr` what it renders for `fr-FR`.
  */
 
 export type FormatSettings = {
@@ -39,7 +38,7 @@ export type FormatSettings = {
   timeStyle: DateStyleName;
 };
 
-/** Extrait de quoi formater à partir des paramètres complets. */
+/** Extracts what it takes to format from the complete settings. */
 export function formatSettingsOf(settings: AppSettings): FormatSettings {
   return {
     timezone: settings.timezone,
@@ -50,9 +49,9 @@ export function formatSettingsOf(settings: AppSettings): FormatSettings {
 }
 
 /**
- * Construire un `Intl.DateTimeFormat` coûte plus cher que de l'utiliser : on
- * garde les instances, indexées par leur configuration. Le nombre de
- * combinaisons est borné par les paramètres, jamais par les données.
+ * Building an `Intl.DateTimeFormat` costs more than using it: we keep the
+ * instances, indexed by their configuration. The number of combinations is
+ * bounded by the settings, never by the data.
  */
 const formatters = new Map<string, Intl.DateTimeFormat>();
 
@@ -73,8 +72,8 @@ function formatterFor(settings: FormatSettings): Intl.DateTimeFormat {
 export type DateInput = Date | string | number | null | undefined;
 
 /**
- * Formate une date. `null` rend le texte de repli plutôt qu'une exception :
- * « jamais testée », « aucune exécution » sont des cas normaux, pas des erreurs.
+ * Formats a date. `null` returns the fallback text rather than an exception:
+ * "never tested", "no run" are normal cases, not errors.
  */
 export function formatDateTime(
   value: DateInput,
@@ -87,7 +86,7 @@ export function formatDateTime(
   return formatterFor(settings).format(date);
 }
 
-/** Formateur pré-lié, pour les composants qui affichent beaucoup de dates. */
+/** A pre-bound formatter, for the components that show many dates. */
 export function createDateFormatter(
   settings: FormatSettings,
   fallback = '—',
@@ -96,16 +95,16 @@ export function createDateFormatter(
 }
 
 /**
- * Formate une date avec des composantes choisies par l'appelant.
+ * Formats a date with components chosen by the caller.
  *
- * Toutes les dates du panel ne se lisent pas avec `dateStyle`/`timeStyle` : un
- * axe de graphique n'écrit que l'heure et la minute, une frise que le jour et
- * l'heure. Ces figures gardent donc leurs options — c'est leur mise en page
- * qui les impose —, mais elles n'ont aucune raison de garder leur locale.
+ * Not all of the panel's dates read with `dateStyle`/`timeStyle`: a chart axis
+ * only writes the hour and minute, a strip only the day and hour. These figures
+ * therefore keep their options — it is their layout that imposes them —, but
+ * they have no reason to keep their locale.
  *
- * Le `timeZone` n'est **pas** imposé ici : certains appelants l'épinglent
- * (l'horodatage d'un déploiement est lu en UTC, délibérément), d'autres
- * suivent l'instance. Chacun le dit dans ses options.
+ * The `timeZone` is **not** imposed here: some callers pin it (a deployment's
+ * timestamp reads in UTC, deliberately), others follow the instance. Each one
+ * says so in its options.
  */
 export function formatDateTimeWith(
   value: DateInput,
@@ -134,11 +133,11 @@ function partsFormatterFor(
 }
 
 /**
- * Les nombres, dans la locale de l'instance.
+ * Numbers, in the instance's locale.
  *
- * Même cache et même raison que pour les dates : construire un
- * `Intl.NumberFormat` coûte plus cher que de s'en servir, et le nombre de
- * combinaisons est borné par les appelants.
+ * The same cache and the same reason as for dates: building an `Intl.NumberFormat`
+ * costs more than using it, and the number of combinations is bounded by the
+ * callers.
  */
 const numberFormatters = new Map<string, Intl.NumberFormat>();
 
@@ -155,8 +154,8 @@ function numberFormatterFor(
 }
 
 /**
- * Formate un nombre. Sans options, c'est exactement ce que rendait
- * `value.toLocaleString(locale)` — séparateur de milliers compris.
+ * Formats a number. Without options, it is exactly what
+ * `value.toLocaleString(locale)` returned — thousands separator included.
  */
 export function formatNumber(
   value: number,

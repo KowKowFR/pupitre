@@ -12,59 +12,56 @@ import { probeSay } from './messages.js';
 import type { MonitorProbe, ProbeContext } from './types.js';
 
 /**
- * Sonde de mot-clé — « la page dit-elle ce qu'elle doit dire ? »
+ * Keyword probe — "does the page say what it must say?"
  *
- * Une sonde HTTP qui rend 200 prouve que *quelque chose* écoute. Elle ne prouve
- * pas que l'application marche : une page d'erreur applicative, un écran de
- * maintenance et un site défiguré rendent 200 avec le même entrain. Le mot-clé
- * est la frontière entre « le serveur répond » et « l'application répond ».
+ * An HTTP probe that returns 200 proves that *something* listens. It does not
+ * prove the application works: an application error page, a maintenance screen
+ * and a defaced site return 200 with the same eagerness. The keyword is the
+ * boundary between "the server answers" and "the application answers".
  *
- * ── Les trois arbitrages ────────────────────────────────────────────────────
+ * ── The three trade-offs ────────────────────────────────────────────────────
  *
- * 1. **Présence et absence.** Voir `keywordConfigSchema` : deux besoins réels
- *    et opposés, tenus par la même requête.
+ * 1. **Presence and absence.** See `keywordConfigSchema`: two real and
+ *    opposite needs, served by the same request.
  *
- * 2. **Sur quoi on cherche.** Par défaut la réponse *telle qu'elle est arrivée*.
- *    C'est le seul texte dont on puisse affirmer qu'il est bien celui qui a été
- *    servi. Chercher dans le « texte visible » supposerait un analyseur HTML :
- *    une dépendance de plus dans un paquet qui n'en a pas, et un analyseur qui
- *    se trompe transforme un site sain en fausse panne. Le mode `text` existe
- *    quand même — il est utile surtout pour un *texte interdit*, qu'un
- *    commentaire ou un attribut ferait sonner à tort — mais il est annoncé pour
- *    ce qu'il est : un dépouillement par expressions régulières, pas un
- *    analyseur. Il ne prétend rien de plus, ni dans le code ni dans l'écran.
+ * 2. **What we search.** By default the response *as it arrived*. It is the only
+ *    text we can assert is really the one that was served. Searching the
+ *    "visible text" would assume an HTML parser: one more dependency in a
+ *    package that has none, and a parser that gets it wrong turns a healthy site
+ *    into a false outage. The `text` mode exists anyway — it is mostly useful for
+ *    a *forbidden text*, which a comment or an attribute would wrongly trigger —
+ *    but it is announced for what it is: stripping by regular expressions, not a
+ *    parser. It claims nothing more, neither in the code nor on screen.
  *
- * 3. **Casse, accents, espaces.** Le mode souple est le défaut, parce que le
- *    faux positif de trois heures du matin est le vrai danger : un mot-clé qui
- *    échoue sur une espace insécable ou une majuscule apprend à l'astreinte à
- *    ignorer les alertes. Le mode strict reste disponible pour qui surveille un
- *    jeton exact plutôt qu'une phrase.
+ * 3. **Case, accents, spaces.** Lenient mode is the default, because the 3 a.m.
+ *    false positive is the real danger: a keyword that fails on a no-break space
+ *    or an uppercase letter teaches on-call to ignore alerts. Strict mode stays
+ *    available for whoever monitors an exact token rather than a sentence.
  *
- * ── Ce qu'elle ne fait pas ──────────────────────────────────────────────────
- * Elle n'exécute pas de JavaScript. Sur une application entièrement rendue par
- * le navigateur, le corps servi ne contient souvent rien d'autre qu'un `<div
- * id="root">` : le mot-clé sera absent, et ce ne sera pas un mensonge de la
- * sonde mais une propriété de la page. C'est écrit dans `neverDoes`.
+ * ── What it does not do ─────────────────────────────────────────────────────
+ * It does not run JavaScript. On an application entirely rendered by the
+ * browser, the served body often contains nothing but a `<div id="root">`: the
+ * keyword will be absent, and it will not be a lie from the probe but a
+ * property of the page. It is written in `neverDoes`.
  */
 
-// ─── normalisation ────────────────────────────────────────────────────────────
+// ─── normalization ────────────────────────────────────────────────────────────
 
-/** Toutes les espaces Unicode, y compris l'insécable et la fine insécable. */
+/** All Unicode spaces, including the no-break and the narrow no-break space. */
 const ANY_SPACE = /\s+/gu;
-/** Marques combinantes, ce qui reste des accents après décomposition NFD. */
+/** Combining marks, what remains of accents after NFD decomposition. */
 const COMBINING = /\p{M}+/gu;
 
 /**
- * Le texte tel qu'on le compare en mode souple.
+ * The text as compared in lenient mode.
  *
- * L'ordre compte. NFKC d'abord : c'est lui qui ramène l'espace insécable
- * (U+00A0), l'espace fine (U+202F) et les ligatures à leur forme ordinaire.
- * Puis la casse, puis NFD + retrait des marques pour les accents, puis
- * l'écrasement des suites d'espaces — un retour à la ligne dans le HTML au
- * milieu de « Se  connecter » ne doit pas compter comme une différence.
+ * Order matters. NFKC first: it is what brings the no-break space (U+00A0), the
+ * narrow space (U+202F) and ligatures back to their ordinary form. Then case,
+ * then NFD + removing marks for accents, then squashing runs of spaces — a line
+ * break in the HTML in the middle of "Sign  in" must not count as a difference.
  *
- * La même fonction est appliquée au texte cherché **et** au texte cherché
- * dedans : c'est la seule façon que la comparaison soit symétrique.
+ * The same function is applied to the searched text **and** to the text
+ * searched in: it is the only way for the comparison to be symmetric.
  */
 export function foldForSearch(value: string): string {
   return value
@@ -89,17 +86,17 @@ const NAMED_ENTITIES: Record<string, string> = {
 };
 
 /**
- * Retire les balises — **approximation assumée**, pas un analyseur.
+ * Removes tags — **an accepted approximation**, not a parser.
  *
- * Elle se trompe sur un `<` littéral dans du texte, sur un `>` dans une valeur
- * d'attribut, sur du CDATA. Ces cas existent et ils sont rares ; ce qui l'est
- * beaucoup moins, c'est « Erreur 500 » dans un commentaire HTML ou dans un
- * `alt`, qui ferait sonner un texte interdit sans qu'aucun visiteur ne l'ait lu.
- * Le choix est offert, pas imposé : le mode par défaut reste la réponse brute.
+ * It gets it wrong on a literal `<` in text, on a `>` in an attribute value, on
+ * CDATA. These cases exist and they are rare; what is much less rare is "Error
+ * 500" in an HTML comment or in an `alt`, which would trigger a forbidden text
+ * no visitor ever read. The choice is offered, not imposed: the default mode
+ * stays the raw response.
  *
- * Les blocs `<script>` et `<style>` partent en premier, avec leur contenu : le
- * JSON d'hydratation d'une application moderne y contient à peu près tous les
- * mots de la page, y compris ceux qu'elle n'affiche pas.
+ * `<script>` and `<style>` blocks go first, with their content: a modern
+ * application's hydration JSON contains just about every word of the page,
+ * including those it does not show.
  */
 export function stripMarkup(html: string): string {
   return html
@@ -120,12 +117,12 @@ export function stripMarkup(html: string): string {
     });
 }
 
-/** Le texte dans lequel on cherchera, selon la portée demandée. */
+/** The text we will search in, according to the requested scope. */
 function haystackOf(body: string, scope: KeywordScope): string {
   return scope === 'text' ? stripMarkup(body) : body;
 }
 
-/** La recherche elle-même, sans réseau — c'est elle que les tests éprouvent. */
+/** The search itself, without network — it is what the tests exercise. */
 export function containsKeyword(
   haystack: string,
   needle: string,
@@ -147,15 +144,15 @@ async function runKeyword(
 
   const result = await guardedFetch({
     url: config.url,
-    // Toujours GET : chercher un mot dans un corps qu'on n'a pas demandé n'a
-    // pas de sens, et HEAD n'en rend pas.
+    // Always GET: looking for a word in a body we did not ask for makes no sense,
+    // and HEAD returns none.
     method: 'GET',
     timeoutMs: config.timeoutMs,
     maxBytes,
     readBody: true,
-    // La garde SSRF complète, redirections comprises : `guardedFetch` re-résout
-    // et re-contrôle chaque saut. La sonde de mot-clé n'a pas sa propre boucle,
-    // donc pas sa propre façon de l'oublier.
+    // The full SSRF guard, redirects included: `guardedFetch` resolves and checks
+    // each hop again. The keyword probe has no loop of its own, hence no way of its
+    // own to forget it.
     allowlist,
     language,
   });
@@ -205,8 +202,8 @@ async function runKeyword(
 
   const body = decodeBody(result.body, result.headers['content-type']);
   const haystack = haystackOf(body, config.scope);
-  // La coupure se dit toujours, et jamais comme une absence : « je ne l'ai pas
-  // trouvé » et « je n'ai pas fini de chercher » sont deux constats différents.
+  // Truncation is always said, and never as an absence: "I did not find it" and
+  // "I did not finish looking" are two different findings.
   const cut = result.truncated ? say('keyword.cut', { kib: config.maxKib }) : '';
 
   if (config.mustContain !== null && !containsKeyword(haystack, config.mustContain, config.matching)) {
@@ -220,9 +217,9 @@ async function runKeyword(
     return verdict('unhealthy', say('keyword.forbidden', { text: config.mustNotContain }));
   }
 
-  // Sain, mais pas muet : si la réponse a été coupée, l'absence du texte
-  // interdit n'est établie que sur ce qu'on a lu. Le dire dans le détail vaut
-  // mieux que de laisser croire à une preuve.
+  // Healthy, but not silent: if the response was cut, the absence of the
+  // forbidden text is only established on what was read. Saying it in the detail
+  // is better than suggesting a proof.
   const partial =
     result.truncated && config.mustNotContain !== null
       ? say('keyword.partial', { kib: config.maxKib })

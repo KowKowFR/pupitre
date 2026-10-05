@@ -7,14 +7,14 @@ import { settings as messages } from '@/i18n/messages/settings';
 import { SETTINGS_GROUPS, groupSections, settingsGroupOf } from './sections';
 
 /**
- * Rail des groupes : quatre entrées, pas dix.
+ * The groups' rail: four entries, not ten.
  *
- * Des liens, pas des onglets : chaque section est une vraie page, adressable et
- * partageable. Un groupe mène à son premier onglet ; il est marqué courant
- * (`aria-current="page"`) quand la page affichée est l'une de ses sections.
+ * Links, not tabs: each section is a real page, addressable and shareable. A
+ * group leads to its first tab; it is marked current (`aria-current="page"`)
+ * when the displayed page is one of its sections.
  *
- * Les entrées reprennent la classe `.nav-item` du rail principal : ce rail se
- * lit comme une subdivision de celui-là, pas comme une pièce rapportée.
+ * The entries reuse the main rail's `.nav-item` class: this rail reads as a
+ * subdivision of that one, not as an added piece.
  */
 export function SettingsNav() {
   const pathname = usePathname();
@@ -47,9 +47,9 @@ export function SettingsNav() {
 }
 
 /**
- * Les onglets du groupe courant : ses sections, chacune une adresse. Toujours
- * des liens — le motif ARIA d'onglets promettrait un panneau qui apparaît sans
- * navigation, ce qui n'est pas le cas.
+ * The current group's tabs: its sections, each one an address. Always links —
+ * the ARIA tabs pattern would promise a panel that appears without navigation,
+ * which is not the case.
  */
 export function SettingsTabs() {
   const pathname = usePathname();

@@ -20,15 +20,15 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Le pire cas : quatre secondes de DNS, puis huit de RDAP en parallèle de six
- * de TLS. La marge couvre l'attente en file ; au-delà, c'est le worker qui ne
- * consomme pas, et l'appelant mérite un 504 franc.
+ * The worst case: four seconds of DNS, then eight of RDAP in parallel with six of
+ * TLS. The margin covers waiting in the queue; beyond that, it is the worker that
+ * is not consuming, and the caller deserves a plain 504.
  */
 const INSPECT_TIMEOUT_MS = 25_000;
 
 /**
- * Chaque relevé interroge un registre RDAP, qui limite lui aussi : un tiroir
- * qu'on ouvre et referme en boucle ne doit pas faire bannir l'instance.
+ * Each reading queries an RDAP registry, which also rate-limits: a drawer opened
+ * and closed in a loop must not get the instance banned.
  */
 const INSPECT_RULE: RateLimitRule = { name: 'domain:inspect', limit: 30, windowSec: 300 };
 
@@ -47,9 +47,9 @@ function queueEvents(): QueueEvents {
 }
 
 /**
- * Le relevé d'un domaine : DNS, adresses, RDAP, certificat — vus du worker,
- * à l'instant. Une lecture : la route enfile et attend, elle n'exécute rien
- * (règle 2). Rien n'est écrit, ni au journal ni sur la route.
+ * A domain's reading: DNS, addresses, RDAP, certificate — seen from the worker,
+ * at the instant. A read: the route queues and waits, it executes nothing (rule
+ * 2). Nothing is written, neither to the log nor on the route.
  */
 export const GET = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'application:read');

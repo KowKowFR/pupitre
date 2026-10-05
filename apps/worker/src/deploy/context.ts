@@ -16,29 +16,29 @@ import { workerSay } from '../messages.js';
 import { sshTargetOf } from './ssh-target.js';
 
 /**
- * Ouverture d'un contexte driver pour un déploiement existant.
+ * Opening a driver context for an existing deployment.
  *
- * Extrait des handlers de déploiement : rollback, destroy, scan
- * périodique, healthcheck périodique et purge des versions ont tous besoin du
- * même contexte, et aucun d'eux ne rejoue le pipeline. Le dupliquer aurait
- * garanti qu'un jour l'un des cinq oublie l'intersection des plages de ports.
+ * Extracted from the deployment handlers: rollback, destroy, periodic scan,
+ * periodic healthcheck and version purge all need the same context, and none of
+ * them replays the pipeline. Duplicating it would have guaranteed that one day
+ * one of the five forgets the port ranges' intersection.
  *
- * C'est le seul endroit — avec le preflight — où un credential est déchiffré,
- * et il ne quitte pas la portée de cette fonction.
+ * It is the only place — with the preflight — where a credential is decrypted,
+ * and it does not leave this function's scope.
  */
 
 /**
- * Fournit au driver les valeurs des secrets déclarés par l'AppSpec.
+ * Provides the driver with the values of the secrets declared by the AppSpec.
  *
- * Attaché à l'**application**, jamais au déploiement : c'est ce qui rend la
- * valeur stable d'une mise en ligne à la suivante. Régénérer le mot de passe
- * PostgreSQL au redéploiement casserait la base existante, dont le volume porte
- * l'ancien — voir le commentaire de `schema/secrets.ts`.
+ * Attached to the **application**, never to the deployment: that is what makes
+ * the value stable from one release to the next. Regenerating the PostgreSQL
+ * password at redeploy would break the existing database, whose volume carries
+ * the old one — see the comment of `schema/secrets.ts`.
  *
- * `ensureApplicationSecrets()` d'abord : une AppSpec qui déclare un secret de
- * plus (ou une application créée avant l'existence du magasin) le voit créé
- * ici, avec une valeur générée. Un nom qui resterait malgré tout introuvable
- * est absent du résultat, et le rendu échoue en le nommant.
+ * `ensureApplicationSecrets()` first: an AppSpec that declares one more secret
+ * (or an application created before the store existed) sees it created here,
+ * with a generated value. A name that would still not be found is absent from
+ * the result, and the render fails by naming it.
  */
 export function secretResolverFor(applicationId: string): SecretResolver {
   return async (names) => {
@@ -55,13 +55,12 @@ export type OpenedContext = {
 };
 
 /**
- * `connect` borne la tentative d'ouverture de session.
+ * `connect` bounds the session opening attempt.
  *
- * Le défaut — trois essais, quinze secondes chacune, plus le backoff — est le
- * bon pour un déploiement : une machine qui rame ne doit pas faire échouer une
- * mise en ligne. Il est le mauvais pour une suppression en cascade sur une
- * cible qu'on sait éteinte : trois machines mortes, c'est deux minutes et demie
- * d'attente avant le premier mot au sujet de ce qui bloque.
+ * The default — three attempts, fifteen seconds each, plus backoff — is right
+ * for a deployment: a struggling machine must not fail a release. It is wrong
+ * for a cascading deletion on a target known to be off: three dead machines make
+ * two and a half minutes of waiting before the first word about what blocks.
  */
 export type OpenContextOptions = { connect?: ConnectOptions };
 
@@ -87,8 +86,8 @@ export async function openDeploymentContext(
     ? await getDeploymentForRun(deployment.previousDeploymentId)
     : null;
 
-  // La plage de la cible, resserrée par celle du worker : une VM peut annoncer
-  // 30000-32767 alors que le pare-feu n'en ouvre que dix.
+  // The target's range, narrowed by the worker's: a VM can announce 30000-32767
+  // while the firewall only opens ten of them.
   const targetRange: PortRange = {
     min: secret.target.portRangeStart,
     max: secret.target.portRangeEnd,

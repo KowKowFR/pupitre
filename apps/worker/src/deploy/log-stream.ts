@@ -11,26 +11,25 @@ import type { Redis } from 'ioredis';
 import { logger } from '../logger.js';
 
 /**
- * Diffusion des logs de déploiement.
+ * Streaming deployment logs.
  *
- * Deux destinations, une seule source :
- *   - Redis pub/sub, pour le direct via SSE ;
- *   - `deployment_steps.log`, pour la relecture après coup.
+ * Two destinations, a single source:
+ *   - Redis pub/sub, for the live feed over SSE;
+ *   - `deployment_steps.log`, for replay afterwards.
  *
- * Les écritures en base sont regroupées : une ligne de `docker compose pull`
- * toutes les 30 ms ferait autant d'UPDATE, ce qui noierait la base pour rien.
+ * Database writes are grouped: a `docker compose pull` line every 30 ms would
+ * make as many UPDATEs, which would drown the database for nothing.
  *
- * **On publie après avoir persisté, jamais l'inverse.** L'ordre importe : le
- * pub/sub Redis n'a pas d'historique, et un client qui se branche ne peut
- * rattraper le passé que par la base. Publier d'abord ouvrirait une fenêtre —
- * large de tout l'intervalle de regroupement — où une ligne est déjà partie sur
- * le canal mais pas encore écrite : le nouvel arrivant la manque des deux côtés
- * et la perd définitivement. En publiant après l'écriture, on garantit
- * « diffusé ⇒ durable », et la couture historique/direct devient sûre par
- * construction plutôt que par chance.
+ * **We publish after persisting, never the reverse.** The order matters: Redis
+ * pub/sub has no history, and a client that connects can only catch up on the
+ * past through the database. Publishing first would open a window — as wide as
+ * the whole grouping interval — where a line has already gone out on the
+ * channel but is not written yet: the newcomer misses it on both sides and loses
+ * it for good. Publishing after the write guarantees "broadcast ⇒ durable", and
+ * the history/live seam becomes safe by construction rather than by luck.
  *
- * Le prix est un retard d'au plus `FLUSH_INTERVAL_MS` sur le direct. Pour un
- * journal de déploiement, c'est imperceptible.
+ * The price is a delay of at most `FLUSH_INTERVAL_MS` on the live feed. For a
+ * deployment log, it is imperceptible.
  */
 
 const FLUSH_INTERVAL_MS = 400;
@@ -39,27 +38,27 @@ const FLUSH_THRESHOLD = 40;
 export class DeployLogStream {
   private buffers = new Map<DeploymentStepKey, string[]>();
   /**
-   * Les mêmes lignes, à plat et dans l'ordre d'émission — les tampons par étape
-   * servent l'écriture groupée, celui-ci sert la diffusion, qui doit rester
-   * globalement ordonnée même quand deux étapes parlent dans le même lot.
+   * The same lines, flat and in emission order — the per-step buffers serve the
+   * grouped write, this one serves the broadcast, which must stay globally ordered
+   * even when two steps speak in the same batch.
    */
   private pendingPublish: DeployMessage[] = [];
   /**
-   * Toutes les publications passent par cette chaîne. Sans elle, un événement
-   * de fin publié pendant qu'un lot de lignes s'écrit encore doublerait ces
-   * lignes et fermerait le flux avant qu'elles n'arrivent.
+   * Every publication goes through this chain. Without it, an end event published
+   * while a batch of lines is still being written would overtake those lines and
+   * close the stream before they arrive.
    */
   private publishQueue: Promise<void> = Promise.resolve();
   private timer: NodeJS.Timeout | null = null;
   private readonly channel: string;
   /**
-   * Dernière ligne émise par étape.
+   * Last line emitted per step.
    *
-   * `docker compose` redessine ses lignes de progression : privé de TTY, il
-   * réémet le même texte plusieurs fois d'affilée (« Network … Creating »
-   * apparaît deux fois). Une fois les séquences ANSI retirées, ces redessins
-   * deviennent des doublons stricts et consécutifs — on les écarte ici, à la
-   * source, plutôt que de les persister puis de les rejouer.
+   * `docker compose` redraws its progress lines: deprived of a TTY, it emits the
+   * same text several times in a row ("Network … Creating" appears twice). Once
+   * the ANSI sequences are removed, these redraws become strict consecutive
+   * duplicates — we discard them here, at the source, rather than persist then
+   * replay them.
    */
   private lastLine = new Map<DeploymentStepKey, string>();
 
@@ -70,7 +69,7 @@ export class DeployLogStream {
     this.channel = deployChannel(deploymentId);
   }
 
-  /** Émet une ligne : mise en tampon, puis base et Redis au prochain lot. */
+  /** Emits a line: buffered, then database and Redis at the next batch. */
   line(step: DeploymentStepKey, text: string, stream: 'stdout' | 'stderr' = 'stdout'): void {
     const cleaned = stripAnsi(text).replace(/\r$/, '');
     if (cleaned.trim().length === 0) return;
@@ -98,10 +97,10 @@ export class DeployLogStream {
   }
 
   /**
-   * Émet un changement d'état. Non persisté : la base porte déjà l'état.
+   * Emits a state change. Not persisted: the database already carries the state.
    *
-   * Vide d'abord ce qui attend, pour qu'un événement n'arrive jamais avant les
-   * lignes qui le précèdent — l'événement terminal ferme le flux côté client.
+   * Flushes what is waiting first, so that an event never arrives before the
+   * lines preceding it — the terminal event closes the stream on the client side.
    */
   event(event: Omit<DeployEvent, 'ts'>): void {
     const message: DeployMessage = {
@@ -113,7 +112,7 @@ export class DeployLogStream {
     });
   }
 
-  /** Sérialise les publications pour que l'ordre d'émission soit préservé. */
+  /** Serializes the publications so that emission order is preserved. */
   private enqueuePublish(messages: readonly DeployMessage[]): void {
     if (messages.length === 0) return;
     const batch = [...messages];
@@ -122,7 +121,7 @@ export class DeployLogStream {
         try {
           await this.publisher.publish(this.channel, JSON.stringify(message));
         } catch (error) {
-          logger.warn({ err: error, channel: this.channel }, 'publication Redis impossible');
+          logger.warn({ err: error, channel: this.channel }, 'Redis publication failed');
         }
       }
     });
@@ -136,7 +135,7 @@ export class DeployLogStream {
     }, FLUSH_INTERVAL_MS);
   }
 
-  /** Écrit en base tout ce qui est en attente. */
+  /** Writes to the database everything that is pending. */
   async flush(): Promise<void> {
     if (this.timer) {
       clearTimeout(this.timer);
@@ -152,12 +151,12 @@ export class DeployLogStream {
       try {
         await appendStepLog(this.deploymentId, step, `${lines.join('\n')}\n`);
       } catch (error) {
-        // La ligne ne sera pas relisible après coup, mais la taire priverait
-        // aussi le spectateur en cours. On diffuse quand même, et l'avertissement
-        // garde trace de la perte de durabilité.
+        // The line will not be readable afterwards, but silencing it would also deprive
+        // the current viewer. We broadcast anyway, and the warning keeps a trace of the
+        // lost durability.
         logger.warn(
           { err: error, deploymentId: this.deploymentId, step },
-          "journal d'étape non persisté",
+          'step log not persisted',
         );
       }
     }
@@ -167,8 +166,8 @@ export class DeployLogStream {
 
   async close(): Promise<void> {
     await this.flush();
-    // La chaîne de publication porte le dernier lot : l'attendre évite de
-    // couper la connexion Redis avant qu'il ne soit parti.
+    // The publication chain carries the last batch: waiting for it avoids cutting
+    // the Redis connection before it has gone out.
     await this.publishQueue;
   }
 }

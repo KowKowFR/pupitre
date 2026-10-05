@@ -23,15 +23,15 @@ const paramsSchema = z.object({ id: z.string().uuid(), name: secretNameSchema })
 type Context = { params: Promise<{ id: string; name: string }> };
 
 /**
- * Deux gestes, un seul verbe.
+ * Two gestures, a single verb.
  *
- * `{ "value": "..." }` pose une valeur venue de l'extérieur — une clé d'API
- * qu'aucun tirage au sort ne peut deviner. Elle devient `provided`.
- * `{ "generate": true }` en tire une nouvelle, forte, que personne ne lira
- * jamais : c'est le geste de rotation, et c'est aussi le défaut à la création.
+ * `{ "value": "..." }` sets a value coming from outside — an API key no random
+ * draw can guess. It becomes `provided`. `{ "generate": true }` draws a new,
+ * strong one that nobody will ever read: it is the rotation gesture, and it is
+ * also the default at creation.
  *
- * Aucune réponse, ici ou ailleurs, ne porte la valeur. Poser un secret et le
- * relire sont deux droits différents, et le second n'existe pas.
+ * No response, here or elsewhere, carries the value. Setting a secret and reading
+ * it back are two different rights, and the second does not exist.
  */
 const bodySchema = z.union([
   z.object({ value: secretValueSchema }),
@@ -46,9 +46,9 @@ export const PUT = apiRoute<Context>(async (request, context) => {
   const application = await getApplication(id);
   if (!application) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
-  // Un alias n'a pas de valeur à lui : lui en poser une créerait la seconde
-  // ligne que `from` existe pour éviter, et les deux services repartiraient
-  // avec deux mots de passe différents. On renvoie vers celui qui la porte.
+  // An alias has no value of its own: setting one on it would create the second
+  // row `from` exists to avoid, and the two services would start again with two
+  // different passwords. We refer to the one that carries it.
   const root = secretRootName(secretBindings(application.appSpec), name);
   if (root !== name) {
     throw new ConflictError(msg(messages, 'error.secretAlias', { name, root }));
@@ -64,8 +64,8 @@ export const PUT = apiRoute<Context>(async (request, context) => {
     action: 'application.secret.set',
     resourceType: 'application',
     resourceId: id,
-    // Le nom et la provenance, jamais la valeur ni sa longueur : le journal
-    // d'audit est lisible par quiconque a `audit:read`.
+    // The name and the provenance, never the value nor its length: the audit log is
+    // readable by whoever has `audit:read`.
     after: { slug: application.slug, secret: name, origin: secret.origin },
     ip: auth.ip,
   });
@@ -79,11 +79,12 @@ export const PUT = apiRoute<Context>(async (request, context) => {
 });
 
 /**
- * Supprime un secret.
+ * Deletes a secret.
  *
- * Refusé tant que l'AppSpec courante le déclare : la valeur détruite ne revient
- * pas, et le prochain déploiement échouerait au rendu. Retirer le nom de la spec
- * d'abord, supprimer la valeur ensuite — dans cet ordre, jamais l'inverse.
+ * Refused as long as the current AppSpec declares it: the destroyed value does
+ * not come back, and the next deployment would fail at rendering. Remove the
+ * name from the spec first, delete the value next — in that order, never the
+ * reverse.
  */
 export const DELETE = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'application:update');

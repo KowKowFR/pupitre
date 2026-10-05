@@ -1,31 +1,30 @@
 import type { Translated } from '@pupitre/core';
 
 /**
- * L'aide sur l'AppSpec — la documentation d'un format JSON, servie dans une
- * modale.
+ * The AppSpec help — the documentation of a JSON format, served in a modal.
  *
- * ── Ce qui se traduit, et ce qui ne peut pas ────────────────────────────────
- * Les **noms de champs** (`services`, `env`, `ingress`, `targetService`…) sont
- * les clés du format : traduits, ils décriraient une spec que Zod refuserait.
- * Ils restent donc en anglais dans les deux langues, exactement comme les
- * valeurs (`ClusterIP`, `imagePullPolicy: IfNotPresent`) et les identifiants
- * d'outils. Ce qui les **explique**, lui, se traduit intégralement.
+ * ── What is translated, and what cannot be ──────────────────────────────────
+ * The **field names** (`services`, `env`, `ingress`, `targetService`…) are the
+ * format's keys: translated, they would describe a spec Zod would refuse. They
+ * therefore stay in English in both languages, exactly like the values
+ * (`ClusterIP`, `imagePullPolicy: IfNotPresent`) and the tools' identifiers. What
+ * **explains** them, on the other hand, is translated entirely.
  *
- * ── Pourquoi des accents graves dans les valeurs ────────────────────────────
- * Une phrase de cette page alterne prose et identifiants : « slug en
- * kebab-case, 2 à 48 caractères (`demo-api`) ». Découper chaque phrase en trois
- * clés autour de son `<code>` aurait produit un dictionnaire illisible et une
- * traduction impossible à relire. Les `` ` `` marquent donc le code et `**` le
- * passage appuyé ; `<Rich>` les rend. Le balisage ne sort jamais du
- * dictionnaire, et le traducteur voit la phrase entière.
+ * ── Why backticks in the values ─────────────────────────────────────────────
+ * A sentence of this page alternates prose and identifiers: "kebab-case slug, 2
+ * to 48 characters (`demo-api`)". Cutting each sentence into three keys around
+ * its `<code>` would have produced an unreadable dictionary and a translation
+ * impossible to review. The `` ` `` therefore mark code and `**` the stressed
+ * passage; `<Rich>` renders them. The markup never leaves the dictionary, and the
+ * translator sees the whole sentence.
  *
- * Exception : les six garde-fous. Leurs énoncés portaient **déjà** des accents
- * graves affichés tels quels — c'est leur ponctuation, pas du balisage. Ils
- * sont rendus en texte brut.
+ * Exception: the six guardrails. Their statements **already** carried backticks
+ * shown as is — it is their punctuation, not markup. They are rendered as plain
+ * text.
  */
 const fr = {
   'trigger': "Qu'est-ce qu'une AppSpec ?",
-  // L'espace avant le « ? » est insécable (U+00A0), comme dans le JSX d'origine.
+  // The space before the "?" is non-breaking (U+00A0), as in the original JSX.
   'dialog.title': "Qu'est-ce qu'une AppSpec ?",
   'dialog.description':
     "La description neutre d'une application. Elle dit ce que l'application *est*, jamais comment on la déploie.",
@@ -177,13 +176,13 @@ const fr = {
   'full.note':
     '`front` dépend d’`api`, qui dépend de `postgres` : le graphe est acyclique, un seul service est exposé, et `DATABASE_PASSWORD` n’apparaît que dans `secrets`. Les six garde-fous passent.',
   /**
-   * Les deux exemples, entiers.
+   * The two examples, whole.
    *
-   * Les **clés** et les **valeurs** JSON ne bougent pas d'une langue à l'autre :
-   * ce sont celles que Zod attend, et un exemple recopié doit valider. Seuls
-   * les commentaires `//` changent — ils expliquent, et une explication se
-   * traduit. L'alignement des colonnes tient parce que seul le texte après
-   * `//` est remplacé, jamais le remplissage qui le précède.
+   * The JSON **keys** and **values** do not move from one language to the other:
+   * they are those Zod expects, and a copied example must validate. Only the `//`
+   * comments change — they explain, and an explanation is translated. The columns'
+   * alignment holds because only the text after `//` is replaced, never the
+   * padding before it.
    */
   'example.simple': `{
   "name": "demo-api",              // slug : minuscules, chiffres, tirets

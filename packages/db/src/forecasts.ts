@@ -9,15 +9,14 @@ import { monitorChecks } from './schema/monitors.js';
 import { targetMetricSamples } from './schema/target-metrics.js';
 
 /**
- * Les prévisions en base : leurs épisodes, et les séries que le balayage lit
- * pour les calculer. Le calcul lui-même est dans `@pupitre/core` (pur, testé
- * sur des séries fabriquées) ; ici, seulement des lectures et l'écriture des
- * épisodes.
+ * Forecasts in the database: their episodes, and the series the sweep reads to
+ * compute them. The computation itself is in `@pupitre/core` (pure, tested on
+ * made-up series); here, only reads and writing the episodes.
  */
 
 export type { ForecastRow };
 
-/** Violation de clé étrangère côté PostgreSQL — directe, ou enveloppée par Drizzle. */
+/** Foreign key violation on the PostgreSQL side — direct, or wrapped by Drizzle. */
 function isForeignKeyViolation(error: unknown): boolean {
   for (let current = error; typeof current === 'object' && current !== null;) {
     if ((current as { code?: unknown }).code === '23503') return true;
@@ -30,10 +29,10 @@ const keyOf = (kind: string, subjectType: string, subjectId: string) =>
   `${kind}|${subjectType}|${subjectId}`;
 
 /**
- * Accorde les épisodes ouverts aux constats du balayage : un constat nouveau
- * ouvre un épisode, un constat qui dure le met à jour, un épisode sans constat
- * se referme. Rend ce qui s'est ouvert et refermé — c'est cela, et seulement
- * cela, qui s'écrit au journal et part en notification.
+ * Matches the open episodes with the sweep's findings: a new finding opens an
+ * episode, a lasting finding updates it, an episode without a finding closes.
+ * Returns what opened and closed — that, and only that, is written to the log
+ * and goes out as a notification.
  */
 export async function syncForecasts(
   found: readonly Forecast[],
@@ -63,10 +62,9 @@ export async function syncForecasts(
       if (existing) {
         await tx.update(forecasts).set(values).where(eq(forecasts.id, existing.id));
       } else {
-        // Un savepoint par ouverture : un sujet supprimé entre la lecture du
-        // balayage et cette écriture fait refuser la ligne par sa clé
-        // étrangère — il n'y a plus rien à prévoir, et le reste du balayage
-        // doit passer quand même.
+        // One savepoint per opening: a subject deleted between the sweep's read and this
+        // write makes the row be refused by its foreign key — there is nothing left to
+        // forecast, and the rest of the sweep must go through anyway.
         try {
           const [row] = await tx.transaction((savepoint) =>
             savepoint
@@ -102,7 +100,7 @@ export async function syncForecasts(
   });
 }
 
-/** Les prévisions en cours : « bientôt » d'abord, puis par échéance. */
+/** The ongoing forecasts: "soon" first, then by due date. */
 export async function listOpenForecasts(
   filter: { subjectType?: ForecastSubjectType; subjectId?: string } = {},
   db: Database = getDb(),
@@ -124,12 +122,12 @@ export async function listOpenForecasts(
     );
 }
 
-// ─── Les séries du balayage ───────────────────────────────────────────────────
+// ─── The sweep's series ───────────────────────────────────────────────────────
 
 /**
- * Les relevés d'une machine, en moyennes horaires sur `days` jours : de quoi
- * tirer une pente sans traîner 4 000 lignes par machine. Les relevés d'une
- * machine injoignable ne comptent pas — ils ne mesurent rien.
+ * A machine's readings, as hourly averages over `days` days: enough to draw a
+ * slope without dragging 4,000 rows per machine. An unreachable machine's
+ * readings do not count — they measure nothing.
  */
 export async function targetHourlySeries(
   targetId: string,
@@ -176,9 +174,9 @@ export async function targetHourlySeries(
 }
 
 /**
- * Pour chaque sonde : la latence médiane des dernières 24 h et des six jours
- * d'avant, avec le nombre de mesures de chaque côté, et le nombre de bascules
- * (sain ↔ pas sain) des dernières 24 h. Une requête pour toutes les sondes.
+ * For each probe: the median latency of the last 24 h and of the six days
+ * before, with the number of measurements on each side, and the number of flips
+ * (healthy ↔ not healthy) of the last 24 h. One query for all probes.
  */
 export async function monitorForecastWindows(db: Database = getDb()): Promise<
   Map<
@@ -258,8 +256,8 @@ export async function monitorForecastWindows(db: Database = getDb()): Promise<
 }
 
 /**
- * Les applications dont la sauvegarde est active, avec leur dernière
- * sauvegarde réussie et la date depuis laquelle la politique tient.
+ * The applications whose backup is active, with their last successful backup
+ * and the date since which the policy holds.
  */
 export async function backupFreshness(
   db: Database = getDb(),
@@ -292,7 +290,7 @@ export async function backupFreshness(
   }));
 }
 
-/** Les trois derniers déploiements de chaque cible, du plus récent au plus ancien. */
+/** Each target's last three deployments, from newest to oldest. */
 export async function recentDeploymentsByTarget(
   db: Database = getDb(),
 ): Promise<Map<string, Array<{ status: string; createdAt: Date }>>> {

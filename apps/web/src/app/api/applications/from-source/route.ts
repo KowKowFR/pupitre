@@ -27,33 +27,33 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const bodySchema = z.object({
-  /** Le fournisseur du dépôt ; GitHub quand rien n'est dit. */
+  /** The repository's provider; GitHub when nothing is said. */
   provider: z.enum(SOURCE_PROVIDER_KINDS).default('github'),
   repository: sourceRepositorySchema,
-  /** GitHub : l'installation de l'App. Rien chez Gitea ni GitLab. */
+  /** GitHub: the App's installation. Nothing at Gitea or GitLab. */
   installationId: z.number().int().positive().nullable().default(null),
   branch: z.string().trim().min(1).max(255),
   specPath: repoPathSchema,
   /**
-   * À chaque nouveau commit : `none` — l'application prend la version, on la
-   * déploie où l'on veut ; `running` — elle est redéployée là où elle tourne.
+   * At each new commit: `none` — the application takes the version, one deploys it
+   * wherever one wants; `running` — it is redeployed where it runs.
    */
   deployTo: z.enum(['none', 'running']).default('none'),
-  /** Avec `running` : un changement d'infrastructure attend-il une validation ? */
+  /** With `running`: does an infrastructure change wait for approval? */
   mode: sourceModeSchema.default('auto_unless_infra'),
   description: z.string().max(500).optional(),
-  /** Lire et valider sans rien créer — l'aperçu du formulaire. */
+  /** Read and validate without creating anything — the form's preview. */
   preview: z.boolean().default(false),
 });
 
 /**
- * Créer une application **depuis son dépôt** : le `pupitre.json` d'une branche
- * devient l'application, liée à cette branche, sans cible imposée — on la
- * déploie ensuite où l'on veut, comme n'importe quelle autre. Les commits
- * suivants la mettent à jour, ou la redéploient là où elle tourne.
+ * Creating an application **from its repository**: a branch's `pupitre.json`
+ * becomes the application, linked to that branch, without an imposed target — it
+ * is then deployed wherever one wants, like any other. The following commits
+ * update it, or redeploy it where it runs.
  *
- * Avec `preview`, rien n'est créé : le fichier est lu au commit en tête et
- * validé, pour que le formulaire montre ce qui sera créé — ou ce qui ne va pas.
+ * With `preview`, nothing is created: the file is read at the head commit and
+ * validated, so that the form shows what will be created — or what is wrong.
  */
 export const POST = apiRoute(async (request) => {
   const auth = await requirePermission(request, 'application:create');
@@ -83,8 +83,8 @@ export const POST = apiRoute(async (request) => {
     );
   }
 
-  // Le nom de l'application est celui du fichier : on le lit d'abord, puis le
-  // fichier entier est validé comme le serait un commit (`parseSourceSpec`).
+  // The application's name is the file's: we read it first, then the whole file is
+  // validated as a commit would be (`parseSourceSpec`).
   let name: string | null = null;
   try {
     const raw = safeParseAppSpec(JSON.parse(content));
@@ -96,7 +96,7 @@ export const POST = apiRoute(async (request) => {
   const taken = read.ok ? (await getApplicationBySlug(read.spec.name)) !== null : false;
 
   if (input.preview) {
-    // L'aperçu est une réponse, pas une erreur : la phrase est traduite ici.
+    // The preview is a response, not an error: the sentence is translated here.
     const t = await getT(messages);
     return NextResponse.json({
       sha: head.sha,
@@ -164,12 +164,12 @@ export const POST = apiRoute(async (request) => {
       applicationId: application.id,
       connectionId: connection.id,
       createdBy: auth.userId,
-      // L'application porte l'AppSpec de ce commit : il est la version à
-      // déployer, et le point de départ du suivi.
+      // The application carries this commit's AppSpec: it is the version to deploy,
+      // and the starting point of the follow-up.
       syncedSha: head.sha,
     });
   } catch (error) {
-    // Une application sans sa liaison ne serait pas ce qu'on a demandé.
+    // An application without its link would not be what was asked for.
     await deleteApplication(application.id);
     throw error;
   }

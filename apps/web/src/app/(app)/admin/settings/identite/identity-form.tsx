@@ -12,10 +12,10 @@ import { SectionForm } from '../section-form';
 import { useSettingsPatch } from '../use-settings-patch';
 
 /**
- * Identité de l'instance : deux champs, et rien d'autre.
+ * The instance's identity: two fields, and nothing else.
  *
- * Le corps du PATCH ne nomme que ces deux champs. Renommer le panel ne doit
- * pas pouvoir toucher au seuil de blocage des scans.
+ * The PATCH body only names these two fields. Renaming the panel must not be
+ * able to touch the scans' blocking threshold.
  */
 export function IdentityForm({
   settings,

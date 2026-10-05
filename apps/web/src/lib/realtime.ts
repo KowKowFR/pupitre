@@ -16,20 +16,20 @@ import { logger } from './logger';
 import { getRedis } from './redis';
 
 /**
- * Le temps réel, côté panel.
+ * Real time, panel side.
  *
- * ── Un abonné par processus, pas par onglet ─────────────────────────────────
- * Le flux des logs d'un déploiement ouvre sa propre connexion Redis : il vit
- * quelques minutes. Le flux temps réel, lui, reste ouvert tant qu'un onglet
- * l'est. Une connexion par onglet ferait autant de connexions Redis que de
- * personnes connectées ; ici, une seule connexion s'abonne au canal et
- * distribue en mémoire aux flux SSE du processus.
+ * ── One subscriber per process, not per tab ─────────────────────────────────
+ * A deployment's logs stream opens its own Redis connection: it lives a few
+ * minutes. The real-time stream, for its part, stays open as long as a tab is.
+ * One connection per tab would make as many Redis connections as signed-in
+ * people; here, a single connection subscribes to the channel and distributes in
+ * memory to the process's SSE streams.
  *
- * ── La présence ─────────────────────────────────────────────────────────────
- * Rangée dans Redis, pas en base : elle change toutes les minutes et n'a
- * aucune valeur une heure plus tard. Cinq clés, une par cause — l'état affiché
- * se **déduit** (`effectivePresence`) et n'est gardé que pour savoir s'il a
- * changé depuis la dernière annonce.
+ * ── Presence ────────────────────────────────────────────────────────────────
+ * Stored in Redis, not in the database: it changes every minute and has no value
+ * an hour later. Five keys, one per cause — the shown state is **deduced**
+ * (`effectivePresence`) and only kept to know whether it changed since the last
+ * announcement.
  */
 
 type Listener = (event: RealtimeEvent) => void;
@@ -49,7 +49,7 @@ const KEY = {
   sweepLock: 'presence:sweep-lock',
 } as const;
 
-/** Le balayage des présences : absent après inactivité, hors ligne après un arrêt brutal. */
+/** The presence sweep: away after inactivity, offline after an abrupt stop. */
 const SWEEP_EVERY_MS = 20_000;
 
 function hub(): Hub {
@@ -70,20 +70,20 @@ function hub(): Hub {
       try {
         listener(event);
       } catch (error) {
-        logger.warn({ err: error, type: event.type }, 'auditeur temps réel en erreur');
+        logger.warn({ err: error, type: event.type }, 'real-time listener failed');
       }
     }
   });
   subscriber.on('error', (error) => {
-    logger.warn({ err: error }, 'abonnement temps réel en erreur');
+    logger.warn({ err: error }, 'real-time subscription failed');
   });
   subscriber.subscribe(REALTIME_CHANNEL).catch((error: unknown) => {
-    logger.error({ err: error }, 'abonnement au canal temps réel impossible');
+    logger.error({ err: error }, 'real-time channel subscription failed');
   });
 
   const sweeper = setInterval(() => {
     void sweepPresence().catch((error: unknown) => {
-      logger.warn({ err: error }, 'balayage des présences impossible');
+      logger.warn({ err: error }, 'presence sweep failed');
     });
   }, SWEEP_EVERY_MS);
   sweeper.unref();
@@ -92,7 +92,7 @@ function hub(): Hub {
   return globalThis.__tpRealtimeHub;
 }
 
-/** S'abonne aux événements du canal. Retourne de quoi se désabonner. */
+/** Subscribes to the channel's events. Returns what it takes to unsubscribe. */
 export function onRealtime(listener: Listener): () => void {
   const current = hub();
   current.listeners.add(listener);
@@ -105,14 +105,14 @@ export async function publishRealtime(event: RealtimeEvent): Promise<void> {
   await getRedis().publish(REALTIME_CHANNEL, JSON.stringify(realtimeEventSchema.parse(event)));
 }
 
-/** Publie sans attendre ni échouer : un signal perdu ne doit jamais casser une action. */
+/** Publishes without waiting or failing: a lost signal must never break an action. */
 function signalRealtime(event: RealtimeEvent): void {
   publishRealtime(event).catch((error: unknown) => {
-    logger.warn({ err: error, type: event.type }, 'événement temps réel non publié');
+    logger.warn({ err: error, type: event.type }, 'real-time event not published');
   });
 }
 
-// ─── Présence ────────────────────────────────────────────────────────────────
+// ─── Presence ────────────────────────────────────────────────────────────────
 
 function toNumber(value: string | null | undefined): number | null {
   if (value === null || value === undefined) return null;
@@ -143,7 +143,7 @@ async function statusOf(userId: string, now: number): Promise<PresenceStatus> {
   );
 }
 
-/** Recalcule l'état d'une personne ; l'annonce s'il a changé. */
+/** Computes a person's state again; announces it if it changed. */
 async function refreshPresence(userId: string): Promise<PresenceStatus> {
   const now = Date.now();
   const status = await statusOf(userId, now);
@@ -155,7 +155,7 @@ async function refreshPresence(userId: string): Promise<PresenceStatus> {
   return status;
 }
 
-/** Un onglet vient d'ouvrir son flux. */
+/** A tab just opened its stream. */
 export async function presenceConnected(userId: string): Promise<void> {
   const now = Date.now();
   await getRedis()
@@ -167,19 +167,19 @@ export async function presenceConnected(userId: string): Promise<void> {
   await refreshPresence(userId);
 }
 
-/** Le flux est toujours là : un signe de vie, sans annonce. */
+/** The stream is still there: a sign of life, without an announcement. */
 export async function presenceTouched(userId: string): Promise<void> {
   await getRedis().zadd(KEY.seen, Date.now(), userId);
 }
 
-/** Un onglet s'est fermé. Le dernier fermé fait passer hors ligne tout de suite. */
+/** A tab closed. The last one closed switches to offline right away. */
 export async function presenceDisconnected(userId: string): Promise<void> {
   const remaining = await getRedis().hincrby(KEY.connections, userId, -1);
   if (remaining <= 0) await getRedis().hdel(KEY.connections, userId);
   await refreshPresence(userId);
 }
 
-/** Clavier, souris, onglet revenu au premier plan. */
+/** Keyboard, mouse, tab back in the foreground. */
 export async function presenceInput(userId: string): Promise<PresenceStatus> {
   await getRedis().zadd(KEY.input, Date.now(), userId);
   return refreshPresence(userId);
@@ -198,7 +198,7 @@ export async function getPresenceChoice(userId: string): Promise<PresenceChoice 
   return toChoice(await getRedis().hget(KEY.choice, userId));
 }
 
-/** Qui est là, en ce moment : l'état de chaque personne connue de Redis. */
+/** Who is there, right now: the state of each person known to Redis. */
 export async function presenceSnapshot(): Promise<Record<string, PresenceStatus>> {
   const now = Date.now();
   const redis = getRedis();
@@ -233,10 +233,9 @@ export async function presenceSnapshot(): Promise<Record<string, PresenceStatus>
 }
 
 /**
- * Le balayage : ce que le temps seul fait changer — l'inactivité qui rend
- * absent, le silence d'un processus tué qui rend hors ligne. Un seul processus
- * balaie à la fois (verrou Redis) : sans lui, chaque instance du panel
- * annoncerait les mêmes changements.
+ * The sweep: what time alone changes — inactivity that makes away, the silence of
+ * a killed process that makes offline. Only one process sweeps at a time (a Redis
+ * lock): without it, each panel instance would announce the same changes.
  */
 async function sweepPresence(): Promise<void> {
   const redis = getRedis();
@@ -248,18 +247,18 @@ async function sweepPresence(): Promise<void> {
   for (const [userId, status] of Object.entries(shown)) {
     if (status === 'offline') continue;
     const seen = toNumber(await redis.zscore(KEY.seen, userId));
-    // Un processus tué n'a pas décompté ses onglets : le silence fait foi.
+    // A killed process did not count down its tabs: the silence is authoritative.
     if (seen === null || seen < staleBefore) await redis.hdel(KEY.connections, userId);
     await refreshPresence(userId);
   }
 }
 
-// ─── Journal d'audit ─────────────────────────────────────────────────────────
+// ─── Audit log ───────────────────────────────────────────────────────────────
 
 /**
- * Chaque ligne du journal écrite par le panel devient un signal. Même
- * construction que côté worker (`apps/worker/src/realtime.ts`) : les deux
- * processus écrivent dans `audit_logs`, les deux annoncent.
+ * Each log line written by the panel becomes a signal. The same construction as
+ * on the worker side (`apps/worker/src/realtime.ts`): both processes write to
+ * `audit_logs`, both announce.
  */
 export function installRealtimeAudit(): void {
   setNamedAuditObserver('realtime', (row) => {

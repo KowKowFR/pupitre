@@ -15,48 +15,46 @@ import {
 } from './schema/notifications.js';
 
 /**
- * L'état de regroupement des notifications — la partie durable du garde-fou de
- * volume.
+ * The notifications' grouping state — the durable part of the volume guard.
  *
- * ── L'invariant que ce module tient ─────────────────────────────────────────
- * Pour un groupe donné, à tout instant, **une seule** des deux affirmations est
- * vraie :
- *   — la fenêtre est fermée (`window_ends_at is null`) : la prochaine alerte
- *     part sans délai, et il n'y a rien en attente ;
- *   — la fenêtre est ouverte : aucune alerte de ce groupe ne part, tout est
- *     retenu et nommé, et la fermeture produira exactement un résumé.
+ * ── The invariant this module holds ─────────────────────────────────────────
+ * For a given group, at any time, **only one** of the two statements is true:
+ *   — the window is closed (`window_ends_at is null`): the next alert goes out
+ *     without delay, and nothing is waiting;
+ *   — the window is open: no alert of this group goes out, everything is held
+ *     and named, and closing will produce exactly one digest.
  *
- * Passer de l'un à l'autre est une décision, et une décision prise par deux
- * processus à la fois est une décision fausse : deux alertes « premières »
- * partiraient en même temps, ou deux résumés du même orage. D'où le fait que
- * chaque bascule tient dans **une transaction avec `select … for update`** sur
- * la ligne du groupe. L'exclusion est celle de Postgres — pas un verrou
- * applicatif, pas un `if` optimiste. C'est la même règle que l'anti-collision
- * de ports, qui est une contrainte d'unicité et non un test en TypeScript.
+ * Going from one to the other is a decision, and a decision made by two
+ * processes at once is a wrong decision: two "first" alerts would go out at the
+ * same time, or two digests of the same storm. Hence each flip fits in **one
+ * transaction with `select … for update`** on the group's row. The exclusion is
+ * Postgres's — not an application lock, not an optimistic `if`. It is the same
+ * rule as port collision avoidance, which is a uniqueness constraint and not a
+ * test in TypeScript.
  *
- * ── Ce que « survivre à un redémarrage » veut dire ici ──────────────────────
- * Tout ce qui décide vit dans ces deux tables. Le worker n'a aucun état de
- * regroupement en mémoire : il redémarre, relit, et retrouve exactement la
- * fenêtre qu'il avait laissée, avec les événements déjà retenus. Un redémarrage
- * au milieu d'un orage ne relâche donc rien — c'était le risque, et c'est la
- * raison pour laquelle Redis ne convenait pas.
+ * ── What "surviving a restart" means here ───────────────────────────────────
+ * Everything that decides lives in these two tables. The worker has no grouping
+ * state in memory: it restarts, reads back, and finds exactly the window it had
+ * left, with the events already held. A restart in the middle of a storm
+ * therefore releases nothing — that was the risk, and it is why Redis did not
+ * fit.
  */
 
-// ─── le réglage ───────────────────────────────────────────────────────────────
+// ─── the setting ──────────────────────────────────────────────────────────────
 
 export type NotificationDigestPolicy = {
-  /** Fenêtre de base, en millisecondes. */
+  /** Base window, in milliseconds. */
   windowMs: number;
   updatedAt: Date | null;
   updatedBy: string | null;
 };
 
 /**
- * Le réglage, ou son défaut.
+ * The setting, or its default.
  *
- * Aucune ligne en base = instance neuve : on rend le défaut plutôt que
- * d'imposer une insertion à l'installation. Même motif que les paramètres
- * d'instance, qui rendent un objet complet sur une base vierge.
+ * No row in the database = new instance: we return the default rather than
+ * impose an insert at install time. The same pattern as the instance settings,
+ * which return a complete object on an empty database.
  */
 export async function getNotificationDigestPolicy(
   db: Database = getDb(),
@@ -70,12 +68,12 @@ export async function getNotificationDigestPolicy(
 }
 
 /**
- * Change la fenêtre de base. La valeur est **bornée par Zod**, côté `@pupitre/core` :
- * on peut raccourcir le regroupement, jamais le supprimer.
+ * Changes the base window. The value is **bounded by Zod**, on the
+ * `@pupitre/core` side: grouping can be shortened, never removed.
  *
- * Les fenêtres déjà ouvertes gardent leur durée jusqu'à leur fermeture — les
- * raccourcir d'autorité ferait partir un résumé plus tôt que promis par le
- * message précédent, qui annonçait un délai.
+ * Windows already open keep their duration until they close — shortening them
+ * by authority would make a digest go out earlier than promised by the previous
+ * message, which announced a delay.
  */
 export async function setNotificationDigestPolicy(
   windowMs: number,
@@ -96,43 +94,43 @@ export async function setNotificationDigestPolicy(
   return { windowMs: value, updatedAt: now, updatedBy: actorId };
 }
 
-// ─── l'admission : immédiat, ou retenu ────────────────────────────────────────
+// ─── admission: immediate, or held ────────────────────────────────────────────
 
 export type NotificationAdmissionInput = {
   groupKey: string;
   event: string;
-  /** La ligne que cet événement occupera dans un résumé, déjà composée. */
+  /** The line this event will take in a digest, already composed. */
   item: NotificationDigestItem;
-  /** Injectable pour les vérifications ; `new Date()` en exploitation. */
+  /** Injectable for checks; `new Date()` in operation. */
   now?: Date;
 };
 
 export type NotificationAdmission = {
-  /** `immediate` : la fenêtre était fermée, le message part. `held` : il est retenu. */
+  /** `immediate`: the window was closed, the message goes out. `held`: it is held. */
   mode: 'immediate' | 'held';
   windowEndsAt: Date;
   windowMs: number;
-  /** Événements retenus dans la fenêtre en cours, celui-ci compris. */
+  /** Events held in the current window, this one included. */
   heldCount: number;
 };
 
 /**
- * Décide du sort d'un événement notifiable, et enregistre cette décision.
+ * Decides the fate of a notifiable event, and records that decision.
  *
- * Trois cas, dans cet ordre :
+ * Three cases, in this order:
  *
- *   1. **fenêtre fermée** → `immediate`. Le message part sans délai et la
- *      fenêtre s'ouvre. C'est le cas de la panne isolée, et il est *le premier
- *      testé* : rien, jamais, ne retarde la première alerte d'un incident.
- *   2. **fenêtre ouverte** → `held`. L'événement est stocké, nommé.
- *   3. **fenêtre échue mais des retenus attendent** → `held` aussi. Laisser
- *      passer celui-ci en immédiat pendant que quarante autres attendent le
- *      balayage produirait un message unitaire au milieu d'un orage : la
- *      cohérence du résumé passe avant une poignée de secondes.
+ *   1. **window closed** → `immediate`. The message goes out without delay and
+ *      the window opens. It is the isolated outage's case, and it is *tested
+ *      first*: nothing, ever, delays an incident's first alert.
+ *   2. **window open** → `held`. The event is stored, named.
+ *   3. **window due but held events waiting** → `held` too. Letting this one go
+ *      out immediately while forty others wait for the sweep would produce a
+ *      single message in the middle of a storm: the digest's consistency comes
+ *      before a handful of seconds.
  *
- * Le stockage des lignes est borné à `NOTIFICATION_DIGEST_ITEM_LIMIT` ; au-delà
- * le compteur continue seul. Le résumé dira combien de lignes il tait — un
- * compteur qui déborde en silence serait exactement le défaut qu'on corrige.
+ * Storing lines is capped at `NOTIFICATION_DIGEST_ITEM_LIMIT`; beyond that the
+ * counter goes on alone. The digest will say how many lines it leaves out — a
+ * counter that overflows silently would be exactly the flaw being fixed.
  */
 export async function admitNotification(
   input: NotificationAdmissionInput,
@@ -143,9 +141,8 @@ export async function admitNotification(
   return db.transaction(async (tx) => {
     const policy = await getNotificationDigestPolicy(tx);
 
-    // Matérialise la ligne du groupe avant de la verrouiller : sur un groupe
-    // encore inconnu, un `for update` ne verrouille rien et deux premières
-    // alertes concurrentes partiraient toutes les deux.
+    // Materializes the group's row before locking it: on a group still unknown, a
+    // `for update` locks nothing and two concurrent first alerts would both go out.
     await tx
       .insert(notificationDigestGroups)
       .values({ groupKey: input.groupKey, event: input.event, windowMs: policy.windowMs })
@@ -158,8 +155,8 @@ export async function admitNotification(
       .for('update');
 
     if (!group) {
-      // Ne devrait pas arriver : l'insertion précède. On ne bloque pas une
-      // alerte sur une anomalie de bookkeeping.
+      // Should not happen: the insert comes first. We do not block an alert on a
+      // bookkeeping anomaly.
       return {
         mode: 'immediate' as const,
         windowEndsAt: new Date(now.getTime() + policy.windowMs),
@@ -170,12 +167,12 @@ export async function admitNotification(
 
     const open = group.windowEndsAt !== null && group.windowEndsAt > now;
     /**
-     * Fenêtre échue dont le balayage n'a pas encore pris le contenu. Laisser
-     * passer celle-ci en immédiat pendant que quarante autres attendent
-     * produirait un message unitaire au milieu d'un orage.
+     * A due window whose content the sweep has not taken yet. Letting this one go
+     * out immediately while forty others wait would produce a single message in the
+     * middle of a storm.
      *
-     * Une fenêtre échue et **vide**, elle, vaut fenêtre fermée : l'alerte ne
-     * doit pas patienter le temps que le balayage la referme formellement.
+     * A due and **empty** window counts as a closed window: the alert must not wait
+     * for the sweep to formally close it.
      */
     const awaitingSweep = group.windowEndsAt !== null && group.heldCount > 0;
 
@@ -195,8 +192,8 @@ export async function admitNotification(
         })
         .where(eq(notificationDigestGroups.groupKey, input.groupKey));
 
-      // Purge défensive : une fenêtre qu'on rouvre ne doit pas hériter de lignes
-      // d'un orage précédent mal refermé.
+      // Defensive purge: a window being reopened must not inherit lines from a
+      // previous storm badly closed.
       await tx
         .delete(notificationDigestItems)
         .where(eq(notificationDigestItems.groupKey, input.groupKey));
@@ -238,12 +235,12 @@ export async function admitNotification(
   });
 }
 
-// ─── la fermeture : le résumé, ou le silence ──────────────────────────────────
+// ─── closing: the digest, or silence ──────────────────────────────────────────
 
 export type NotificationDigestClaim = {
   event: string;
   items: NotificationDigestItem[];
-  /** Total retenu — supérieur à `items.length` quand la borne de stockage a mordu. */
+  /** Total held — greater than `items.length` when the storage cap bit. */
   count: number;
   windowStartedAt: Date;
   windowEndedAt: Date;
@@ -251,7 +248,7 @@ export type NotificationDigestClaim = {
   nextWindowMs: number;
 };
 
-/** Groupes dont la fenêtre est échue. Une requête indexée, appelée par le balayage. */
+/** Groups whose window is due. An indexed query, called by the sweep. */
 export async function dueNotificationDigestGroups(
   now: Date = new Date(),
   db: Database = getDb(),
@@ -269,18 +266,18 @@ export async function dueNotificationDigestGroups(
 }
 
 /**
- * Ferme une fenêtre échue et **s'attribue** son contenu.
+ * Closes a due window and **claims** its content.
  *
- * Rend `null` quand il n'y a rien à dire — soit la fenêtre n'est pas échue,
- * soit elle s'est refermée vide. Le second cas est le cœur de l'arbitrage : une
- * fenêtre vide remet le groupe au silence, donc la prochaine panne isolée
- * repartira **immédiatement**. Sans cela, un incident unique coûterait
- * indéfiniment la latence d'une fenêtre.
+ * Returns `null` when there is nothing to say — either the window is not due,
+ * or it closed empty. The second case is the heart of the trade-off: an empty
+ * window puts the group back to silence, so the next isolated outage will go
+ * out **immediately**. Without that, a single incident would cost a window's
+ * latency indefinitely.
  *
- * Quand il y a matière, la même transaction fait trois choses indissociables :
- * elle prend les lignes, elle les efface, et elle rouvre une fenêtre plus
- * longue. Les séparer laisserait une fenêtre où un second balayage renverrait
- * le même résumé.
+ * When there is material, the same transaction does three inseparable things:
+ * it takes the lines, it erases them, and it reopens a longer window.
+ * Separating them would leave a window where a second sweep would send the same
+ * digest again.
  */
 export async function claimNotificationDigest(
   groupKey: string,
@@ -361,12 +358,12 @@ export async function claimNotificationDigest(
   });
 }
 
-// ─── lecture pour l'écran ─────────────────────────────────────────────────────
+// ─── reading for the screen ───────────────────────────────────────────────────
 
 export type NotificationDigestState = {
   groupKey: string;
   event: string;
-  /** `null` = groupe silencieux : la prochaine alerte partira sans délai. */
+  /** `null` = quiet group: the next alert will go out without delay. */
   windowEndsAt: Date | null;
   windowMs: number;
   escalation: number;
@@ -376,12 +373,12 @@ export type NotificationDigestState = {
 };
 
 /**
- * Ce que le regroupement est en train de faire, à cet instant.
+ * What the grouping is doing, at this instant.
  *
- * L'écran des notifications le montre : un opérateur qui ne reçoit pas de
- * message doit pouvoir distinguer « rien ne s'est passé » de « quarante alertes
- * sont retenues et le résumé part dans deux minutes ». Sans cette lecture, le
- * garde-fou serait indiscernable d'une panne.
+ * The notifications screen shows it: an operator who receives no message must
+ * be able to tell "nothing happened" from "forty alerts are held and the digest
+ * goes out in two minutes". Without this read, the guard would be
+ * indistinguishable from an outage.
  */
 export async function listNotificationDigestStates(
   db: Database = getDb(),

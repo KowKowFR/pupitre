@@ -31,32 +31,35 @@ import { bytea } from './columns.js';
 import { applications, targets } from './infra.js';
 
 /**
- * L'intégration avec un fournisseur de code — une GitHub App, ou le jeton d'un
- * compte Gitea / Forgejo ou GitLab. Une par fournisseur et par instance.
+ * The integration with a code provider — a GitHub App, or the token of a Gitea /
+ * Forgejo or GitLab account. One per provider and per instance.
  *
- * Ses secrets — la clé privée de l'App, un jeton — sont chiffrés comme
- * les credentials SSH (AES-256-GCM, `MASTER_KEY`) : ils ouvrent la lecture de
- * dépôts privés, ils ne sortent jamais en clair, ni dans une réponse, ni dans
- * un log. Les colonnes propres à un fournisseur sont vides pour l'autre.
+ * Its secrets — the App's private key, a token — are encrypted like SSH
+ * credentials (AES-256-GCM, `MASTER_KEY`): they open read access to private
+ * repositories, they never go out in clear, neither in a response nor in a log.
+ * One provider's columns are empty for the other.
  */
 export const sourceConnections = pgTable(
   'source_connections',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     provider: sourceProviderEnum('provider').notNull(),
-    /** GitHub : l'App. */
+    /** GitHub: the App. */
     appId: integer('app_id'),
     slug: text('slug'),
     name: text('name').notNull(),
-    /** GitHub : la page de l'App. Gitea, GitLab : l'adresse de la forge. */
+    /** GitHub: the App's page. Gitea, GitLab: the forge's address. */
     htmlUrl: text('html_url').notNull(),
-    /** GitHub : le propriétaire de l'App. Gitea, GitLab : le compte du jeton. */
+    /** GitHub: the App's owner. Gitea, GitLab: the token's account. */
     owner: text('owner').notNull(),
-    /** GitHub : l'API d'un GitHub Enterprise, `null` pour github.com. Gitea, GitLab : l'adresse de la forge. */
+    /**
+     * GitHub: a GitHub Enterprise's API, `null` for github.com. Gitea, GitLab: the
+     * forge's address.
+     */
     apiUrl: text('api_url'),
-    /** GitHub : la clé privée de l'App, chiffrée. */
+    /** GitHub: the App's private key, encrypted. */
     privateKeyEncrypted: text('private_key_encrypted'),
-    /** Gitea, GitLab : le jeton d'accès, chiffré. */
+    /** Gitea, GitLab: the access token, encrypted. */
     tokenEncrypted: text('token_encrypted'),
     createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -66,12 +69,12 @@ export const sourceConnections = pgTable(
 );
 
 /**
- * Une liaison : une application suit une branche d'un dépôt.
+ * A link: an application follows a branch of a repository.
  *
- * Le dépôt dit **quoi** (le `pupitre.json` à `spec_path`) ; la liaison dit
- * **où** (ses cibles) et **quand** (`mode`). Une application peut suivre
- * plusieurs branches — `main` vers la production, `staging` vers la recette —,
- * chacune avec ses cibles et son mode.
+ * The repository says **what** (the `pupitre.json` at `spec_path`); the link
+ * says **where** (its targets) and **when** (`mode`). An application can follow
+ * several branches — `main` toward production, `staging` toward acceptance —,
+ * each with its targets and its mode.
  */
 export const applicationSources = pgTable(
   'application_sources',
@@ -83,34 +86,34 @@ export const applicationSources = pgTable(
     connectionId: uuid('connection_id')
       .notNull()
       .references(() => sourceConnections.id, { onDelete: 'cascade' }),
-    /** GitHub : l'installation de l'App qui ouvre le dépôt. `null` chez Gitea et GitLab. */
+    /** GitHub: the App installation that opens the repository. `null` at Gitea and GitLab. */
     installationId: bigint('installation_id', { mode: 'number' }),
     /** `owner/name`. */
     repository: text('repository').notNull(),
     branch: text('branch').notNull(),
-    /** Chemin du `pupitre.json`, relatif à la racine du dépôt. */
+    /** Path of the `pupitre.json`, relative to the repository's root. */
     specPath: text('spec_path').notNull().default('pupitre.json'),
-    /** Motifs de chemins dont un changement concerne l'application (monorepo). */
+    /** Path patterns whose change concerns the application (monorepo). */
     watchPaths: jsonb('watch_paths').$type<string[]>().notNull().default([]),
     mode: sourceModeEnum('mode').notNull().default('auto_unless_infra'),
-    /** Où part un nouveau commit — voir `sourceDeployToEnum`. */
+    /** Where a new commit goes — see `sourceDeployToEnum`. */
     deployTo: sourceDeployToEnum('deploy_to').notNull().default('targets'),
     enabled: boolean('enabled').notNull().default(true),
-    /** Le dernier commit traité : la prochaine comparaison part de lui. */
+    /** The last commit handled: the next comparison starts from it. */
     lastSeenSha: text('last_seen_sha'),
     /**
-     * Le commit dont l'application porte l'AppSpec — celui dont un déploiement
-     * lancé à la main construit le code. Peut précéder `lastSeenSha` : un
-     * commit en attente de validation n'est pas encore celui de l'application.
+     * The commit whose AppSpec the application carries — the one whose code a
+     * manually started deployment builds. Can precede `lastSeenSha`: a commit
+     * waiting for approval is not yet the application's.
      */
     syncedSha: text('synced_sha'),
     syncedAt: timestamp('synced_at', { withTimezone: true }),
-    /** L'ETag de la dernière réponse : « rien de neuf » ne coûte alors rien. */
+    /** The last response's ETag: "nothing new" then costs nothing. */
     lastEtag: text('last_etag'),
     lastCheckedAt: timestamp('last_checked_at', { withTimezone: true }),
-    /** Dernier commit traité (déployé, proposé ou ignoré) : quand. */
+    /** Last commit handled (deployed, proposed or ignored): when. */
     lastChangeAt: timestamp('last_change_at', { withTimezone: true }),
-    /** Ce qui a échoué au dernier passage, en clair. `null` quand tout va bien. */
+    /** What failed at the last pass, in clear. `null` when all is well. */
     lastError: text('last_error'),
     createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -122,7 +125,7 @@ export const applicationSources = pgTable(
   ],
 );
 
-/** Les cibles d'une liaison, chacune avec son runtime. */
+/** A link's targets, each with its runtime. */
 export const applicationSourceTargets = pgTable(
   'application_source_targets',
   {
@@ -138,10 +141,9 @@ export const applicationSourceTargets = pgTable(
 );
 
 /**
- * Un commit qui attend une validation humaine : parce que la liaison le veut
- * (`manual`), ou parce qu'il touche à l'infrastructure (`auto_unless_infra`).
- * L'AppSpec du commit est gardée telle qu'elle a été lue : valider déploie
- * exactement ce qui a été montré.
+ * A commit waiting for human approval: because the link wants it (`manual`), or
+ * because it touches the infrastructure (`auto_unless_infra`). The commit's
+ * AppSpec is kept as it was read: approving deploys exactly what was shown.
  */
 export const sourceProposals = pgTable(
   'source_proposals',
@@ -155,7 +157,7 @@ export const sourceProposals = pgTable(
     commitAuthor: text('commit_author'),
     commitUrl: text('commit_url'),
     appSpec: jsonb('app_spec').$type<AppSpec>().notNull(),
-    /** `manual` : la liaison demande toujours une validation. `infra` : le commit touche à l'infra. */
+    /** `manual`: the link always asks for approval. `infra`: the commit touches the infra. */
     reason: text('reason').$type<'manual' | 'infra'>().notNull(),
     changes: jsonb('changes').$type<SpecChange[]>().notNull().default([]),
     status: sourceProposalStatusEnum('status').notNull().default('pending'),
@@ -170,14 +172,14 @@ export const sourceProposals = pgTable(
 );
 
 /**
- * Le code d'une application, téléversé dans le panel : l'autre voie d'entrée
- * du code, pour une application qui n'a pas de dépôt lié.
+ * An application's code, uploaded into the panel: the other way in for code, for
+ * an application without a linked repository.
  *
- * Une ligne par envoi. La plus récente est le code de l'application : celui
- * qu'un déploiement construit. Les précédentes restent, peu nombreuses
- * (`SOURCE_ARCHIVES_KEPT`), pour qu'un redéploiement d'une version récente
- * retrouve son code. Les octets vivent en base, par morceaux — ni le panel ni
- * le worker n'ont de disque en commun, et une sauvegarde du panel les emporte.
+ * One row per upload. The most recent is the application's code: the one a
+ * deployment builds. The previous ones stay, few in number
+ * (`SOURCE_ARCHIVES_KEPT`), so that redeploying a recent version finds its code.
+ * The bytes live in the database, in chunks — neither the panel nor the worker
+ * share a disk, and a panel backup takes them along.
  */
 export const sourceArchives = pgTable(
   'source_archives',
@@ -186,18 +188,18 @@ export const sourceArchives = pgTable(
     applicationId: uuid('application_id')
       .notNull()
       .references(() => applications.id, { onDelete: 'cascade' }),
-    /** Le nom du fichier envoyé : une étiquette, rien ne s'écrit jamais sous ce nom. */
+    /** The name of the uploaded file: a label, nothing is ever written under that name. */
     name: text('name').notNull(),
-    /** Lu dans les octets à l'arrivée, jamais dans le nom ni dans l'en-tête. */
+    /** Read from the bytes on arrival, never from the name or the header. */
     format: text('format').$type<SourceArchiveFormat>().notNull(),
     status: sourceArchiveStatusEnum('status').notNull().default('receiving'),
-    /** Les octets reçus et leur SHA-256 : ce qu'un `sha256sum` local doit retrouver. */
+    /** The bytes received and their SHA-256: what a local `sha256sum` must find. */
     uploadedBytes: bigint('uploaded_bytes', { mode: 'number' }).notNull().default(0),
     sha256: text('sha256'),
-    /** L'archive propre, refaite par le worker : celle que les déploiements déposent. */
+    /** The clean archive, remade by the worker: the one deployments place. */
     archiveBytes: bigint('archive_bytes', { mode: 'number' }),
     report: jsonb('report').$type<SourceArchiveReport>(),
-    /** Pourquoi elle est refusée : un code, et le chemin en cause. */
+    /** Why it is refused: a code, and the path at fault. */
     rejection: text('rejection').$type<SourceArchiveRejection>(),
     rejectionDetail: text('rejection_detail'),
     uploadedBy: text('uploaded_by').references(() => users.id, { onDelete: 'set null' }),
@@ -208,10 +210,10 @@ export const sourceArchives = pgTable(
 );
 
 /**
- * Les octets d'une archive, par morceaux d'un mégaoctet : on les écrit au fil
- * de l'envoi et on les relit un à un, sans jamais tenir l'archive entière en
- * mémoire. `upload` : ce qui a été reçu, le temps de la lecture. `tree` :
- * l'archive propre, seule à servir ensuite.
+ * The bytes of an archive, in one-megabyte chunks: they are written as the
+ * upload goes and read back one by one, without ever holding the whole archive
+ * in memory. `upload`: what was received, while it is read. `tree`: the clean
+ * archive, the only one used afterwards.
  */
 export const sourceArchiveChunks = pgTable(
   'source_archive_chunks',

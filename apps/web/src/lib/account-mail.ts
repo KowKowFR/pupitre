@@ -17,53 +17,51 @@ import { logger } from './logger';
 import { getNotificationsQueue, notificationsQueueEvents } from './notifications';
 
 /**
- * Les e-mails du cycle de vie des comptes, côté panel : **on enfile, on
- * n'envoie pas**.
+ * The accounts' life-cycle emails, panel side: **we queue, we do not send**.
  *
- * Le panel n'a aucun transport SMTP — `nodemailer` est tenu hors de son graphe
- * comme `ssh2`. Le travail réel appartient au worker
+ * The panel has no SMTP transport — `nodemailer` is kept out of its graph like
+ * `ssh2`. The real work belongs to the worker
  * (`apps/worker/src/handlers/account-mail.ts`).
  */
 
 /**
- * Durée de vie d'un lien d'invitation : 72 heures.
+ * An invitation link's lifetime: 72 hours.
  *
- * Le choix se joue entre deux échecs. Trop court, l'invitation envoyée un
- * vendredi soir est morte le lundi matin, et l'administrateur passe son temps à
- * en renvoyer. Trop long, un lien qui ouvre un compte dort des mois dans une
- * boîte de réception — et une boîte de réception n'est pas un coffre-fort.
+ * The choice is between two failures. Too short, the invitation sent on a Friday
+ * evening is dead on Monday morning, and the administrator spends their time
+ * resending them. Too long, a link that opens an account sleeps for months in an
+ * inbox — and an inbox is not a safe.
  *
- * 72 heures couvrent un week-end complet, et pas davantage. Renvoyer une
- * invitation périmée est un bouton sur `/admin/users` ; ce n'est pas un motif
- * pour allonger le lien de tout le monde.
+ * 72 hours cover a complete weekend, and no more. Resending an expired invitation
+ * is a button on `/admin/users`; it is not a reason to lengthen everyone's link.
  *
- * Ce n'est pas la durée d'une réinitialisation : celle-là vaut une heure, parce
- * que la personne qui la demande est devant son écran au moment où elle la
- * demande. Voir `PASSWORD_RESET_TTL_SECONDS` dans `./auth.ts`.
+ * It is not a reset's duration: that one is one hour, because the person asking
+ * for it is in front of their screen when they ask. See
+ * `PASSWORD_RESET_TTL_SECONDS` in `./auth.ts`.
  */
 export const INVITATION_TTL_MS = 72 * 3600 * 1000;
 
 /**
- * Borne d'attente d'un envoi dont on veut le verdict.
+ * The waiting bound of a sending whose verdict we want.
  *
- * Même raisonnement — et même valeur — que l'essai d'un canal : le canal se
- * donne 15 s, la file peut en ajouter autant, et au-delà ce n'est plus le
- * serveur SMTP qui est lent mais le worker qui ne consomme pas.
+ * The same reasoning — and the same value — as a channel's test: the channel
+ * gives itself 15 s, the queue can add as much, and beyond that it is no longer
+ * the SMTP server that is slow but the worker that is not consuming.
  */
 const DELIVERY_TIMEOUT_MS = 35_000;
 
 /**
- * L'instance sait-elle poster un e-mail ?
+ * Can the instance post an email?
  *
- * La question est posée à `notification_channels` : c'est là que vit la
- * configuration SMTP, saisie une fois sur `/admin/settings/notifications`, avec
- * son mot de passe chiffré. Lui en donner une seconde, propre au cycle de vie
- * des comptes, obligerait à saisir deux fois le même serveur et à découvrir un
- * jour que l'une des deux a cessé de marcher.
+ * The question is asked of `notification_channels`: that is where the SMTP
+ * configuration lives, typed once on `/admin/settings/notifications`, with its
+ * encrypted password. Giving it a second one, specific to the accounts' life
+ * cycle, would require typing the same server twice and discovering one day that
+ * one of the two stopped working.
  *
- * On ne lit ici que la partie publique : `listNotificationChannels()` ne rend
- * jamais les secrets. Le seul déchiffrement du projet reste
- * `resolveNotificationChannel()`, appelé par le worker au moment d'envoyer.
+ * Only the public part is read here: `listNotificationChannels()` never returns
+ * the secrets. The project's only decryption stays
+ * `resolveNotificationChannel()`, called by the worker at sending time.
  */
 export async function mailChannelName(): Promise<string | null> {
   try {
@@ -77,16 +75,15 @@ export async function mailChannelName(): Promise<string | null> {
     );
     return smtp?.name ?? null;
   } catch (error) {
-    // Une base injoignable ne doit pas faire tomber un écran de connexion. On
-    // répond « pas de canal » : le pire qui arrive est qu'un lien « mot de passe
-    // oublié » soit masqué à tort, ce qui est exactement le comportement voulu
-    // quand on ne sait pas.
-    logger.error({ err: error }, 'lecture des canaux de notification impossible');
+    // An unreachable database must not bring a sign-in screen down. We answer "no
+    // channel": the worst that happens is that a "forgot password" link is wrongly
+    // hidden, which is exactly the behavior wanted when we do not know.
+    logger.error({ err: error }, 'notification channels could not be read');
     return null;
   }
 }
 
-/** `true` si un e-mail de compte a une chance de partir. */
+/** `true` if an account email has a chance of going out. */
 export async function canSendAccountMail(): Promise<boolean> {
   return (await mailChannelName()) !== null;
 }
@@ -96,10 +93,10 @@ export type AccountMailRequest = {
   userId: string;
   to: string;
   recipientName: string;
-  /** Lien porteur du jeton. Chiffré avant d'entrer dans la file. */
+  /** The link carrying the token. Encrypted before entering the queue. */
   url: string;
   expiresAt: Date;
-  /** Qui a déclenché l'envoi, quand quelqu'un l'a déclenché. */
+  /** Who triggered the sending, when someone triggered it. */
   actor?: string | null;
 };
 
@@ -109,8 +106,8 @@ function toJobData(request: AccountMailRequest) {
     userId: request.userId,
     to: request.to,
     recipientName: request.recipientName,
-    // Le jeton ne traverse Redis que chiffré. Voir le commentaire du schéma
-    // dans `@pupitre/core/queue` pour le raisonnement complet.
+    // The token only crosses Redis encrypted. See the schema's comment in
+    // `@pupitre/core/queue` for the complete reasoning.
     encryptedUrl: encrypt(request.url),
     expiresAt: request.expiresAt.toISOString(),
     actor: request.actor ?? null,
@@ -118,12 +115,12 @@ function toJobData(request: AccountMailRequest) {
 }
 
 /**
- * Rétention volontairement courte.
+ * Deliberately short retention.
  *
- * La charge est chiffrée, mais une tâche terminée n'apprend plus rien à
- * personne : le verdict est déjà dans `audit_logs` (`account.mail.sent` /
- * `account.mail.failed`). Soixante secondes laissent seulement à l'appelant le
- * temps de lire le résultat.
+ * The payload is encrypted, but a finished job teaches nobody anything any more:
+ * the verdict is already in `audit_logs` (`account.mail.sent` /
+ * `account.mail.failed`). Sixty seconds only leave the caller the time to read
+ * the result.
  */
 const JOB_OPTIONS = {
   attempts: ACCOUNT_MAIL_ATTEMPTS,
@@ -132,39 +129,39 @@ const JOB_OPTIONS = {
 } as const;
 
 /**
- * ## Le problème que résout ce petit bout de contexte asynchrone
+ * ## The problem this small piece of asynchronous context solves
  *
- * C'est Better Auth qui fabrique le jeton, et il ne le donne qu'à un endroit :
- * son rappel `sendResetPassword`. Ce rappel ne sait pas *qui* l'a déclenché —
- * le formulaire public « mot de passe oublié », ou un administrateur qui
- * invite. Or les deux n'ont pas le même besoin :
+ * It is Better Auth that makes the token, and it only gives it in one place: its
+ * `sendResetPassword` callback. This callback does not know *who* triggered it —
+ * the public "forgot password" form, or an administrator inviting. Yet the two
+ * do not have the same need:
  *
- *   — la réinitialisation publique **ne doit pas attendre** l'envoi. Sinon le
- *     chemin « ce compte existe » durerait quelques secondes de plus que le
- *     chemin « cette adresse est inconnue », et n'importe qui pourrait
- *     chronométrer la différence. L'anti-énumération de Better Auth serait
- *     annulée par notre propre code ;
- *   — l'invitation **doit** attendre : un administrateur regarde son écran, et
- *     « c'est enfilé » ne lui apprend rien sur ce qui est réellement parti.
+ *   — the public reset **must not wait** for the sending. Otherwise the "this
+ *     account exists" path would last a few seconds more than the "this address
+ *     is unknown" path, and anyone could time the difference. Better Auth's
+ *     anti-enumeration would be cancelled by our own code;
+ *   — the invitation **must** wait: an administrator is looking at their screen,
+ *     and "it is queued" teaches them nothing about what really went out.
  *
- * `AsyncLocalStorage` porte cette différence sans variable globale ni
- * paramètre à faire traverser Better Auth : l'appelant qui veut le verdict
- * ouvre un contexte, l'envoi qui s'y produit y dépose sa tâche, et l'appelant
- * l'attend. Hors contexte — le cas par défaut —, l'envoi part en arrière-plan.
+ * `AsyncLocalStorage` carries this difference without a global variable nor a
+ * parameter to pass through Better Auth: the caller that wants the verdict opens
+ * a context, the sending that happens in it drops its job there, and the caller
+ * waits for it. Outside a context — the default case —, the sending goes out in
+ * the background.
  *
- * Cela repose sur un fait vérifié dans la version installée : Better Auth
- * **attend** `sendResetPassword` (`runInBackgroundOrAwait` ne bascule en
- * arrière-plan que si `advanced.backgroundTasks.handler` est configuré, ce
- * qu'on ne fait pas). Si cela changeait, `captureAccountMail()` rendrait un
- * verdict `null` — dégradation, pas panne : voir son commentaire.
+ * This rests on a fact checked in the installed version: Better Auth **awaits**
+ * `sendResetPassword` (`runInBackgroundOrAwait` only switches to the background
+ * if `advanced.backgroundTasks.handler` is configured, which we do not do). If
+ * that changed, `captureAccountMail()` would return a `null` verdict —
+ * degradation, not an outage: see its comment.
  */
 type MailScope = { pending: Promise<Job> | null };
 
 const mailScope = new AsyncLocalStorage<MailScope>();
 
 /**
- * Enfile. Attend si — et seulement si — l'appelant a ouvert un contexte de
- * capture ; part en arrière-plan sinon.
+ * Queues. Waits if — and only if — the caller opened a capture context; goes out
+ * in the background otherwise.
  */
 export function sendAccountMail(request: AccountMailRequest): void {
   const pending = getNotificationsQueue().add(ACCOUNT_MAIL_JOB, toJobData(request), JOB_OPTIONS);
@@ -172,28 +169,27 @@ export function sendAccountMail(request: AccountMailRequest): void {
   const scope = mailScope.getStore();
   if (scope) {
     scope.pending = pending;
-    // Une rejection non traitée tuerait le processus si l'appelant abandonne
-    // avant d'attendre. Le `catch` ici ne masque rien : `captureAccountMail()`
-    // relit la même promesse et la traitera.
+    // An unhandled rejection would kill the process if the caller gives up before
+    // waiting. The `catch` here masks nothing: `captureAccountMail()` reads the same
+    // promise again and will handle it.
     pending.catch(() => undefined);
     return;
   }
 
   void pending.catch((error: unknown) => {
-    // Sans cette ligne, un Redis indisponible ferait disparaître les
-    // réinitialisations sans un mot, et personne ne comprendrait pourquoi
-    // « le mail n'arrive jamais ».
-    logger.error({ err: error, kind: request.kind }, 'e-mail de compte non enfilé');
+    // Without this line, an unavailable Redis would make the resets disappear
+    // without a word, and nobody would understand why "the mail never arrives".
+    logger.error({ err: error, kind: request.kind }, 'account email not queued');
   });
 }
 
 /**
- * Exécute `fn` et rend, en plus de son résultat, le verdict de l'e-mail qu'il a
- * déclenché.
+ * Runs `fn` and returns, on top of its result, the verdict of the email it
+ * triggered.
  *
- * `verdict: null` signifie « aucun e-mail n'est parti pendant cet appel » — par
- * exemple parce que Better Auth n'a trouvé aucun compte. L'appelant décide de
- * ce que cela veut dire chez lui ; ici on ne devine pas.
+ * `verdict: null` means "no email went out during this call" — for instance
+ * because Better Auth found no account. The caller decides what that means on
+ * its side; here we do not guess.
  */
 export async function captureAccountMail<T>(
   fn: () => Promise<T>,
@@ -213,9 +209,9 @@ export async function captureAccountMail<T>(
     if (/timed out/i.test(message)) {
       throw new HttpError(504, 'account_mail_timeout', msg(messages, 'mail.timeout'));
     }
-    // Le worker a rapporté un échec (serveur SMTP injoignable, adresse
-    // refusée…). Le message est déjà expurgé de tout secret par
-    // `describeFailure()` côté worker.
+    // The worker reported a failure (SMTP server unreachable, address refused…). The
+    // message is already redacted of any secret by `describeFailure()` on the worker
+    // side.
     throw new HttpError(502, 'account_mail_failed', msg(messages, 'mail.failed', { message }));
   }
 

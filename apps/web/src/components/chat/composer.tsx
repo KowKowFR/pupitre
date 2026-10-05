@@ -1,6 +1,6 @@
 'use client';
 
-/* eslint-disable @next/next/no-img-element -- aperçus locaux (blob:) des images à joindre */
+/* eslint-disable @next/next/no-img-element -- local previews (blob:) of the images to attach */
 
 import * as React from 'react';
 import {
@@ -31,24 +31,24 @@ import { cn } from '@/lib/utils';
 import { EmojiPicker } from './emoji-picker';
 
 /**
- * Le compositeur. `@` ouvre la liste des personnes, machines et applications
- * que la session peut voir ; choisir insère le nom en clair dans la zone de
- * saisie et retient l'objet. À l'envoi, chaque nom retenu devient un jeton
- * `<@kind:id>` — un « @prod-1 » tapé sans passer par la liste reste du texte.
+ * The composer. `@` opens the list of people, machines and applications the
+ * session can see; choosing inserts the name in clear in the input area and
+ * remembers the object. On sending, each remembered name becomes a `<@kind:id>`
+ * token — a "@prod-1" typed without going through the list stays text.
  *
- * Entrée envoie, Maj + Entrée va à la ligne. Dans la liste : flèches, Entrée
- * ou Tab pour choisir, Échap pour fermer. Échap, hors de la liste, annule la
- * réponse en cours.
+ * Enter sends, Shift + Enter goes to the next line. In the list: arrows, Enter or
+ * Tab to choose, Escape to close. Escape, outside the list, cancels the current
+ * reply.
  *
- * Les images se joignent par le bouton, se collent (une capture d'écran) ou se
- * déposent sur la zone. Chacune est réduite et réencodée tout de suite, dans le
- * navigateur — l'aperçu montre l'état de cette préparation. Une image seule
- * suffit à faire un message.
+ * Images are attached through the button, pasted (a screenshot) or dropped on the
+ * area. Each one is reduced and re-encoded right away, in the browser — the
+ * preview shows the state of that preparation. An image alone is enough to make
+ * a message.
  */
 
 type Pending = {
   key: string;
-  /** Aperçu local de l'original. */
+  /** Local preview of the original. */
   url: string;
   state: 'preparing' | 'ready' | 'failed';
   prepared: PreparedImage | null;
@@ -85,7 +85,7 @@ function candidatesFor(directory: readonly DirectoryEntry[], query: string): Dir
     .map((candidate) => candidate.entry);
 }
 
-/** Le texte saisi, noms retenus remplacés par leurs jetons — les plus longs d'abord. */
+/** The typed text, remembered names replaced by their tokens — the longest first. */
 function encode(text: string, picked: readonly DirectoryEntry[]): string {
   const unique = [...new Map(picked.map((entry) => [`${entry.kind}:${entry.id}`, entry])).values()];
   unique.sort((a, b) => b.label.length - a.label.length);
@@ -105,7 +105,7 @@ export function Composer({
 }: {
   directory: readonly DirectoryEntry[];
   onSend: (body: string, images: PreparedImage[]) => Promise<boolean>;
-  /** Le message auquel on répond, montré au-dessus de la saisie. */
+  /** The message being replied to, shown above the input. */
   replyTo: ChatQuote | null;
   onCancelReply: () => void;
   autoFocus?: boolean;
@@ -123,7 +123,7 @@ export function Composer({
   const [dropping, setDropping] = React.useState(false);
   const fileInput = React.useRef<HTMLInputElement>(null);
   const urls = React.useRef(new Set<string>());
-  /** Où poser le curseur au prochain rendu : dans le même cadre que le texte, pas après. */
+  /** Where to put the cursor at the next render: in the same frame as the text, not after. */
   const caret = React.useRef<number | null>(null);
 
   const candidates = suggest ? candidatesFor(directory, suggest.query) : [];
@@ -133,7 +133,7 @@ export function Composer({
   const preparing = images.some((image) => image.state === 'preparing');
   const sendable = (text.trim().length > 0 || ready.length > 0) && over <= 0 && !preparing;
 
-  // Les aperçus locaux ne survivent pas au compositeur.
+  // The local previews do not survive the composer.
   React.useEffect(() => {
     const owned = urls.current;
     return () => {
@@ -188,12 +188,12 @@ export function Composer({
     if (autoFocus) area.current?.focus();
   }, [autoFocus]);
 
-  // Répondre ramène le curseur dans la saisie.
+  // Replying brings the cursor back into the input.
   React.useEffect(() => {
     if (replyTo) area.current?.focus();
   }, [replyTo]);
 
-  /** L'emoji entre là où est le curseur, et le curseur repart juste après. */
+  /** The emoji goes in where the cursor is, and the cursor moves right after it. */
   function insertEmoji(emoji: string) {
     const node = area.current;
     const start = node?.selectionStart ?? text.length;
@@ -204,7 +204,8 @@ export function Composer({
     setEmojiOpen(false);
   }
 
-  // Hauteur au contenu, de une à huit lignes — et le curseur là où on l'a demandé.
+  // Height fitted to the content, from one to eight lines — and the cursor where it
+  // was asked.
   React.useLayoutEffect(() => {
     const node = area.current;
     if (!node) return;
@@ -343,7 +344,7 @@ export function Composer({
                   id={`${listId}-${index}`}
                   role="option"
                   aria-selected={index === suggest.index}
-                  // La souris choisit sans voler le focus de la zone de saisie.
+                  // The mouse chooses without stealing the input area's focus.
                   onMouseDown={(event) => {
                     event.preventDefault();
                     pick(entry);
@@ -469,7 +470,7 @@ export function Composer({
           onPaste={(event) => {
             const files = [...event.clipboardData.files];
             if (files.length === 0) return;
-            // Une capture d'écran collée : on la joint. Du texte collé avec, lui, passe.
+            // A pasted screenshot: we attach it. Text pasted along with it goes through.
             if (!event.clipboardData.types.includes('text/plain')) event.preventDefault();
             addFiles(files);
           }}

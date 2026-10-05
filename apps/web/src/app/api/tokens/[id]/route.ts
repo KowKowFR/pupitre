@@ -14,9 +14,9 @@ const paramsSchema = z.object({ id: z.string().uuid() });
 type Context = { params: Promise<{ id: string }> };
 
 /**
- * Révoque un jeton : le sien, ou — avec `user:manage` — celui de quelqu'un
- * d'autre. Depuis le panel seulement. Le jeton reste en base, révoqué : le
- * journal continue de dire lequel a agi.
+ * Revokes a token: one's own, or — with `user:manage` — someone else's. From the
+ * panel only. The token stays in the database, revoked: the log keeps saying
+ * which one acted.
  */
 export const DELETE = apiRoute<Context>(async (request, context) => {
   const auth = await requireTeamMember(request);

@@ -14,58 +14,55 @@ import {
 } from './message.js';
 
 /**
- * Le regroupement — l'arbitrage entre *prévenir vite* et *prévenir peu*.
+ * Grouping — the trade-off between *warning fast* and *warning little*.
  *
- * ── Le problème, qui n'est pas celui du dédoublonnage ────────────────────────
- * `notificationDedupKey()` empêche qu'un **même** événement rejoué par BullMQ
- * produise trois messages. Il ne dit rien de cinquante événements *différents*
- * en dix minutes : cinquante déploiements en échec, cinquante messages, et un
- * opérateur qui coupe la notification. Personne ne désactive une alerte parce
- * qu'elle est imprécise ; on la désactive parce qu'elle est bruyante.
+ * ── The problem, which is not deduplication's ───────────────────────────────
+ * `notificationDedupKey()` prevents the **same** event replayed by BullMQ from
+ * producing three messages. It says nothing about fifty *different* events in
+ * ten minutes: fifty failed deployments, fifty messages, and an operator who
+ * turns the notification off. Nobody disables an alert because it is
+ * imprecise; one disables it because it is noisy.
  *
- * ── La règle retenue : premier message immédiat, puis fenêtre qui s'élargit ──
- * Un incident isolé n'a aucune raison d'attendre : la première alerte d'un
- * groupe part **sans délai**, exactement comme avant. Ce qu'elle fait en plus,
- * c'est **ouvrir une fenêtre**. Tant que cette fenêtre est ouverte, les
- * événements du même groupe ne partent plus : ils sont retenus, nommés, en
- * base. À la fermeture :
+ * ── The rule chosen: first message immediate, then a widening window ────────
+ * An isolated incident has no reason to wait: a group's first alert goes out
+ * **without delay**, exactly as before. What it does on top is **open a
+ * window**. While that window is open, the group's events no longer go out:
+ * they are held, named, in the database. When it closes:
  *
- *   — rien n'a été retenu → la fenêtre se referme et le groupe redevient
- *     « silencieux » : le prochain incident repartira immédiatement. Une panne
- *     isolée coûte donc exactement un message, sans latence ;
- *   — quelque chose a été retenu → un **résumé** part, qui nomme chaque
- *     événement retenu, et une nouvelle fenêtre s'ouvre, **deux fois plus
- *     longue** que la précédente (jusqu'à ×8). L'orage qui dure fait donc
- *     baisser la cadence tout seul, sans seuil arbitraire à régler.
+ *   — nothing was held → the window closes and the group becomes "quiet" again:
+ *     the next incident will go out immediately. An isolated outage therefore
+ *     costs exactly one message, without latency;
+ *   — something was held → a **digest** goes out, naming each held event, and a
+ *     new window opens, **twice as long** as the previous one (up to ×8). A
+ *     lasting storm therefore lowers the rate by itself, without an arbitrary
+ *     threshold to set.
  *
- * Autrement dit, la cadence est bornée par la fenêtre et non par le débit
- * d'incidents : cinquante pannes en dix minutes tiennent en un message immédiat
- * plus deux ou trois résumés, quel que soit le nombre de pannes.
+ * In other words, the rate is bounded by the window and not by the incident
+ * flow: fifty outages in ten minutes fit in one immediate message plus two or
+ * three digests, whatever the number of outages.
  *
- * ── Ce que le résumé doit dire ───────────────────────────────────────────────
- * Un compteur muet est une perte d'information déguisée en fonctionnalité. Un
- * résumé porte donc la **liste nommée** de ce qu'il remplace (`items`), le
- * total retenu (`count`, qui peut dépasser la liste quand la borne dure est
- * atteinte), les bornes de la fenêtre, et la durée de la prochaine. Le canal
- * décide de la longueur qu'il peut afficher — un e-mail liste tout, un message
- * Telegram s'arrête à quelques lignes et **dit** combien il en a tues.
+ * ── What the digest must say ────────────────────────────────────────────────
+ * A mute counter is a loss of information disguised as a feature. A digest
+ * therefore carries the **named list** of what it replaces (`items`), the total
+ * held (`count`, which can exceed the list when the hard cap is reached), the
+ * window's bounds, and the next one's duration. The channel decides the length
+ * it can show — an email lists everything, a Telegram message stops at a few
+ * lines and **says** how many it left out.
  *
- * ── Pourquoi un type à part et non un `NotificationMessage` bricolé ──────────
- * Un résumé n'a pas la forme d'une alerte unitaire : il a une liste, une
- * fenêtre, un total. Le faire entrer dans `fields` — prévu pour quelques
- * paires étiquette/valeur — obligerait chaque canal à deviner, à partir d'un
- * champ de texte, qu'il doit rendre une liste. C'est exactement la fuite
- * d'abstraction que `message.ts` interdit. D'où un second type neutre, et une
- * seconde méthode sur `NotificationChannel`.
+ * ── Why a separate type and not a patched-up `NotificationMessage` ──────────
+ * A digest does not have the shape of a single alert: it has a list, a window, a
+ * total. Squeezing it into `fields` — meant for a few label/value pairs — would
+ * force each channel to guess, from a text field, that it must render a list. It
+ * is exactly the abstraction leak `message.ts` forbids. Hence a second neutral
+ * type, and a second method on `NotificationChannel`.
  */
 
-// ─── les mots du résumé ───────────────────────────────────────────────────────
+// ─── the digest's words ───────────────────────────────────────────────────────
 
 /**
- * Un résumé explique son propre arbitrage : pourquoi un message plutôt que
- * cinquante, ce qu'il nomme, ce qu'il tait, et quand arrive le suivant. Ces
- * phrases-là sont la valeur du dispositif — un compteur muet n'aurait besoin
- * d'aucune traduction.
+ * A digest explains its own trade-off: why one message rather than fifty, what
+ * it names, what it leaves out, and when the next one arrives. These sentences
+ * are the value of the mechanism — a mute counter would need no translation.
  */
 const fr = {
   'title': '{count} × {label} — résumé',
@@ -122,33 +119,33 @@ function t(language: UiLanguage, key: keyof typeof fr, vars?: Vars): string {
   return renderMessage(DIGEST_TEXT, language, key, vars);
 }
 
-// ─── politique ────────────────────────────────────────────────────────────────
+// ─── policy ───────────────────────────────────────────────────────────────────
 
-/** Cinq minutes : assez pour qu'un orage se manifeste, assez court pour rester utile. */
+/** Five minutes: enough for a storm to show, short enough to stay useful. */
 export const NOTIFICATION_DIGEST_WINDOW_MS_DEFAULT = 5 * 60_000;
 
 /**
- * Bornes du réglage. Le plancher n'est **pas** zéro, et c'est le point : un
- * garde-fou de volume qu'on peut désactiver est un garde-fou qu'on désactive à
- * la première contrariété. On peut raccourcir la fenêtre, jamais la supprimer.
+ * The setting's bounds. The floor is **not** zero, and that is the point: a
+ * volume guard that can be disabled is a guard disabled at the first annoyance.
+ * The window can be shortened, never removed.
  */
 export const NOTIFICATION_DIGEST_WINDOW_MS_MIN = 15_000;
 export const NOTIFICATION_DIGEST_WINDOW_MS_MAX = 6 * 3_600_000;
 
-/** Trois doublements au plus : la fenêtre ne dépasse jamais huit fois sa base. */
+/** Three doublings at most: the window never exceeds eight times its base. */
 export const NOTIFICATION_DIGEST_MAX_ESCALATION = 3;
 
 /**
- * Nombre d'événements **nommés** conservés par fenêtre.
+ * Number of **named** events kept per window.
  *
- * Au-delà, le compteur continue mais la ligne n'est plus stockée : un résumé de
- * cinq mille lignes n'est pas plus lisible qu'un compteur, et il ferait grossir
- * la table sans que personne ne lise le millième nom. Le résumé dit alors
- * combien de lignes il a tues.
+ * Beyond that, the counter goes on but the line is no longer stored: a digest
+ * of five thousand lines is no more readable than a counter, and it would grow
+ * the table without anybody reading the thousandth name. The digest then says
+ * how many lines it left out.
  */
 export const NOTIFICATION_DIGEST_ITEM_LIMIT = 100;
 
-/** Cadence du balayage qui ferme les fenêtres échues. Voir `main.ts` du worker. */
+/** Interval of the sweep that closes the due windows. See the worker's `main.ts`. */
 export const NOTIFICATION_DIGEST_SWEEP_EVERY_MS = 5_000;
 
 export const notificationDigestWindowMsSchema = z
@@ -157,40 +154,40 @@ export const notificationDigestWindowMsSchema = z
   .min(NOTIFICATION_DIGEST_WINDOW_MS_MIN)
   .max(NOTIFICATION_DIGEST_WINDOW_MS_MAX);
 
-/** Durée de la fenêtre après `escalation` fermetures non vides d'affilée. */
+/** The window's duration after `escalation` non-empty closings in a row. */
 export function notificationDigestWindowMs(baseMs: number, escalation: number): number {
   const steps = Math.max(0, Math.min(escalation, NOTIFICATION_DIGEST_MAX_ESCALATION));
   return Math.min(baseMs * 2 ** steps, NOTIFICATION_DIGEST_WINDOW_MS_MAX);
 }
 
 /**
- * Clé de regroupement.
+ * Grouping key.
  *
- * C'est **l'événement**, et rien de plus fin. Grouper par application ou par
- * cible rendrait chaque ligne plus précise mais ramènerait le problème : une
- * panne d'infrastructure qui casse cinquante applications produirait cinquante
- * groupes, donc cinquante messages. La finesse appartient au *contenu* du
- * résumé — chaque ligne nomme son application —, pas à la clé.
+ * It is **the event**, and nothing finer. Grouping by application or by target
+ * would make each line more precise but bring the problem back: an
+ * infrastructure outage breaking fifty applications would produce fifty groups,
+ * hence fifty messages. Precision belongs to the digest's *content* — each line
+ * names its application —, not to the key.
  *
- * Second bénéfice, structurel : les canaux s'abonnent **par événement**. Une
- * clé calquée sur l'événement garantit qu'un résumé part exactement aux canaux
- * qui auraient reçu les alertes unitaires qu'il remplace.
+ * A second, structural benefit: channels subscribe **per event**. A key modeled
+ * on the event guarantees that a digest goes exactly to the channels that would
+ * have received the single alerts it replaces.
  */
 export function notificationDigestGroupKey(event: string): string {
   return event;
 }
 
-// ─── le message de résumé ─────────────────────────────────────────────────────
+// ─── the digest message ───────────────────────────────────────────────────────
 
 /**
- * Une ligne de résumé. `label` est la raison d'être du type : c'est ce qui
- * empêche le résumé d'être un compteur. Il nomme l'objet concerné — un
- * déploiement, un compte —, pas la catégorie, qui est déjà dans le titre.
+ * A digest line. `label` is the type's reason for being: it is what keeps the
+ * digest from being a counter. It names the object concerned — a deployment, an
+ * account —, not the category, which is already in the title.
  */
 export const notificationDigestItemSchema = z.object({
   occurredAt: z.string().datetime(),
   label: z.string().trim().min(1).max(200),
-  /** Une précision courte : l'étape en échec, le verdict du scan. */
+  /** A short detail: the failed step, the scan's verdict. */
   detail: z.string().trim().min(1).max(300).nullable().default(null),
   url: z.string().url().max(500).nullable().default(null),
 });
@@ -198,43 +195,43 @@ export const notificationDigestItemSchema = z.object({
 export type NotificationDigestItem = z.infer<typeof notificationDigestItemSchema>;
 
 export const notificationDigestSchema = z.object({
-  /** Discriminant : un canal ne doit jamais confondre un résumé et une alerte. */
+  /** Discriminant: a channel must never confuse a digest and an alert. */
   type: z.literal('digest'),
   event: z.string().min(1).max(80),
   severity: notificationSeveritySchema,
   title: z.string().trim().min(1).max(200),
   body: z.string().trim().min(1).max(2000),
-  /** Ce que le résumé remplace, nommé. Au plus `NOTIFICATION_DIGEST_ITEM_LIMIT`. */
+  /** What the digest replaces, named. At most `NOTIFICATION_DIGEST_ITEM_LIMIT`. */
   items: z.array(notificationDigestItemSchema).min(1).max(NOTIFICATION_DIGEST_ITEM_LIMIT),
-  /** Total retenu sur la fenêtre. Supérieur à `items.length` quand la borne a mordu. */
+  /** Total held over the window. Greater than `items.length` when the cap bit. */
   count: z.number().int().min(1),
   windowStartedAt: z.string().datetime(),
   windowEndedAt: z.string().datetime(),
-  /** Durée de la fenêtre qui se ferme, puis de celle qui s'ouvre. */
+  /** Duration of the window closing, then of the one opening. */
   windowMs: z.number().int().positive(),
   nextWindowMs: z.number().int().positive(),
   url: z.string().url().max(500).nullable().default(null),
   instance: z.string().trim().min(1).max(60),
   occurredAt: z.string().datetime(),
-  /** Langue de composition. Même motif que sur `notificationMessageSchema`. */
+  /** Composition language. The same pattern as on `notificationMessageSchema`. */
   language: z.enum(UI_LANGUAGES).default(DEFAULT_UI_LANGUAGE),
 });
 
 export type NotificationDigest = z.infer<typeof notificationDigestSchema>;
 
-/** Lignes tues faute de place dans le stockage borné. */
+/** Lines left out for lack of room in the capped storage. */
 export function notificationDigestOmitted(digest: NotificationDigest): number {
   return Math.max(0, digest.count - digest.items.length);
 }
 
-// ─── mise en forme commune ────────────────────────────────────────────────────
+// ─── shared formatting ────────────────────────────────────────────────────────
 
 /**
- * « 15 s », « 5 min », « 1 h 20 ». Une durée lisible, pas un ISO 8601.
+ * "15 s", "5 min", "1 h 20". A readable duration, not an ISO 8601.
  *
- * Sans dictionnaire, et ce n'est pas un oubli : `s`, `min` et `h` sont les
- * mêmes symboles dans les deux langues. Y faire passer une traduction
- * ajouterait une langue à porter pour rendre exactement la même chaîne.
+ * Without a dictionary, and it is not an oversight: `s`, `min` and `h` are the
+ * same symbols in both languages. Running them through a translation would add a
+ * language to carry to render exactly the same string.
  */
 export function formatDigestDuration(ms: number): string {
   const seconds = Math.max(1, Math.round(ms / 1000));
@@ -246,24 +243,23 @@ export function formatDigestDuration(ms: number): string {
   return rest === 0 ? `${hours} h` : `${hours} h ${rest}`;
 }
 
-/** `10:02:11` — l'heure seule, en UTC, telle que l'ISO la porte déjà. */
+/** `10:02:11` — the time alone, in UTC, as the ISO already carries it. */
 export function digestTimeOfDay(iso: string): string {
   return iso.length >= 19 ? iso.slice(11, 19) : iso;
 }
 
 /**
- * Une ligne de résumé en texte brut. Elle vit ici et non dans chaque canal :
- * c'est le rendu du *type neutre*, sans protocole, et trois copies finiraient
- * par diverger.
+ * A digest line in plain text. It lives here and not in each channel: it is the
+ * *neutral type*'s rendering, without protocol, and three copies would end up
+ * diverging.
  */
 export function renderDigestItemLine(item: NotificationDigestItem): string {
   return `${digestTimeOfDay(item.occurredAt)} — ${item.label}${item.detail ? ` — ${item.detail}` : ''}`;
 }
 
 /**
- * La phrase que **tout** canal doit rendre quand il tronque la liste. Sans
- * elle, dix lignes affichées sur cinquante retenues sont un mensonge par
- * omission.
+ * The sentence **every** channel must render when it truncates the list.
+ * Without it, ten lines shown out of fifty held are a lie by omission.
  */
 export function renderDigestOmission(
   omitted: number,
@@ -274,10 +270,10 @@ export function renderDigestOmission(
 }
 
 /**
- * Rendu texte complet, commun aux canaux qui en ont besoin (la partie
- * `text/plain` d'un e-mail, le repli d'un canal sans balisage).
+ * Complete text rendering, shared by the channels that need it (an email's
+ * `text/plain` part, the fallback of a channel without markup).
  *
- * `maxItems` borne la liste — un canal court passe 5, un e-mail ne passe rien.
+ * `maxItems` caps the list — a short channel passes 5, an email passes nothing.
  */
 export function renderDigestPlainText(digest: NotificationDigest, maxItems?: number): string {
   const shown = maxItems === undefined ? digest.items : digest.items.slice(0, maxItems);
@@ -304,35 +300,35 @@ export function renderDigestPlainText(digest: NotificationDigest, maxItems?: num
 export type BuildNotificationDigestInput = {
   event: string;
   severity: NotificationSeverity;
-  /** Libellé de l'événement au catalogue, ex. « Déploiement en échec ». */
+  /** The event's label in the catalog, e.g. "Deployment failed". */
   eventLabel: string;
   items: NotificationDigestItem[];
-  /** Total retenu, borne de stockage comprise. */
+  /** Total kept, storage bound included. */
   count: number;
   windowStartedAt: string;
   windowEndedAt: string;
   windowMs: number;
   nextWindowMs: number;
   instance: string;
-  /** Racine du panel, sans barre finale. `null` si inconnue. */
+  /** The panel's root, without a trailing slash. `null` if unknown. */
   panelUrl: string | null;
-  /** Chemin du panel qui montre ces objets, ex. `/deployments`. */
+  /** Path of the panel that shows these objects, e.g. `/deployments`. */
   path: string | null;
   /**
-   * Langue de l'instance. Résolue par le worker, qui a lu les paramètres — le
-   * `eventLabel` ci-dessus doit venir de la même langue.
+   * The instance's language. Resolved by the worker, which read the settings —
+   * the `eventLabel` above must come from the same language.
    */
   language: UiLanguage;
 };
 
 /**
- * Compose le résumé neutre. Aucun protocole n'est connu ici — même règle que
+ * Composes the neutral digest. No protocol is known here — the same rule as
  * `buildNotificationMessage()`.
  *
- * Le corps **explique l'arbitrage** plutôt que de le subir : il dit que la
- * première alerte est partie seule, combien d'événements ont été retenus, sur
- * quelle fenêtre, et quand arrivera le prochain résumé. Un opérateur qui reçoit
- * un résumé doit comprendre pourquoi il en reçoit un plutôt que dix.
+ * The body **explains the trade-off** rather than suffering it: it says the
+ * first alert went out on its own, how many events were held, over which window,
+ * and when the next digest will arrive. An operator who receives a digest must
+ * understand why they get one rather than ten.
  */
 export function buildNotificationDigest(
   input: BuildNotificationDigestInput,

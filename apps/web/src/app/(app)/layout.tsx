@@ -40,40 +40,40 @@ import { workerStatus } from '@/lib/worker-status';
 export const dynamic = 'force-dynamic';
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
-  // Pas de session valide : direction la connexion (par `/logout` si un cookie périmé traîne).
+  // No valid session: off to sign-in (through `/logout` if a stale cookie lingers).
   const auth = (await currentAuth()) ?? (await redirectToLogin());
 
   /**
-   * Un rôle qui exige le second facteur, un compte qui ne l'a pas : il ne voit
-   * que l'écran qui l'active. L'API le refuse de toute façon
-   * (`requirePermission`) — ceci n'en est que la face visible.
+   * A role that requires the second factor, an account that does not have it: it
+   * only sees the screen that enables it. The API refuses it anyway
+   * (`requirePermission`) — this is only its visible face.
    */
   if (auth.twoFactor.mustEnroll) redirect(TWO_FACTOR_ENROLL_PATH);
 
   const { settings } = await getAppSettings();
 
   /**
-   * L'assistant de démarrage se décide ici, et nulle part ailleurs : c'est le
-   * seul endroit du parcours authentifié qui dispose à la fois de la session et
-   * des paramètres d'instance. `proxy.ts` ne verrait qu'un cookie.
+   * The onboarding assistant is decided here, and nowhere else: it is the only
+   * place of the authenticated journey that has both the session and the instance
+   * settings. `proxy.ts` would only see a cookie.
    *
-   * La redirection ne peut pas boucler : `/onboarding` vit dans son propre
-   * groupe de routes, ce layout ne l'enveloppe pas. C'est aussi ce qui lui
-   * donne une coquille sans rail de navigation.
+   * The redirect cannot loop: `/onboarding` lives in its own route group, this
+   * layout does not wrap it. That is also what gives it a shell without a
+   * navigation rail.
    */
   const gate = onboardingGate(auth, settings);
   if (gate.shouldOffer) {
-    // On enregistre le fait que l'assistant a été montré, mais la redirection
-    // ne dépend pas de cette écriture : une instance sans cible doit y être
-    // renvoyée même quand l'état n'a plus rien à changer.
+    // We record the fact that the assistant was shown, but the redirect does not
+    // depend on that write: an instance without a target must be sent back there
+    // even when the state has nothing left to change.
     await offerOnboarding(auth);
     redirect('/onboarding');
   }
 
   const t = await getT(chrome);
   const tOnboarding = await getT(onboarding);
-  // Un compte sans aucune permission n'est pas encore de l'équipe : ni
-  // discussion, ni présence (`isTeamMember`).
+  // An account without any permission is not part of the team yet: no chat, no
+  // presence (`isTeamMember`).
   const member = isTeamMember(auth);
   const groups = visibleNavigation(auth.can);
   const sections = groups.flatMap((group) =>
@@ -84,8 +84,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     })),
   );
 
-  // Les métas du rail lisent ce que lit la vue d'ensemble, avec les mêmes
-  // chargeurs mis en cache : sur `/`, rien n'est lu deux fois.
+  // The rail's metas read what the overview reads, with the same cached loaders:
+  // on `/`, nothing is read twice.
   const [
     attention,
     targets,
@@ -195,8 +195,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             {member ? (
               <ChatDock canModerate={auth.can('user:manage')} format={formatSettingsOf(settings)} />
             ) : null}
-            {/* Une photo de profil changée, un compte renommé : le visage et le nom
-                se mettent à jour dans le rail, la présence et la discussion. */}
+            {/* A changed profile picture, a renamed account: the face and the name
+                update in the rail, the presence and the chat. */}
             <LiveRefresh topics={['users']} />
             <Toaster />
           </CrumbProvider>

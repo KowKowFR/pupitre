@@ -4,18 +4,18 @@ import { shellQuote } from '../shell.js';
 import { driverSay } from './messages.js';
 
 /**
- * Rétention des répertoires de version sur la cible.
+ * Retention of version directories on the target.
  *
- * Chaque déploiement dépose une release dans `{appPath}/{version}`. Sans
- * ménage, une cible finit par porter l'intégralité de l'historique — et un
- * rollback n'a besoin que de l'avant-dernière.
+ * Each deployment places a release in `{appPath}/{version}`. Without cleanup, a
+ * target ends up carrying the whole history — and a rollback only needs the one
+ * before last.
  *
- * Le ménage est fait **au déploiement suivant**, pas au destroy : c'est le seul
- * moment où l'on sait quelle release vient de devenir la courante.
+ * Cleanup is done **at the next deployment**, not at destroy: it is the only
+ * moment when we know which release just became the current one.
  *
- * Le code vit ici parce que les deux drivers ont exactement le même problème et
- * la même arborescence. Ce n'est pas une divergence de runtime : c'est du
- * ménage de fichiers, et un troisième driver le réutiliserait tel quel.
+ * The code lives here because both drivers have exactly the same problem and the
+ * same tree. It is not a runtime divergence: it is file cleanup, and a third
+ * driver would reuse it as is.
  */
 
 export const RELEASES_KEPT = 5;
@@ -23,12 +23,12 @@ export const RELEASES_KEPT = 5;
 const PRUNE_TIMEOUT_MS = 60_000;
 
 /**
- * Supprime les répertoires de version les plus anciens, en gardant les
- * `keep` plus récents et **toujours** celui vers lequel pointe `current`.
+ * Deletes the oldest version directories, keeping the `keep` most recent and
+ * **always** the one `current` points to.
  *
- * Le tri se fait sur la date de modification (`ls -1dt`) et non sur le nom : une
- * version sémantique ne s'ordonne pas lexicographiquement (`1.10.0` < `1.9.0`),
- * et c'est l'ordre de déploiement qui compte ici, pas l'ordre des versions.
+ * Sorting is done on the modification date (`ls -1dt`) and not on the name: a
+ * semantic version does not sort lexicographically (`1.10.0` < `1.9.0`), and it
+ * is the deployment order that matters here, not the version order.
  */
 export async function pruneReleases(
   ctx: DriverContext,
@@ -38,18 +38,17 @@ export async function pruneReleases(
 ): Promise<string[]> {
   const script = [
     `cd ${shellQuote(appPath)} 2>/dev/null || exit 0`,
-    // Résolution du lien `current` : la release active ne doit jamais partir,
-    // même si son répertoire est ancien — c'est exactement le cas après un
-    // rollback.
+    // Resolving the `current` link: the active release must never go, even if its
+    // directory is old — that is exactly the case after a rollback.
     'CUR=""',
     'if [ -L current ]; then CUR=$(basename "$(readlink -f current)"); fi',
-    // `ls -1dt */` liste les répertoires du plus récent au plus ancien.
+    // `ls -1dt */` lists the directories from newest to oldest.
     //
-    // Les scripts `sed` et `grep` sont en quotes SIMPLES, et ce n'est pas une
-    // question de style : entre quotes doubles, le shell verrait `$#` dans
-    // `s#/$##` et y substituerait le nombre d'arguments positionnels. `sed`
-    // recevrait alors `s#/0#`, se plaindrait d'un délimiteur non apparié, et le
-    // ménage ne supprimerait plus jamais rien — en silence.
+    // The `sed` and `grep` scripts are in SINGLE quotes, and it is not a matter of
+    // style: between double quotes, the shell would see `$#` in `s#/$##` and
+    // substitute the number of positional arguments. `sed` would then receive
+    // `s#/0#`, complain about an unmatched delimiter, and cleanup would never
+    // delete anything again — silently.
     "ls -1dt */ 2>/dev/null | sed 's#/$##' | grep -v '^current$' | {",
     '  KEPT=0',
     '  while IFS= read -r dir; do',

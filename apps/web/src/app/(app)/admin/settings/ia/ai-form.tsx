@@ -25,18 +25,19 @@ import { SectionForm } from '../section-form';
 import { useSettingsPatch, type SettingsPatchBody } from '../use-settings-patch';
 
 /**
- * Configuration du fournisseur d'IA, clé comprise.
+ * The AI provider's configuration, key included.
  *
- * Fournisseur, modèle et clé ne se règlent jamais séparément — changer de
- * fournisseur invalide la clé du précédent — d'où une seule section pour les
- * trois, et un seul enregistrement.
+ * Provider, model and key are never set separately — changing provider
+ * invalidates the previous one's key — hence a single section for the three, and
+ * a single save.
  *
- * La clé garde ses **trois cas distincts**, tenus jusqu'au corps de la requête :
- *   propriété absente → clé inchangée (champ laissé vide)
- *   `null`            → clé effacée (case « Effacer » cochée)
- *   chaîne            → clé remplacée
- * Elle n'est jamais rendue : le serveur n'expose que `aiApiKeyConfigured` et
- * les quatre derniers caractères, et rien d'autre ne descend jusqu'ici.
+ * The key keeps its **three distinct cases**, held all the way to the request
+ * body:
+ *   absent property → key unchanged (field left empty)
+ *   `null`          → key cleared ("Clear" box checked)
+ *   string          → key replaced
+ * It is never rendered: the server only exposes `aiApiKeyConfigured` and the
+ * last four characters, and nothing else comes down here.
  */
 export function AiForm({
   settings,
@@ -53,13 +54,13 @@ export function AiForm({
   const language = useLanguage();
   const patch = useSettingsPatch();
 
-  // Le cran d'un modèle est un catalogue de `@pupitre/core`, rendu comme les
-  // descriptions de permissions : le dictionnaire vit à côté de la donnée,
-  // l'écran ne fait que lui donner la langue de l'instance.
+  // A model's tier is a `@pupitre/core` catalog, rendered like the permission
+  // descriptions: the dictionary lives next to the data, the screen only gives it
+  // the instance's language.
   const tierLabel = translator(AI_MODEL_TIER_LABELS, language);
 
-  // Le prix est deux nombres : « 0,10 / 0,40 » ici, « 0.10 / 0.40 » sur une
-  // instance anglaise. Deux décimales toujours, sinon la colonne se déchausse.
+  // The price is two numbers: "0,10 / 0,40" here, "0.10 / 0.40" on an English
+  // instance. Always two decimals, otherwise the column comes apart.
   const format = formatSettingsOf(settings);
   const price = (amounts: readonly [number, number]) =>
     amounts
@@ -75,22 +76,22 @@ export function AiForm({
   const [temperature, setTemperature] = useState(String(settings.ai.temperature));
   const [maxTokens, setMaxTokens] = useState(String(settings.ai.maxTokens));
 
-  /** Vide = clé inchangée. Renseigné = clé remplacée. */
+  /** Empty = key unchanged. Filled in = key replaced. */
   const [apiKeyInput, setApiKeyInput] = useState('');
-  /** Coché = clé effacée à l'enregistrement. Distinct de « champ vide ». */
+  /** Checked = key cleared on save. Distinct from "empty field". */
   const [clearApiKey, setClearApiKey] = useState(false);
 
   const descriptor = aiProviderDescriptor(provider);
-  // Prévenir, pas interdire : un modèle sorti la semaine dernière ou une URL de
-  // base personnalisée peuvent parfaitement démentir cette heuristique.
+  // Warn, not forbid: a model released last week or a custom base URL may very
+  // well contradict this heuristic.
   const warning = aiModelMismatch(provider, model, { baseUrl, language });
   const suggestedModels = aiModelOptions(provider);
 
   /**
-   * Changer de fournisseur emmène le modèle par défaut du nouveau fournisseur —
-   * mais seulement si le champ portait encore le défaut du précédent. Un
-   * identifiant choisi à la main n'est jamais écrasé : on le laisse, et
-   * l'avertissement ci-dessus dit s'il est incohérent.
+   * Changing provider brings along the new provider's default model — but only if
+   * the field still carried the previous one's default. An identifier chosen by
+   * hand is never overwritten: we leave it, and the warning above says whether it
+   * is inconsistent.
    */
   function switchProvider(next: AiProvider) {
     if (model.trim() === defaultAiModel(provider) || model.trim() === '') {
@@ -117,17 +118,17 @@ export function AiForm({
         enabled,
         provider,
         model,
-        // L'URL de base n'a de sens que pour les fournisseurs qui la déclarent.
-        // L'envoyer quand même laisserait en base un réglage sans effet, que le
-        // prochain lecteur croirait appliqué.
+        // The base URL only makes sense for the providers that declare it. Sending it
+        // anyway would leave in the database a setting without effect, which the next
+        // reader would believe applied.
         baseUrl: descriptor.supportsBaseUrl ? baseUrl.trim() : '',
         temperature: Number(temperature),
         maxTokens: Number(maxTokens),
       },
     };
 
-    // Les trois cas de la clé, tenus jusqu'au corps de la requête : la
-    // propriété n'est présente que si l'on veut vraiment changer quelque chose.
+    // The key's three cases, held all the way to the request body: the property is
+    // only present if one really wants to change something.
     if (clearApiKey) body.aiApiKey = null;
     else if (apiKeyInput.trim() !== '') body.aiApiKey = apiKeyInput.trim();
 
@@ -193,8 +194,8 @@ export function AiForm({
             value={suggestedModels.some((option) => option.id === model) ? model : ''}
             disabled={!canManage}
             onChange={(event) => {
-              // La chaîne vide est l'entrée « autre » : on ne l'écrit pas
-              // dans le réglage, on rend la main au champ libre.
+              // The empty string is the "other" entry: it is not written into the setting,
+              // control goes back to the free field.
               if (event.target.value !== '') setModel(event.target.value);
             }}
           >

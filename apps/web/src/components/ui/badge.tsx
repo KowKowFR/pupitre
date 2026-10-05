@@ -4,11 +4,11 @@ import { CircleCheck, Minus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 /**
- * Pastille d'état — 20 px, fond doux et liseré de la même teinte. Elle porte
- * toujours un texte : la couleur double le mot, elle ne le remplace jamais.
+ * A state chip — 20 px, soft background and a border of the same tint. It always
+ * carries a text: the color doubles the word, it never replaces it.
  *
- * Les noms shadcn (`default`, `secondary`, `destructive`) restent acceptés et
- * pointent sur les tons du système : accent, neutre, danger.
+ * The shadcn names (`default`, `secondary`, `destructive`) are still accepted and
+ * point to the system's tones: accent, neutral, danger.
  */
 const badgeVariants = cva('badge', {
   variants: {
@@ -33,7 +33,7 @@ const badgeVariants = cva('badge', {
 
 export type BadgeProps = React.ComponentProps<'span'> &
   VariantProps<typeof badgeVariants> & {
-    /** Point de 6 px à la couleur du texte, devant le libellé. */
+    /** A 6 px dot in the text's color, before the label. */
     dot?: boolean;
   };
 
@@ -46,7 +46,7 @@ function Badge({ className, variant, dot = false, children, ...props }: BadgePro
   );
 }
 
-/** Pastille d'identifiant technique : port, image, slug, hachage. En Geist Mono. */
+/** Technical identifier chip: port, image, slug, hash. In Geist Mono. */
 function CodeBadge({ className, ...props }: React.ComponentProps<'span'>) {
   return <span data-slot="code-badge" className={cn('code', className)} {...props} />;
 }
@@ -63,8 +63,8 @@ const SEVERITY_CLASS: Record<Severity, string> = {
 };
 
 /**
- * Gravité d'une vulnérabilité : une échelle ordinale en aplat, du lie-de-vin
- * au gris ardoise. Le libellé (CRITICAL, HIGH…) reste celui du scanner.
+ * A vulnerability's severity: an ordinal scale as a flat color, from burgundy to
+ * slate gray. The label (CRITICAL, HIGH…) stays the scanner's.
  */
 function SeverityBadge({
   severity,
@@ -84,8 +84,8 @@ function SeverityBadge({
 }
 
 /**
- * Pilule de runtime : présent (coche verte et version en mono) ou absent
- * (trait en pointillés). Le nom du runtime est un nom propre, jamais traduit.
+ * A runtime pill: present (green check and version in mono) or absent (dotted
+ * line). The runtime's name is a proper noun, never translated.
  */
 function RuntimePill({
   name,

@@ -1,17 +1,16 @@
 /**
- * Attente entre deux sondes de santé.
+ * Wait between two health probes.
  *
- * `intervalSec` est doublé à chaque tentative, puis plafonné. Une application
- * qui met une minute à démarrer n'a pas besoin d'être interrogée trente fois en
- * trente secondes ; une qui répond tout de suite ne doit pas attendre une
- * minute pour rien. Sans plafond, la cinquième tentative attendrait déjà seize
- * fois l'intervalle demandé — le réglage de l'AppSpec n'aurait plus aucun sens.
+ * `intervalSec` is doubled at each attempt, then capped. An application that
+ * takes a minute to start does not need to be queried thirty times in thirty
+ * seconds; one that answers right away must not wait a minute for nothing.
+ * Without a cap, the fifth attempt would already wait sixteen times the
+ * requested interval — the AppSpec's setting would no longer mean anything.
  *
- * Partagé par les deux drivers : la temporisation d'une sonde n'a rien de
- * spécifique à un runtime.
+ * Shared by both drivers: a probe's timing has nothing runtime-specific.
  */
 
-/** Plafond du backoff exponentiel, en secondes. */
+/** Cap of the exponential backoff, in seconds. */
 export const BACKOFF_CAP_SEC = 30;
 
 export function backoffMs(intervalSec: number, attempt: number): number {

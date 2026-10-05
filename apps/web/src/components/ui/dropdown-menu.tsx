@@ -6,9 +6,9 @@ import { Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 /**
- * Menu — rayon 11, ombre `md`, entrée `pp-pop` en 180 ms. Les items font
- * 32 px, avec un raccourci ou une méta à droite. Un item destructif est rouge
- * et placé en dernier, après un séparateur.
+ * A menu — radius 11, `md` shadow, `pp-pop` entrance in 180 ms. The items are
+ * 32 px, with a shortcut or a meta on the right. A destructive item is red and
+ * placed last, after a separator.
  */
 const DropdownMenu = MenuPrimitive.Root;
 const DropdownMenuTrigger = MenuPrimitive.Trigger;
@@ -44,7 +44,7 @@ function DropdownMenuItem({
   destructive?: boolean;
   meta?: React.ReactNode;
 }) {
-  // Avec `asChild`, l'enfant doit rester unique : la méta n'a pas sa place.
+  // With `asChild`, the child must stay unique: the meta has no place.
   return (
     <MenuPrimitive.Item
       className={cn('menu-item', destructive && 'is-danger', className)}

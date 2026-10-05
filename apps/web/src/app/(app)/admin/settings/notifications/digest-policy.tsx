@@ -14,22 +14,21 @@ import { notifications as messages } from '@/i18n/messages/notifications';
 import { formatDateTimeWith, type FormatSettings } from '@/lib/format';
 
 /**
- * Le garde-fou de volume, vu de l'écran.
+ * The volume guardrail, seen from the screen.
  *
- * Deux choses seulement, et la seconde compte autant que la première :
+ * Two things only, and the second matters as much as the first:
  *
- *   — la **fenêtre de base**, réglable entre des bornes que le serveur impose.
- *     Le plancher n'est pas zéro : un garde-fou de volume désactivable est un
- *     garde-fou désactivé au premier agacement ;
- *   — l'**état à cet instant**. Sans lui, un opérateur qui ne reçoit rien ne
- *     peut pas distinguer « rien ne s'est passé » de « quarante alertes sont
- *     retenues, le résumé part dans deux minutes ». Et la réaction devant une
- *     couche de notification qu'on croit en panne est de la reconfigurer,
- *     c'est-à-dire de faire du bruit pour rien.
+ *   — the **base window**, adjustable between bounds the server imposes. The
+ *     floor is not zero: a volume guardrail that can be turned off is a
+ *     guardrail turned off at the first annoyance;
+ *   — the **state at this instant**. Without it, an operator who receives
+ *     nothing cannot tell "nothing happened" from "forty alerts are held, the
+ *     digest goes out in two minutes". And the reaction to a notification layer
+ *     believed broken is to reconfigure it, that is to make noise for nothing.
  *
- * L'état n'est pas rafraîchi tout seul : une fenêtre dure des minutes, un
- * sondage permanent ne montrerait rien de plus et tiendrait une requête ouverte
- * sur un écran qu'on laisse ouvert.
+ * The state is not refreshed on its own: a window lasts minutes, a permanent
+ * polling would show nothing more and would keep a request open on a screen left
+ * open.
  */
 
 export type DigestState = {
@@ -54,9 +53,9 @@ export type DigestVocabulary = {
 type ApiError = { error?: { message?: string } };
 
 /**
- * Durées proposées. Une liste de paliers plutôt qu'un champ libre : personne
- * n'a besoin d'une fenêtre de 137 secondes, et un champ libre invite à saisir
- * la plus petite valeur acceptée « pour voir ».
+ * Offered durations. A list of steps rather than a free field: nobody needs a
+ * 137-second window, and a free field invites typing the smallest accepted value
+ * "to see".
  */
 const PRESETS_MS = [
   15_000, 30_000, 60_000, 120_000, 300_000, 600_000, 900_000, 1_800_000, 3_600_000,
@@ -75,8 +74,8 @@ export function DigestPolicy({
   vocabulary: DigestVocabulary;
   events: PresentedNotificationEvent[];
   canManage: boolean;
-  /** Locale et fuseau de l'instance. Par props : cet écran est rendu sur le
-   *  serveur avant de l'être ici, et les deux doivent écrire la même heure. */
+  /** The instance's locale and time zone. Through props: this screen is rendered on
+   *  the server before being rendered here, and both must write the same time. */
   format: FormatSettings;
 }) {
   const router = useRouter();
@@ -88,8 +87,8 @@ export function DigestPolicy({
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
-  // La valeur en base peut ne pas être un palier (réglée par script, ou palier
-  // retiré) : on l'ajoute plutôt que de la faire disparaître du menu.
+  // The value in the database may not be a step (set by script, or step removed):
+  // it is added rather than made to disappear from the menu.
   const options = Array.from(new Set([...PRESETS_MS, initialWindowMs, windowMs]))
     .filter((value) => value >= vocabulary.minWindowMs && value <= vocabulary.maxWindowMs)
     .sort((a, b) => a - b);
@@ -225,8 +224,8 @@ export function DigestPolicy({
                     : ''}
                   {state.windowEndsAt
                     ? ` ${t('digest.state.closesAt', {
-                        // `settings.locale` tel quel : `toLocaleTimeString('en')`
-                        // rendait « 2:32 PM » sur une instance `en-GB`.
+                        // `settings.locale` as is: `toLocaleTimeString('en')`
+                        // rendered "2:32 PM" on an `en-GB` instance.
                         time: formatDateTimeWith(state.windowEndsAt, format, {
                           timeStyle: 'medium',
                         }),

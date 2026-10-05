@@ -21,7 +21,7 @@ export const dynamic = 'force-dynamic';
 const paramsSchema = z.object({ key: roleKeySchema });
 type Context = { params: Promise<{ key: string }> };
 
-/** Un rôle verrouillé se lit, mais ne se modifie pas : 409, pas 403. */
+/** A locked role is read, but not changed: 409, not 403. */
 function translate(error: unknown): never {
   if (error instanceof LockedRoleError) {
     throw new HttpError(409, 'role_locked', msg(admin, 'roles.error.locked', { key: error.key }), {

@@ -1,15 +1,15 @@
 'use client';
 
 /*
- * `<img>` et non `next/image`, délibérément.
+ * `<img>` and not `next/image`, deliberately.
  *
- * L'optimiseur d'images de Next re-servirait ces fichiers par sa propre route
- * et en garderait des variantes dans son cache disque — c'est-à-dire qu'une
- * image protégée par `monitor:read` se retrouverait recopiée hors du chemin qui
- * vérifie cette permission. Il n'y a par ailleurs rien à optimiser : la capture
- * est déjà un JPEG de qualité 70, aux dimensions exactes où on l'affiche, servi
- * avec un cache immuable. On perd la génération de tailles multiples, ce qui
- * n'a pas de sens pour une vignette et un lien « taille réelle ».
+ * Next's image optimizer would serve these files again through its own route
+ * and keep variants of them in its disk cache — that is, an image protected by
+ * `monitor:read` would end up copied outside the path that checks that
+ * permission. There is nothing to optimize anyway: the capture is already a
+ * quality-70 JPEG, at the exact dimensions it is shown at, served with an
+ * immutable cache. We lose the generation of multiple sizes, which makes no
+ * sense for a thumbnail and a "full size" link.
  */
 /* eslint-disable @next/next/no-img-element */
 
@@ -21,23 +21,23 @@ import { monitors as messages } from '@/i18n/messages/monitors';
 import { formatDateTimeWith, formatNumber, type FormatSettings } from '@/lib/format';
 
 /**
- * Ce que la sonde a vu — les images d'un incident.
+ * What the probe saw — an incident's images.
  *
- * ── Pourquoi un composant dédié à la comparaison ────────────────────────────
- * Mettre trois vignettes côte à côte serait déjà utile. Ça ne répondrait pas à
- * la question qu'on se pose vraiment devant une panne : **qu'est-ce qui a
- * changé ?** Deux pages presque identiques dont l'une a perdu son panier ou
- * gagné une bannière d'erreur, l'œil ne les départage pas en les regardant l'une
- * après l'autre — il les départage en les superposant.
+ * ── Why a component dedicated to comparison ─────────────────────────────────
+ * Putting three thumbnails side by side would already be useful. It would not
+ * answer the question one really asks in front of an outage: **what changed?**
+ * Two almost identical pages, one of which lost its cart or gained an error
+ * banner, the eye does not tell apart by looking at one after the other — it
+ * tells them apart by overlaying them.
  *
- * D'où le curseur : les deux images occupent exactement le même rectangle, et
- * on révèle l'une sous l'autre. C'est l'écran le plus utile du lot, et il ne
- * coûte que quelques lignes parce qu'un `clip-path` piloté par un `<input
- * type="range">` suffit — pas de glisser-déposer à la souris, donc utilisable
- * au clavier sans rien ajouter.
+ * Hence the slider: the two images occupy exactly the same rectangle, and one is
+ * revealed under the other. It is the most useful screen of the batch, and it
+ * only costs a few lines because a `clip-path` driven by an `<input
+ * type="range">` is enough — no mouse drag and drop, hence usable with the
+ * keyboard without adding anything.
  *
- * Les vignettes restent en dessous : la comparaison ne se substitue pas au fait
- * de pouvoir regarder une image en entier, en taille réelle, dans un onglet.
+ * The thumbnails stay below: the comparison does not replace being able to look
+ * at an image whole, at full size, in a tab.
  */
 
 export type CaptureView = {
@@ -59,10 +59,10 @@ export type CaptureView = {
 type Messages = Translate<(typeof messages)['fr']>;
 
 /**
- * L'instant d'une capture. Composantes imposées par la vignette, locale prise
- * dans les paramètres d'instance — `settings.locale` tel quel, jamais réduit à
- * deux lettres, et descendu par props pour que le serveur et le client lisent
- * la même valeur.
+ * A capture's instant. Components imposed by the thumbnail, locale taken from the
+ * instance settings — `settings.locale` as is, never reduced to two letters, and
+ * passed down through props so that the server and the client read the same
+ * value.
  */
 function formatClock(iso: string, format: FormatSettings): string {
   return formatDateTimeWith(iso, format, {
@@ -76,10 +76,10 @@ function formatClock(iso: string, format: FormatSettings): string {
 }
 
 /**
- * Le mégaoctet passe par un formateur de nombres plutôt que par un
- * `replace('.', ',')` : la virgule décimale est une propriété de la locale, pas
- * du français. Et c'est bien la locale de **l'instance** — `fr-FR`, `en-GB` —,
- * pas la langue à deux lettres, pour la raison qui vaut pour les dates.
+ * The megabyte goes through a number formatter rather than a
+ * `replace('.', ',')`: the decimal comma is a property of the locale, not of
+ * French. And it is indeed the **instance**'s locale — `fr-FR`, `en-GB` —, not the
+ * two-letter language, for the reason that holds for dates.
  */
 function formatBytes(bytes: number, t: Messages, format: FormatSettings): string {
   if (bytes < 1024) return t('capture.bytes.b', { value: bytes });
@@ -91,7 +91,7 @@ function formatBytes(bytes: number, t: Messages, format: FormatSettings): string
   return t('capture.bytes.mb', { value: megabytes });
 }
 
-/** Le nom court d'une capture, dans l'ordre où on la regarde. */
+/** A capture's short name, in the order it is looked at. */
 function kindLabel(kind: CaptureKind, t: Messages): string {
   if (kind === 'reference') return t('capture.kind.reference');
   if (kind === 'incident_open') return t('capture.kind.incidentOpen');
@@ -102,7 +102,7 @@ function href(monitorId: string, capture: CaptureView): string {
   return `/api/monitors/${monitorId}/captures/${capture.id}`;
 }
 
-/** Une ligne de faits sous une image. Lisible sans regarder l'image. */
+/** A line of facts under an image. Readable without looking at the image. */
 function CaptureFacts({ capture, format }: { capture: CaptureView; format: FormatSettings }) {
   const t = useT(messages);
   return (
@@ -144,7 +144,7 @@ function CaptureThumb({
           className="block overflow-hidden rounded-lg border border-border"
           title={t('capture.openFull')}
         >
-          {/* Cadrée en haut : le diagnostic d'une page cassée est en haut. */}
+          {/* Framed at the top: a broken page's diagnosis is at the top. */}
           <img
             src={href(monitorId, capture)}
             alt={t('capture.alt', {
@@ -171,11 +171,11 @@ function CaptureThumb({
 }
 
 /**
- * Le comparateur. Deux images dans le même rectangle, un curseur pour révéler.
+ * The comparator. Two images in the same rectangle, a slider to reveal.
  *
- * La hauteur commune est la **plus petite des deux** : étirer la plus courte
- * décalerait tout et ferait voir une différence qui n'existe pas. Ce qui dépasse
- * est simplement coupé, et le lien « taille réelle » reste là pour le reste.
+ * The common height is the **smaller of the two**: stretching the shorter one
+ * would shift everything and show a difference that does not exist. What goes
+ * beyond is simply cut, and the "full size" link stays there for the rest.
  */
 function CaptureSlider({
   monitorId,
@@ -240,12 +240,12 @@ function CaptureSlider({
 }
 
 /**
- * La référence vivante — « voici à quoi ce site ressemble quand il va bien ».
+ * The live reference — "here is what this site looks like when it is fine".
  *
- * Affichée hors de toute chronologie parce qu'elle ne raconte pas un incident :
- * elle est l'étalon auquel le prochain sera comparé. La montrer sert aussi à
- * prouver, sur une sonde qui n'est jamais tombée, que la capture fonctionne —
- * sans quoi la fonctionnalité resterait invisible jusqu'à la première panne.
+ * Shown outside any timeline because it does not tell an incident: it is the
+ * standard the next one will be compared to. Showing it also serves to prove, on
+ * a probe that never went down, that capture works — otherwise the feature would
+ * stay invisible until the first outage.
  */
 export function LiveReferenceCard({
   monitorId,

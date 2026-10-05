@@ -77,50 +77,50 @@ import type { UiLanguage } from '../../i18n.js';
 import { k3sSay, type K3sSay } from './messages.js';
 
 /**
- * Driver K3s.
+ * K3s driver.
  *
- * Pendant exact du `DockerComposeDriver` : mêmes responsabilités, même contrat,
- * mêmes AppSpec en entrée. Il n'importe rien de `packages/db`, rien de
- * `apps/web`, rien de Redis — tout arrive par `DriverContext`.
+ * The exact counterpart of `DockerComposeDriver`: same responsibilities, same
+ * contract, same AppSpecs as input. It imports nothing from `packages/db`,
+ * nothing from `apps/web`, nothing from Redis — everything arrives through
+ * `DriverContext`.
  *
- * Deux divergences assumées, et elles vivent **ici**, pas dans le pipeline :
+ * Two accepted divergences, and they live **here**, not in the pipeline:
  *
- * - `allocatePort()` retourne `null` : en Kubernetes l'exposition passe par
- *   l'Ingress, pas par un port hôte. Le pipeline marque l'étape « skipped » tout
- *   seul, parce que c'est le driver qui a répondu `null`.
- * - le build ne pousse rien vers un registry : l'image est construite **dans le
- *   cluster**, par un BuildKit que le driver y pose lui-même, puis importée
- *   dans le containerd du nœud. Voir `builder.ts` pour le pourquoi de ce
- *   montage.
+ * - `allocatePort()` returns `null`: in Kubernetes, exposure goes through the
+ *   Ingress, not through a host port. The pipeline marks the step "skipped" by
+ *   itself, because the driver answered `null`.
+ * - the build pushes nothing to a registry: the image is built **in the
+ *   cluster**, by a BuildKit the driver sets up there itself, then imported
+ *   into the node's containerd. See `builder.ts` for why it is set up this way.
  *
- * Accès au cluster : `kubectl` **sur la cible**, via SSH. Le kubeconfig ne
- * quitte jamais la machine — pas de client Kubernetes embarqué dans le panel,
- * exactement comme le driver Docker ne parle jamais au daemon à distance.
+ * Cluster access: `kubectl` **on the target**, over SSH. The kubeconfig never
+ * leaves the machine — no Kubernetes client embedded in the panel, exactly as
+ * the Docker driver never talks to the daemon remotely.
  */
 
 const BUILD_TIMEOUT_MS = 20 * 60_000;
 const APPLY_TIMEOUT_MS = 10 * 60_000;
 const ROLLOUT_TIMEOUT = '5m';
 const SHORT_TIMEOUT_MS = 30_000;
-/** Lignes de logs remontées par pod quand le healthcheck échoue. */
+/** Log lines brought back per pod when the healthcheck fails. */
 const DIAGNOSTIC_LINES = 200;
-/** Nombre de pods décrits en détail : au-delà, le diagnostic devient illisible. */
+/** Number of pods described in detail: beyond that, the diagnosis becomes unreadable. */
 const DIAGNOSTIC_PODS = 5;
 const DIAGNOSTIC_TIMEOUT_MS = 60_000;
 /**
- * Attente de la disparition des pods après un passage à zéro réplique.
- * Deux minutes au total : de quoi laisser un `terminationGracePeriodSeconds`
- * par défaut (30 s) s'écouler plusieurs fois sans immobiliser un slot de worker.
+ * Waiting for the pods to disappear after scaling to zero replicas. Two minutes
+ * in all: enough to let a default `terminationGracePeriodSeconds` (30 s) elapse
+ * several times without tying up a worker slot.
  */
 const DRAIN_ATTEMPTS = 60;
 const DRAIN_INTERVAL_SECONDS = 2;
 
 /**
- * K3s écrit son kubeconfig dans `/etc/rancher/k3s/k3s.yaml` et ne l'installe pas
- * dans `$HOME/.kube`. On respecte un `KUBECONFIG` déjà positionné — une cible
- * peut viser un cluster distant — et on retombe sur le chemin K3s sinon.
+ * K3s writes its kubeconfig to `/etc/rancher/k3s/k3s.yaml` and does not install
+ * it in `$HOME/.kube`. A `KUBECONFIG` already set is respected — a target may
+ * aim at a remote cluster — and the K3s path is the fallback.
  */
-/** La plage des NodePort de Kubernetes, celle de K3s par défaut. */
+/** The Kubernetes NodePort range, K3s's by default. */
 const NODE_PORT_MIN = 30_000;
 const NODE_PORT_MAX = 32_767;
 
@@ -131,12 +131,12 @@ const KUBECONFIG_SETUP =
 export class K3sDriver implements DeploymentDriver {
   readonly runtime = 'k3s' as const;
 
-  /** Le namespace sous lequel l'application est regroupée sur la cible. */
+  /** The namespace under which the application is grouped on the target. */
   workspaceName(appSlug: string): string {
     return namespaceName(appSlug);
   }
 
-  /** Le décalque exact de `destroy()`, à passer à la main sur la machine. */
+  /** The exact copy of `destroy()`, to run by hand on the machine. */
   manualCleanup(appSlug: string, rootPath: string): string[] {
     return [
       `kubectl delete namespace ${namespaceName(appSlug)} --ignore-not-found`,
@@ -149,7 +149,7 @@ export class K3sDriver implements DeploymentDriver {
     return `${ctx.target.rootPath}/apps/${ctx.appSlug}`;
   }
 
-  /** `/opt/bootstrap/apps/{slug}/{version}-r{numéro}` — voir `releaseName()`. */
+  /** `/opt/bootstrap/apps/{slug}/{version}-r{number}` — see `releaseName()`. */
   private releasePath(ctx: DriverContext): string {
     return `${this.appPath(ctx)}/${releaseName(ctx.deployment)}`;
   }
@@ -160,10 +160,10 @@ export class K3sDriver implements DeploymentDriver {
   }
 
   /**
-   * L'étiquette des images que cette release construit : la release même. Le
-   * gabarit des pods change donc à chaque déploiement qui construit — les pods
-   * sont remplacés —, et `rollout undo` retrouve l'image d'avant, pas la
-   * dernière construite sous la même étiquette.
+   * The tag of the images this release builds: the release itself. The pods'
+   * template therefore changes at each deployment that builds — the pods are
+   * replaced —, and `rollout undo` finds the previous image, not the last one
+   * built under the same tag.
    */
   private imageTag(ctx: DriverContext, service: string): string {
     return builtImageTag(ctx.appSlug, service, releaseName(ctx.deployment));
@@ -173,12 +173,12 @@ export class K3sDriver implements DeploymentDriver {
     return namespaceName(ctx.appSlug);
   }
 
-  /** Ce que le driver dit, dans la langue de l'instance. */
+  /** What the driver says, in the instance's language. */
   private say(ctx: TargetContext): K3sSay {
     return k3sSay(ctx.language);
   }
 
-  /** Script shell précédé de la résolution du kubeconfig. */
+  /** Shell script preceded by the kubeconfig resolution. */
   private script(lines: string[]): string {
     return [KUBECONFIG_SETUP, ...lines].join('\n');
   }
@@ -187,7 +187,7 @@ export class K3sDriver implements DeploymentDriver {
     return this.script([`kubectl ${args}`]);
   }
 
-  /** `kubectl` dans le namespace de l'application. */
+  /** `kubectl` in the application's namespace. */
   private kube(ctx: DriverContext, args: string): string {
     return this.kubectl(`-n ${this.namespace(ctx)} ${args}`);
   }
@@ -217,8 +217,8 @@ export class K3sDriver implements DeploymentDriver {
             }),
     });
 
-    // Les droits se vérifient avant de rendre quoi que ce soit : un `apply` qui
-    // échoue à mi-parcours laisse un namespace à moitié peuplé.
+    // Permissions are checked before rendering anything: an `apply` that fails
+    // halfway leaves a half-populated namespace.
     const rights = await this.checkRights(ctx);
     checks.push(...rights);
 
@@ -228,8 +228,8 @@ export class K3sDriver implements DeploymentDriver {
       { timeout: SHORT_TIMEOUT_MS },
     );
     const classes = ingress.code === 0 ? ingress.stdout.trim() : '';
-    // Une information, plus une condition : les domaines passent par le
-    // reverse proxy de la cible, et c'est sa connexion qui dit s'il est là.
+    // Information, plus a condition: domains go through the target's reverse
+    // proxy, and it is its connection that says whether it is there.
     checks.push({
       key: 'ingress_controller',
       label: say('preflight.ingress'),
@@ -274,7 +274,7 @@ export class K3sDriver implements DeploymentDriver {
     };
   }
 
-  /** `kubectl auth can-i` — la seule réponse qui fasse autorité sur les droits. */
+  /** `kubectl auth can-i` — the only authoritative answer on permissions. */
   private async checkRights(ctx: DriverContext): Promise<PreflightResult['checks']> {
     const say = this.say(ctx);
     const verbs: Array<{ key: string; label: string; args: string }> = [
@@ -309,20 +309,20 @@ export class K3sDriver implements DeploymentDriver {
   }
 
   /**
-   * Ce cluster acceptera-t-il de construire les images que l'AppSpec réclame ?
+   * Will this cluster accept to build the images the AppSpec asks for?
    *
-   * La question est posée **au preflight**, et non à l'étape `build`. Le
-   * calendrier est tout l'intérêt : `build` vient après `upload`, donc après
-   * que les manifests — Secret rendus en clair compris — ont été déposés sur la
-   * cible. Un refus à ce moment-là laisse derrière lui exactement ce qu'on
-   * cherchait à ne pas y mettre. Le preflight, lui, a déjà l'AppSpec sous la
-   * main et n'a encore rien écrit.
+   * The question is asked **at preflight**, not at the `build` step. The timing
+   * is the whole point: `build` comes after `upload`, hence after the manifests —
+   * rendered Secrets in clear included — have been placed on the target. A
+   * refusal at that moment leaves behind exactly what we were trying not to put
+   * there. The preflight already has the AppSpec at hand and has written nothing
+   * yet.
    *
-   * On ne demande pas au cluster s'il est « capable » dans l'absolu : on lui
-   * soumet le constructeur en `--dry-run=server`, et on prend sa réponse. C'est
-   * la seule qui fasse autorité — elle passe par les mêmes RBAC et le même
-   * contrôle d'admission que ce qu'on créera vraiment, PodSecurity compris,
-   * qui est ce qui refuserait le pod privilégié dont BuildKit a besoin.
+   * We do not ask the cluster whether it is "capable" in the abstract: we submit
+   * the builder to it with `--dry-run=server`, and take its answer. It is the
+   * only authoritative one — it goes through the same RBAC and the same
+   * admission control as what we will really create, PodSecurity included, which
+   * is what would refuse the privileged pod BuildKit needs.
    */
   private async checkBuildCapability(
     ctx: DriverContext,
@@ -341,11 +341,11 @@ export class K3sDriver implements DeploymentDriver {
 
     const names = buildable.map((service) => say('quoted', { name: service.name })).join(', ');
 
-    // Le namespace est créé pour de bon, pas en dry-run : un `--dry-run=server`
-    // sur un Deployment dont le namespace n'existe pas répond « namespaces not
-    // found » — c'est-à-dire rien sur les droits ni sur l'admission. Mesuré sur
-    // la cible de test. Un namespace vide est une trace sans commune mesure
-    // avec les Secret rendus que ce contrôle évite d'écrire sur la machine.
+    // The namespace is created for real, not as a dry run: a `--dry-run=server`
+    // on a Deployment whose namespace does not exist answers "namespaces not
+    // found" — that is, nothing about permissions or admission. Measured on the
+    // test target. An empty namespace is a trace out of all proportion with the
+    // rendered Secrets this check avoids writing on the machine.
     const namespace = await exec(
       ctx.sshSession,
       this.script([applyManifestCommand(builderNamespaceManifest())]),
@@ -364,13 +364,13 @@ export class K3sDriver implements DeploymentDriver {
       };
     }
 
-    // Le Deployment pour les droits et le schéma, le Pod pour l'admission :
-    // PodSecurity valide des Pods, et se contente d'un avertissement sur un
-    // contrôleur. Les deux, ou le contrôle ne prouve que la moitié.
+    // The Deployment for permissions and schema, the Pod for admission:
+    // PodSecurity validates Pods, and settles for a warning on a controller. Both,
+    // or the check only proves half.
     const admission = await exec(
       ctx.sshSession,
-      // `set -e` : sans lui, le code de sortie serait celui du dernier `apply`
-      // et un refus sur le premier passerait pour un succès.
+      // `set -e`: without it, the exit code would be the last `apply`'s, and a
+      // refusal on the first one would pass for a success.
       this.script([
         'set -e',
         applyManifestCommand(builderDeploymentManifest(new Date()), true),
@@ -399,9 +399,9 @@ export class K3sDriver implements DeploymentDriver {
   }
 
   /**
-   * Garantit que la racine du driver est écrivable par le compte de déploiement.
-   * Identique au driver Docker : `/opt` appartient à root sur une machine
-   * standard, le premier passage a besoin d'une élévation.
+   * Makes sure the driver's root is writable by the deployment account. Same as
+   * the Docker driver: `/opt` belongs to root on a standard machine, the first
+   * run needs elevation.
    */
   private async ensureWorkdir(
     ctx: DriverContext,
@@ -414,8 +414,8 @@ export class K3sDriver implements DeploymentDriver {
     );
     if (direct.code === 0) return { ok: true, detail: appPath };
 
-    // L'identité doit être résolue AVANT l'élévation : sous `sudo`, `id -u`
-    // répondrait 0 et le chown donnerait l'arborescence à root.
+    // The identity must be resolved BEFORE elevation: under `sudo`, `id -u` would
+    // answer 0 and the chown would give the tree to root.
     const identity = await exec(ctx.sshSession, 'id -u; id -g', { timeout: SHORT_TIMEOUT_MS });
     const [uid, gid] = identity.stdout
       .trim()
@@ -451,15 +451,14 @@ export class K3sDriver implements DeploymentDriver {
   // ─── allocatePort ───────────────────────────────────────────────────────────
 
   /**
-   * Aucun port hôte : en Kubernetes, l'exposition est le rôle de l'Ingress.
-   * Retourner `null` est la réponse du driver, pas une exception traitée
-   * ailleurs — le pipeline marquera l'étape « skipped » de lui-même.
+   * No host port: in Kubernetes, exposure is the Ingress's job. Returning `null`
+   * is the driver's answer, not an exception handled elsewhere — the pipeline
+   * will mark the step "skipped" by itself.
    */
   /**
-   * Aucun port d'ordinaire : le proxy du cluster joint le Service. Quand le
-   * proxy est sur une **autre** machine (`exposure.byPort`), il lui faut un
-   * port des nœuds — un NodePort, réservé comme un port Docker, dans la plage
-   * que Kubernetes accepte.
+   * Usually no port: the cluster's proxy reaches the Service. When the proxy is
+   * on **another** machine (`exposure.byPort`), it needs a node port — a
+   * NodePort, reserved like a Docker port, in the range Kubernetes accepts.
    */
   async allocatePort(ctx: DriverContext, onLog?: LogSink): Promise<number | null> {
     if (!ctx.exposure?.byPort) return null;
@@ -486,8 +485,8 @@ export class K3sDriver implements DeploymentDriver {
   }
 
   /**
-   * Le Service du point d'entrée, dans le namespace de l'application ; ou son
-   * NodePort, quand un proxy hors du cluster doit le joindre.
+   * The entry point's Service, in the application's namespace; or its NodePort,
+   * when a proxy outside the cluster must reach it.
    */
   upstream(ctx: DriverContext, publishedPort: number | null): ProxyUpstream | null {
     if (publishedPort !== null) return { kind: 'port', port: publishedPort };
@@ -495,7 +494,7 @@ export class K3sDriver implements DeploymentDriver {
     return { kind: 'kubernetes', namespace: this.namespace(ctx), service: service.name, port: service.port };
   }
 
-  /** Le NodePort réservé, s'il y en a un et qu'il est toujours voulu. */
+  /** The reserved NodePort, if there is one and it is still wanted. */
   private async publishedPort(ctx: DriverContext): Promise<number | null> {
     if (!ctx.exposure?.byPort || !ctx.portAllocator) return null;
     return ctx.portAllocator.current({ targetId: ctx.target.id, applicationId: ctx.applicationId });
@@ -504,7 +503,7 @@ export class K3sDriver implements DeploymentDriver {
   // ─── render ─────────────────────────────────────────────────────────────────
 
   async render(ctx: DriverContext): Promise<RenderedArtifacts> {
-    // Les racines seulement : un alias n'a pas de valeur propre à demander.
+    // Roots only: an alias has no value of its own to ask for.
     const secretNames = storedSecretNames(ctx.spec);
     const secretValues = ctx.resolveSecrets ? await ctx.resolveSecrets(secretNames) : {};
 
@@ -537,9 +536,9 @@ export class K3sDriver implements DeploymentDriver {
         'upload',
       );
     }
-    // `kubectl apply -f k8s/` applique **tout** ce que contient le dossier : il
-    // ne doit porter que les manifestes de ce rendu — rien d'un déploiement
-    // précédent de la même version, rien d'un dépôt.
+    // `kubectl apply -f k8s/` applies **everything** the folder contains: it must
+    // only carry this render's manifests — nothing from a previous deployment of
+    // the same version, nothing from a repository.
     await this.run(
       ctx,
       `rm -rf ${shellQuote(this.manifestPath(ctx))} && mkdir -p ${shellQuote(this.manifestPath(ctx))}`,
@@ -547,7 +546,7 @@ export class K3sDriver implements DeploymentDriver {
       'upload',
     );
 
-    // Le code d'un dépôt lié va dans `source/`, à part des manifestes.
+    // The code of a linked repository goes into `source/`, apart from the manifests.
     if (ctx.sourceArchive) {
       await extractSourceArchive(
         ctx.sshSession,
@@ -587,13 +586,13 @@ export class K3sDriver implements DeploymentDriver {
         'prepare',
       );
     }
-    // Le contenu n'est jamais journalisé : le manifest Secret porte des valeurs.
+    // The content is never logged: the Secret manifest carries values.
     onLog(this.say(ctx)('upload.deposited', { path: file.path, bytes: file.content.length }));
   }
 
   /**
-   * Un service à construire exige que son contexte de build ait été déposé.
-   * Le driver ne va pas le chercher : il vérifie et échoue clairement.
+   * A service to build requires its build context to have been placed. The
+   * driver does not go and fetch it: it checks and fails clearly.
    */
   private async assertBuildContexts(
     ctx: DriverContext,
@@ -630,14 +629,14 @@ export class K3sDriver implements DeploymentDriver {
   // ─── build ──────────────────────────────────────────────────────────────────
 
   /**
-   * Construit dans le cluster, puis importe dans le containerd du nœud.
+   * Builds in the cluster, then imports into the node's containerd.
    *
-   * Décision figée du projet : pas de registry. L'image n'est donc jamais
-   * poussée nulle part — elle naît et vit sur la machine qui l'exécute. Ce que
-   * le nœud n'a pas, c'est un constructeur : `builder.ts` explique lequel on
-   * pose, et pourquoi celui-là.
+   * A frozen project decision: no registry. The image is therefore never pushed
+   * anywhere — it is born and lives on the machine that runs it. What the node
+   * lacks is a builder: `builder.ts` explains which one we set up, and why that
+   * one.
    *
-   * `null` quand aucun service ne se construit : l'étape est alors `skipped`.
+   * `null` when no service is built: the step is then `skipped`.
    */
   async build(ctx: DriverContext, onLog: LogSink): Promise<string[] | null> {
     const buildable = buildableServices(ctx.spec);
@@ -672,9 +671,9 @@ export class K3sDriver implements DeploymentDriver {
         BUILD_TIMEOUT_MS,
       );
 
-      // Sans cet import, l'image n'existe que dans un tar à l'intérieur du pod
-      // constructeur : le kubelet irait la chercher sur docker.io et le pod
-      // resterait en ImagePullBackOff.
+      // Without this import, the image only exists in a tar inside the builder pod:
+      // the kubelet would look for it on docker.io and the pod would stay in
+      // ImagePullBackOff.
       onLog(`k3s ctr -n k8s.io images import ${tag}`);
       await this.stream(
         ctx,
@@ -686,8 +685,8 @@ export class K3sDriver implements DeploymentDriver {
         true,
       );
 
-      // Le tar a fait son office ; il pèse le poids de l'image. Son effacement
-      // n'est pas bloquant : l'image est déjà dans containerd à ce point.
+      // The tar has done its job; it weighs as much as the image. Deleting it is not
+      // blocking: the image is already in containerd at this point.
       await this.stream(
         ctx,
         this.script([discardTarCommand()]),
@@ -704,14 +703,14 @@ export class K3sDriver implements DeploymentDriver {
   }
 
   /**
-   * Pose le constructeur dans le cluster, ou le retrouve s'il y est déjà, et
-   * date ce passage (`pupitre.io/last-build`).
+   * Sets up the builder in the cluster, or finds it if it is already there, and
+   * stamps this run (`pupitre.io/last-build`).
    *
-   * Il n'est pas retiré après le build, et c'est délibéré : son cache de
-   * couches vit dans le pod, et le détruire ferait retélécharger chaque image
-   * de base à chaque déploiement. Il ne se rattache à aucune application —
-   * `destroy()` d'une app ne doit donc pas l'emporter. C'est l'expiration
-   * (`pruneIdleBuilder`) qui le retire, après 24 heures sans build.
+   * It is not removed after the build, deliberately: its layer cache lives in the
+   * pod, and destroying it would download every base image again at each
+   * deployment. It belongs to no application — an app's `destroy()` must
+   * therefore not take it along. Expiry (`pruneIdleBuilder`) removes it, after 24
+   * hours without a build.
    */
   private async ensureBuilder(ctx: DriverContext, onLog: LogSink): Promise<void> {
     const say = this.say(ctx);
@@ -745,14 +744,13 @@ export class K3sDriver implements DeploymentDriver {
   }
 
   /**
-   * Retire le constructeur resté sans build depuis 24 heures
-   * (`BUILDER_IDLE_TTL_MS`).
+   * Removes the builder left without a build for 24 hours (`BUILDER_IDLE_TTL_MS`).
    *
-   * Une lecture, puis une suppression **sous condition** de la version lue :
-   * un build qui le réclame entre les deux réécrit sa date dans le même geste
-   * qui le pose (voir `builderDeploymentManifest`), la version change, l'API
-   * répond `Conflict` et le constructeur reste. Rien d'autre n'est touché : ni
-   * le namespace, ni les images déjà importées dans containerd.
+   * A read, then a deletion **conditional** on the version read: a build that
+   * claims it in between rewrites its date in the same gesture that sets it up
+   * (see `builderDeploymentManifest`), the version changes, the API answers
+   * `Conflict` and the builder stays. Nothing else is touched: neither the
+   * namespace nor the images already imported into containerd.
    */
   async pruneIdleBuilder(
     ctx: TargetContext,
@@ -794,7 +792,7 @@ export class K3sDriver implements DeploymentDriver {
       );
       return { outcome: 'removed', lastUsedAt };
     }
-    // Un build l'a daté entre la lecture et la suppression : il sert, il reste.
+    // A build stamped it between the read and the deletion: it is in use, it stays.
     if (/Conflict/.test(removed.stderr)) {
       onLog(say('builder.claimed', { name: BUILDER_DEPLOYMENT }));
       return { outcome: 'kept', lastUsedAt };
@@ -814,11 +812,11 @@ export class K3sDriver implements DeploymentDriver {
     const manifests = this.manifestPath(ctx);
     const namespace = this.namespace(ctx);
 
-    // L'équivalent de `docker compose pull` : sans lui, `IfNotPresent` garde
-    // indéfiniment le premier contenu tiré pour un tag.
+    // The equivalent of `docker compose pull`: without it, `IfNotPresent` keeps the
+    // first content pulled for a tag forever.
     const pulled = await this.pullImages(ctx, onLog);
 
-    // Le namespace d'abord, seul : les ressources qui suivent le référencent.
+    // The namespace first, alone: the resources that follow reference it.
     onLog(`kubectl apply — namespace ${namespace}`);
     await this.stream(
       ctx,
@@ -836,8 +834,8 @@ export class K3sDriver implements DeploymentDriver {
       'apply',
       APPLY_TIMEOUT_MS,
     );
-    // `apply` ne retire rien : la restriction au proxy distant d'un déploiement
-    // précédent bloquerait le proxy du cluster, s'il n'est plus question d'elle.
+    // `apply` removes nothing: a previous deployment's restriction to a remote proxy
+    // would block the cluster's proxy, if it is no longer relevant.
     if (!ctx.exposure?.allowFrom || (await this.publishedPort(ctx)) === null) {
       await this.run(
         ctx,
@@ -858,11 +856,11 @@ export class K3sDriver implements DeploymentDriver {
           APPLY_TIMEOUT_MS,
         );
       } catch (error) {
-        // `apply` est passé : le cluster porte déjà la nouvelle version, et
-        // c'est elle qui ne devient pas prête. Les pods de l'ancienne tiennent
-        // encore la place — mais le Deployment ne décrit plus qu'elle, et le
-        // premier de ces pods qui tomberait renaîtrait dans la nouvelle.
-        // Revenir en arrière est la seule issue qui laisse un état connu.
+        // `apply` went through: the cluster already carries the new version, and it
+        // is that one which does not become ready. The old version's pods still hold
+        // the place — but the Deployment only describes the new one, and the first of
+        // those pods to fall would be reborn as the new version.
+        // Rolling back is the only way out that leaves a known state.
         if (!(error instanceof DriverError)) throw error;
         throw new UnhealthyReleaseError(
           this.say(ctx)('deploy.unhealthy', { service: service.name, detail: error.message }),
@@ -876,7 +874,7 @@ export class K3sDriver implements DeploymentDriver {
 
     await this.refreshStaleImages(ctx, pulled, onLog);
 
-    // Marque la release courante : `rollback()` et `destroy()` s'en servent.
+    // Marks the current release: `rollback()` and `destroy()` use it.
     await this.run(
       ctx,
       `ln -sfn ${shellQuote(release)} ${shellQuote(`${this.appPath(ctx)}/current`)}`,
@@ -884,8 +882,8 @@ export class K3sDriver implements DeploymentDriver {
       'link',
     );
 
-    // Ménage des anciennes versions, une fois `current` à jour — leurs images
-    // construites avec elles, sans quoi le disque du nœud se remplirait.
+    // Cleanup of old versions, once `current` is up to date — their built images
+    // along with them, otherwise the node's disk would fill up.
     const pruned = await pruneReleases(ctx, this.appPath(ctx), onLog);
     await this.removeBuiltImages(ctx, pruned, onLog);
 
@@ -902,22 +900,22 @@ export class K3sDriver implements DeploymentDriver {
   }
 
   /**
-   * URL par laquelle l'application doit répondre.
+   * URL through which the application must answer.
    *
-   * Aucune, du point de vue du driver : le Service n'est joignable que depuis le
-   * cluster, et un domaine est l'affaire du reverse proxy, dont l'étape suit. Le
-   * driver le dit en retournant `null` plutôt que de fabriquer une URL qui ne
-   * répondrait pas.
+   * None, from the driver's point of view: the Service is only reachable from the
+   * cluster, and a domain is the business of the reverse proxy, whose step comes
+   * next. The driver says so by returning `null` rather than making up a URL that
+   * would not answer.
    */
   private buildUrl(_ctx: DriverContext): string | null {
     return null;
   }
 
   /**
-   * Images effectivement référencées par les manifests.
+   * Images actually referenced by the manifests.
    *
-   * Déduite de l'AppSpec, pas du cluster : la liste doit être connue avant que
-   * quoi que ce soit ne tourne, pour que les scanners puissent l'analyser.
+   * Derived from the AppSpec, not from the cluster: the list must be known before
+   * anything runs, so the scanners can analyze it.
    */
   async images(ctx: DriverContext): Promise<string[]> {
     return ctx.spec.services.map((service) =>
@@ -926,8 +924,8 @@ export class K3sDriver implements DeploymentDriver {
   }
 
   /**
-   * Le containerd de k3s, dans l'espace du kubelet : c'est là que `build()`
-   * importe les images construites. Son socket est réservé à root.
+   * k3s's containerd, in the kubelet's namespace: that is where `build()` imports
+   * the built images. Its socket is reserved to root.
    */
   imageStore(_ctx: DriverContext): ImageStore {
     return {
@@ -1022,8 +1020,8 @@ export class K3sDriver implements DeploymentDriver {
   }
 
   /**
-   * Résultat d'échec, diagnostic capturé **avant** de rendre la main : un
-   * rollback qui suivrait remplacerait les pods et effacerait la scène.
+   * Failure result, diagnosis captured **before** returning: a rollback that
+   * followed would replace the pods and wipe the scene.
    */
   private async unhealthy(
     ctx: DriverContext,
@@ -1038,11 +1036,10 @@ export class K3sDriver implements DeploymentDriver {
   }
 
   /**
-   * `kubectl get pods`, puis `describe` et `logs` des pods en cause.
+   * `kubectl get pods`, then `describe` and `logs` of the pods involved.
    *
-   * `describe` avant `logs` : un pod qui ne démarre pas (image absente, volume
-   * non lié) n'a aucun log à montrer, et c'est la liste d'événements qui dit
-   * pourquoi.
+   * `describe` before `logs`: a pod that does not start (missing image, unbound
+   * volume) has no log to show, and it is the event list that says why.
    */
   private async diagnose(
     ctx: DriverContext,
@@ -1058,8 +1055,8 @@ export class K3sDriver implements DeploymentDriver {
       sections.push(`$ kubectl -n ${namespace} get pods -o wide\n${pods.stdout.trim()}`);
     }
 
-    // À défaut de pod nommément en cause, on regarde ceux qui ne sont pas
-    // `Running` — c'est le même critère, appliqué à la volée.
+    // Without a pod named as involved, we look at those that are not `Running` —
+    // the same criterion, applied on the fly.
     const names =
       suspects.length > 0 ? [...suspects] : await this.notRunningPods(ctx);
 
@@ -1087,9 +1084,9 @@ export class K3sDriver implements DeploymentDriver {
   }
 
   /**
-   * Les pods qui ne sont pas prêts — `Running` compris, quand une sonde de
-   * disponibilité les refuse : c'est le cas d'une version qui démarre mais ne
-   * répond pas comme il faut.
+   * The pods that are not ready — `Running` included, when a readiness probe
+   * refuses them: that is the case of a version that starts but does not answer
+   * as it should.
    */
   private async unreadyPods(ctx: DriverContext): Promise<string[]> {
     const result = await exec(
@@ -1130,13 +1127,12 @@ export class K3sDriver implements DeploymentDriver {
   }
 
   /**
-   * Comment sonder l'application depuis le node.
+   * How to probe the application from the node.
    *
-   * Par le Service, toujours : on ouvre un `port-forward` temporaire, on sonde,
-   * on referme. Le tout en une commande — une session SSH par sonde, pas de
-   * processus qui traîne si elle est coupée. Le chemin par un domaine, lui, est
-   * éprouvé par l'étape `proxy`, à travers le reverse proxy : la santé de
-   * l'application ne dépend pas de sa route.
+   * Through the Service, always: we open a temporary `port-forward`, probe, close.
+   * All in one command — one SSH session per probe, no process left hanging if it
+   * is cut. The path through a domain is tested by the `proxy` step, through the
+   * reverse proxy: the application's health does not depend on its route.
    */
   private probeCommand(
     ctx: DriverContext,
@@ -1153,7 +1149,7 @@ export class K3sDriver implements DeploymentDriver {
       label: `port-forward svc/${service.name}:${port}${path}`,
       command: this.script([
         `rm -f ${shellQuote(logFile)}`,
-        // Port local 0 : c'est kubectl qui en choisit un libre et l'annonce.
+        // Local port 0: kubectl picks a free one and announces it.
         `kubectl -n ${namespace} port-forward svc/${service.name} :${port} > ${shellQuote(logFile)} 2>&1 &`,
         'PF=$!',
         'LP=""',
@@ -1180,12 +1176,12 @@ export class K3sDriver implements DeploymentDriver {
   // ─── rollback ───────────────────────────────────────────────────────────────
 
   /**
-   * `kubectl rollout undo` sur chaque Deployment.
+   * `kubectl rollout undo` on each Deployment.
    *
-   * Un Deployment jamais mis à jour n'a qu'une révision : `undo` échoue alors,
-   * légitimement. Dans ce cas on réapplique les manifests de la version
-   * précédente s'ils sont encore sur la cible — c'est la même sémantique que le
-   * driver Docker, qui relance la release précédente.
+   * A Deployment never updated has only one revision: `undo` then fails,
+   * legitimately. In that case we apply the previous version's manifests again if
+   * they are still on the target — the same semantics as the Docker driver, which
+   * restarts the previous release.
    */
   async rollback(ctx: DriverContext, onLog: LogSink): Promise<void> {
     const say = this.say(ctx);
@@ -1213,8 +1209,8 @@ export class K3sDriver implements DeploymentDriver {
         );
       }
 
-      // La release précédente, par son nom ; à défaut, sous le nom d'avant
-      // `-r{numéro}` — une release déposée avant la mise à jour.
+      // The previous release, by its name; otherwise, under the name from before
+      // `-r{number}` — a release placed before the update.
       let previousRelease: string | null = null;
       for (const name of releaseCandidates(previous)) {
         const candidate = `${this.appPath(ctx)}/${name}`;
@@ -1270,8 +1266,8 @@ export class K3sDriver implements DeploymentDriver {
   }
 
   /**
-   * Les images construites des releases qu'on vient d'effacer, retirées de
-   * containerd. Une image encore employée par un pod est refusée : c'est voulu.
+   * The built images of the releases just deleted, removed from containerd. An
+   * image still used by a pod is refused: that is intended.
    */
   private async removeBuiltImages(
     ctx: DriverContext,
@@ -1283,7 +1279,7 @@ export class K3sDriver implements DeploymentDriver {
     const tags = releases.flatMap((release) =>
       built.map((service) => builtImageTag(ctx.appSlug, service.name, release)),
     );
-    // Le socket de containerd n'est ouvert qu'à root, comme pour l'import.
+    // containerd's socket is only open to root, as for the import.
     await exec(
       ctx.sshSession,
       this.script([`k3s crictl rmi ${tags.map(shellQuote).join(' ')} >/dev/null 2>&1; true`]),
@@ -1294,7 +1290,7 @@ export class K3sDriver implements DeploymentDriver {
 
   // ─── destroy ────────────────────────────────────────────────────────────────
 
-  /** Rétention des versions : voir `DeploymentDriver.pruneReleases`. */
+  /** Version retention: see `DeploymentDriver.pruneReleases`. */
   async pruneReleases(ctx: DriverContext, onLog: LogSink, keep?: number): Promise<string[]> {
     return pruneReleases(ctx, this.appPath(ctx), onLog, keep);
   }
@@ -1305,8 +1301,8 @@ export class K3sDriver implements DeploymentDriver {
     const appPath = this.appPath(ctx);
 
     onLog(`→ kubectl delete namespace ${namespace}`);
-    // Supprimer le namespace emporte tout ce qu'il contient, PVC compris.
-    // `--ignore-not-found` : détruire une app absente doit rester idempotent.
+    // Deleting the namespace takes everything it contains, PVCs included.
+    // `--ignore-not-found`: destroying an absent app must stay idempotent.
     await this.stream(
       ctx,
       this.kubectl(
@@ -1318,9 +1314,9 @@ export class K3sDriver implements DeploymentDriver {
       false,
     );
 
-    // Les images construites pour l'application, importées dans containerd :
-    // le namespace parti, plus rien ne s'en sert, et elles s'accumuleraient sur
-    // le nœud. Le socket de containerd n'est ouvert qu'à root, comme pour l'import.
+    // The images built for the application, imported into containerd: with the
+    // namespace gone, nothing uses them anymore, and they would pile up on the
+    // node. containerd's socket is only open to root, as for the import.
     onLog(say('destroy.images', { namespace }));
     await exec(
       ctx.sshSession,
@@ -1334,7 +1330,7 @@ export class K3sDriver implements DeploymentDriver {
     onLog(say('destroy.removing', { path: appPath }));
     await this.run(ctx, `rm -rf ${shellQuote(appPath)}`, onLog, 'destroy');
 
-    // Un NodePort a pu être réservé pour un proxy distant : il part avec le namespace.
+    // A NodePort may have been reserved for a remote proxy: it goes with the namespace.
     if (ctx.portAllocator) {
       const key = { targetId: ctx.target.id, applicationId: ctx.applicationId };
       if ((await ctx.portAllocator.current(key)) !== null) {
@@ -1351,9 +1347,9 @@ export class K3sDriver implements DeploymentDriver {
   // ─── supervision ────────────────────────────────────────────────────────────
 
   /**
-   * État des pods du namespace, ramené au vocabulaire neutre de la supervision.
-   * Un Deployment porte plusieurs pods : on rapporte l'état de chacun, préfixé
-   * du nom de son Deployment, plutôt que d'inventer une moyenne.
+   * State of the namespace's pods, brought back to monitoring's neutral
+   * vocabulary. A Deployment carries several pods: we report each one's state,
+   * prefixed with its Deployment's name, rather than making up an average.
    */
   async status(ctx: DriverContext): Promise<AppStatus> {
     const checkedAt = new Date().toISOString();
@@ -1368,9 +1364,9 @@ export class K3sDriver implements DeploymentDriver {
   }
 
   /**
-   * `kubectl rollout restart` recrée les pods sans toucher aux manifests :
-   * mêmes images, mêmes volumes, même Ingress. C'est l'équivalent exact du
-   * `docker compose restart` côté Compose.
+   * `kubectl rollout restart` recreates the pods without touching the manifests:
+   * same images, same volumes, same Ingress. It is the exact equivalent of
+   * `docker compose restart` on the Compose side.
    */
   async restart(ctx: DriverContext, onLog: LogSink): Promise<void> {
     onLog(`kubectl rollout restart -n ${this.namespace(ctx)}`);
@@ -1397,26 +1393,25 @@ export class K3sDriver implements DeploymentDriver {
   }
 
   /**
-   * Arrêt : `kubectl scale --replicas=0` sur les Deployments de l'application.
+   * Stop: `kubectl scale --replicas=0` on the application's Deployments.
    *
-   * Le pendant de `docker compose stop`, et le seul candidat sérieux. Les
-   * autres façons d'« arrêter » en Kubernetes suppriment quelque chose :
-   * `delete deployment` perd l'objet et son historique de révisions — donc
-   * `rollback()` —, `delete namespace` c'est `destroy()`. Mettre le nombre de
-   * répliques à zéro ne touche ni les manifests, ni les PVC, ni le Service, ni
-   * l'Ingress : le contrôleur retire les pods, et c'est tout.
+   * The counterpart of `docker compose stop`, and the only serious candidate. The
+   * other ways to "stop" in Kubernetes delete something: `delete deployment`
+   * loses the object and its revision history — hence `rollback()` —,
+   * `delete namespace` is `destroy()`. Setting the number of replicas to zero
+   * touches neither the manifests, nor the PVCs, nor the Service, nor the
+   * Ingress: the controller removes the pods, and that is all.
    *
-   * Le sélecteur est le même que celui de `restart()` et de `logs()` : c'est la
-   * signature du panel sur le cluster, et elle reconnaît les deux générations
-   * d'étiquettes.
+   * The selector is the same as `restart()`'s and `logs()`'s: it is the panel's
+   * signature on the cluster, and it recognizes both generations of labels.
    *
-   * L'attente est explicite. `rollout status` sur un Deployment à zéro réplique
-   * rend la main immédiatement — il constate qu'il n'y a rien à déployer, pas
-   * que les pods sont partis. Or un `stop()` qui rend la main pendant que les
-   * pods terminent laisserait l'appelant sonder un état intermédiaire et
-   * conclure de travers. On boucle donc sur le décompte des pods, ce que
-   * `kubectl wait --for=delete` ne sait pas faire proprement quand la liste est
-   * déjà vide (il sort en erreur sur « no matching resources found »).
+   * The wait is explicit. `rollout status` on a Deployment with zero replicas
+   * returns immediately — it observes there is nothing to roll out, not that the
+   * pods are gone. A `stop()` that returned while the pods are terminating would
+   * let the caller probe an intermediate state and conclude wrongly. We therefore
+   * loop on the pod count, which `kubectl wait --for=delete` cannot do cleanly
+   * when the list is already empty (it exits with an error on "no matching
+   * resources found").
    */
   async stop(ctx: DriverContext, onLog: LogSink): Promise<void> {
     const say = this.say(ctx);
@@ -1453,19 +1448,18 @@ export class K3sDriver implements DeploymentDriver {
   }
 
   /**
-   * Démarrage : on remet à chaque Deployment le nombre de répliques que
-   * l'AppSpec lui donne, service par service.
+   * Start: each Deployment gets back the number of replicas the AppSpec gives it,
+   * service by service.
    *
-   * Pas un `kubectl apply` des manifests, bien qu'il rétablirait aussi les
-   * répliques : appliquer, c'est réécrire l'intégralité des objets, donc
-   * effacer sans le dire ce qu'un opérateur aurait ajusté sur le cluster depuis
-   * le déploiement. Démarrer n'est pas redéployer. `scale` ne touche qu'au
-   * champ qu'on a mis à zéro.
+   * Not a `kubectl apply` of the manifests, although it would restore the replicas
+   * too: applying means rewriting the whole objects, hence silently erasing what
+   * an operator may have adjusted on the cluster since the deployment. Starting
+   * is not redeploying. `scale` only touches the field we set to zero.
    *
-   * Service par service et non par sélecteur, parce que le nombre de répliques
-   * est propre à chaque service : un sélecteur ne saurait en remettre qu'un
-   * seul et le même pour tous. L'ordre topologique est celui de `deploy()` —
-   * une base démarre avant ce qui l'interroge.
+   * Service by service and not by selector, because the number of replicas is
+   * specific to each service: a selector could only restore one and the same for
+   * all. The topological order is `deploy()`'s — a database starts before what
+   * queries it.
    */
   async start(ctx: DriverContext, onLog: LogSink): Promise<void> {
     const services = topologicalOrder(ctx.spec);
@@ -1503,25 +1497,25 @@ export class K3sDriver implements DeploymentDriver {
           `-l '${MANAGED_SELECTOR}'`,
       ),
       (line) => onLine(line),
-      // Un suivi de logs n'a pas de fin naturelle : c'est l'appelant qui coupe
-      // la session quand il a fini.
+      // A log follow has no natural end: it is the caller that cuts the session when
+      // it is done.
       { timeout: null, logOutput: false },
     );
   }
 
-  // ─── charges de la cible ────────────────────────────────────────────────────
+  // ─── the target's workloads ─────────────────────────────────────────────────
 
   /**
-   * Tout ce qui tourne sur le cluster.
+   * Everything running on the cluster.
    *
-   * On liste les **contrôleurs** (Deployment, StatefulSet, DaemonSet) et les
-   * pods qui n'en ont aucun, pas les pods pilotés. C'est une décision, pas un
-   * raccourci : supprimer un pod géré par un Deployment ne supprime rien — le
-   * contrôleur en recrée un dans la seconde. Une ligne sur laquelle l'action
-   * proposée n'a aucun effet est une ligne qui ment. Ce qu'on montre est donc
-   * ce sur quoi on peut agir.
+   * We list the **controllers** (Deployment, StatefulSet, DaemonSet) and the pods
+   * that have none, not the controlled pods. It is a decision, not a shortcut:
+   * deleting a pod managed by a Deployment deletes nothing — the controller
+   * recreates one within a second. A row on which the proposed action has no
+   * effect is a row that lies. What we show is therefore what can be acted on.
    *
-   * Les pods restent la source de l'état affiché : `2/3 prêts` vient d'eux.
+   * The pods remain the source of the displayed state: `2/3 ready` comes from
+   * them.
    */
   async listWorkloads(ctx: TargetContext): Promise<Workload[]> {
     const result = await exec(
@@ -1544,11 +1538,11 @@ export class K3sDriver implements DeploymentDriver {
   }
 
   /**
-   * Supprime la ressource désignée. Un contrôleur emporte ses pods ; un pod
-   * autonome ne laisse rien derrière lui.
+   * Deletes the designated resource. A controller takes its pods along; a
+   * standalone pod leaves nothing behind.
    *
-   * Les PVC ne sont pas touchés : ils survivent volontairement à leur
-   * contrôleur, exactement comme les volumes nommés côté Docker.
+   * PVCs are not touched: they deliberately outlive their controller, exactly
+   * like named volumes on the Docker side.
    */
   async removeWorkload(ctx: TargetContext, ref: WorkloadRef, onLog: LogSink): Promise<void> {
     const { workload, resource } = await this.findWorkload(ctx, ref, 'workload.remove');
@@ -1561,9 +1555,9 @@ export class K3sDriver implements DeploymentDriver {
       );
     }
 
-    // Garde propre au runtime : le panel n'a rien à faire dans les namespaces
-    // qui font tourner le cluster lui-même. Rien ne les marque « géré par le
-    // panel », et pourtant les effacer casserait la machine.
+    // A guard specific to the runtime: the panel has no business in the namespaces
+    // that run the cluster itself. Nothing marks them "managed by the panel", and
+    // yet deleting them would break the machine.
     if (SYSTEM_NAMESPACES.has(resource.namespace)) {
       throw new DriverError(
         this.say(ctx)('workload.system.remove', {
@@ -1590,23 +1584,22 @@ export class K3sDriver implements DeploymentDriver {
   }
 
   /**
-   * Mettre à jour, en Kubernetes, veut dire exactement ceci :
+   * Updating, in Kubernetes, means exactly this:
    *
-   *   1. `kubectl rollout restart` sur le contrôleur — il recrée ses pods à
-   *      partir du **même** manifeste : mêmes images, mêmes volumes, même
-   *      service, même ingress ;
-   *   2. `kubectl rollout status` pour attendre que le remplacement soit
-   *      effectif, et échouer si les nouveaux pods ne démarrent pas.
+   *   1. `kubectl rollout restart` on the controller — it recreates its pods from
+   *      the **same** manifest: same images, same volumes, same service, same
+   *      ingress;
+   *   2. `kubectl rollout status` to wait for the replacement to take effect, and
+   *      fail if the new pods do not start.
    *
-   * L'image est retirée du registry par le kubelet à la recréation lorsque la
-   * politique de tirage le permet — `imagePullPolicy: Always`, ou un tag absent
-   * du node. Le panel ne modifie pas le manifeste pour forcer le tirage :
-   * changer `imagePullPolicy` serait changer la configuration, précisément ce
-   * que cette opération promet de ne pas faire. C'est la différence assumée
-   * avec Docker, où le `pull` est explicite parce qu'il n'y a personne d'autre
-   * pour le décider.
+   * The image is pulled again from the registry by the kubelet on re-creation
+   * when the pull policy allows it — `imagePullPolicy: Always`, or a tag absent
+   * from the node. The panel does not change the manifest to force the pull:
+   * changing `imagePullPolicy` would be changing the configuration, precisely
+   * what this operation promises not to do. It is the accepted difference with
+   * Docker, where the `pull` is explicit because nobody else is there to decide.
    *
-   * Un pod sans contrôleur n'est pas mis à jour : rien ne le recréerait.
+   * A pod without a controller is not updated: nothing would recreate it.
    */
   async updateWorkload(ctx: TargetContext, ref: WorkloadRef, onLog: LogSink): Promise<void> {
     const say = this.say(ctx);
@@ -1657,7 +1650,7 @@ export class K3sDriver implements DeploymentDriver {
     return result.code === 0 ? parsePodImages(result.stdout) : [];
   }
 
-  // ─── sauvegardes ────────────────────────────────────────────────────────────
+  // ─── backups ────────────────────────────────────────────────────────────────
 
   private async pipeOrFail(
     ctx: DriverContext,
@@ -1686,10 +1679,10 @@ export class K3sDriver implements DeploymentDriver {
   }
 
   /**
-   * Un pod éphémère monte le PVC du volume et en sort l'archive — ou y
-   * extrait celle qu'on lui donne. Le planificateur le place de lui-même sur le
-   * nœud du volume (`local-path` est `ReadWriteOnce` : par nœud, pas par pod).
-   * Le pod est **toujours** supprimé, réussite ou échec.
+   * An ephemeral pod mounts the volume's PVC and takes the archive out of it — or
+   * extracts the one it is given into it. The scheduler places it by itself on
+   * the volume's node (`local-path` is `ReadWriteOnce`: per node, not per pod).
+   * The pod is **always** deleted, on success or failure.
    */
   private async withVolumePod<T>(
     ctx: DriverContext,
@@ -1781,7 +1774,7 @@ export class K3sDriver implements DeploymentDriver {
     );
   }
 
-  /** Dans un pod du service : `kubectl exec` sur le Deployment en choisit un. */
+  /** In one of the service's pods: `kubectl exec` on the Deployment picks one. */
   async exportFromService(
     ctx: DriverContext,
     service: string,
@@ -1811,17 +1804,17 @@ export class K3sDriver implements DeploymentDriver {
   }
 
   /**
-   * Tire les images des registres avant d'appliquer les manifests, et retient
-   * le digest obtenu pour chaque service.
+   * Pulls the images from the registries before applying the manifests, and
+   * keeps the digest obtained for each service.
    *
-   * `imagePullPolicy: IfNotPresent` est imposé par les images construites sur
-   * la cible (elles n'existent dans aucun registre). Son revers : un tag déjà
-   * présent n'est jamais retiré, et `postgres:16` resterait figé sur son
-   * premier contenu. Tirer ici rend au tag son contenu actuel dans containerd —
-   * exactement ce que fait `docker compose pull` de l'autre côté.
+   * `imagePullPolicy: IfNotPresent` is imposed by the images built on the target
+   * (they exist in no registry). Its downside: a tag already present is never
+   * pulled again, and `postgres:16` would stay frozen on its first content.
+   * Pulling here gives the tag back its current content in containerd — exactly
+   * what `docker compose pull` does on the other side.
    *
-   * Un échec n'arrête pas le déploiement : l'image locale, si elle existe,
-   * fera l'affaire, et si elle n'existe pas le rollout le dira.
+   * A failure does not stop the deployment: the local image, if it exists, will
+   * do, and if it does not, the rollout will say so.
    */
   private async pullImages(ctx: DriverContext, onLog: LogSink): Promise<Map<string, string>> {
     const pulled = new Map<string, string>();
@@ -1833,8 +1826,8 @@ export class K3sDriver implements DeploymentDriver {
         this.script([
           `k3s crictl pull ${shellQuote(image)} >/dev/null && k3s crictl inspecti -o json ${shellQuote(image)}`,
         ]),
-        // Le socket de containerd n'est ouvert qu'à root — comme pour l'import
-        // des images construites, plus haut.
+        // containerd's socket is only open to root — as for importing the built images,
+        // above.
         { timeout: APPLY_TIMEOUT_MS, logOutput: false, sudo: true },
       );
       const digest = result.code === 0 ? pulledDigest(result.stdout, image) : null;
@@ -1853,9 +1846,9 @@ export class K3sDriver implements DeploymentDriver {
   }
 
   /**
-   * Un manifest identique n'est pas un changement pour Kubernetes : si seul le
-   * contenu du tag a bougé, aucun pod n'est remplacé. Ce qui tourne encore sur
-   * l'ancien digest est donc redémarré — et seulement cela.
+   * An identical manifest is not a change for Kubernetes: if only the tag's
+   * content moved, no pod is replaced. What still runs on the old digest is
+   * therefore restarted — and only that.
    */
   private async refreshStaleImages(
     ctx: DriverContext,
@@ -1886,19 +1879,18 @@ export class K3sDriver implements DeploymentDriver {
   }
 
   /**
-   * Cycle de vie d'une charge, en Kubernetes :
+   * A workload's life cycle, in Kubernetes:
    *
-   *   - **redémarrer** : `rollout restart` du contrôleur, puis `rollout
-   *     status` — les pods sont remplacés sur le manifeste courant ;
-   *   - **arrêter** : mise à zéro des répliques d'un Deployment ou d'un
-   *     StatefulSet. Le nombre d'avant est noté dans une annotation, pour que
-   *     « démarrer » le rende tel quel ;
-   *   - **démarrer** : les répliques notées (une, à défaut), puis `rollout
-   *     status`.
+   *   - **restart**: `rollout restart` of the controller, then `rollout status` —
+   *     the pods are replaced on the current manifest;
+   *   - **stop**: replicas of a Deployment or a StatefulSet set to zero. The
+   *     previous count is noted in an annotation, so that "start" restores it as
+   *     is;
+   *   - **start**: the noted replicas (one, otherwise), then `rollout status`.
    *
-   * Un DaemonSet tourne sur chaque nœud par construction : il ne s'arrête pas
-   * sans être supprimé. Un pod sans contrôleur, lui, ne se recrée pas. Les
-   * deux sont refusés plutôt que maquillés.
+   * A DaemonSet runs on every node by construction: it does not stop without
+   * being deleted. A pod without a controller is not recreated. Both are refused
+   * rather than disguised.
    */
   async controlWorkload(
     ctx: TargetContext,
@@ -2031,10 +2023,10 @@ export class K3sDriver implements DeploymentDriver {
   }
 
   /**
-   * Le journal d'une charge, **tous ses pods** : `kubectl logs deployment/x`
-   * n'en lirait qu'un (« Found 2 pods, using pod/… »). Pour un contrôleur, on
-   * passe donc par son sélecteur, puis on remet les lignes dans l'ordre du
-   * temps — chaque pod arrive d'un bloc, et l'opérateur lit une chronologie.
+   * A workload's log, **all its pods**: `kubectl logs deployment/x` would only
+   * read one ("Found 2 pods, using pod/…"). For a controller, we therefore go
+   * through its selector, then put the lines back in time order — each pod
+   * arrives in one block, and the operator reads a chronology.
    */
   async workloadLogs(
     ctx: TargetContext,
@@ -2078,8 +2070,8 @@ export class K3sDriver implements DeploymentDriver {
   }
 
   /**
-   * `kubectl exec` sur la ressource : pour un contrôleur, kubectl choisit un
-   * de ses pods. Pas dans les namespaces système, pas plus qu'on n'y supprime.
+   * `kubectl exec` on the resource: for a controller, kubectl picks one of its
+   * pods. Not in the system namespaces, no more than we delete there.
    */
   async execInWorkload(
     ctx: TargetContext,
@@ -2116,7 +2108,7 @@ export class K3sDriver implements DeploymentDriver {
     );
   }
 
-  /** Relit une charge sur le cluster, et refuse d'agir à l'aveugle. */
+  /** Reads a workload again on the cluster, and refuses to act blindly. */
   private async findWorkload(
     ctx: TargetContext,
     ref: WorkloadRef,
@@ -2153,7 +2145,7 @@ export class K3sDriver implements DeploymentDriver {
     return { workload, resource };
   }
 
-  // ─── exécution ──────────────────────────────────────────────────────────────
+  // ─── execution ──────────────────────────────────────────────────────────────
 
   private async run(
     ctx: TargetContext,
@@ -2206,22 +2198,22 @@ export class K3sDriver implements DeploymentDriver {
   }
 }
 
-// ─── utilitaires ──────────────────────────────────────────────────────────────
+// ─── helpers ──────────────────────────────────────────────────────────────────
 
 /**
- * Ces quelques fonctions existent aussi dans le driver Docker. C'est volontaire :
- * un driver ne dépend pas d'un autre driver. Le jour où l'un change de shell ou
- * de format de sortie, l'autre n'en sait rien.
+ * These few functions also exist in the Docker driver. It is deliberate: a
+ * driver does not depend on another driver. The day one changes shell or output
+ * format, the other knows nothing about it.
  */
 
-/** Échappement POSIX en quotes simples. */
-/** De quoi lancer `tar`, rien d'autre — l'image des opérations de sauvegarde. */
+/** POSIX escaping in single quotes. */
+/** What it takes to run `tar`, nothing else — the image of backup operations. */
 const BACKUP_HELPER_IMAGE = 'busybox:1.37';
 
-/** Vide le volume — fichiers cachés compris —, puis y extrait l'archive lue sur l'entrée. */
+/** Empties the volume — hidden files included —, then extracts the archive read on stdin. */
 const CLEAR_AND_EXTRACT = 'cd /data && rm -rf -- * .[!.]* ..?* 2>/dev/null; tar xzf - -C /data';
 
-/** Dernière ligne non vide : la sonde imprime son code après le bruit de kubectl. */
+/** Last non-empty line: the probe prints its code after kubectl's noise. */
 function lastNonEmptyLine(value: string): string | null {
   const lines = value.split('\n').filter((line) => line.trim().length > 0);
   return lines[lines.length - 1]?.trim() ?? null;
@@ -2231,7 +2223,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** Quatrième colonne de `df -Pk`, convertie en Mio. */
+/** Fourth column of `df -Pk`, converted to MiB. */
 function parseAvailableMi(output: string): number | null {
   const lines = output.trim().split('\n');
   const row = lines[lines.length - 1];
@@ -2251,7 +2243,7 @@ type NodeItem = {
   };
 };
 
-/** `kubectl get nodes -o json` : nombre de nodes, nodes prêts, version. */
+/** `kubectl get nodes -o json`: number of nodes, ready nodes, version. */
 function parseNodes(
   output: string,
 ): { nodes: number; readyNodes: number; version: string | null } | null {
@@ -2283,7 +2275,7 @@ type PodItem = {
   status?: { conditions?: KubeCondition[]; phase?: string };
 };
 
-/** `kubectl get pods -o json` : combien sont prêts, et lesquels ne le sont pas. */
+/** `kubectl get pods -o json`: how many are ready, and which are not. */
 export function parsePodReadiness(
   output: string,
 ): { total: number; ready: number; pending: string[] } | null {
@@ -2302,16 +2294,16 @@ export function parsePodReadiness(
 
   let total = 0;
   for (const item of items) {
-    // Un pod en cours de suppression appartient au passé : un ancien
-    // ReplicaSet qui s'en va, une épave d'éviction. Il ne dit rien de la
-    // version qu'on vient de poser, et ne doit pas la faire replier.
+    // A pod being deleted belongs to the past: an old ReplicaSet going away, an
+    // eviction wreck. It says nothing about the version just set, and must not make
+    // it roll back.
     if (item.metadata?.deletionTimestamp) continue;
     total += 1;
     const isReady =
       item.status?.conditions?.some(
         (condition) => condition.type === 'Ready' && condition.status === 'True',
       ) ?? false;
-    // Un pod terminé avec succès n'a pas à être « Ready » : il a fini son travail.
+    // A pod that completed successfully does not have to be "Ready": it finished its work.
     if (isReady || item.status?.phase === 'Succeeded') {
       ready += 1;
     } else {
@@ -2334,7 +2326,7 @@ type PodJson = {
   }>;
 };
 
-/** Phase Kubernetes → vocabulaire neutre. */
+/** Kubernetes phase → neutral vocabulary. */
 function toServiceState(phase: string, ready: boolean): ServiceState {
   switch (phase) {
     case 'Running':
@@ -2383,16 +2375,16 @@ function parsePods(json: string, language: UiLanguage = 'fr'): ServiceStatus[] {
   });
 }
 
-// ─── charges de la cible : lecture de Kubernetes ──────────────────────────────
+// ─── the target's workloads: reading Kubernetes ───────────────────────────────
 
 /**
- * Namespaces qui font tourner le cluster. Rien n'y porte le label du panel, et
- * pourtant y supprimer quoi que ce soit casserait la machine : la garde est
- * ici, dans le driver, parce que c'est une particularité de ce runtime.
+ * Namespaces that run the cluster. Nothing in them carries the panel's label,
+ * and yet deleting anything there would break the machine: the guard is here,
+ * in the driver, because it is a particularity of this runtime.
  */
 const SYSTEM_NAMESPACES = new Set(['kube-system', 'kube-public', 'kube-node-lease']);
 
-/** Genres de charges pilotables, dans le vocabulaire de `kubectl`. */
+/** Kinds of drivable workloads, in `kubectl`'s vocabulary. */
 const CONTROLLER_KINDS: Record<string, string> = {
   Deployment: 'deployment',
   StatefulSet: 'statefulset',
@@ -2402,11 +2394,11 @@ const CONTROLLER_KINDS: Record<string, string> = {
 export type K3sResourceRef = { namespace: string; kind: string; name: string };
 
 /**
- * Poignée d'une charge K3s : `namespace:kind:name`.
+ * Handle of a K3s workload: `namespace:kind:name`.
  *
- * Le `:` convient : il est licite dans un segment d'URL et interdit dans un nom
- * DNS-1123, donc dans un nom de ressource Kubernetes. Aucune ambiguïté possible
- * au découpage.
+ * The `:` fits: it is allowed in a URL segment and forbidden in a DNS-1123
+ * name, hence in a Kubernetes resource name. No possible ambiguity when
+ * splitting.
  */
 function encodeResourceRef(resource: K3sResourceRef): string {
   return `${resource.namespace}:${resource.kind}:${resource.name}`;
@@ -2472,10 +2464,10 @@ function kubeItems(json: string): KubeItem[] {
   return Array.isArray(payload.items) ? payload.items : [];
 }
 
-/** Ports publiés sur le **node**. En Kubernetes c'est rare : l'exposition
- * normale passe par un Service et un Ingress, qui n'appartiennent pas à la
- * charge. On ne rapporte donc que les `hostPort` réellement déclarés, plutôt
- * que d'inventer une correspondance qui n'existe pas. */
+/** Ports published on the **node**. In Kubernetes it is rare: normal exposure
+ * goes through a Service and an Ingress, which do not belong to the workload.
+ * We therefore only report the `hostPort`s actually declared, rather than
+ * making up a mapping that does not exist. */
 function hostPorts(containers: KubeContainerSpec[] | null | undefined): string[] {
   const out: string[] = [];
   for (const container of containers ?? []) {
@@ -2489,8 +2481,8 @@ function hostPorts(containers: KubeContainerSpec[] | null | undefined): string[]
 }
 
 function isManaged(meta: KubeMeta | undefined): boolean {
-  // Les deux générations, pour la même raison que les sélecteurs : une
-  // ressource posée avant le renommage appartient toujours au panel.
+  // Both generations, for the same reason as the selectors: a resource set up
+  // before the renaming still belongs to the panel.
   const managedBy = (meta?.labels ?? {})['app.kubernetes.io/managed-by'];
   return managedBy === MANAGED_BY || managedBy === LEGACY_MANAGED_BY;
 }
@@ -2500,7 +2492,7 @@ function managedApp(meta: KubeMeta | undefined): string | null {
   return labels['app.kubernetes.io/part-of'] ?? labels['app.kubernetes.io/instance'] ?? null;
 }
 
-/** Un contrôleur est « en marche » quand toutes ses répliques attendues le sont. */
+/** A controller is "running" when all its expected replicas are. */
 function controllerState(item: KubeItem, say: K3sSay): { state: ServiceState; since: string } {
   const status = item.status ?? {};
   const desired =
@@ -2511,8 +2503,8 @@ function controllerState(item: KubeItem, say: K3sSay): { state: ServiceState; si
 
   const since = say('since.ready', { ready, count: desired });
 
-  // Zéro réplique voulue n'est pas une panne : c'est une charge délibérément
-  // mise à l'arrêt, l'équivalent d'un conteneur `exited`.
+  // Zero replicas wanted is not an outage: it is a workload deliberately stopped,
+  // the equivalent of an `exited` container.
   if (desired === 0) return { state: 'exited', since: say('since.scaledToZero') };
   if (ready >= desired) return { state: 'running', since };
   if (ready === 0) return { state: 'created', since };
@@ -2549,17 +2541,17 @@ function toControllerWorkload(item: KubeItem, kind: string, say: K3sSay): Worklo
 }
 
 /**
- * Ce qu'un contrôleur accepte : tous redémarrent ; seuls un Deployment et un
- * StatefulSet s'arrêtent (zéro réplique) et redémarrent — un DaemonSet tourne
- * sur chaque nœud par construction. Une charge du panel ne fait que redémarrer.
+ * What a controller accepts: all of them restart; only a Deployment and a
+ * StatefulSet stop (zero replicas) and start again — a DaemonSet runs on every
+ * node by construction. A panel workload can only restart.
  */
 function controllerControls(
   kind: string,
   state: ServiceState,
   managed: boolean,
 ): WorkloadControlAction[] {
-  // Arrêtée, une charge du panel attend que son application redémarre :
-  // un `rollout restart` à zéro réplique ne ferait rien.
+  // Stopped, a panel workload waits for its application to start again: a
+  // `rollout restart` with zero replicas would do nothing.
   if (managed) return state === 'exited' ? [] : ['restart'];
   if (kind === 'daemonset') return ['restart'];
   return state === 'exited' ? ['start'] : ['stop', 'restart'];
@@ -2588,16 +2580,16 @@ function toPodWorkload(item: KubeItem, say: K3sSay): Workload | null {
     ports: hostPorts(item.spec?.containers ?? null),
     managed: isManaged(meta),
     managedApp: managedApp(meta),
-    // Un pod sans contrôleur ne se redémarre ni ne s'arrête : rien ne le
-    // recréerait. On peut encore lire son journal et y exécuter une commande.
+    // A pod without a controller can neither restart nor stop: nothing would
+    // recreate it. Its log can still be read and a command run in it.
     controls: [],
     exec: !SYSTEM_NAMESPACES.has(meta.namespace) && ready,
   };
 }
 
 /**
- * `kubectl get deployments,statefulsets,daemonsets,pods -A -o json` → charges.
- * Les pods pilotés par un contrôleur sont écartés : leur ligne serait un leurre.
+ * `kubectl get deployments,statefulsets,daemonsets,pods -A -o json` → workloads.
+ * Pods driven by a controller are left out: their row would be a decoy.
  */
 export function parseWorkloads(json: string, language: UiLanguage = 'fr'): Workload[] {
   const say = k3sSay(language);
@@ -2621,7 +2613,7 @@ export function parseWorkloads(json: string, language: UiLanguage = 'fr'): Workl
   return workloads;
 }
 
-/** `kubectl get <kind> <name> -o json` → une charge, ou rien. */
+/** `kubectl get <kind> <name> -o json` → a workload, or nothing. */
 function parseSingleWorkload(
   json: string,
   resource: K3sResourceRef,
@@ -2641,8 +2633,8 @@ function parseSingleWorkload(
 }
 
 /**
- * `{"app":"web","tier":"front"}` → `app=web,tier=front`. Rien de lisible →
- * `null` : mieux vaut refuser que lire le journal de tout le namespace.
+ * `{"app":"web","tier":"front"}` → `app=web,tier=front`. Nothing readable →
+ * `null`: better to refuse than to read the log of the whole namespace.
  */
 export function labelSelector(matchLabels: string): string | null {
   let parsed: unknown;
@@ -2662,12 +2654,12 @@ export function labelSelector(matchLabels: string): string | null {
 const STAMP = /^(?:\[[^\]]*\] )?(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d+))?Z /;
 
 /**
- * Remet dans l'ordre du temps des lignes `[pod/x/c] 2026-…Z texte`.
+ * Puts lines `[pod/x/c] 2026-…Z text` back in time order.
  *
- * Les horodatages sont en UTC, au format RFC 3339 « nano » — qui **retire**
- * les zéros de fin : `33.1Z` et `33.123456789Z` ne se comparent pas comme des
- * chaînes. La fraction est donc complétée à neuf chiffres. Tri stable : une
- * ligne sans horodatage (une continuation) reste derrière celle qui la précède.
+ * Timestamps are in UTC, in RFC 3339 "nano" format — which **strips** trailing
+ * zeros: `33.1Z` and `33.123456789Z` do not compare as strings. The fraction is
+ * therefore padded to nine digits. Stable sort: a line without a timestamp (a
+ * continuation) stays behind the one before it.
  */
 export function chronological(lines: string[]): string[] {
   let last = '';
@@ -2682,9 +2674,9 @@ export function chronological(lines: string[]): string[] {
 }
 
 /**
- * Les digests des pods d'une application, par service. Le service est le label
- * `app.kubernetes.io/name` posé par le rendu ; `imageID` est la forme
- * `docker.io/library/nginx@sha256:…` de containerd.
+ * The digests of an application's pods, per service. The service is the
+ * `app.kubernetes.io/name` label set by the render; `imageID` is containerd's
+ * `docker.io/library/nginx@sha256:…` form.
  */
 export function parsePodImages(json: string): RunningImage[] {
   const byService = new Map<string, Set<string>>();
@@ -2703,9 +2695,9 @@ export function parsePodImages(json: string): RunningImage[] {
 }
 
 /**
- * Le digest d'une image tirée, lu dans `crictl inspecti -o json` : parmi ses
- * `repoDigests`, celui du dépôt demandé (une même image peut être connue sous
- * plusieurs noms).
+ * The digest of a pulled image, read from `crictl inspecti -o json`: among its
+ * `repoDigests`, the one of the requested repository (the same image can be
+ * known under several names).
  */
 export function pulledDigest(json: string, image: string): string | null {
   let parsed: unknown;

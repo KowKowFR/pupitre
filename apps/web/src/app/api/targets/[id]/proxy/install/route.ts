@@ -19,6 +19,7 @@ import { apiRoute, readJsonBody } from '@/lib/http';
 import { proxyViewForUi } from '@/lib/proxy';
 import { getOpsQueue } from '@/lib/queue';
 import { requirePermission } from '@/lib/rbac';
+import { currentLanguage } from '@/i18n/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -27,21 +28,22 @@ const paramsSchema = z.object({ id: z.string().uuid() });
 type Context = { params: Promise<{ id: string }> };
 
 const bodySchema = z.object({
-  /** Le proxy à installer ; Traefik pour les clients d'avant le choix. */
+  /** The proxy to install; Traefik for the clients from before the choice. */
   kind: proxyKindSchema.default('traefik'),
-  /** Ce que la détection a proposé pour ce proxy : `container`, `kubernetes`… */
+  /** What the detection offered for this proxy: `container`, `kubernetes`… */
   option: z.string().regex(/^[a-z0-9-]{1,32}$/),
   acme: acmeSettingsSchema,
 });
 
 /**
- * Installer un proxy — ou régler celui de K3s. La connexion est posée tout de
- * suite en `installing` : l'écran la voit avancer, et la tâche la complète
- * (configuration, nom, test) ou la laisse en `failed` avec la raison. Le
- * provider refuse ce que l'option ne sait pas faire (une autorité qu'il
- * n'accepte pas, par exemple), en le disant.
+ * Installing a proxy — or setting K3s's. The connection is set right away as
+ * `installing`: the screen sees it progress, and the job completes it
+ * (configuration, name, test) or leaves it `failed` with the reason. The provider
+ * refuses what the option cannot do (an authority it does not accept, for
+ * instance), saying so.
  */
 export const POST = apiRoute<Context>(async (request, context) => {
+  const language = await currentLanguage();
   const auth = await requirePermission(request, 'target:update');
   const { id } = paramsSchema.parse(await context.params);
   const target = await getTarget(id);
@@ -54,7 +56,7 @@ export const POST = apiRoute<Context>(async (request, context) => {
   if (existing?.status === 'installing') throw new ConflictError(msg(messages, 'error.installing'));
   if (await getTargetLink(id)) throw new ConflictError(msg(messages, 'error.linked'));
 
-  // Une configuration d'attente, complétée par la tâche.
+  // A placeholder configuration, completed by the job.
   const proxy = await saveTargetProxy({
     targetId: id,
     kind: input.kind,
@@ -87,5 +89,8 @@ export const POST = apiRoute<Context>(async (request, context) => {
     },
     ip: auth.ip,
   });
-  return NextResponse.json({ proxy: proxyViewForUi(proxy), jobId: job.id }, { status: 202 });
+  return NextResponse.json(
+    { proxy: proxyViewForUi(proxy, language), jobId: job.id },
+    { status: 202 },
+  );
 });

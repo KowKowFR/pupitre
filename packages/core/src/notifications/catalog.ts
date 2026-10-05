@@ -8,21 +8,21 @@ import { z } from 'zod';
 import { invalid } from '../validation.js';
 
 /**
- * Catalogue des canaux de notification — la partie *données* de l'abstraction.
+ * Catalog of notification channels — the *data* part of the abstraction.
  *
- * Même découpage que `Scanner`, `DeploymentDriver` et les fournisseurs d'IA :
- * d'un côté une description déclarative (ici), de l'autre une fabrique qui
- * instancie (`./index.js`). La séparation n'est pas cosmétique — ce module ne
- * dépend que de Zod, ce qui permet au panel Next, aux routes et à `@pupitre/db` de
- * connaître les canaux et leurs champs **sans tirer `nodemailer`** dans leur
- * graphe. C'est la règle déjà appliquée à `ssh2` et au SDK d'IA.
+ * The same split as `Scanner`, `DeploymentDriver` and the AI providers: on one
+ * side a declarative description (here), on the other a factory that
+ * instantiates (`./index.js`). The separation is not cosmetic — this module
+ * only depends on Zod, which lets the Next panel, the routes and `@pupitre/db`
+ * know the channels and their fields **without pulling `nodemailer`** into their
+ * graph. It is the rule already applied to `ssh2` and the AI SDK.
  *
- * Chaque canal décrit lui-même ses champs de configuration : type, obligation,
- * aide, valeur par défaut, **et son schéma Zod**. L'écran se construit à partir
- * de cette liste et les routes valident à partir d'elle. Conséquence recherchée :
- * il n'existe nulle part un `if (kind === 'smtp')` — ni dans l'UI, ni dans les
- * routes, ni en base. Ajouter un cinquième canal, c'est une entrée ici et une
- * classe dans la fabrique.
+ * Each channel describes its configuration fields itself: type, requirement,
+ * help, default value, **and its Zod schema**. The screen is built from this
+ * list and the routes validate from it. The intended consequence: there is no
+ * `if (kind === 'smtp')` anywhere — neither in the UI, nor in the routes, nor in
+ * the database. Adding a fifth channel is one entry here and one class in the
+ * factory.
  */
 
 export const NOTIFICATION_CHANNEL_KINDS = ['smtp', 'telegram', 'discord', 'webhook'] as const;
@@ -31,39 +31,39 @@ export const notificationChannelKindSchema = z.enum(NOTIFICATION_CHANNEL_KINDS);
 export type NotificationChannelKind = z.infer<typeof notificationChannelKindSchema>;
 
 /**
- * Comment l'écran doit rendre le champ. C'est bien le type du *champ*, pas
- * celui du canal : un `switch` là-dessus dans l'UI est légitime, il y a quatre
- * façons de saisir une valeur et elles ne dépendent d'aucun protocole.
+ * How the screen must render the field. It is indeed the *field*'s type, not
+ * the channel's: a `switch` on it in the UI is legitimate, there are four ways
+ * to enter a value and they depend on no protocol.
  */
 export type NotificationFieldKind = 'text' | 'password' | 'number' | 'boolean' | 'select';
 
 export type NotificationFieldOption = { readonly value: string; readonly label: string };
 
 /**
- * Un champ, réduit à sa **structure**. Ses textes — libellé, aide, libellés
- * d'options — vivent dans le dictionnaire plus bas, sous des clés dérivées du
- * canal et du nom du champ. Un descripteur n'a donc pas de langue, et
- * `presentNotificationChannels()` est le seul endroit qui en demande une.
+ * A field, reduced to its **structure**. Its texts — label, help, option labels
+ * — live in the dictionary further down, under keys derived from the channel
+ * and the field's name. A descriptor therefore has no language, and
+ * `presentNotificationChannels()` is the only place that asks for one.
  *
- * Le `placeholder` reste ici, et c'est délibéré : `smtp.example.test` ou
- * `ops@example.test` sont des exemples de valeur, pas des phrases. Les
- * traduire n'aurait rien produit de différent.
+ * The `placeholder` stays here, and it is deliberate: `smtp.example.test` or
+ * `ops@example.test` are example values, not sentences. Translating them would
+ * have produced nothing different.
  */
 export type NotificationFieldDescriptor = {
   readonly name: string;
   readonly kind: NotificationFieldKind;
   readonly required: boolean;
   /**
-   * Le champ est un secret : chiffré dans sa propre colonne (AES-256-GCM sous
-   * `MASTER_KEY`), jamais renvoyé par l'API, jamais journalisé, jamais dans le
-   * journal d'audit. Même motif que `targets.encrypted_credential`.
+   * The field is a secret: encrypted in its own column (AES-256-GCM under
+   * `MASTER_KEY`), never returned by the API, never logged, never in the audit
+   * log. The same pattern as `targets.encrypted_credential`.
    */
   readonly secret: boolean;
   readonly placeholder: string | null;
-  /** Valeurs acceptées d'un `select`. Ce sont des clés : elles ne se traduisent pas. */
+  /** Accepted values of a `select`. They are keys: they are not translated. */
   readonly options: readonly string[] | null;
   readonly defaultValue: string | number | boolean | null;
-  /** Validation du champ. La forme du formulaire et celle de la route sortent d'ici. */
+  /** The field's validation. The form's shape and the route's come from here. */
   readonly schema: z.ZodTypeAny;
 };
 
@@ -72,7 +72,7 @@ export type NotificationChannelDescriptor = {
   readonly fields: readonly NotificationFieldDescriptor[];
 };
 
-// ─── briques de validation partagées ──────────────────────────────────────────
+// ─── shared validation bricks ─────────────────────────────────────────────────
 
 const hostSchema = z
   .string()
@@ -82,10 +82,10 @@ const hostSchema = z
   .regex(/^[A-Za-z0-9._:-]+$/, 'Nom d’hôte ou adresse IP attendu');
 
 /**
- * Une adresse, éventuellement nommée : `a@b.test` ou `Ops <a@b.test>`.
- * Volontairement permissif sur la partie locale — la RFC 5321 l'est aussi, et
- * refuser une adresse valide est plus coûteux ici qu'accepter une adresse fausse,
- * que le serveur SMTP rejettera de toute façon en le disant.
+ * An address, possibly named: `a@b.test` or `Ops <a@b.test>`. Deliberately
+ * permissive on the local part — RFC 5321 is too, and refusing a valid address
+ * costs more here than accepting a wrong one, which the SMTP server will reject
+ * anyway and say so.
  */
 const ADDRESS = /^(?:[^<>@,]{1,80}\s)?<?[^\s<>@,]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}>?$/;
 
@@ -112,12 +112,12 @@ const mailboxListSchema = z
   );
 
 /**
- * Une URL http(s), validée par `new URL()` dans un `try`.
+ * An http(s) URL, validated by `new URL()` inside a `try`.
  *
- * Le `try` n'est pas décoratif : Zod v4 exécute **tous** les maillons d'une
- * chaîne, y compris après un échec. Un `refine` qui appelle `new URL()` sur une
- * saisie qui n'est pas une URL lève donc une exception que Zod ne rattrape pas
- * — et la route rend 500 au lieu du 422 attendu. Constaté, pas supposé.
+ * The `try` is not decorative: Zod v4 runs **every** link of a chain, including
+ * after a failure. A `refine` that calls `new URL()` on an input that is not a
+ * URL therefore throws an exception Zod does not catch — and the route returns
+ * 500 instead of the expected 422. Observed, not assumed.
  */
 const httpUrlSchema = z
   .string()
@@ -135,7 +135,7 @@ const httpUrlSchema = z
     { message: 'URL http(s) attendue' },
   );
 
-/** Sépare une liste d'adresses saisie en une seule ligne. */
+/** Splits a list of addresses entered on a single line. */
 export function splitMailboxList(value: string): string[] {
   return value
     .split(',')
@@ -157,18 +157,18 @@ function field(
   };
 }
 
-// ─── les mots du catalogue ────────────────────────────────────────────────────
+// ─── the catalog's words ──────────────────────────────────────────────────────
 
 /**
- * Ce que l'écran de configuration affiche d'un canal : son nom, ce qu'il fait,
- * ce qu'il faut être allé chercher avant, puis le libellé et l'aide de chaque
- * champ. Les clés sont dérivées du canal et du nom du champ — même convention
- * que celle des chemins de configuration.
+ * What the configuration screen shows of a channel: its name, what it does,
+ * what one must have fetched beforehand, then each field's label and help. The
+ * keys are derived from the channel and the field's name — the same convention
+ * as the configuration paths.
  *
- * Ne s'y trouvent pas, et volontairement : les valeurs d'option (`starttls`,
- * `implicit`), les noms de protocole et de service (Telegram, Discord,
- * @BotFather), les exemples de saisie, et les messages Zod — ces derniers
- * voyagent dans `details`, que le panel n'affiche pas.
+ * Not in it, deliberately: the option values (`starttls`, `implicit`), the
+ * protocol and service names (Telegram, Discord, @BotFather), the input
+ * examples, and the Zod messages — those travel in `details`, which the panel
+ * does not show.
  */
 const fr = {
   'smtp.label': 'E-mail (SMTP)',
@@ -314,17 +314,17 @@ function t(language: UiLanguage, key: keyof typeof fr): string {
 }
 
 /**
- * Le texte d'une clé composée, ou `null` s'il n'y en a pas.
+ * A composite key's text, or `null` if there is none.
  *
- * Les clés se construisent à partir du canal et du nom du champ : le
- * compilateur ne peut donc pas savoir lequel porte une aide. L'absence est une
- * réponse valide — un champ sans aide n'en affiche pas.
+ * The keys are built from the channel and the field's name: the compiler
+ * therefore cannot know which one carries help. Absence is a valid answer — a
+ * field without help shows none.
  */
 function optionalText(language: UiLanguage, key: string): string | null {
   return Object.hasOwn(fr, key) ? t(language, key as keyof typeof fr) : null;
 }
 
-// ─── le catalogue ─────────────────────────────────────────────────────────────
+// ─── the catalog ──────────────────────────────────────────────────────────────
 
 const CATALOG = {
   smtp: {
@@ -477,9 +477,9 @@ export function isNotificationChannelKind(value: unknown): value is Notification
   return typeof value === 'string' && Object.hasOwn(CATALOG, value);
 }
 
-// ─── configuration d'un canal ─────────────────────────────────────────────────
+// ─── a channel's configuration ────────────────────────────────────────────────
 
-/** Valeurs de configuration d'un canal. Plates, à dessein : rien à imbriquer ici. */
+/** A channel's configuration values. Flat, on purpose: nothing to nest here. */
 export type ChannelConfig = Record<string, string | number | boolean>;
 
 function shapeOf(fields: readonly NotificationFieldDescriptor[]): z.ZodTypeAny {
@@ -487,35 +487,35 @@ function shapeOf(fields: readonly NotificationFieldDescriptor[]): z.ZodTypeAny {
   for (const entry of fields) {
     shape[entry.name] = entry.required ? entry.schema : entry.schema.optional();
   }
-  // `strip` : un champ inconnu est retiré, pas refusé. Le formulaire d'un canal
-  // peut envoyer les champs d'un autre en cours de changement de type.
+  // `strip`: an unknown field is removed, not refused. A channel's form can send
+  // another's fields while the type is being changed.
   return z.object(shape);
 }
 
-/** Champs **non secrets**. Stockés en clair dans `notification_channels.config`. */
+/** **Non-secret** fields. Stored in clear in `notification_channels.config`. */
 export function channelConfigSchema(kind: NotificationChannelKind): z.ZodTypeAny {
   return shapeOf(CATALOG[kind].fields.filter((entry) => !entry.secret));
 }
 
-/** Champs **secrets**. Chiffrés en bloc dans `notification_channels.encrypted_secrets`. */
+/** **Secret** fields. Encrypted as a block in `notification_channels.encrypted_secrets`. */
 export function channelSecretsSchema(kind: NotificationChannelKind): z.ZodTypeAny {
   return shapeOf(CATALOG[kind].fields.filter((entry) => entry.secret));
 }
 
-/** Noms des champs secrets d'un canal — sert à dire *lesquels* sont renseignés. */
+/** Names of a channel's secret fields — used to say *which* are filled in. */
 export function channelSecretFields(kind: NotificationChannelKind): string[] {
   return CATALOG[kind].fields.filter((entry) => entry.secret).map((entry) => entry.name);
 }
 
-// ─── présentation ─────────────────────────────────────────────────────────────
+// ─── presentation ─────────────────────────────────────────────────────────────
 
 /**
- * Le catalogue débarrassé de ses schémas Zod, donc sérialisable en JSON.
+ * The catalog rid of its Zod schemas, hence serializable as JSON.
  *
- * L'écran se construit à partir de cette forme : il n'écrit le nom d'aucun
- * canal ni d'aucun champ. Une `RegExp` ou une fonction ne traversent pas
- * `JSON.stringify` — les laisser passer donnerait un `{}` silencieux côté
- * client, et un formulaire vide sans erreur.
+ * The screen is built from this shape: it writes the name of no channel and no
+ * field. A `RegExp` or a function does not survive `JSON.stringify` — letting
+ * them through would give a silent `{}` on the client side, and an empty form
+ * without an error.
  */
 export type PresentedNotificationField = {
   name: string;
@@ -538,9 +538,9 @@ export type PresentedNotificationChannel = {
 };
 
 /**
- * C'est ici, et seulement ici, que la structure rencontre les mots. La langue
- * vient de l'appelant — le panel la tire de `settings.locale`. Le défaut garde
- * l'ancien appel compilable et rend exactement le français d'avant.
+ * It is here, and only here, that the structure meets the words. The language
+ * comes from the caller — the panel takes it from `settings.locale`. The default
+ * keeps the old call compiling and returns exactly the French from before.
  */
 export function presentNotificationChannels(
   language: UiLanguage = DEFAULT_UI_LANGUAGE,

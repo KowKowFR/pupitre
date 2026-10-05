@@ -6,14 +6,14 @@ import { firstLine, shellQuote } from '../shell.js';
 import { proxySay } from './messages.js';
 
 /**
- * Les gestes sur la machine d'un proxy que tous les providers partagent :
- * créer un dossier, écrire ou retirer un fichier, lire un code HTTP. Par la
- * session SSH de la machine, avec sudo seulement quand il le faut.
+ * The gestures on a proxy's machine that every provider shares: create a
+ * folder, write or remove a file, read an HTTP code. Through the machine's SSH
+ * session, with sudo only when needed.
  */
 
 const SHORT_MS = 30_000;
 
-/** Crée un dossier ; par sudo, en le rendant au compte de déploiement, si besoin. */
+/** Creates a folder; through sudo, handing it to the deployment account, if needed. */
 export async function ensureDirectory(
   ctx: ProxyHostContext,
   directory: string,
@@ -40,9 +40,9 @@ export async function ensureDirectory(
 }
 
 /**
- * Écrit un fichier. Directement d'abord ; un dossier qui appartient à root —
- * celui d'un proxy installé à la main, typiquement — passe par un fichier
- * temporaire et `sudo install`.
+ * Writes a file. Directly first; a folder owned by root — that of a proxy
+ * installed by hand, typically — goes through a temporary file and
+ * `sudo install`.
  */
 export async function writeFile(
   ctx: ProxyHostContext,
@@ -93,7 +93,7 @@ export async function removeFile(
   }
 }
 
-/** Un code HTTP lu sur la machine, `0` quand rien ne répond. */
+/** An HTTP code read on the machine, `0` when nothing answers. */
 export async function httpCode(ctx: ProxyHostContext, url: string, host?: string): Promise<number> {
   const header = host ? ` -H ${shellQuote(`Host: ${host}`)}` : '';
   const result = await exec(

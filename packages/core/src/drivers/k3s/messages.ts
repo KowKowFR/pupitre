@@ -2,10 +2,10 @@ import { translator, type Translate, type Translated, type UiLanguage } from '..
 import { driverCopy } from '../messages.js';
 
 /**
- * Ce que dit le driver K3s — journal d'un déploiement, preflight, erreurs,
- * état des charges —, dans la langue de l'instance. Les commandes qu'il cite
- * (`kubectl rollout status`) ne se traduisent pas : ce sont celles qu'on
- * taperait sur la machine.
+ * What the K3s driver says — a deployment's log, preflight, errors, workload
+ * state —, in the instance's language. The commands it quotes
+ * (`kubectl rollout status`) are not translated: they are those one would type
+ * on the machine.
  */
 const fr = {
   ...driverCopy.fr,

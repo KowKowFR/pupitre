@@ -17,16 +17,16 @@ const paramsSchema = z.object({ id: z.string().min(1).max(200) });
 type Context = { params: Promise<{ id: string }> };
 
 /**
- * Relancer une invitation.
+ * Resending an invitation.
  *
- * Le cas courant : le lien a expiré, ou le message s'est perdu. Sans ce bouton,
- * la seule issue serait de supprimer le compte et de le recréer — en lui
- * faisant perdre son rôle et sa place dans le journal.
+ * The common case: the link expired, or the message got lost. Without this
+ * button, the only way out would be to delete the account and create it again —
+ * making it lose its role and its place in the log.
  *
- * **Les liens précédents meurent d'abord.** C'est la partie non négociable :
- * deux liens vivants pour un même compte, c'est un lien qu'on croit avoir
- * annulé et qui ouvre encore la porte. Better Auth n'invalide pas les jetons
- * antérieurs quand il en crée un nouveau — c'est à nous de le faire.
+ * **The previous links die first.** That is the non-negotiable part: two live
+ * links for the same account is a link one believes cancelled and that still
+ * opens the door. Better Auth does not invalidate earlier tokens when it creates
+ * a new one — it is up to us to do it.
  */
 export const POST = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'user:manage');
@@ -37,10 +37,10 @@ export const POST = apiRoute<Context>(async (request, context) => {
   if (!target) throw new NotFoundError(msg(admin, 'error.user.notFound', { id }));
 
   if (await hasPassword(id)) {
-    // Le compte est actif : la personne a déjà choisi son mot de passe. Lui
-    // renvoyer une « invitation » serait une réinitialisation déguisée, décidée
-    // par quelqu'un d'autre qu'elle. Si elle est bloquée, c'est à elle de
-    // demander une réinitialisation depuis l'écran de connexion.
+    // The account is active: the person already chose their password. Sending them
+    // an "invitation" again would be a disguised reset, decided by someone other
+    // than them. If they are stuck, it is up to them to ask for a reset from the
+    // sign-in screen.
     throw new ConflictError(msg(admin, 'error.user.hasPassword', { email: target.email }));
   }
 
@@ -68,12 +68,12 @@ export const POST = apiRoute<Context>(async (request, context) => {
 });
 
 /**
- * Annuler une invitation : les liens en cours meurent, le compte reste.
+ * Cancelling an invitation: the current links die, the account stays.
  *
- * Deux gestes distincts, comme « détruire » et « purger » le sont pour un
- * déploiement. Celui-ci referme la porte sans effacer la personne — utile quand
- * l'adresse était fausse, ou quand l'arrivée est reportée. Pour effacer le
- * compte, c'est `DELETE /api/admin/users/{id}`.
+ * Two distinct gestures, as "destroy" and "purge" are for a deployment. This one
+ * closes the door without erasing the person — useful when the address was
+ * wrong, or when the arrival is postponed. To erase the account, it is
+ * `DELETE /api/admin/users/{id}`.
  */
 export const DELETE = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'user:manage');

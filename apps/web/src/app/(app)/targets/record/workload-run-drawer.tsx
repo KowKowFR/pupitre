@@ -19,16 +19,15 @@ import { common } from '@/i18n/messages/common';
 import { targets as messages } from '@/i18n/messages/targets';
 
 /**
- * Le journal d'une charge, ou une console dans celle-ci.
+ * A workload's log, or a console in it.
  *
- * Chaque lecture, chaque commande est une **exécution** : un identifiant tiré
- * ici, un flux ouvert sur `?run=` *avant* de lancer la tâche (sinon les
- * premières lignes se perdraient), puis la tâche elle-même. Le serveur réserve
- * l'identifiant à cette session : la sortie d'une commande ne s'affiche que
- * chez qui l'a lancée.
+ * Each read, each command is a **run**: an identifier drawn here, a stream opened
+ * on `?run=` *before* starting the job (otherwise the first lines would be lost),
+ * then the job itself. The server reserves the identifier for this session: a
+ * command's output only shows for whoever started it.
  *
- * La console n'est pas un terminal : pas de TTY, pas d'invite qui attend. Une
- * commande, sa sortie, son code de sortie — et une ligne au journal d'audit.
+ * The console is not a terminal: no TTY, no waiting prompt. A command, its
+ * output, its exit code — and a line in the audit log.
  */
 
 export type RunMode = 'logs' | 'exec';
@@ -51,9 +50,9 @@ const KEEP_COMMANDS = 20;
 const TAILS = ['100', '300', '1000'] as const;
 
 /**
- * `crypto.randomUUID` n'existe que sur une origine sûre — HTTPS ou localhost.
- * Un panel auto-hébergé se consulte parfois en HTTP sur le réseau local :
- * `getRandomValues`, lui, est partout.
+ * `crypto.randomUUID` only exists on a secure origin — HTTPS or localhost. A
+ * self-hosted panel is sometimes browsed over HTTP on the local network:
+ * `getRandomValues`, for its part, is everywhere.
  */
 function runId(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(16));
@@ -64,8 +63,8 @@ function runId(): string {
 }
 
 /**
- * `docker logs --timestamps` : « 2026-10-01T09:12:33.123456789Z texte ».
- * `kubectl logs --prefix --timestamps` : le même, précédé de « [pod/x/c] ».
+ * `docker logs --timestamps`: "2026-10-01T09:12:33.123456789Z text".
+ * `kubectl logs --prefix --timestamps`: the same, preceded by "[pod/x/c]".
  */
 const STAMPED =
   /^(\[[^\]]*\] )?(\d{4}-\d{2}-\d{2}T(\d{2}:\d{2}:\d{2})[.\d]*(?:Z|[+-]\d{2}:\d{2})) ?(.*)$/s;
@@ -118,8 +117,8 @@ export function WorkloadRunDrawer({
   const streams = useRef(new Map<string, EventSource>());
   const scroller = useRef<HTMLDivElement>(null);
 
-  // Le journal se lit dès l'ouverture : sa première exécution existe avant le
-  // premier rendu, l'effet ne fait qu'y brancher le flux.
+  // The log is read as soon as it opens: its first run exists before the first
+  // render, the effect only plugs the stream into it.
   const [initialRun] = useState(() => (mode === 'logs' ? runId() : null));
   const [entries, setEntries] = useState<Entry[]>(() =>
     initialRun ? [blankEntry(initialRun, null)] : [],
@@ -129,7 +128,7 @@ export function WorkloadRunDrawer({
     setEntries((list) => list.map((entry) => (entry.run === run ? change(entry) : entry)));
   }, []);
 
-  /** Branche le flux, puis lance la tâche. N'écrit l'état que dans des rappels. */
+  /** Plugs the stream, then starts the job. Only writes state in callbacks. */
   const connect = useCallback(
     async (run: string, body: Record<string, unknown>) => {
       const stream = new EventSource(`/api/targets/${targetId}/workloads/events?run=${run}`);
@@ -207,7 +206,7 @@ export function WorkloadRunDrawer({
 
   useEffect(() => {
     if (initialRun) void connect(initialRun, { tail: Number(tail) });
-    // Une seule fois, à l'ouverture : les relectures passent par `start`.
+    // Only once, on opening: the re-reads go through `start`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialRun]);
 
@@ -219,7 +218,7 @@ export function WorkloadRunDrawer({
     };
   }, []);
 
-  // Le bas du terminal reste en vue : c'est là qu'arrive la sortie.
+  // The bottom of the terminal stays in view: that is where the output arrives.
   useEffect(() => {
     const element = scroller.current;
     if (element) element.scrollTop = element.scrollHeight;
@@ -228,7 +227,7 @@ export function WorkloadRunDrawer({
   function start(body: Record<string, unknown>, label: string | null) {
     const run = runId();
     const entry = blankEntry(run, label);
-    // Le journal ne garde que sa dernière lecture ; la console, ses dernières commandes.
+    // The log only keeps its last read; the console, its last commands.
     setEntries((list) =>
       mode === 'logs' ? [entry] : [...list.slice(-(KEEP_COMMANDS - 1)), entry],
     );

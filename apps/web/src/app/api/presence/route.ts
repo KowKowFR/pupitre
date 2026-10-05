@@ -9,15 +9,15 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const bodySchema = z.union([
-  /** Un onglet signale une interaction (clavier, souris, retour au premier plan). */
+  /** A tab signals an interaction (keyboard, mouse, back to the foreground). */
   z.object({ input: z.literal(true) }),
-  /** Le menu « Mon statut » : absent ou ne pas déranger, `null` pour automatique. */
+  /** The "My status" menu: away or do not disturb, `null` for automatic. */
   z.object({ choice: z.enum(PRESENCE_CHOICES).nullable() }),
 ]);
 
 /**
- * Sa propre présence, et seulement la sienne. Rien n'est journalisé : c'est
- * un état de quelques minutes, pas une action.
+ * One's own presence, and only one's own. Nothing is logged: it is a state of a
+ * few minutes, not an action.
  */
 export const POST = apiRoute(async (request) => {
   const auth = await requireTeamMember(request);

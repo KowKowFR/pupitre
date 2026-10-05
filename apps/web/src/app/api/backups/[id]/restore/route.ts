@@ -22,15 +22,15 @@ const paramsSchema = z.object({ id: z.string().uuid() });
 type Context = { params: Promise<{ id: string }> };
 
 const bodySchema = z.object({
-  /** Par défaut : la cible d'où vient la sauvegarde. */
+  /** By default: the target the backup comes from. */
   targetId: z.string().uuid().optional(),
   safetyBackup: z.boolean().default(true),
 });
 
 /**
- * Restaurer — remplacer les données de l'application par celles d'une
- * sauvegarde. Sa propre permission, `backup:restore`. Les refus qui se savent
- * d'avance sont rendus ici ; le reste se dit dans le journal de la tâche.
+ * Restoring — replacing the application's data with a backup's. Its own
+ * permission, `backup:restore`. The refusals known in advance are returned here;
+ * the rest is said in the job's log.
  */
 export const POST = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'backup:restore');

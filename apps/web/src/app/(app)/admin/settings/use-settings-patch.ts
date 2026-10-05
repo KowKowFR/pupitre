@@ -9,19 +9,18 @@ import { settings } from '@/i18n/messages/settings';
 import { toast } from '@/lib/toast';
 
 /**
- * Plomberie d'enregistrement commune aux sous-sections.
+ * The saving plumbing shared by the subsections.
  *
- * Une seule route, `PATCH /api/settings`, et un corps qui **ne nomme que les
- * champs de la section en cours**. C'est tout l'intérêt du découpage : la
- * fusion côté serveur est partielle sur un niveau, une section n'écrase donc
- * jamais les réglages d'une autre. Renvoyer l'objet complet « pour être sûr »
- * réintroduirait exactement le couplage qu'on vient de défaire — et ferait
- * d'un enregistrement d'identité un moyen de réinitialiser la politique de
- * scan.
+ * A single route, `PATCH /api/settings`, and a body that **only names the
+ * current section's fields**. That is the whole point of the split: the
+ * server-side merge is partial on one level, so a section never overwrites
+ * another's settings. Sending the whole object back "to be sure" would
+ * reintroduce exactly the coupling that was just undone — and would make an
+ * identity save a way to reset the scan policy.
  *
- * `aiApiKey` ne fait pas partie d'`AppSettingsPatch` : le schéma de la route
- * l'ajoute, et ses trois cas doivent survivre jusqu'ici — propriété absente =
- * clé inchangée, `null` = effacée, chaîne = remplacée.
+ * `aiApiKey` is not part of `AppSettingsPatch`: the route's schema adds it, and
+ * its three cases must survive all the way here — absent property = key
+ * unchanged, `null` = cleared, string = replaced.
  */
 export type SettingsPatchBody = AppSettingsPatch & {
   aiApiKey?: string | null;
@@ -34,7 +33,7 @@ export type SettingsPatch = {
   save: (body: SettingsPatchBody) => Promise<boolean>;
   pending: boolean;
   error: string | null;
-  /** Efface le bandeau d'erreur — appelé quand la section revient à ses valeurs enregistrées. */
+  /** Clears the error banner — called when the section goes back to its saved values. */
   clearFeedback: () => void;
 };
 
@@ -64,8 +63,8 @@ export function useSettingsPatch(): SettingsPatch {
 
     toast({ title: ts('form.saved') });
     setPending(false);
-    // Les paramètres irriguent le rail, le titre du document et toutes les
-    // dates : c'est la page entière qu'il faut réémettre, pas ce formulaire.
+    // The settings feed the rail, the document's title and every date: it is the
+    // whole page that must be emitted again, not this form.
     router.refresh();
     return true;
   }

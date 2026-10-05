@@ -9,51 +9,51 @@ import {
 import { getDriver } from '../src/drivers/index.js';
 
 /**
- * Arrêt et démarrage : ce qui se vérifie sans machine.
+ * Stop and start: what can be checked without a machine.
  *
- * Le geste lui-même exige une cible — c'est `scripts/verify-app-actions.sh` qui
- * l'exerce sur les deux runtimes. Restent trois choses qui se cassent en
- * silence et qu'un test attrape immédiatement : un driver qui n'implémente pas
- * le contrat, un message de flux que la route SSE rejettera, et un rôle
- * livré qui déploierait sans pouvoir arrêter.
+ * The gesture itself requires a target — it is `scripts/verify-app-actions.sh`
+ * that exercises it on both runtimes. Three things remain that break silently
+ * and that a test catches immediately: a driver that does not implement the
+ * contract, a stream message the SSE route would reject, and a shipped role
+ * that would deploy without being able to stop.
  */
 
-describe('contrat des drivers', () => {
+describe('drivers contract', () => {
   for (const runtime of ['docker', 'k3s'] as const) {
-    it(`${runtime} implémente stop() et start()`, () => {
+    it(`${runtime} implements stop() and start()`, () => {
       const driver = getDriver(runtime);
       assert.equal(typeof driver.stop, 'function');
       assert.equal(typeof driver.start, 'function');
     });
   }
 
-  it('les deux drivers exposent exactement la même surface', () => {
+  it('both drivers expose exactly the same surface', () => {
     const surface = (runtime: 'docker' | 'k3s') =>
       Object.getOwnPropertyNames(Object.getPrototypeOf(getDriver(runtime)))
         .filter((name) => !name.startsWith('_') && name !== 'constructor')
         .sort();
 
-    // Les méthodes privées de chaque classe diffèrent — c'est leur droit. Ce
-    // qui ne doit pas diverger, c'est ce que le contrat promet.
+    // Each class's private methods differ — that is their right. What must not
+    // diverge is what the contract promises.
     for (const method of ['stop', 'start', 'restart', 'destroy', 'rollback']) {
-      assert.ok(surface('docker').includes(method), `docker: ${method} manquant`);
-      assert.ok(surface('k3s').includes(method), `k3s: ${method} manquant`);
+      assert.ok(surface('docker').includes(method), `docker: ${method} missing`);
+      assert.ok(surface('k3s').includes(method), `k3s: ${method} missing`);
     }
   });
 });
 
-describe('flux applicatif', () => {
+describe('application stream', () => {
   for (const action of ['stop', 'start', 'restart'] as const) {
-    it(`accepte un événement de cycle de vie « ${action} »`, () => {
+    it(`accepts a “${action}” life-cycle event`, () => {
       const parsed = appLogMessageSchema.safeParse({
         kind: 'lifecycle',
-        payload: { ts: new Date().toISOString(), action, detail: 'démarré' },
+        payload: { ts: new Date().toISOString(), action, detail: 'started' },
       });
       assert.equal(parsed.success, true);
     });
   }
 
-  it('refuse une action inventée — la route SSE valide avec ce schéma', () => {
+  it('refuses a made-up action — the SSE route validates with this schema', () => {
     const parsed = appLogMessageSchema.safeParse({
       kind: 'lifecycle',
       payload: { ts: new Date().toISOString(), action: 'pause', detail: null },
@@ -63,7 +63,7 @@ describe('flux applicatif', () => {
 });
 
 describe('permissions', () => {
-  it("arrêter relève de `deployment:restart` — aucune permission n'a été ajoutée", () => {
+  it('stopping falls under `deployment:restart` — no permission was added', () => {
     assert.ok(PERMISSIONS.includes('deployment:restart'));
     assert.equal(
       PERMISSIONS.some((permission) => permission === ('deployment:stop' as never)),
@@ -71,17 +71,17 @@ describe('permissions', () => {
     );
   });
 
-  it('un opérateur peut arrêter ce qu’il déploie', () => {
+  it('an operator can stop what they deploy', () => {
     const operator = ROLE_DEFINITIONS.operator.permissions;
     assert.ok(operator.includes('deployment:create'));
     assert.ok(operator.includes('deployment:restart'));
   });
 });
 
-describe('statuts', () => {
-  it('un déploiement arrêté reste supervisable : son statut ne bouge pas', () => {
-    // C'est l'invariant qui garde les logs et le démarrage accessibles. Si
-    // quelqu'un ajoute un statut `stopped`, ce test tombe et le rappelle.
+describe('statuses', () => {
+  it('a stopped deployment stays monitorable: its status does not move', () => {
+    // It is the invariant that keeps the logs and the start accessible. If someone
+    // adds a `stopped` status, this test fails and reminds it.
     assert.equal(isSupervisable('success'), true);
     assert.equal(isSupervisable('rolled_back'), true);
     assert.equal(isSupervisable('destroyed'), false);

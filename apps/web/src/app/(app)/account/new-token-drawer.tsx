@@ -29,7 +29,7 @@ import { readApiError } from './api-error';
 type Preset = 'deploy' | 'read' | 'custom';
 type Expiry = '30' | '90' | '365' | 'never';
 
-/** Ce qu'une CI fait d'un déploiement, de bout en bout : le lancer, le suivre, en revenir. */
+/** What a CI does with a deployment, end to end: start it, follow it, come back from it. */
 const DEPLOY_PRESET: readonly Permission[] = [
   'deployment:create',
   'deployment:read',
@@ -39,12 +39,12 @@ const DEPLOY_PRESET: readonly Permission[] = [
 ];
 
 /**
- * « Nouveau jeton » : un nom, une échéance, ce qu'il peut faire, sur quelles
- * applications. Les permissions proposées sont celles de la personne, et
- * elles seules : on ne délègue que ce qu'on a.
+ * "New token": a name, an expiry, what it can do, on which applications. The
+ * permissions offered are the person's, and theirs alone: one only delegates
+ * what one has.
  *
- * Une fois créé, le tiroir montre le jeton **une seule fois**, avec de quoi
- * s'en servir. Fermer le tiroir le fait disparaître pour de bon.
+ * Once created, the drawer shows the token **only once**, with what it takes to
+ * use it. Closing the drawer makes it disappear for good.
  */
 export function NewTokenDrawer({
   open,
@@ -303,7 +303,7 @@ function NewTokenForm({
   );
 }
 
-/** Le jeton, une seule fois, et de quoi s'en servir. */
+/** The token, only once, and what it takes to use it. */
 function Reveal({
   created,
   onClose,
@@ -322,13 +322,13 @@ function Reveal({
   ].join('\n');
 
   async function copy(): Promise<void> {
-    // Le presse-papiers peut être refusé (contexte non sécurisé) : le jeton
-    // reste affiché, sélectionnable à la main.
+    // The clipboard can be refused (insecure context): the token stays on screen,
+    // selectable by hand.
     try {
       await navigator.clipboard.writeText(created.token);
       toast({ title: t('reveal.copied'), tone: 'ok' });
     } catch {
-      /* rien à signaler : le jeton est à l'écran */
+      /* nothing to report: the token is on screen */
     }
   }
 
@@ -341,8 +341,8 @@ function Reveal({
       />
       <DrawerBody>
         <Alert variant="warn">{t('reveal.warning')}</Alert>
-        {/* `Field` donne son identifiant à son enfant direct : le champ seul y
-            entre, le bouton reste à côté. */}
+        {/* `Field` gives its identifier to its direct child: only the input goes in,
+            the button stays beside it. */}
         <div className="flex items-end gap-2">
           <Field label={t('reveal.label')} htmlFor="token-value" className="min-w-0 flex-1">
             <Input

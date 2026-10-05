@@ -9,20 +9,20 @@ import {
 import { BACKOFF_CAP_SEC, backoffMs, parseListeningPorts } from '../src/drivers/index.js';
 
 /**
- * La logique de cycle de vie qui n'a besoin ni de SSH ni de base.
- * Tout le reste (ufw, sondes, rollback) exige une machine : c'est
- * `scripts/verify-ports-rollback.sh` qui s'en charge.
+ * The life-cycle logic that needs neither SSH nor a database. Everything else
+ * (ufw, probes, rollback) requires a machine: `scripts/verify-ports-rollback.sh`
+ * takes care of it.
  */
 
-describe('plages de ports', () => {
-  it('sans plage worker, la plage de la cible est retenue telle quelle', () => {
+describe('port ranges', () => {
+  it('without a worker range, the target’s range is kept as is', () => {
     assert.deepEqual(intersectPortRanges({ min: 30_000, max: 30_009 }, undefined), {
       min: 30_000,
       max: 30_009,
     });
   });
 
-  it('garde l’intersection, jamais la dernière lue', () => {
+  it('keeps the intersection, never the last one read', () => {
     assert.deepEqual(
       intersectPortRanges({ min: 30_000, max: 32_767 }, { min: 30_000, max: 30_009 }),
       { min: 30_000, max: 30_009 },
@@ -33,44 +33,44 @@ describe('plages de ports', () => {
     );
   });
 
-  it('deux plages disjointes ne produisent pas une plage vide déguisée', () => {
+  it('two disjoint ranges do not produce a disguised empty range', () => {
     assert.equal(intersectPortRanges({ min: 30_000, max: 30_009 }, { min: 31_000, max: 31_100 }), null);
   });
 
-  it('une plage d’un seul port reste valide', () => {
+  it('a single-port range stays valid', () => {
     assert.deepEqual(intersectPortRanges({ min: 30_005, max: 30_005 }, { min: 30_000, max: 30_009 }), {
       min: 30_005,
       max: 30_005,
     });
   });
 
-  it('la taille compte les deux bornes', () => {
+  it('the size counts both bounds', () => {
     assert.equal(portRangeSize({ min: 30_000, max: 30_009 }), 10);
     assert.equal(portRangeSize({ min: 30_000, max: 30_000 }), 1);
     assert.equal(portRangeSize(DEFAULT_PORT_RANGE), 2768);
   });
 });
 
-describe('backoff du healthcheck', () => {
-  it('double à chaque tentative', () => {
+describe('healthcheck backoff', () => {
+  it('doubles at each attempt', () => {
     assert.equal(backoffMs(2, 1), 2000);
     assert.equal(backoffMs(2, 2), 4000);
     assert.equal(backoffMs(2, 3), 8000);
   });
 
-  it('plafonne : sans plafond, la dixième tentative attendrait des heures', () => {
+  it('caps: without a cap, the tenth attempt would wait for hours', () => {
     assert.equal(backoffMs(10, 20), BACKOFF_CAP_SEC * 1000);
     assert.ok(backoffMs(5, 10) <= BACKOFF_CAP_SEC * 1000);
   });
 
-  it('respecte l’intervalle demandé à la première tentative', () => {
+  it('respects the requested interval at the first attempt', () => {
     assert.equal(backoffMs(1, 1), 1000);
     assert.equal(backoffMs(7, 1), 7000);
   });
 });
 
-describe('ports en écoute sur la cible', () => {
-  it('lit la sortie de ss -tlnH', () => {
+describe('ports listening on the target', () => {
+  it('reads the output of ss -tlnH', () => {
     const output = [
       'LISTEN 0      4096         0.0.0.0:22        0.0.0.0:*',
       'LISTEN 0      4096            [::]:30001        [::]:*',
@@ -80,7 +80,7 @@ describe('ports en écoute sur la cible', () => {
     assert.deepEqual([...parseListeningPorts(output)].sort((a, b) => a - b), [22, 30_001, 30_005]);
   });
 
-  it('lit la sortie de netstat -tln, en-tête compris', () => {
+  it('reads netstat -tln’s output, header included', () => {
     const output = [
       'Active Internet connections (only servers)',
       'Proto Recv-Q Send-Q Local Address           Foreign Address         State',
@@ -91,21 +91,21 @@ describe('ports en écoute sur la cible', () => {
     assert.deepEqual([...parseListeningPorts(output)].sort((a, b) => a - b), [22, 30_002]);
   });
 
-  it('une sortie vide ne produit aucun port — et non un port nul', () => {
+  it('an empty output produces no port — and not a zero port', () => {
     assert.equal(parseListeningPorts('').size, 0);
     assert.equal(parseListeningPorts('\n\n').size, 0);
   });
 });
 
 describe('pipeline', () => {
-  it('déclare la step rollback, en dernier', () => {
+  it('declares the rollback step, last', () => {
     const keys = DEPLOYMENT_STEPS.map((step) => step.key);
     assert.equal(keys.at(-1), 'rollback');
-    // Elle vient après le verdict qui peut la déclencher.
+    // It comes after the verdict that can trigger it.
     assert.ok(keys.indexOf('healthcheck') < keys.indexOf('rollback'));
   });
 
-  it('chaque step a une clé unique', () => {
+  it('each step has a unique key', () => {
     const keys = DEPLOYMENT_STEPS.map((step) => step.key);
     assert.equal(new Set(keys).size, keys.length);
   });

@@ -4,9 +4,9 @@ import * as React from 'react';
 import { cn } from '@/lib/utils';
 
 /**
- * Interrupteur — 32 × 18, la pastille glisse sur la courbe d'entrée. Une case
- * à cocher native avec `role="switch"` : l'état se lit « activé / désactivé »
- * aux lecteurs d'écran, et le clavier est celui du système.
+ * A switch — 32 × 18, the knob slides on the entrance curve. A native checkbox
+ * with `role="switch"`: the state reads "on / off" to screen readers, and the
+ * keyboard is the system's.
  */
 function Switch({ className, ...props }: Omit<React.ComponentProps<'input'>, 'type' | 'role'>) {
   return (
@@ -20,7 +20,7 @@ function Switch({ className, ...props }: Omit<React.ComponentProps<'input'>, 'ty
   );
 }
 
-/** Interrupteur et son libellé, avec une aide dessous. */
+/** A switch and its label, with a help underneath. */
 function SwitchField({
   label,
   help,

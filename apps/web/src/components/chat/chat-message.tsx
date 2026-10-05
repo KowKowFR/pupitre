@@ -19,9 +19,8 @@ import { MessageBody } from './message-body';
 export type ThreadMessage = ChatMessage & { deleted: boolean };
 
 /**
- * Un message du fil : sa citation s'il répond à un autre, son corps, ses
- * réactions. Au survol (ou au focus clavier), la barre d'actions : réagir,
- * répondre, supprimer.
+ * A message of the thread: its quote if it replies to another, its body, its
+ * reactions. On hover (or keyboard focus), the actions bar: react, reply, delete.
  */
 export function ChatMessageItem({
   message,
@@ -38,14 +37,14 @@ export function ChatMessageItem({
   onJump,
 }: {
   message: ThreadMessage;
-  /** Suite d'un message du même auteur : ni avatar, ni nom. */
+  /** The continuation of a message from the same author: no avatar, no name. */
   grouped: boolean;
   me: string;
   members: readonly Member[];
   directory: readonly DirectoryEntry[];
   time: string;
   canDelete: boolean;
-  /** Vient d'être ciblé depuis une citation : il clignote une fois. */
+  /** Just targeted from a quote: it blinks once. */
   highlighted: boolean;
   onReply: (message: ThreadMessage) => void;
   onReact: (message: ThreadMessage, emoji: string) => void;
@@ -209,8 +208,8 @@ export function ChatMessageItem({
 }
 
 /**
- * Les réactions : un emoji, un nombre, et qui — dans l'info-bulle. La sienne
- * est surlignée ; cliquer la retire, cliquer celle d'un autre s'y joint.
+ * The reactions: an emoji, a number, and who — in the tooltip. One's own is
+ * highlighted; clicking it removes it, clicking someone else's joins it.
  */
 function Reactions({
   reactions,
@@ -262,10 +261,9 @@ function Reactions({
 const attachmentUrl = (id: string) => `/api/chat/attachments/${id}`;
 
 /**
- * Les images d'un message. Une seule s'affiche à sa forme, bornée ; plusieurs
- * font une mosaïque de carrés. La place est réservée avant le chargement — les
- * dimensions viennent avec le message —, le fil ne saute donc pas. Un clic
- * ouvre l'image en grand.
+ * A message's images. A single one shows in its shape, bounded; several make a
+ * mosaic of squares. The room is reserved before loading — the dimensions come
+ * with the message —, so the thread does not jump. A click opens the image large.
  */
 function Attachments({ items }: { items: readonly ChatAttachment[] }) {
   const t = useT(messages);
@@ -283,7 +281,7 @@ function Attachments({ items }: { items: readonly ChatAttachment[] }) {
             aria-label={t('image.open')}
             className="block overflow-hidden rounded-lg border border-border bg-surface-2 focus-visible:shadow-focus focus-visible:outline-none"
           >
-            {/* eslint-disable-next-line @next/next/no-img-element -- image d'API authentifiée */}
+            {/* eslint-disable-next-line @next/next/no-img-element -- authenticated API image */}
             <img
               src={attachmentUrl(item.id)}
               alt=""
@@ -301,13 +299,13 @@ function Attachments({ items }: { items: readonly ChatAttachment[] }) {
       </div>
 
       <Dialog open={open !== null} onOpenChange={(next) => (next ? undefined : setOpen(null))}>
-        {/* À la taille de l'image : ni bandes blanches autour d'une petite capture,
-            ni débordement d'une grande. */}
+        {/* At the image's size: no white bands around a small screenshot, no overflow
+            of a large one. */}
         <DialogContent className="flex w-fit max-w-[calc(100vw-32px)] min-w-[280px] flex-col items-center gap-3 p-3">
           <DialogTitle className="sr-only">{t('image.viewer')}</DialogTitle>
           {open ? (
             <>
-              {/* eslint-disable-next-line @next/next/no-img-element -- image d'API authentifiée */}
+              {/* eslint-disable-next-line @next/next/no-img-element -- authenticated API image */}
               <img
                 src={attachmentUrl(open.id)}
                 alt=""

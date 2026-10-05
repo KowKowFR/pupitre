@@ -8,10 +8,10 @@ import { cn } from '@/lib/utils';
 import type { PermissionGroup } from './roles-editor';
 
 /**
- * Les permissions d'un rôle, groupées par ressource, avec « tout cocher » par
- * groupe. Partagé par le tiroir d'un rôle et la seconde étape de « Nouveau
- * rôle » : les deux cochent la même chose, de la même façon. Une permission
- * sensible le dit : c'est elle qui fait exiger un second facteur.
+ * A role's permissions, grouped by resource, with "check all" per group. Shared
+ * by a role's drawer and the second step of "New role": both check the same
+ * thing, the same way. A sensitive permission says so: it is the one that makes
+ * a second factor required.
  */
 export function PermissionGroups({
   groups,

@@ -22,12 +22,12 @@ type Context = { params: Promise<{ id: string }> };
 const configSchema = z.record(z.string().max(60), z.union([z.string(), z.number(), z.boolean()]));
 
 /**
- * Trois intentions par champ secret, et le schéma doit les préserver :
- *   champ absent → inchangé
- *   `null`       → effacé
- *   chaîne       → remplacé
- * Même sémantique que `aiApiKey` sur `PATCH /api/settings`, et pour la même
- * raison : sans elle, rouvrir l'écran et enregistrer effacerait le jeton.
+ * Three intentions per secret field, and the schema must preserve them:
+ *   absent field → unchanged
+ *   `null`       → cleared
+ *   string       → replaced
+ * The same semantics as `aiApiKey` on `PATCH /api/settings`, and for the same
+ * reason: without it, reopening the screen and saving would clear the token.
  */
 const patchSchema = z.object({
   name: z.string().trim().min(1).max(60).optional(),
@@ -84,7 +84,7 @@ export const PATCH = apiRoute<Context>(async (request, context) => {
       config: after.config,
       events: after.events,
       secrets: after.configuredSecrets,
-      // On dit que des secrets ont changé, jamais lesquels ni en quoi.
+      // We say that secrets changed, never which ones nor how.
       secretsTouched: Object.keys(patch.secrets ?? {}).length > 0,
     },
     ip: auth.ip,

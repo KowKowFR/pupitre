@@ -21,33 +21,32 @@ export const dynamic = 'force-dynamic';
 
 const paramsSchema = z.object({ id: z.string().uuid() });
 const querySchema = z.object({
-  /** `text` : lisible par un humain. `jsonl` : une ligne = un objet JSON. */
+  /** `text`: readable by a human. `jsonl`: one line = one JSON object. */
   format: z.enum(['text', 'jsonl']).default('text'),
 });
 
 type Context = { params: Promise<{ id: string }> };
 
 /**
- * Taille d'une tranche de `deployment_steps.log` relue en base.
+ * The size of a slice of `deployment_steps.log` read back from the database.
  *
- * Le journal d'une étape est une seule colonne `text` qui peut peser plusieurs
- * mégaoctets. La lire d'un bloc — ce que fait `readDeploymentLog()` pour la
- * relecture SSE — chargerait tout en mémoire avant d'écrire le premier octet.
- * On la découpe donc en tranches de caractères, et la réponse part dès la
- * première.
+ * A step's log is a single `text` column that can weigh several megabytes.
+ * Reading it in one go — what `readDeploymentLog()` does for the SSE replay —
+ * would load everything into memory before writing the first byte. So we cut it
+ * into slices of characters, and the response goes out from the first one.
  */
 const CHUNK_CHARS = 64 * 1024;
 
-/** Au-delà, on pousse la tranche courante dans le flux plutôt que d'empiler. */
+/** Beyond this, the current slice is pushed into the stream rather than stacked. */
 const FLUSH_CHARS = 16 * 1024;
 
 /**
- * Export du journal **persisté** d'un déploiement.
+ * Exporting a deployment's **persisted** log.
  *
- * Contrairement aux logs applicatifs, ce journal est fini : il a un début, une
- * fin, et il est intégralement en base. L'export est donc une lecture exacte,
- * pas un instantané — le fichier contient tout ce que `deployment_steps.log`
- * contient, dans l'ordre des étapes puis des lignes.
+ * Unlike the application logs, this log is finite: it has a start, an end, and
+ * it is entirely in the database. The export is therefore an exact read, not a
+ * snapshot — the file contains everything `deployment_steps.log` contains, in
+ * the order of the steps then of the lines.
  */
 export const GET = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'deployment:read');
@@ -60,8 +59,8 @@ export const GET = apiRoute<Context>(async (request, context) => {
   const exportedAt = new Date();
   const render = format === 'jsonl' ? renderJsonl : renderText;
 
-  // Le JSONL ne porte aucun en-tête : une ligne du fichier doit rester une
-  // ligne de log, sans quoi un `wc -l` mentirait et `jq` trébucherait.
+  // The JSONL carries no header: a line of the file must stay a log line,
+  // otherwise a `wc -l` would lie and `jq` would stumble.
   const header = format === 'text' ? textHeader(deployment, exportedAt, auth.email) : null;
 
   let lines = 0;
@@ -102,15 +101,15 @@ export const GET = apiRoute<Context>(async (request, context) => {
   });
 });
 
-// ─── lecture en base, par tranches ────────────────────────────────────────────
+// ─── reading from the database, in slices ─────────────────────────────────────
 
 /**
- * Produit le fichier morceau par morceau, sans jamais tenir plus d'une tranche
- * de journal en mémoire.
+ * Produces the file piece by piece, without ever holding more than one slice of
+ * log in memory.
  *
- * Une tranche coupe forcément une ligne en deux : le reste est reporté sur la
- * tranche suivante (`remainder`). C'est le seul état à porter d'un tour à
- * l'autre, et c'est ce qui rend le découpage invisible dans le fichier produit.
+ * A slice necessarily cuts a line in two: the rest is carried over to the next
+ * slice (`remainder`). It is the only state to carry from one round to the next,
+ * and it is what makes the cutting invisible in the produced file.
  */
 async function* streamLogChunks(
   deploymentId: string,
@@ -119,8 +118,8 @@ async function* streamLogChunks(
 ): AsyncGenerator<string, void, undefined> {
   const db = getDb();
 
-  // On ne lit ici que la taille des journaux, pas leur contenu : la liste des
-  // étapes doit tenir en mémoire, leurs journaux non.
+  // We only read the logs' size here, not their content: the list of steps must
+  // fit in memory, their logs need not.
   const steps = await db
     .select({
       id: deploymentSteps.id,
@@ -135,7 +134,7 @@ async function* streamLogChunks(
   for (const step of steps) {
     if (step.size === 0) continue;
 
-    let offset = 1; // `substr()` de PostgreSQL est indexé à partir de 1.
+    let offset = 1; // PostgreSQL's `substr()` is 1-indexed.
     let remainder = '';
 
     while (offset <= step.size) {
@@ -163,8 +162,8 @@ async function* streamLogChunks(
       }
     }
 
-    // Dernière ligne d'une étape que le worker n'a pas terminée par un saut de
-    // ligne : elle est complète, elle doit sortir.
+    // The last line of a step the worker did not end with a newline: it is complete,
+    // it must come out.
     const rendered = renderRaw(remainder, render);
     if (rendered !== null) {
       countLine();
@@ -175,7 +174,7 @@ async function* streamLogChunks(
   if (pending.length > 0) yield pending;
 }
 
-/** `null` pour une ligne vide ou tronquée par un arrêt brutal du worker. */
+/** `null` for an empty line or one truncated by an abrupt worker stop. */
 function renderRaw(raw: string, render: (line: DeployLogLine) => string): string | null {
   if (raw.trim().length === 0) return null;
   let json: unknown;
@@ -188,9 +187,9 @@ function renderRaw(raw: string, render: (line: DeployLogLine) => string): string
   return parsed.success ? render(parsed.data) : null;
 }
 
-// ─── rendus ───────────────────────────────────────────────────────────────────
+// ─── renderings ───────────────────────────────────────────────────────────────
 
-/** Colonnes fixes : horodatage, étape, canal, message. Rien n'est perdu. */
+/** Fixed columns: timestamp, step, channel, message. Nothing is lost. */
 function renderText(line: DeployLogLine): string {
   const stream = line.stream === 'stderr' ? 'err' : 'out';
   return `${line.ts}  ${line.step.padEnd(14)}  ${stream}  ${line.line}\n`;
@@ -201,11 +200,12 @@ function renderJsonl(line: DeployLogLine): string {
 }
 
 /**
- * En-tête du fichier texte, en lignes de commentaire `#`.
+ * The text file's header, as `#` comment lines.
  *
- * Il dit d'où vient le fichier — sans lui, un journal exporté n'est qu'un mur
- * de lignes sans propriétaire. Le préfixe `#` le rend filtrable (`grep -v '^#'`)
- * et le distingue des lignes de log, qui commencent toutes par un horodatage.
+ * It says where the file comes from — without it, an exported log is only a wall
+ * of lines without an owner. The `#` prefix makes it filterable
+ * (`grep -v '^#'`) and sets it apart from the log lines, which all start with a
+ * timestamp.
  */
 function textHeader(
   deployment: DeploymentSummary,

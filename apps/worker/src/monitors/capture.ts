@@ -24,24 +24,23 @@ import { logger } from '../logger.js';
 import { allowedCidrs } from './policy.js';
 
 /**
- * Les captures d'écran d'incident, côté worker.
+ * Incident screenshots, worker side.
  *
- * ── La règle qui prime sur toutes les autres ────────────────────────────────
- * **Une capture ne fait jamais échouer une sonde et ne retarde jamais une
- * alerte.** Elle vit dans sa propre tâche, enfilée après que l'incident est
- * écrit et que l'alerte est partie. Toutes les fonctions de ce fichier rendent
- * un compte-rendu ; aucune ne lève. Une capture absente n'est pas un incident.
+ * ── The rule that takes precedence over all others ──────────────────────────
+ * **A capture never fails a probe and never delays an alert.** It lives in its
+ * own job, queued after the incident is written and the alert has gone out.
+ * Every function of this file returns a report; none throws. A missing capture
+ * is not an incident.
  *
- * ── Ce qui est capturable ───────────────────────────────────────────────────
- * Pas « les sondes HTTP » — la capture est **orthogonale au type de sonde**.
- * Ce qui compte est : cette sonde désigne-t-elle une page qu'un navigateur
- * peut ouvrir ? Le catalogue le sait déjà, c'est exactement `linkFor()`. Une
- * sonde TLS rend `https://hôte/` et sera donc capturée ; un type qui n'a rien à
- * montrer rend `null` et sera sauté, sans qu'une ligne change ici le jour où il
- * arrive.
+ * ── What can be captured ────────────────────────────────────────────────────
+ * Not "the HTTP probes" — capture is **orthogonal to the probe type**. What
+ * matters is: does this probe designate a page a browser can open? The catalog
+ * already knows, it is exactly `linkFor()`. A TLS probe returns `https://host/`
+ * and will therefore be captured; a type with nothing to show returns `null` and
+ * will be skipped, without a line changing here the day it arrives.
  */
 
-/** La capture est-elle configurée sur cette instance ? */
+/** Is capture configured on this instance? */
 export function captureEnabled(): boolean {
   return env.MONITOR_CAPTURE_CDP_URL.trim() !== '';
 }
@@ -49,21 +48,21 @@ export function captureEnabled(): boolean {
 const EMPTY: MonitorCaptureJobResult = { attempted: 0, stored: 0, bytes: 0, skipped: [] };
 
 /**
- * L'URL à rendre pour une sonde, ou le motif pour lequel il n'y en a pas.
+ * The URL to render for a probe, or the reason there is none.
  *
- * Deuxième garde SSRF, en plus du mandataire de sortie, et volontairement
- * redondante : on refuse d'*envoyer* le navigateur sur une adresse interne,
- * même si le mandataire l'aurait de toute façon refusée. Le mandataire protège
- * de ce que la page tente ; celle-ci protège de ce que **nous** demandons.
+ * A second SSRF guard, on top of the egress proxy, and deliberately redundant:
+ * we refuse to *send* the browser to an internal address, even if the proxy
+ * would have refused it anyway. The proxy protects from what the page attempts;
+ * this one protects from what **we** ask.
  */
 async function pageUrlFor(monitor: Monitor): Promise<{ url: string } | { skip: string }> {
-  if (!isMonitorType(monitor.type)) return { skip: `type « ${monitor.type} » inconnu` };
+  if (!isMonitorType(monitor.type)) return { skip: `unknown type "${monitor.type}"` };
 
   const link = monitorTargetLink(monitor.type, monitor.config);
-  if (link === null) return { skip: "cette sonde n'a pas de page à rendre" };
+  if (link === null) return { skip: 'this probe has no page to render' };
 
   const url = captureUrlFor(link);
-  if (url === null) return { skip: `cible « ${link} » non ouvrable dans un navigateur` };
+  if (url === null) return { skip: `target "${link}" cannot be opened in a browser` };
 
   try {
     await resolveGuarded(new URL(url).hostname, allowedCidrs());
@@ -73,24 +72,24 @@ async function pageUrlFor(monitor: Monitor): Promise<{ url: string } | { skip: s
   return { url };
 }
 
-/** Journalise un échec de capture sans jamais le transformer en erreur. */
+/** Logs a capture failure without ever turning it into an error. */
 function reportFailure(monitorId: string, kind: CaptureKind, outcome: CaptureOutcome): string {
   if (outcome.ok) return '';
   const message = `${outcome.reason} — ${outcome.detail}`;
-  // `warn` pour un navigateur éteint serait du bruit permanent sur une instance
-  // qui n'a simplement pas activé la fonctionnalité ; `debug` pour une page qui
-  // n'a pas chargé cacherait un vrai symptôme. On distingue.
+  // `warn` for a browser that is off would be permanent noise on an instance that
+  // simply did not enable the feature; `debug` for a page that did not load would
+  // hide a real symptom. We tell them apart.
   const level = outcome.reason === 'browser-unavailable' ? 'debug' : 'warn';
-  logger[level]({ monitorId, kind, reason: outcome.reason }, `capture non réalisée : ${message}`);
+  logger[level]({ monitorId, kind, reason: outcome.reason }, `capture not taken: ${message}`);
   return message;
 }
 
 /**
- * Une capture, enregistrée si elle a abouti.
+ * A capture, recorded if it succeeded.
  *
- * Rend le nombre d'octets écrits — zéro si rien n'a été pris. L'appelant ne
- * distingue pas « raté » de « éteint » : dans les deux cas il n'y a rien à
- * montrer, et rien à corriger dans son propre travail.
+ * Returns the number of bytes written — zero if nothing was taken. The caller
+ * does not tell "failed" from "off": in both cases there is nothing to show, and
+ * nothing to fix in its own work.
  */
 async function captureOne(
   monitor: Monitor,
@@ -99,7 +98,7 @@ async function captureOne(
 ): Promise<{ bytes: number; skipped: string | null }> {
   const target = await pageUrlFor(monitor);
   if ('skip' in target) {
-    logger.debug({ monitorId: monitor.id, kind }, `capture sautée : ${target.skip}`);
+    logger.debug({ monitorId: monitor.id, kind }, `capture skipped: ${target.skip}`);
     return { bytes: 0, skipped: target.skip };
   }
 
@@ -130,21 +129,21 @@ async function captureOne(
       httpStatus: saved.httpStatus,
       elapsedMs: outcome.image.elapsedMs,
     },
-    'capture enregistrée',
+    'capture recorded',
   );
   return { bytes: saved.bytes, skipped: null };
 }
 
 /**
- * Rafraîchit les références qui ont vieilli.
+ * Refreshes the references that have aged.
  *
- * Une référence est le « avant » de la comparaison. Sans elle, l'image
- * d'incident ne se compare à rien : on ne sait pas si cette bannière rouge est
- * nouvelle. Elle n'est prise que pendant que la sonde est **saine** — sans quoi
- * on photographierait la panne et on l'appellerait « état normal ».
+ * A reference is the comparison's "before". Without it, the incident image
+ * compares to nothing: we do not know whether that red banner is new. It is
+ * only taken while the probe is **healthy** — otherwise we would photograph the
+ * outage and call it "normal state".
  *
- * Borné à quelques sondes par passage : le rattrapage d'une instance qui vient
- * de démarrer ne doit pas se faire en une fois.
+ * Bounded to a few probes per pass: catching up for an instance that just
+ * started must not be done all at once.
  */
 async function refreshReferences(): Promise<MonitorCaptureJobResult> {
   const candidates = await monitorsDueForReference(
@@ -163,8 +162,8 @@ async function refreshReferences(): Promise<MonitorCaptureJobResult> {
       result.bytes += done.bytes;
     } else {
       result.skipped.push(done.skipped);
-      // Le navigateur est éteint : les quatre sondes suivantes échoueraient de
-      // la même façon, en payant chacune une connexion qui expire. On s'arrête.
+      // The browser is off: the next four probes would fail the same way, each paying
+      // for a connection that times out. We stop.
       if (done.skipped.startsWith('browser-unavailable')) break;
     }
   }
@@ -172,12 +171,12 @@ async function refreshReferences(): Promise<MonitorCaptureJobResult> {
 }
 
 /**
- * La capture d'un incident : l'image de la panne, et l'épinglage du « avant ».
+ * An incident's capture: the outage image, and pinning the "before".
  *
- * L'épinglage vient **avant** la capture, et l'ordre compte : c'est un `UPDATE`
- * d'une ligne, il coûte une milliseconde et ne peut pas échouer pour cause de
- * réseau. Le faire après exposerait à perdre le « avant » si la capture de la
- * panne traîne et que le worker est arrêté entre-temps.
+ * Pinning comes **before** the capture, and the order matters: it is a one-row
+ * `UPDATE`, it costs a millisecond and cannot fail for network reasons. Doing it
+ * after would risk losing the "before" if the outage capture drags on and the
+ * worker is stopped meanwhile.
  */
 async function captureIncident(
   monitorId: string,
@@ -190,7 +189,7 @@ async function captureIncident(
   if (kind === 'incident_open') {
     const pinned = await pinReferenceToIncident(monitorId, incidentId);
     if (pinned) {
-      logger.debug({ monitorId, incidentId, captureId: pinned.id }, 'référence épinglée');
+      logger.debug({ monitorId, incidentId, captureId: pinned.id }, 'reference pinned');
     }
   }
 
@@ -203,13 +202,13 @@ async function captureIncident(
   };
 }
 
-/** Le corps de la tâche `monitor:capture`. Ne lève que sur bogue de programme. */
+/** The body of the `monitor:capture` job. Only throws on a program bug. */
 export async function runMonitorCapture(
   data: MonitorCaptureJobData,
 ): Promise<MonitorCaptureJobResult> {
   if (!captureEnabled()) {
-    // Ni erreur, ni avertissement : la fonctionnalité est simplement éteinte.
-    return { ...EMPTY, skipped: ['capture désactivée — MONITOR_CAPTURE_CDP_URL vide'] };
+    // Neither error nor warning: the feature is simply off.
+    return { ...EMPTY, skipped: ['capture disabled — MONITOR_CAPTURE_CDP_URL empty'] };
   }
   if (data.scope === 'references') return refreshReferences();
   return captureIncident(data.monitorId, data.incidentId, data.kind);

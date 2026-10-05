@@ -18,9 +18,9 @@ import { compactIp } from './ip';
 import { relativeTime } from './relative-time';
 
 /**
- * Les jetons prêts à afficher : dates à la locale de l'instance, dernière
- * utilisation en temps relatif, applications par leur nom. Rendu serveur, pour
- * que l'horloge du navigateur n'y entre pas.
+ * The tokens ready to show: dates in the instance's locale, last use in relative
+ * time, applications by their name. Server rendering, so that the browser's clock
+ * does not come into it.
  */
 export async function apiTokenRows(
   filter: { userId?: string },
@@ -43,8 +43,8 @@ export async function apiTokenRows(
       prefix: dto.prefix,
       status: dto.status,
       permissions: dto.permissions.length,
-      // Une application supprimée depuis ne couvre plus rien : elle disparaît
-      // de la liste, comme elle a disparu de la portée effective.
+      // An application deleted since no longer covers anything: it disappears from the
+      // list, as it disappeared from the effective scope.
       applications: dto.applicationIds
         ? dto.applicationIds.flatMap((id) => (names.has(id) ? [names.get(id)!] : []))
         : null,
@@ -57,7 +57,7 @@ export async function apiTokenRows(
   });
 }
 
-/** Les permissions qu'une personne peut déléguer à un jeton : les siennes, groupées. */
+/** The permissions a person can delegate to a token: their own, grouped. */
 export async function delegablePermissionGroups(
   held: readonly Permission[],
 ): Promise<PermissionGroup[]> {

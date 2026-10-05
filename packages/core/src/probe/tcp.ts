@@ -8,47 +8,46 @@ import { ProbeTimeoutError, messageOf, resolveGuarded } from './net.js';
 import type { MonitorProbe, ProbeContext } from './types.js';
 
 /**
- * Sonde de port TCP.
+ * TCP port probe.
  *
- * ── Ce qu'elle établit, et la nuance qui la rend utile ──────────────────────
- * La poignée TCP prouve **qu'un processus accepte les connexions**. Rien de
- * plus, et c'est déjà beaucoup : un `ECONNREFUSED` sur le port d'une base, c'est
- * le service arrêté ou le pare-feu refermé, et c'est précisément ce qu'une
- * sonde HTTP ne voit pas d'un service qui ne parle pas HTTP.
+ * ── What it establishes, and the nuance that makes it useful ────────────────
+ * The TCP handshake proves **that a process accepts connections**. Nothing more,
+ * and that is already a lot: an `ECONNREFUSED` on a database's port means the
+ * service stopped or the firewall closed again, and that is precisely what an
+ * HTTP probe does not see of a service that does not speak HTTP.
  *
- * Mais un processus figé garde sa socket d'écoute : il accepte encore la
- * poignée en étant incapable de servir. D'où la **bannière attendue**, en
- * option : SMTP, SSH, FTP, IMAP et POP3 annoncent leur identité *avant* qu'on
- * parle. Attendre `SSH-2.0` ou `220 `, c'est passer de « un port est ouvert » à
- * « le bon service, vivant, écoute derrière ».
+ * But a frozen process keeps its listening socket: it still accepts the
+ * handshake while being unable to serve. Hence the **expected banner**, as an
+ * option: SMTP, SSH, FTP, IMAP and POP3 announce their identity *before* anyone
+ * speaks. Waiting for `SSH-2.0` or `220 ` moves from "a port is open" to "the
+ * right service, alive, listens behind it".
  *
- * On n'envoie **jamais** rien — pas un octet. Une sonde constate ; solliciter un
- * service inconnu toutes les minutes le pollue (journaux d'accès, compteurs
- * anti-abus) et supposerait de savoir quel protocole il parle. Les services où
- * le client parle en premier (PostgreSQL, MySQL, HTTP) ne rendront donc jamais
- * de bannière — c'est documenté dans le catalogue, et le message d'échec le
- * rappelle.
+ * We **never** send anything — not a byte. A probe observes; prodding an unknown
+ * service every minute pollutes it (access logs, anti-abuse counters) and would
+ * assume knowing which protocol it speaks. Services where the client speaks
+ * first (PostgreSQL, MySQL, HTTP) will therefore never return a banner — it is
+ * documented in the catalog, and the failure message reminds it.
  *
- * ── La garde, et pourquoi elle est plus critique ici qu'ailleurs ────────────
- * Une sonde qui prend un hôte et un port *est* la primitive d'un scanner de
- * réseau interne : elle rend, en clair, « ce port accepte / refuse / ne répond
- * pas », c'est-à-dire la sortie de `nmap`. Elle est **plus** dangereuse que la
- * sonde HTTP, qui au moins achoppe sur les services ne parlant pas HTTP.
+ * ── The guard, and why it is more critical here than elsewhere ──────────────
+ * A probe that takes a host and a port *is* the primitive of an internal network
+ * scanner: it returns, in clear, "this port accepts / refuses / does not
+ * answer", that is `nmap`'s output. It is **more** dangerous than the HTTP
+ * probe, which at least stumbles on services that do not speak HTTP.
  *
- * Elle passe donc par le même `resolveGuarded()` que les autres, et se connecte
- * à l'adresse **littérale** retenue : il n'y a aucune seconde résolution entre
- * le contrôle et la connexion, donc pas de fenêtre de rebinding. Aucun chemin de
- * ce fichier n'ouvre une socket vers autre chose que cette adresse.
+ * It therefore goes through the same `resolveGuarded()` as the others, and
+ * connects to the chosen **literal** address: there is no second resolution
+ * between the check and the connection, hence no rebinding window. No path in
+ * this file opens a socket to anything other than that address.
  */
 
-/** Ce qu'on lit d'une bannière. Au-delà, c'est du flux, pas une annonce. */
+/** What we read of a banner. Beyond it, it is a stream, not an announcement. */
 const BANNER_MAX_BYTES = 512;
 
 type Handshake = {
   connectMs: number;
   banner: string | null;
   bannerMs: number | null;
-  /** Vrai si on attendait une bannière et que le délai a expiré sans rien. */
+  /** True if a banner was expected and the timeout expired with nothing. */
   bannerTimedOut: boolean;
 };
 
@@ -58,8 +57,8 @@ function connectAndListen(input: {
   timeoutMs: number;
   wantBanner: boolean;
 }): Promise<Handshake> {
-  // Horloge monotone : un ajustement NTP pendant la mesure ne doit pas produire
-  // une latence négative ou fantaisiste.
+  // Monotonic clock: an NTP adjustment during the measurement must not produce a
+  // negative or fanciful latency.
   const started = performance.now();
 
   return new Promise<Handshake>((resolve, reject) => {
@@ -84,9 +83,8 @@ function connectAndListen(input: {
       finish(() =>
         resolve({
           connectMs,
-          // Une bannière n'est pas du texte garanti : on ne garde que ce qui
-          // s'imprime, sur une ligne, pour que la mesure reste lisible en base
-          // et dans une alerte.
+          // A banner is not guaranteed text: we only keep what prints, on one line, so
+          // that the measurement stays readable in the database and in an alert.
           banner: banner === null ? null : sanitizeBanner(banner),
           bannerMs: banner === null ? null : Math.round(performance.now() - started) - connectMs,
           bannerTimedOut,
@@ -97,33 +95,34 @@ function connectAndListen(input: {
     socket.on('connect', () => {
       connected = true;
       connectMs = Math.round(performance.now() - started);
-      // Sans bannière attendue, la poignée est toute la mesure : on referme
-      // immédiatement plutôt que de laisser une socket ouverte chez la cible.
+      // Without an expected banner, the handshake is the whole measurement: we close
+      // right away rather than leave a socket open at the target.
       if (!input.wantBanner) done(false);
     });
 
     socket.on('data', (chunk: Buffer) => {
       chunks.push(chunk.subarray(0, BANNER_MAX_BYTES - size));
       size += chunk.byteLength;
-      // Une bannière tient sur une ligne : dès qu'on la voit finie, on n'attend
-      // pas le délai complet pour rendre la main.
+      // A banner fits on one line: as soon as we see it finished, we do not wait for
+      // the full timeout to return.
       if (size >= BANNER_MAX_BYTES || chunk.includes(0x0a)) done(false);
     });
 
-    // Le service a fermé sans rien dire : on a quand même établi la connexion.
+    // The service closed without saying anything: we still established the
+    // connection.
     socket.on('end', () => done(false));
 
     socket.on('timeout', () => {
-      // Distinguer les deux délais est ce qui permet un message honnête : « le
-      // port accepte mais n'annonce rien » n'est pas « le port ne répond pas ».
+      // Telling the two timeouts apart is what allows an honest message: "the port
+      // accepts but announces nothing" is not "the port does not answer".
       if (connected) done(true);
       else finish(() => reject(new ProbeTimeoutError(input.timeoutMs)));
     });
 
     socket.on('error', (error) => finish(() => reject(error)));
 
-    // Connexion à l'**adresse** contrôlée, jamais au nom : même garantie
-    // anti-rebinding que les sondes HTTP et TLS.
+    // Connection to the checked **address**, never to the name: the same
+    // anti-rebinding guarantee as the HTTP and TLS probes.
     socket.connect({ host: input.address, port: input.port });
   });
 }
@@ -131,9 +130,9 @@ function connectAndListen(input: {
 function sanitizeBanner(value: string): string {
   return value
     .replace(/\r?\n/g, ' ')
-    // Une bannière peut être binaire — un serveur TLS répond une alerte
-    // d'octets bruts. On retire ce qui ne s'imprime pas plutôt que d'écrire des
-    // caractères de contrôle en base et dans les alertes.
+    // A banner can be binary — a TLS server answers with an alert of raw bytes. We
+    // remove what does not print rather than write control characters into the
+    // database and the alerts.
     .replace(/[\u0000-\u001f\u007f]/g, '')
     .trim()
     .slice(0, 200);
@@ -166,9 +165,8 @@ async function runTcp(
       wantBanner: config.expectBanner !== null,
     });
   } catch (error) {
-    // Refus, filtrage, délai : rien n'écoute de joignable. C'est
-    // `unreachable`, pas `unhealthy` — la cible n'a pas répondu de travers,
-    // elle n'a pas répondu.
+    // Refusal, filtering, timeout: nothing reachable listens. It is `unreachable`,
+    // not `unhealthy` — the target did not answer wrongly, it did not answer.
     return {
       outcome: 'unreachable',
       latencyMs: null,
@@ -189,9 +187,9 @@ async function runTcp(
   }
 
   if (handshake.banner === null) {
-    // Le port accepte, le service ne s'annonce pas : la connexion est un
-    // succès, la sonde ne l'est pas. `unhealthy` et non `unreachable` — la
-    // distinction est tout l'intérêt d'attendre une bannière.
+    // The port accepts, the service does not announce itself: the connection is a
+    // success, the probe is not. `unhealthy` and not `unreachable` — the
+    // distinction is the whole point of waiting for a banner.
     return {
       outcome: 'unhealthy',
       latencyMs: handshake.connectMs,
@@ -202,8 +200,8 @@ async function runTcp(
     };
   }
 
-  // Sans égard à la casse : la casse d'une bannière est fixée par le protocole,
-  // pas par l'exploitant, et personne ne doit avoir à la deviner.
+  // Case-insensitive: a banner's case is set by the protocol, not by the operator,
+  // and nobody should have to guess it.
   const found = handshake.banner.toLowerCase().includes(config.expectBanner.toLowerCase());
   if (!found) {
     return {

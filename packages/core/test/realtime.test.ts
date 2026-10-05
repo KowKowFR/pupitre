@@ -18,35 +18,35 @@ import {
 } from '../src/realtime.js';
 
 /**
- * Le temps réel : ce que la pastille affiche, ce qu'une tâche réveille, et
- * comment un message garde ses mentions.
+ * Real time: what the badge shows, what a job wakes up, and how a message keeps
+ * its mentions.
  */
 
 const NOW = 1_800_000_000_000;
 
-describe('présence', () => {
+describe('presence', () => {
   const base = { connections: 1, lastSeen: NOW - 1_000, lastInput: NOW - 5_000, choice: null } as const;
 
-  it('est en ligne quand un onglet est ouvert et actif', () => {
+  it('is online when a tab is open and active', () => {
     assert.equal(effectivePresence(base, NOW), 'online');
   });
 
-  it('passe absente sans interaction depuis un moment, ou quand on le choisit', () => {
+  it('goes away without interaction for a while, or when one chooses so', () => {
     assert.equal(effectivePresence({ ...base, lastInput: NOW - PRESENCE_IDLE_MS - 1 }, NOW), 'away');
     assert.equal(effectivePresence({ ...base, lastInput: null }, NOW), 'away');
     assert.equal(effectivePresence({ ...base, choice: 'away' }, NOW), 'away');
   });
 
-  it("« ne pas déranger » l'emporte sur l'activité", () => {
+  it("“do not disturb” wins over activity", () => {
     assert.equal(effectivePresence({ ...base, lastInput: null, choice: 'busy' }, NOW), 'busy');
   });
 
-  it("est hors ligne sans onglet ouvert, quel que soit le choix", () => {
+  it("is offline without an open tab, whatever the choice", () => {
     assert.equal(effectivePresence({ ...base, connections: 0, choice: 'busy' }, NOW), 'offline');
     assert.equal(effectivePresence({ ...base, lastSeen: null }, NOW), 'offline');
   });
 
-  it('est hors ligne quand le dernier signe de vie est trop ancien (processus tué)', () => {
+  it('is offline when the last sign of life is too old (process killed)', () => {
     assert.equal(
       effectivePresence({ ...base, lastSeen: NOW - PRESENCE_STALE_MS - 1 }, NOW),
       'offline',
@@ -54,8 +54,8 @@ describe('présence', () => {
   });
 });
 
-describe('sujets en direct', () => {
-  it('réveille les écrans concernés par une tâche', () => {
+describe('live topics', () => {
+  it('wakes up the screens concerned by a job', () => {
     assert.equal(liveTopicOfJob('deployment:run'), 'deployments');
     assert.equal(liveTopicOfJob('source:deploy'), 'deployments');
     assert.equal(liveTopicOfJob('target:preflight'), 'targets');
@@ -64,13 +64,13 @@ describe('sujets en direct', () => {
     assert.equal(liveTopicOfJob('health:periodic'), 'jobs');
   });
 
-  it("ignore les tâches qui ne changent rien à l'écran", () => {
+  it("ignores the jobs that change nothing on screen", () => {
     assert.equal(liveTopicOfJob('app:logs'), null);
     assert.equal(liveTopicOfJob('workload:list'), null);
     assert.equal(liveTopicOfJob('ping'), null);
   });
 
-  it('associe une ligne du journal à son sujet', () => {
+  it('associates a log line with its subject', () => {
     assert.equal(liveTopicOfResource('application_source'), 'applications');
     assert.equal(liveTopicOfResource('session'), null);
   });
@@ -79,7 +79,7 @@ describe('sujets en direct', () => {
 describe('messages', () => {
   const body = `Qui regarde ${mentionToken('target', 'prod-1-id')} ? ${mentionToken('user', 'u1')} ${mentionToken('user', 'u1')}`;
 
-  it('découpe le corps en texte et mentions', () => {
+  it('splits the body into text and mentions', () => {
     assert.deepEqual(parseChatBody(body), [
       { type: 'text', text: 'Qui regarde ' },
       { type: 'mention', kind: 'target', id: 'prod-1-id' },
@@ -90,19 +90,19 @@ describe('messages', () => {
     ]);
   });
 
-  it('liste les mentions sans doublon', () => {
+  it('lists the mentions without duplicates', () => {
     assert.deepEqual(mentionedIn(body), [
       { kind: 'target', id: 'prod-1-id' },
       { kind: 'user', id: 'u1' },
     ]);
   });
 
-  it("neutralise les mentions que l'auteur ne pouvait pas poser", () => {
+  it("neutralizes the mentions the author could not set", () => {
     const kept = keepMentions(body, [{ kind: 'user', id: 'u1', label: 'camille' }]);
     assert.equal(kept, 'Qui regarde @? ? <@user:u1> <@user:u1>');
   });
 
-  it('rend un aperçu en texte brut', () => {
+  it('renders a plain-text preview', () => {
     assert.equal(
       chatPlainText(body, [
         { kind: 'target', id: 'prod-1-id', label: 'prod-1' },
@@ -112,29 +112,29 @@ describe('messages', () => {
     );
   });
 
-  it("ne prend pas pour une mention ce qui n'en a que l'air", () => {
+  it("does not take for a mention what only looks like one", () => {
     assert.deepEqual(parseChatBody('<@disk:x> et <@user:>'), [
       { type: 'text', text: '<@disk:x> et <@user:>' },
     ]);
   });
 });
 
-describe('réactions', () => {
-  it('accepte un emoji, avec ses variantes', () => {
+describe('reactions', () => {
+  it('accepts an emoji, with its variants', () => {
     for (const emoji of ['👍', '❤️', '👍🏽', '🧑‍💻', '🇫🇷', '✅', '🚀', '#️⃣']) {
       assert.equal(isChatEmoji(emoji), true, emoji);
     }
   });
 
-  it('refuse le texte, même mêlé à un emoji', () => {
+  it('refuses text, even mixed with an emoji', () => {
     for (const value of ['', 'ok', '👍 bien', 'a👍', '<script>', '1', ' 👍']) {
       assert.equal(isChatEmoji(value), false, JSON.stringify(value));
     }
   });
 });
 
-describe('événements', () => {
-  it('refuse un événement mal formé', () => {
+describe('events', () => {
+  it('refuses a malformed event', () => {
     assert.equal(realtimeEventSchema.safeParse({ type: 'presence', userId: 'u1' }).success, false);
     assert.equal(
       realtimeEventSchema.safeParse({

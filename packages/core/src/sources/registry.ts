@@ -5,12 +5,12 @@ import { GitLabSourceProvider } from './gitlab.js';
 import type { SourceConnectionSecrets, SourceProvider } from './types.js';
 
 /**
- * La fabrique des fournisseurs de code : une connexion déchiffrée → son client.
+ * The code providers' factory: a decrypted connection → its client.
  *
- * C'est la seule ligne à écrire, avec la classe, pour qu'un fournisseur de
- * plus serve partout — le polling, la liaison, les statuts. Ce qui vient
- * d'ici a déjà ses secrets en clair : l'appelant les déchiffre juste avant, et
- * le client ne les garde qu'en mémoire.
+ * It is the only line to write, with the class, for one more provider to serve
+ * everywhere — polling, linking, statuses. What comes from here already has its
+ * secrets in clear: the caller decrypts them just before, and the client only
+ * keeps them in memory.
  */
 export function createSourceProvider(
   connection: SourceConnectionSecrets,

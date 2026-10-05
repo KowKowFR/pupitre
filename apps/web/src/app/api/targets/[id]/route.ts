@@ -27,8 +27,8 @@ export const GET = apiRoute<Context>(async (request, context) => {
   await requirePermission(request, 'target:read');
   const { id } = paramsSchema.parse(await context.params);
 
-  // `getTarget` ne sélectionne pas `encrypted_credential` :
-  // la réponse ne peut structurellement pas le contenir.
+  // `getTarget` does not select `encrypted_credential`: the response structurally
+  // cannot contain it.
   const target = await getTarget(id);
   if (!target) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
@@ -57,9 +57,9 @@ export const PATCH = apiRoute<Context>(async (request, context) => {
     throw new ConflictError(msg(messages, 'error.endpointTakenOther'));
   }
 
-  // Le patch est partiel : les deux bornes ne sont pas forcément dans le corps.
-  // On valide sur les valeurs résultantes, pas sur celles reçues — sinon
-  // déplacer une seule borne pourrait inverser la plage sans qu'on le voie.
+  // The patch is partial: both bounds are not necessarily in the body. We validate
+  // on the resulting values, not on those received — otherwise moving a single
+  // bound could invert the range without anyone seeing it.
   const rangeStart = patch.portRangeStart ?? before.portRangeStart;
   const rangeEnd = patch.portRangeEnd ?? before.portRangeEnd;
   if (rangeStart > rangeEnd) {
@@ -71,7 +71,7 @@ export const PATCH = apiRoute<Context>(async (request, context) => {
   const { credential, ...rest } = patch;
   const after = await updateTarget(id, {
     ...rest,
-    // Credential absent du corps = on conserve celui déjà en base.
+    // Credential absent from the body = we keep the one already in the database.
     ...(credential !== undefined ? { encryptedCredential: encrypt(credential) } : {}),
   });
   if (!after) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
@@ -82,7 +82,7 @@ export const PATCH = apiRoute<Context>(async (request, context) => {
     resourceType: 'target',
     resourceId: id,
     before: auditableTarget(before),
-    // `credentialRotated` trace le fait, jamais la valeur.
+    // `credentialRotated` traces the fact, never the value.
     after: { ...auditableTarget(after), credentialRotated: credential !== undefined },
     ip: auth.ip,
   });
@@ -97,10 +97,10 @@ export const DELETE = apiRoute<Context>(async (request, context) => {
   const target = await getTarget(id);
   if (!target) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
-  // Deux refus, parce qu'il y a deux gestes à faire — et parce que la clé
-  // étrangère est en `ON DELETE restrict` : un `failed` oublié bloque autant
-  // qu'un déploiement qui tourne. Ne vérifier que le premier cas laissait la
-  // contrainte trancher, et l'appelant recevait un 500 muet.
+  // Two refusals, because there are two gestures to make — and because the foreign
+  // key is `ON DELETE restrict`: a forgotten `failed` blocks as much as a running
+  // deployment. Only checking the first case left the constraint to decide, and the
+  // caller received a mute 500.
   const { live, history } = await countDeploymentsOnTarget(id);
   if (live > 0) {
     throw new ConflictError(msg(messages, 'error.liveDeployments', { count: live }));

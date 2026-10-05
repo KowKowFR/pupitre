@@ -18,10 +18,10 @@ import { BackupSettings } from './backup-settings';
 export const dynamic = 'force-dynamic';
 
 /**
- * Paramètres → Sauvegardes : où elles partent, la base du panel, et les
- * applications sauvegardées avec leur historique. Chaque application règle sa
- * politique sur sa fiche ; ici, on voit tout d'un coup d'œil, et l'on restaure
- * une ancienne sauvegarde sans aller la chercher fiche par fiche.
+ * Settings → Backups: where they go, the panel's database, and the backed-up
+ * applications with their history. Each application sets its policy on its
+ * record; here, everything is seen at a glance, and an old backup is restored
+ * without going to look for it record by record.
  */
 export default async function BackupSettingsPage() {
   const auth = await requirePagePermission('/admin/settings/sauvegardes', 'settings:read');
@@ -33,13 +33,13 @@ export default async function BackupSettingsPage() {
       backupScheduleView('backup'),
       countEnabledBackupPolicies(),
       getAppSettingsValue(),
-      // L'historique des applications relève de `backup:read`, pas des paramètres.
+      // The applications' history falls under `backup:read`, not the settings.
       auth.can('backup:read') ? applicationBackupsOverview() : null,
     ]);
 
   return (
     <>
-      {/* Une sauvegarde ou une restauration qui s'achève : l'écran se relit. */}
+      {/* A backup or a restore that finishes: the screen reads itself again. */}
       <LiveRefresh topics={['applications', 'settings']} />
       <BackupSettings
         initialDestination={destination ? destinationView(destination) : null}

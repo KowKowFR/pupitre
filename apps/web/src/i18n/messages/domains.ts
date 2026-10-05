@@ -1,10 +1,9 @@
 import type { Translated } from '@pupitre/core';
 
 /**
- * La page « Domaines » : tous les noms par lesquels on atteint les
- * applications de l'instance. Les états d'une route et de son certificat
- * viennent du vocabulaire du proxy (`proxy.ts`), partagé avec la fiche d'une
- * application.
+ * The "Domains" page: all the names through which the instance's applications
+ * are reached. The states of a route and of its certificate come from the
+ * proxy's vocabulary (`proxy.ts`), shared with an application's record.
  */
 const fr = {
   'meta.title': 'Domaines',

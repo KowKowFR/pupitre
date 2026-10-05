@@ -1,8 +1,7 @@
 import type { Translated } from '@pupitre/core';
 
 /**
- * Les sauvegardes : les refus des routes, la carte d'une application, la
- * section des paramètres.
+ * Backups: the routes' refusals, an application's card, the settings section.
  */
 const fr = {
   'error.noDestination':
@@ -21,7 +20,7 @@ const fr = {
   'error.applicationGone': "L'application de cette sauvegarde a été supprimée.",
   'error.targetNotFound': 'Cible introuvable.',
   'error.jobNoId': "La tâche n'a pas reçu d'identifiant.",
-  // ── la carte d'une application ──────────────────────────────────────────
+  // ── an application's card ───────────────────────────────────────────────
   'card.title': 'Sauvegardes',
   'card.on': 'Automatique — prochaine {next}.',
   'card.onNoSchedule': 'Automatique — la tâche planifiée sera créée au premier enregistrement.',
@@ -103,7 +102,7 @@ const fr = {
   'lastRestore.who': ', par {name}',
   'lastRestore.failed': 'Dernière restauration en échec ({date}) : {error}',
 
-  // ── la première mise en ligne ───────────────────────────────────────────
+  // ── the first release ───────────────────────────────────────────────────
   'firstDeploy.title': 'Sauvegardes',
   'firstDeploy.enabled': 'Activer la sauvegarde automatique',
   'firstDeploy.enabled.help':
@@ -114,7 +113,7 @@ const fr = {
   'firstDeploy.noDestination':
     'Aucune destination de sauvegarde : réglez-en une dans Paramètres › Sauvegardes pour activer ces options.',
 
-  // ── les paramètres ──────────────────────────────────────────────────────
+  // ── the settings ────────────────────────────────────────────────────────
   'destination.title': 'Destination',
   'destination.defaultName': 'Sauvegardes',
   'destination.description':

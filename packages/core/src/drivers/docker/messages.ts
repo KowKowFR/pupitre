@@ -2,9 +2,9 @@ import { translator, type Translate, type Translated, type UiLanguage } from '..
 import { driverCopy } from '../messages.js';
 
 /**
- * Ce que dit le driver Docker — journal d'un déploiement, preflight, erreurs —,
- * dans la langue de l'instance. Les commandes qu'il cite (`docker compose up`)
- * ne se traduisent pas : ce sont celles qu'on taperait sur la machine.
+ * What the Docker driver says — a deployment's log, preflight, errors —, in the
+ * instance's language. The commands it quotes (`docker compose up`) are not
+ * translated: they are those one would type on the machine.
  */
 const fr = {
   ...driverCopy.fr,

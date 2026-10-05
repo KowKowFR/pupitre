@@ -27,6 +27,7 @@ import { apiRoute, readJsonBody } from '@/lib/http';
 import { linkViewForUi, proxyViewForUi, routeViewForUi } from '@/lib/proxy';
 import { getOpsQueue } from '@/lib/queue';
 import { requirePermission } from '@/lib/rbac';
+import { currentLanguage } from '@/i18n/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -41,11 +42,12 @@ async function targetOr404(id: string) {
 }
 
 /**
- * Le proxy de la cible : le sien — avec les machines qu'il sert —, ou celui
- * d'une autre qui la sert. Plus les domaines qui passent par lui, et les
- * proxies des autres machines auxquels on pourrait la relier.
+ * The target's proxy: its own — with the machines it serves —, or another's that
+ * serves it. Plus the domains that go through it, and the other machines'
+ * proxies it could be linked to.
  */
 export const GET = apiRoute<Context>(async (request, context) => {
+  const language = await currentLanguage();
   await requirePermission(request, 'target:read');
   const { id } = paramsSchema.parse(await context.params);
   const target = await targetOr404(id);
@@ -58,7 +60,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
   ]);
   const nameOf = new Map(targets.map((target) => [target.id, target.name]));
 
-  // Les domaines servis : ceux de la machine, et ceux des machines reliées.
+  // The served domains: the machine's, and those of the linked machines.
   const served = proxy ? await listProxyLinks(proxy.id) : [];
   const routes = (
     await Promise.all(
@@ -68,13 +70,14 @@ export const GET = apiRoute<Context>(async (request, context) => {
   const linkedProxy = link ? await getProxy(link.proxyId) : null;
 
   return NextResponse.json({
-    proxy: proxy ? proxyViewForUi(proxy) : null,
+    proxy: proxy ? proxyViewForUi(proxy, language) : null,
     link:
       link && linkedProxy
         ? linkViewForUi(
             link,
             linkedProxy,
             nameOf.get(linkedProxy.hostTargetId ?? '') ?? linkedProxy.name,
+            language,
           )
         : null,
     served: served.map((entry) => ({
@@ -90,15 +93,15 @@ export const GET = apiRoute<Context>(async (request, context) => {
           proxyId: candidate.id,
           targetId: hostId as string | null,
           targetName: nameOf.get(hostId) ?? hostId,
-          description: proxyViewForUi(candidate).description,
+          description: proxyViewForUi(candidate, language).description,
         }))
         .sort((a, b) => a.targetName.localeCompare(b.targetName)),
-      // Les proxies distants, hors des cibles : à la suite.
+      // The remote proxies, outside the targets: next.
       ...remote.map((candidate) => ({
         proxyId: candidate.id,
         targetId: null,
         targetName: candidate.name,
-        description: proxyViewForUi(candidate).description,
+        description: proxyViewForUi(candidate, language).description,
       })),
     ],
     suggestedAddress: target.host,
@@ -113,10 +116,11 @@ const putSchema = z.object({
 });
 
 /**
- * Brancher un proxy **trouvé** sur la machine : sa configuration, relue et
- * confirmée par l'utilisateur. Rien n'est installé — un test part aussitôt.
+ * Plugging in a proxy **found** on the machine: its configuration, read again and
+ * confirmed by the user. Nothing is installed — a test goes out right away.
  */
 export const PUT = apiRoute<Context>(async (request, context) => {
+  const language = await currentLanguage();
   const auth = await requirePermission(request, 'target:update');
   const { id } = paramsSchema.parse(await context.params);
   const target = await targetOr404(id);
@@ -135,9 +139,9 @@ export const PUT = apiRoute<Context>(async (request, context) => {
   const saved = await saveTargetProxy({
     targetId: id,
     kind: input.kind,
-    name: input.name ?? describeProxy(input.kind, config).split(' · ')[0] ?? input.kind,
+    name: input.name ?? describeProxy(input.kind, config, language).split(' · ')[0] ?? input.kind,
     config,
-    // Un proxy trouvé n'appartient pas à Pupitre : il ne le désinstallera jamais.
+    // A found proxy does not belong to Pupitre: it will never uninstall it.
     managed: false,
     status: 'unknown',
     createdBy: auth.userId,
@@ -152,15 +156,15 @@ export const PUT = apiRoute<Context>(async (request, context) => {
     after: { proxyId: saved.id, kind: input.kind, target: target.name, config },
     ip: auth.ip,
   });
-  return NextResponse.json({ proxy: proxyViewForUi(saved), jobId: job.id });
+  return NextResponse.json({ proxy: proxyViewForUi(saved, language), jobId: job.id });
 });
 
 const deleteQuerySchema = z.object({ uninstall: z.enum(['0', '1']).default('0') });
 
 /**
- * Retirer le proxy de la cible. Refusé tant que des domaines passent par lui :
- * les couper sans le dire laisserait des sites injoignables. `uninstall=1`
- * défait aussi ce que Pupitre a installé.
+ * Removing the target's proxy. Refused as long as domains go through it: cutting
+ * them without saying so would leave sites unreachable. `uninstall=1` also undoes
+ * what Pupitre installed.
  */
 export const DELETE = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'target:update');
@@ -171,7 +175,7 @@ export const DELETE = apiRoute<Context>(async (request, context) => {
   );
   const proxy = await getProxyForTarget(id);
   if (!proxy) return NextResponse.json({ removed: false });
-  // Ses domaines, et ceux des machines qu'il sert par liaison.
+  // Its domains, and those of the machines it serves through a link.
   const count = await countRoutesServedBy(proxy.id);
   if (count > 0) throw new ConflictError(msg(messages, 'error.hasRoutes', { count }));
   const job = await getOpsQueue().add(PROXY_REMOVE_JOB, {

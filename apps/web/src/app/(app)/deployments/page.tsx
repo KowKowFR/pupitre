@@ -39,8 +39,8 @@ export default async function DeploymentsPage({ searchParams }: { searchParams: 
   const parsed = deploymentQuerySchema.safeParse(flat);
   const query = parsed.success ? parsed.data : deploymentQuerySchema.parse({});
   const page = await listDeployments(query);
-  // Les filtres proposés sont ceux que la requête de liste sait appliquer ;
-  // un autre statut passé à la main filtre quand même, sans puce allumée.
+  // The offered filters are those the list query knows how to apply; another status
+  // passed by hand filters anyway, without a lit chip.
   const filter: StatusFilter =
     query.blocked === 'scan'
       ? 'scan_blocked'
@@ -50,26 +50,26 @@ export default async function DeploymentsPage({ searchParams }: { searchParams: 
   const search = query.q ?? '';
   const filtered = Boolean(query.status || query.blocked || search);
 
-  // Une seule requête pour toute la page : la colonne « Scans » ne doit pas
-  // coûter un aller-retour par ligne.
+  // A single query for the whole page: the "Scans" column must not cost a round
+  // trip per row.
   const digest = await scanDigestForDeployments(page.items.map((item) => item.id));
 
-  // Même critère que l'écran de supervision : le dernier déploiement vivant de
-  // chaque couple application+cible. Ce sont eux qui ne se purgent pas — la
-  // case désactivée dit pourquoi avant que le serveur n'ait à le refuser.
+  // The same criterion as the monitoring screen: the last live deployment of each
+  // application+target pair. They are the ones that are not purged — the disabled
+  // checkbox says why before the server has to refuse it.
   const live = await listLiveDeploymentIds();
   const { settings } = await getAppSettings();
 
-  // Le run ouvert (`?run=<id>`) : son suivi complet, dans le tiroir — qu'il
-  // soit ou non sur la page affichée (un lien « Suivre » y mène directement).
+  // The open run (`?run=<id>`): its complete follow-up, in the drawer — whether or
+  // not it is on the displayed page (a "Follow" link leads there directly).
   const wanted = flat.run;
   const record =
     wanted && z.string().uuid().safeParse(wanted).success
       ? await runRecord(wanted, auth, formatSettingsOf(settings))
       : null;
 
-  // L'export reprend les filtres affichés : ce qu'on télécharge est ce qu'on voit,
-  // toutes pages confondues.
+  // The export takes the displayed filters: what one downloads is what one sees,
+  // across all pages.
   const exportQuery = filterParams(filter, search).toString();
 
   const header = (

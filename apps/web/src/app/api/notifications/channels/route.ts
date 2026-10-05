@@ -22,23 +22,22 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Canaux de notification.
+ * Notification channels.
  *
- * `settings:read` / `settings:manage` : configurer où partent les alertes est
- * un réglage d'instance, au même titre que la politique de scan. Rien ici
- * n'ouvre un pouvoir que `settings:manage` ne donne pas déjà.
+ * `settings:read` / `settings:manage`: configuring where the alerts go is an
+ * instance setting, just like the scan policy. Nothing here opens a power that
+ * `settings:manage` does not already give.
  *
- * Les secrets — mot de passe SMTP, jeton de bot, URL de webhook Discord — ne
- * sont **jamais** renvoyés, pas même partiellement masqués : la réponse dit
- * seulement *quels champs* sont renseignés. Ce que `@pupitre/db` expose en lecture
- * ne contient physiquement pas les valeurs, donc aucun oubli de filtrage ici ne
- * peut les laisser fuir.
+ * The secrets — SMTP password, bot token, Discord webhook URL — are **never**
+ * returned, not even partially masked: the response only says *which fields* are
+ * filled in. What `@pupitre/db` exposes for reading physically does not contain
+ * the values, so no filtering omission here can let them leak.
  */
 
 /**
- * Une configuration de canal est un objet plat de scalaires. Le schéma précis
- * — champs attendus, obligation, format — vit dans le catalogue de `@pupitre/core`
- * et est appliqué par `@pupitre/db` : le dupliquer ici donnerait deux vérités.
+ * A channel configuration is a flat object of scalars. The precise schema —
+ * expected fields, requirement, format — lives in `@pupitre/core`'s catalog and
+ * is applied by `@pupitre/db`: duplicating it here would give two truths.
  */
 const configSchema = z.record(z.string().max(60), z.union([z.string(), z.number(), z.boolean()]));
 const secretsSchema = z.record(z.string().max(60), z.string().max(400));
@@ -53,11 +52,11 @@ const createSchema = z.object({
 });
 
 /**
- * Vocabulaire nécessaire à l'écran — aucune liste figée côté client.
+ * The vocabulary the screen needs — no frozen list on the client side.
  *
- * La langue traverse la route : ces libellés sont ceux des champs du
- * formulaire de canal, pas des codes. Sans elle, le catalogue retombait sur sa
- * langue source et posait « Serveur SMTP » au milieu d'un écran anglais.
+ * The language crosses the route: these labels are those of the channel form's
+ * fields, not codes. Without it, the catalog fell back on its source language
+ * and put "Serveur SMTP" in the middle of an English screen.
  */
 async function vocabulary() {
   const language = await currentLanguage();
@@ -95,10 +94,10 @@ export const POST = apiRoute(async (request) => {
   });
 
   /**
-   * L'audit porte la configuration en clair — elle n'a rien de secret — mais
-   * les secrets y sont réduits à la liste des champs renseignés. Une entrée
-   * d'audit est lue par beaucoup de monde et conservée longtemps : c'est le
-   * dernier endroit où l'on voudrait retrouver un jeton.
+   * The audit carries the configuration in clear — it has nothing secret — but the
+   * secrets are reduced to the list of filled in fields. An audit entry is read by
+   * many people and kept for a long time: it is the last place one would want to
+   * find a token.
    */
   await logAudit({
     actorId: auth.userId,
@@ -111,8 +110,8 @@ export const POST = apiRoute(async (request) => {
       enabled: channel.enabled,
       config: channel.config,
       events: channel.events,
-      // i18n-ignore — charge utile d'audit, figée à l'écriture (cf. `api/settings`).
-      secrets: channel.configuredSecrets.map((field) => `${field} (défini)`),
+      // i18n-ignore — audit payload, frozen at write time (see `api/settings`).
+      secrets: channel.configuredSecrets.map((field) => `${field} (set)`),
     },
     ip: auth.ip,
   });

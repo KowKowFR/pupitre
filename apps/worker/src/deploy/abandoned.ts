@@ -11,36 +11,34 @@ import { workerSay } from '../messages.js';
 import { getPublisher } from '../redis.js';
 
 /**
- * Réconciliation d'un déploiement dont la tâche vient de mourir **sans que
- * notre handler ait tourné**.
+ * Reconciling a deployment whose job just died **without our handler having
+ * run**.
  *
- * ── Le cas réel, constaté ────────────────────────────────────────────────────
- * BullMQ récupère tout seul une tâche dont le worker a disparu : au bout de deux
- * passages du contrôleur de tâches bloquées, elle repart en `wait` et un worker
- * la reprend. Mais à la deuxième récupération — deux redémarrages en vol sur un
- * déploiement assez long — le compteur dépasse `maxStalledCount` et BullMQ pose
- * un « échec différé » sur la tâche : le worker suivant la met en échec
- * (« job stalled more than allowable limit ») **sans jamais appeler le
- * handler**. Le `catch` de `handleDeploymentRun`, qui écrit d'ordinaire le
- * verdict en base, ne tourne donc pas. Le déploiement reste `running` pour
- * toujours ; la destruction le refuse, la purge le refuse, et l'application qui
- * le porte devient indélébile.
+ * ── The real case, observed ─────────────────────────────────────────────────
+ * BullMQ recovers by itself a job whose worker disappeared: after two passes of
+ * the stalled-jobs checker, it goes back to `wait` and a worker picks it up. But
+ * at the second recovery — two restarts in flight on a long enough deployment —
+ * the counter exceeds `maxStalledCount` and BullMQ sets a "deferred failure" on
+ * the job: the next worker fails it ("job stalled more than allowable limit")
+ * **without ever calling the handler**. `handleDeploymentRun`'s `catch`, which
+ * usually writes the verdict in the database, therefore does not run. The
+ * deployment stays `running` forever; destruction refuses it, the purge refuses
+ * it, and the application carrying it becomes indelible.
  *
- * ── Pourquoi ici, et pourquoi seulement ici ──────────────────────────────────
- * L'événement `failed` du worker est le seul instant où l'on sait, sans rien
- * deviner et sans interroger la file, qu'une tâche vient de passer dans un état
- * terminal. Pas de balayage périodique, pas de fenêtre à choisir, pas de course
- * avec un worker qui travaillerait encore : la tâche est morte, on le tient de
- * BullMQ lui-même.
+ * ── Why here, and why only here ─────────────────────────────────────────────
+ * The worker's `failed` event is the only instant where we know, without
+ * guessing anything and without querying the queue, that a job just went into a
+ * terminal state. No periodic sweep, no window to choose, no race with a worker
+ * that would still be working: the job is dead, we have it from BullMQ itself.
  *
- * Et l'on **ne reprend rien**. Réenfiler un pipeline dont on ignore où il s'est
- * arrêté redéploierait par-dessus un état inconnu — conteneurs à moitié
- * remplacés, port déjà pris, fichiers déposés. Le déploiement est arrêté sur un
- * échec qui nomme ce qui reste à vérifier sur la machine ; lever cette
- * incertitude est un geste humain, avec sa propre permission.
+ * And we **resume nothing**. Queuing again a pipeline without knowing where it
+ * stopped would redeploy on top of an unknown state — containers half replaced,
+ * port already taken, files placed. The deployment is stopped on a failure that
+ * names what remains to check on the machine; lifting that uncertainty is a
+ * human gesture, with its own permission.
  *
- * Tout le reste — une tâche disparue de Redis, un déploiement figé avant ce
- * correctif — passe par le geste manuel : `POST /api/deployments/:id/unblock`.
+ * Everything else — a job gone from Redis, a deployment stuck before this fix —
+ * goes through the manual gesture: `POST /api/deployments/:id/unblock`.
  */
 
 const DEPLOYMENT_JOBS: ReadonlySet<string> = new Set([
@@ -65,9 +63,9 @@ function actorOf(data: unknown): { actorId: string | null; ip: string | null } {
 }
 
 /**
- * À brancher sur `worker.on('failed')`. Ne fait rien — et c'est le cas normal —
- * quand le handler a déjà écrit le verdict : `abandonDeployment()` ne touche
- * qu'un déploiement encore `pending` ou `running`, et rend `null` sinon.
+ * To plug into `worker.on('failed')`. Does nothing — and it is the normal case —
+ * when the handler already wrote the verdict: `abandonDeployment()` only touches
+ * a deployment still `pending` or `running`, and returns `null` otherwise.
  */
 export async function reconcileFailedDeploymentJob(
   job: { name: string; data: unknown } | undefined,
@@ -84,7 +82,7 @@ export async function reconcileFailedDeploymentJob(
 
   const report = await abandonDeployment(deploymentId, { cause, language }).catch(
     (error: unknown) => {
-      logger.error({ err: error, deploymentId }, 'réconciliation impossible');
+      logger.error({ err: error, deploymentId }, 'reconciliation failed');
       return null;
     },
   );
@@ -92,13 +90,13 @@ export async function reconcileFailedDeploymentJob(
 
   logger.warn(
     { deploymentId, jobName: job.name, reason, failedStep: report.failedStep },
-    'déploiement laissé « en cours » par une tâche morte : arrêté en échec',
+    'deployment left "in progress" by a dead job: stopped as failed',
   );
 
   const { actorId, ip } = actorOf(job.data);
 
-  // Un spectateur qui regarde encore le flux SSE doit voir le verdict tomber,
-  // plutôt qu'un pipeline qui reste figé sous ses yeux.
+  // A viewer still watching the SSE stream must see the verdict fall, rather than
+  // a pipeline staying frozen before their eyes.
   getPublisher()
     .publish(
       deployChannel(deploymentId),
@@ -131,6 +129,6 @@ export async function reconcileFailedDeploymentJob(
     },
     ip,
   }).catch((error: unknown) => {
-    logger.error({ err: error, deploymentId }, "écriture d'audit impossible");
+    logger.error({ err: error, deploymentId }, 'audit write failed');
   });
 }

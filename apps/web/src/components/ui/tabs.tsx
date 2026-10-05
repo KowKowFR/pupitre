@@ -3,11 +3,10 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
 /**
- * Onglets soulignés : l'onglet courant prend un trait outremer de 2 px et
- * passe en semi-gras ; un compteur facultatif le suit. Deux formes, une seule
- * apparence : `Tab` pour un état local (`role="tab"`), `TabLink` pour un
- * onglet qui est une URL (`aria-current`), partageable et que le bouton
- * Précédent sait défaire.
+ * Underlined tabs: the current tab takes a 2 px ultramarine line and goes
+ * semi-bold; an optional counter follows it. Two shapes, a single appearance:
+ * `Tab` for a local state (`role="tab"`), `TabLink` for a tab that is a URL
+ * (`aria-current`), shareable and undoable with the Back button.
  */
 function Tabs({
   className,

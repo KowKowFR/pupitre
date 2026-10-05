@@ -21,11 +21,11 @@ import { JobsPanel, type JobRow, type JobTypeOption } from './jobs-panel';
 export const dynamic = 'force-dynamic';
 
 /**
- * Tâches planifiées.
+ * Scheduled tasks.
  *
- * La page lit la base — la source de vérité — et la complète par l'état des
- * schedulers dans Redis, d'où vient la prochaine occurrence. Un écart entre les
- * deux est affiché plutôt que masqué : c'est une information d'exploitation.
+ * The page reads the database — the source of truth — and completes it with the
+ * schedulers' state in Redis, where the next occurrence comes from. A gap between
+ * the two is shown rather than hidden: it is operating information.
  */
 export default async function JobsPage() {
   const auth = await requirePagePermission('/jobs', 'job:read');
@@ -39,14 +39,13 @@ export default async function JobsPage() {
     getAppSettingsValue(),
   ]);
 
-  // Deux fuseaux distincts, à ne pas confondre : celui d'une tâche, qui vit dans
-  // sa ligne, et celui des paramètres d'instance, qui ne sert qu'à pré-remplir
-  // le formulaire d'une tâche neuve.
+  // Two distinct time zones, not to be confused: a task's, which lives in its row,
+  // and the instance settings', which only serves to prefill a new task's form.
   const defaultTimeZone = settings.timezone;
 
-  // Liste énumérée côté serveur : c'est l'ICU du process qui valide la saisie,
-  // et proposer au navigateur un fuseau que le serveur refuserait — ou l'inverse
-  // — produirait un choix impossible à enregistrer.
+  // A list enumerated on the server side: it is the process's ICU that validates
+  // the input, and offering the browser a time zone the server would refuse — or
+  // the reverse — would produce a choice impossible to save.
   const timeZones = supportedTimeZones();
 
   const jobs: JobRow[] = await Promise.all(
@@ -70,9 +69,9 @@ export default async function JobsPage() {
         }),
         schedule: fromCron(row.cron),
         timeZone: row.timezone,
-        // `null` sur un scheduler installé avant la migration `0009`, ou absent
-        // de Redis. Différent du fuseau de la ligne = l'heure affichée n'est pas
-        // encore celle à laquelle BullMQ va tirer.
+        // `null` on a scheduler installed before migration `0009`, or absent from Redis.
+        // Different from the row's time zone = the displayed time is not yet the one at
+        // which BullMQ will fire.
         schedulerTimeZone: states.get(row.key)?.timeZone ?? null,
         enabled: row.enabled,
         installed: states.get(row.key)?.installed ?? false,

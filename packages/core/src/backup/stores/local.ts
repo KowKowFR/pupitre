@@ -9,11 +9,11 @@ import type { UiLanguage } from '../../i18n.js';
 import { backupSay, type BackupSay } from '../messages.js';
 
 /**
- * Un dossier monté dans le conteneur du worker — typiquement le partage NFS ou
- * SMB d'un NAS, monté sur l'hôte puis dans le conteneur. Pour le worker, c'est
- * un dossier : rien de plus à savoir.
+ * A folder mounted in the worker's container — typically a NAS's NFS or SMB
+ * share, mounted on the host then in the container. For the worker, it is a
+ * folder: nothing more to know.
  *
- * Une clé ne sort jamais du dossier : un chemin qui y échapperait est refusé.
+ * A key never leaves the folder: a path that would escape it is refused.
  */
 export class LocalBackupStore implements BackupStore {
   readonly kind = 'local' as const;
@@ -44,7 +44,8 @@ export class LocalBackupStore implements BackupStore {
         callback(null, chunk);
       },
     });
-    // Écrit à côté puis renommé : un fichier à moitié écrit ne porte jamais le nom final.
+    // Written next to it then renamed: a half-written file never carries the final
+    // name.
     const partial = `${target}.partial`;
     try {
       await pipeline(body, counter, createWriteStream(partial));
@@ -65,7 +66,7 @@ export class LocalBackupStore implements BackupStore {
   async get(key: string): Promise<Readable> {
     const target = this.path(key);
     await stat(target).catch((error: unknown) => {
-      throw new BackupStoreError(`« ${key} » introuvable`, error);
+      throw new BackupStoreError(this.say('store.notFound', { key }), error);
     });
     return createReadStream(target);
   }
@@ -96,8 +97,8 @@ export class LocalBackupStore implements BackupStore {
   async removePrefix(prefix: string): Promise<number> {
     const objects = await this.list(prefix);
     for (const object of objects) await this.remove(object.key);
-    // Les dossiers devenus vides partent aussi, en remontant jusqu'à la racine
-    // — `rmdir` refuse un dossier qui contient encore quelque chose.
+    // Folders that became empty go too, climbing up to the root — `rmdir` refuses a
+    // folder that still contains something.
     const dirs = [...new Set(objects.map((object) => dirname(this.path(object.key))))];
     for (const start of dirs) {
       let dir = start;

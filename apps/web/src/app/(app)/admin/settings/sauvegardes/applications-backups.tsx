@@ -16,10 +16,10 @@ import { formatDateTime, type FormatSettings } from '@/lib/format';
 import { toast } from '@/lib/toast';
 
 /**
- * Les applications sauvegardées, chacune dépliable sur son historique : de quoi
- * retrouver la sauvegarde du 7 et la restaurer sans passer par chaque fiche.
- * Les sauvegardes d'une application supprimée y restent visibles — elles sont
- * encore sur la destination, et c'est le seul endroit où les voir.
+ * The backed-up applications, each one unfoldable on its history: what it takes
+ * to find the backup of the 7th and restore it without going through each
+ * record. The backups of a deleted application stay visible there — they are
+ * still on the destination, and it is the only place to see them.
  */
 
 type ApiError = { error?: { message?: string } };
@@ -44,7 +44,7 @@ export function ApplicationsBackups({
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
 
-  // Une sauvegarde en cours, n'importe où : on relit jusqu'à son issue.
+  // A backup in progress, anywhere: we read again until it ends.
   const running = applications.some((application) =>
     application.items.some((item) => item.status === 'running'),
   );
@@ -111,7 +111,7 @@ export function ApplicationsBackups({
                       ) : null}
                     </span>
                   </div>
-                  {/* Sous le nom, aligné sur lui : la dernière sauvegarde et le total. */}
+                  {/* Under the name, aligned on it: the last backup and the total. */}
                   <div className="t-cap flex flex-wrap items-center gap-x-2 gap-y-1 pl-5.5 text-text-3">
                     {last ? (
                       <>

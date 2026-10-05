@@ -54,32 +54,31 @@ export const GET = apiRoute(async (request) => {
 });
 
 /**
- * Au premier déploiement, l'écran propose d'activer la sauvegarde
- * automatique — et celle qui précède chaque déploiement. Facultatif : une
- * absence ne change rien à la politique existante.
+ * At the first deployment, the screen offers to enable the automatic backup —
+ * and the one that precedes each deployment. Optional: an absence changes
+ * nothing to the existing policy.
  */
 const createBodySchema = createDeploymentSchema.extend({
   backup: z.object({ enabled: z.boolean(), beforeDeploy: z.boolean() }).optional(),
   /**
-   * Les domaines de l'application sur cette cible — la liste entière. Absent :
-   * ceux déjà posés restent, et un premier déploiement reprend celui de
-   * l'AppSpec.
+   * The application's domains on this target — the whole list. Absent: those
+   * already set stay, and a first deployment takes the AppSpec's.
    */
   domains: routeListSchema.optional(),
   /**
-   * Les images à déployer, service par service — ce qu'une CI passe après avoir
-   * construit et poussé un tag : `{ "web": "ghcr.io/acme/web:4f2c1e9" }`.
-   * L'AppSpec de l'application est mise à jour avec : sa fiche dit ce qui
-   * tourne, et le déploiement suivant repart de là. Changer l'application
-   * demande `application:update`, en plus de `deployment:create`.
+   * The images to deploy, service by service — what a CI passes after building and
+   * pushing a tag: `{ "web": "ghcr.io/acme/web:4f2c1e9" }`. The application's
+   * AppSpec is updated with it: its record says what runs, and the next deployment
+   * starts again from there. Changing the application requires
+   * `application:update`, on top of `deployment:create`.
    */
   images: z.record(z.string().min(1).max(48), z.string().min(1).max(512)).optional(),
 });
 
 /**
- * Remplace les images demandées dans l'AppSpec et l'enregistre sur
- * l'application. Ne touche qu'aux services qui se déploient depuis une image :
- * un service construit depuis un Dockerfile n'a pas d'image à remplacer.
+ * Replaces the requested images in the AppSpec and saves it on the application.
+ * Only touches the services that deploy from an image: a service built from a
+ * Dockerfile has no image to replace.
  */
 async function applyImages(
   auth: AuthContext,
@@ -88,8 +87,8 @@ async function applyImages(
   synced: boolean,
 ): Promise<AppSpec> {
   if (!auth.can('application:update')) throw new ForbiddenError('application:update');
-  // Le dépôt dit quoi (règle n° 9) : une image changée ici serait effacée par
-  // le prochain commit, et la fiche mentirait d'ici là.
+  // The repository says what (rule 9): an image changed here would be erased by
+  // the next commit, and the record would lie until then.
   if (synced) {
     throw new ConflictError(
       msg(messages, 'error.images.synced', { application: application.slug }),
@@ -141,10 +140,10 @@ async function applyImages(
 }
 
 /**
- * Crée le déploiement et ses huit étapes en `pending`, puis enfile le job.
+ * Creates the deployment and its eight steps as `pending`, then queues the job.
  *
- * La route **n'attend jamais** le déploiement : elle répond 202 tout de suite,
- * et le suivi se fait par `GET /api/deployments/:id/logs`.
+ * The route **never waits** for the deployment: it answers 202 right away, and
+ * the follow-up goes through `GET /api/deployments/:id/logs`.
  */
 export const POST = apiRoute(async (request) => {
   const auth = await requirePermission(request, 'deployment:create', { applicationScoped: true });
@@ -156,10 +155,10 @@ export const POST = apiRoute(async (request) => {
   } = await readJsonBody(request, createBodySchema);
   await requireApplicationScope(request, auth, input.applicationId);
 
-  // Choisir les scanners et le seuil est une décision de sécurité : elle a sa
-  // propre permission. Ne rien demander n'en réclame aucune — c'est la
-  // politique de l'instance qui s'applique, et elle a déjà été décidée
-  // ailleurs, par quelqu'un qui portait « settings:manage ».
+  // Choosing the scanners and the threshold is a security decision: it has its own
+  // permission. Asking for nothing requires none — it is the instance's policy that
+  // applies, and it was already decided elsewhere, by someone who held
+  // "settings:manage".
   const requestedScan = input.scanConfig;
   const configuresScan =
     requestedScan !== undefined &&
@@ -168,13 +167,13 @@ export const POST = apiRoute(async (request) => {
     throw new ForbiddenError('scan:configure');
   }
 
-  // Les réglages d'instance s'appliquent ICI, avant le gel : la configuration
-  // enregistrée sur le déploiement doit décrire ce qui va réellement tourner.
+  // The instance settings apply HERE, before freezing: the configuration saved on
+  // the deployment must describe what is really going to run.
   const { settings } = await getAppSettings();
-  // Sans demande explicite, l'instance fournit sa politique ; avec une demande,
-  // elle ne peut que la restreindre. Dans les deux cas c'est ici que ça se
-  // joue, avant le gel : la configuration enregistrée sur le déploiement doit
-  // décrire ce qui va réellement tourner.
+  // Without an explicit request, the instance provides its policy; with a request,
+  // it can only restrict it. In both cases it is decided here, before freezing: the
+  // configuration saved on the deployment must describe what is really going to
+  // run.
   const [application, target] = await Promise.all([
     getApplication(input.applicationId),
     getTarget(input.targetId),
@@ -187,8 +186,8 @@ export const POST = apiRoute(async (request) => {
     throw new NotFoundError(msg(messages, 'error.targetNotFound', { id: input.targetId }));
   }
 
-  // Puis le réglage de l'application, qui sait ce qui doit la bloquer. Une
-  // demande explicite l'emporte sur lui, sauf pour ce qu'elle tait.
+  // Then the application's setting, which knows what must block it. An explicit
+  // request wins over it, except for what it leaves unsaid.
   const applicationPolicy = applicationScanPolicyOf(application);
   const scanConfig =
     requestedScan === undefined
@@ -201,8 +200,8 @@ export const POST = apiRoute(async (request) => {
           settings.security,
         );
 
-  // Le preflight fait foi : on ne déploie pas sur un runtime que la
-  // cible n'a pas montré.
+  // The preflight is authoritative: we do not deploy on a runtime the target has
+  // not shown.
   const available = usableRuntimes(target.runtimesAvailable);
   if (!available.includes(input.runtime)) {
     throw new ConflictError(
@@ -218,28 +217,28 @@ export const POST = apiRoute(async (request) => {
     );
   }
 
-  // Une application qui vient d'un dépôt : son AppSpec est celle d'un commit,
-  // et c'est le code de ce commit qui se construit — où qu'on la déploie.
+  // An application that comes from a repository: its AppSpec is a commit's, and it
+  // is that commit's code that builds — wherever it is deployed.
   const synced = await getSyncedSource(input.applicationId);
-  // L'adresse du dépôt chez sa forge, recopiée dans le déploiement : le lien
-  // vers son commit en découle, GitHub, GitLab ou Gitea.
+  // The repository's address at its forge, copied into the deployment: the link to
+  // its commit follows from it, GitHub, GitLab or Gitea.
   const syncedConnection = synced ? await getSourceConnectionById(synced.connectionId) : null;
 
-  // L'AppSpec est figée dans le déploiement : l'application peut évoluer
-  // ensuite sans rendre ce déploiement illisible.
+  // The AppSpec is frozen in the deployment: the application can evolve afterwards
+  // without making this deployment unreadable.
   const appSpec =
     images && Object.keys(images).length > 0
       ? await applyImages(auth, application, images, synced !== null)
       : parseAppSpec(application.appSpec);
 
-  // Sans dépôt, le code d'un service construit vient de la dernière archive
-  // téléversée. Refusé ici — rien n'est enfilé — si elle manque, est encore
-  // en lecture, a été refusée, ou n'a pas le Dockerfile qu'on attend.
+  // Without a repository, the code of a built service comes from the last uploaded
+  // archive. Refused here — nothing is queued — if it is missing, still being read,
+  // was refused, or does not have the expected Dockerfile.
   const archive = synced?.syncedSha ? null : await codeFromArchive(application.id, appSpec);
 
-  // Le choix fait au premier déploiement : il pose la politique de sauvegarde
-  // de l'application, s'il n'y en a pas encore. Ensuite, elle se règle sur sa
-  // fiche — un déploiement ne la réécrit jamais.
+  // The choice made at the first deployment: it sets the application's backup
+  // policy, if there is none yet. Afterwards, it is set on its record — a
+  // deployment never rewrites it.
   if (backupChoice && auth.can('backup:manage')) {
     const current = await getBackupPolicy(application.id);
     if (!current.configured) {
@@ -265,8 +264,8 @@ export const POST = apiRoute(async (request) => {
     }
   }
 
-  // Les domaines avant le déploiement : le pipeline les lit dès son départ —
-  // ils décident de la publication du port.
+  // The domains before the deployment: the pipeline reads them from its start —
+  // they decide how the port is published.
   if (domains) {
     const proxy = (await resolveServingProxy(input.targetId))?.proxy ?? null;
     if (!proxy && domains.length > 0) {
@@ -299,7 +298,7 @@ export const POST = apiRoute(async (request) => {
 
   const { deployment, steps } = await createDeploymentWithSteps({
     ...input,
-    // Après `...input` : c'est la configuration effective qui est gelée.
+    // After `...input`: it is the effective configuration that is frozen.
     scanConfig,
     appSpec,
     triggeredBy: auth.userId,
@@ -341,8 +340,8 @@ export const POST = apiRoute(async (request) => {
       version: deployment.version,
       scanners: scanConfig.scanners,
       failOn: scanConfig.failOn,
-      // Ce que l'appelant avait demandé, quand l'instance l'a écarté : sans
-      // cela le journal ne garderait aucune trace de l'intention.
+      // What the caller had asked for, when the instance set it aside: without that
+      // the log would keep no trace of the intention.
       ...(scanConfig.disabledBy
         ? {
             scanRequested: requestedScan?.scanners ?? "(politique de l'instance)",
@@ -358,7 +357,7 @@ export const POST = apiRoute(async (request) => {
 
   logger.info(
     { deploymentId: deployment.id, jobId: job.id, runtime: input.runtime },
-    'déploiement enfilé',
+    'deployment queued',
   );
 
   return NextResponse.json(

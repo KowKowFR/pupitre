@@ -12,31 +12,31 @@ import {
 } from '../supervision/sweep.js';
 
 /**
- * Relevé des métriques d'une machine cible — le chemin « quelqu'un a cliqué ».
+ * Reading a target machine's metrics — the "someone clicked" path.
  *
- * Le pendant de `target:preflight`, en plus court : le preflight dit *ce qu'on
- * peut faire* de la machine, le relevé dit *comment elle se porte*. Aucun driver
- * n'est chargé ici — la charge, la mémoire et le disque ne dépendent d'aucun
- * runtime, et c'est exactement pour ça qu'ils vivent à côté du preflight plutôt
- * que dans `DockerComposeDriver` et `K3sDriver`.
+ * The counterpart of `target:preflight`, shorter: the preflight says *what can
+ * be done* with the machine, the reading says *how it is doing*. No driver is
+ * loaded here — load, memory and disk depend on no runtime, and that is exactly
+ * why they live next to the preflight rather than in `DockerComposeDriver` and
+ * `K3sDriver`.
  *
- * ── Ce qui a changé, et pourquoi ────────────────────────────────────────────
- * Ce commentaire disait auparavant que le relevé « ne se stocke pas » : il
- * voyageait par la valeur de retour BullMQ et mourait avec la réponse. C'était
- * défendable pour un chiffre instantané ; ça ne l'est plus dès qu'on veut savoir
- * si un disque à 89 % était à 11 % la semaine dernière. Le relevé est donc
- * **écrit au passage** (`collectAndRecord`) et les seuils sont évalués dessus.
- * La valeur de retour, elle, n'a pas bougé d'un champ : l'écran affiche toujours
- * la mesure de la seconde, et la route qui l'attend n'a rien à savoir.
+ * ── What changed, and why ───────────────────────────────────────────────────
+ * This comment used to say the reading "is not stored": it travelled through the
+ * BullMQ return value and died with the response. It was defensible for an
+ * instant figure; it no longer is as soon as one wants to know whether a disk at
+ * 89% was at 11% last week. The reading is therefore **written in passing**
+ * (`collectAndRecord`) and thresholds are evaluated on it. The return value has
+ * not changed by a field: the screen still shows the measurement of the second,
+ * and the route waiting for it has nothing to know.
  *
- * Un clic vaut donc un relevé du balayage — même écriture, même jugement, seule
- * la colonne `source` diffère. Refuser de garder un relevé parce qu'il vient
- * d'un humain aurait été gâcher une session SSH déjà payée.
+ * A click is therefore worth a sweep reading — same write, same judgment, only
+ * the `source` column differs. Refusing to keep a reading because it comes from
+ * a human would have wasted an SSH session already paid for.
  *
- * Toujours aucune écriture d'audit pour le relevé lui-même : lire la charge
- * d'une machine qu'on a déjà le droit de voir ne change rien, et un écran qui
- * relève dix serveurs noierait le journal. Seul le **franchissement de seuil**
- * en écrit une, et seulement au moment où il se produit.
+ * Still no audit write for the reading itself: reading the load of a machine one
+ * is already allowed to see changes nothing, and a screen reading ten servers
+ * would drown the log. Only **crossing a threshold** writes one, and only when
+ * it happens.
  */
 export async function handleTargetMetrics(
   job: Job<unknown, TargetMetricsJobResult>,
@@ -55,18 +55,18 @@ export async function handleTargetMetrics(
         diskUsePercent: metrics.disk?.usePercent ?? null,
         failed: metrics.probes.filter((probe) => probe.status === 'failed').map((p) => p.key),
       },
-      'relevé de métriques terminé',
+      'metrics reading completed',
     );
   } else {
-    // Une cible éteinte n'est pas un incident du worker : la tâche réussit et
-    // rend un rapport qui dit pourquoi elle n'a rien pu mesurer.
-    log.warn({ error: metrics.error }, 'cible injoignable, relevé vide');
+    // A target turned off is not a worker incident: the job succeeds and returns a
+    // report saying why it could measure nothing.
+    log.warn({ error: metrics.error }, 'target unreachable, empty reading');
   }
 
   if (recorded) {
-    // Le jugement suit le même chemin que dans le balayage. Il est délibérément
-    // ici et non dans `collectAndRecord` : écrire est une chose, décider qu'il
-    // faut réveiller quelqu'un en est une autre.
+    // The judgment follows the same path as in the sweep. It is deliberately here
+    // and not in `collectAndRecord`: writing is one thing, deciding that someone
+    // must be woken up is another.
     try {
       const target = await getTarget(data.targetId);
       if (target) {
@@ -74,8 +74,8 @@ export async function handleTargetMetrics(
         await judgeAndAnnounce({ id: target.id, name: target.name });
       }
     } catch (error) {
-      // Un seuil mal jugé ne doit pas priver l'écran de son relevé.
-      log.error({ err: error }, 'évaluation des seuils impossible');
+      // A badly judged threshold must not deprive the screen of its reading.
+      log.error({ err: error }, 'thresholds evaluation failed');
     }
   }
 
@@ -83,20 +83,20 @@ export async function handleTargetMetrics(
 }
 
 /**
- * Le balayage périodique. Enveloppe BullMQ, rien de plus : tout est dans
+ * The periodic sweep. A BullMQ envelope, nothing more: everything is in
  * `supervision/sweep.ts`.
  *
- * Sur la file `supervision`, comme le relevé à la demande dont il est le jumeau
- * — une lecture ne doit ni retarder un déploiement, ni être retardée par lui.
+ * On the `supervision` queue, like the on-demand reading it is the twin of — a
+ * read must neither delay a deployment nor be delayed by it.
  */
 export async function handleTargetMetricsSweep(job: Job): Promise<HostSweepJobResult> {
   const data = hostSweepJobDataSchema.parse(job.data ?? {});
   const summary = await sweepHosts({ targetId: data.targetId, force: data.force });
 
-  // Un balayage qui n'a rien trouvé à faire est le cas normal : ne pas
-  // journaliser une ligne toutes les minutes pour dire qu'il n'y a rien à dire.
+  // A sweep that found nothing to do is the normal case: do not log a line every
+  // minute to say there is nothing to say.
   if (summary.sampled > 0 || summary.pruned > 0) {
-    logger.info({ jobId: job.id, ...summary }, 'balayage des serveurs terminé');
+    logger.info({ jobId: job.id, ...summary }, 'servers sweep completed');
   }
   return summary;
 }

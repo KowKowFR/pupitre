@@ -5,22 +5,22 @@ import type { NotificationDigest } from './digest.js';
 import type { NotificationMessage } from './message.js';
 
 /**
- * Contrat que doit remplir un moyen de prévenir quelqu'un.
+ * The contract a way of warning someone must fulfill.
  *
- * Même règle structurante que pour les drivers et les scanners : une
- * implémentation **n'importe rien** de `packages/db`, ni de `apps/web`, ni de
- * Redis. Elle reçoit une configuration déjà validée, un message neutre, et elle
- * délivre. C'est l'appelant qui décide d'enregistrer le résultat ou de le jeter.
+ * The same structuring rule as for drivers and scanners: an implementation
+ * **imports nothing** from `packages/db`, nor `apps/web`, nor Redis. It receives
+ * an already validated configuration, a neutral message, and it delivers. It is
+ * the caller that decides to record the result or discard it.
  *
- * Ajouter un canal doit se faire en ajoutant une classe et une entrée dans la
- * fabrique, sans toucher au worker, aux routes ni à l'écran.
+ * Adding a channel must be done by adding a class and an entry in the factory,
+ * without touching the worker, the routes or the screen.
  */
 
 /**
- * Configuration résolue d'un canal : la partie publique lue en base, la partie
- * secrète déchiffrée juste avant l'appel. Les deux sont séparées jusqu'ici
- * — c'est ce qui garantit qu'aucune couche intermédiaire ne manipule un secret
- * par mégarde.
+ * A channel's resolved configuration: the public part read from the database,
+ * the secret part decrypted just before the call. Both are kept apart until
+ * here — that is what guarantees no intermediate layer handles a secret by
+ * mistake.
  */
 export type ResolvedChannelConfig = {
   config: ChannelConfig;
@@ -29,7 +29,7 @@ export type ResolvedChannelConfig = {
 
 export type NotificationTestResult = {
   ok: boolean;
-  /** Une phrase, affichable telle quelle. Déjà expurgée de tout secret. */
+  /** A sentence, displayable as is. Already scrubbed of any secret. */
   detail: string;
 };
 
@@ -37,41 +37,39 @@ export interface NotificationChannel {
   readonly kind: NotificationChannelKind;
 
   /**
-   * Vérifie que la configuration fonctionne **sans délivrer** de message
-   * visible, quand le protocole propose une telle sonde (poignée de main SMTP,
-   * `getMe` Telegram, lecture du webhook Discord).
+   * Checks that the configuration works **without delivering** a visible message,
+   * when the protocol offers such a probe (SMTP handshake, Telegram `getMe`,
+   * reading the Discord webhook).
    *
-   * Un canal qui n'en propose aucune le dit — il ne prétend pas avoir vérifié.
+   * A channel that offers none says so — it does not pretend to have checked.
    *
-   * La langue est passée ici, alors que `send()` et `sendDigest()` la lisent sur
-   * la charge qu'ils délivrent : une sonde ne transporte aucun message, et son
-   * verdict s'affiche pourtant dans le panel. C'est l'appelant qui la résout,
-   * `packages/core` ne lisant jamais les paramètres d'instance.
+   * The language is passed here, whereas `send()` and `sendDigest()` read it from
+   * the payload they deliver: a probe carries no message, and yet its verdict is
+   * shown in the panel. It is the caller that resolves it, `packages/core` never
+   * reading the instance settings.
    */
   test(resolved: ResolvedChannelConfig, language?: UiLanguage): Promise<NotificationTestResult>;
 
-  /** Délivre une alerte unitaire. Lève une `NotificationError` en cas d'échec. */
+  /** Delivers a single alert. Throws a `NotificationError` on failure. */
   send(resolved: ResolvedChannelConfig, message: NotificationMessage): Promise<void>;
 
   /**
-   * Délivre un **résumé** — plusieurs événements du même type, retenus pendant
-   * une fenêtre de regroupement.
+   * Delivers a **digest** — several events of the same type, held during a
+   * grouping window.
    *
-   * Méthode distincte et **obligatoire**, pas un drapeau sur `send()` : un
-   * résumé porte une liste, une fenêtre et un total, et chaque protocole les
-   * rend différemment. Un e-mail peut lister cent lignes, un message Telegram
-   * doit tenir à l'écran. Faire entrer tout cela dans un `NotificationMessage`
-   * obligerait chaque canal à deviner qu'un texte cache une liste — c'est la
-   * fuite d'abstraction que cette couche interdit.
+   * A distinct and **mandatory** method, not a flag on `send()`: a digest carries
+   * a list, a window and a total, and each protocol renders them differently. An
+   * email can list a hundred lines, a Telegram message must fit on screen.
+   * Squeezing all that into a `NotificationMessage` would force each channel to
+   * guess that a text hides a list — the abstraction leak this layer forbids.
    *
-   * Obligatoire pour que le compilateur refuse un canal qui saurait alerter
-   * mais pas résumer : il enverrait alors cinquante messages là où les autres
-   * en envoient un.
+   * Mandatory so that the compiler refuses a channel that could alert but not
+   * summarize: it would then send fifty messages where the others send one.
    */
   sendDigest(resolved: ResolvedChannelConfig, digest: NotificationDigest): Promise<void>;
 }
 
-/** Échec imputable à un canal, avec le contexte utile au diagnostic. */
+/** A failure attributable to a channel, with the context useful for diagnosis. */
 export class NotificationError extends Error {
   constructor(
     message: string,
@@ -84,11 +82,11 @@ export class NotificationError extends Error {
   }
 }
 
-// ─── transports injectables ───────────────────────────────────────────────────
+// ─── injectable transports ────────────────────────────────────────────────────
 
 export type FetchLike = (input: string, init: RequestInit) => Promise<Response>;
 
-/** Ce qu'un envoi SMTP demande, réduit à l'essentiel. */
+/** What an SMTP send needs, reduced to the essentials. */
 export type SmtpEnvelope = {
   from: string;
   to: string[];
@@ -96,14 +94,14 @@ export type SmtpEnvelope = {
   text: string;
   html: string;
   headers: Record<string, string>;
-  /** Images jointes, affichées dans le HTML par leur `cid` : la tuile Pupitre. */
+  /** Attached images, shown in the HTML by their `cid`: the Pupitre tile. */
   inlineImages?: InlineImage[];
 };
 
 export type SmtpOptions = {
   host: string;
   port: number;
-  /** `true` = SMTPS implicite (la session s'ouvre déjà chiffrée). */
+  /** `true` = implicit SMTPS (the session opens already encrypted). */
   secure: boolean;
   requireTls: boolean;
   rejectUnauthorized: boolean;
@@ -112,9 +110,9 @@ export type SmtpOptions = {
 };
 
 /**
- * Le transport SMTP, vu comme deux fonctions. C'est ce qui rend la couche
- * vérifiable sans serveur : un test fournit un faux qui enregistre l'enveloppe
- * et rend la main, sans ouvrir de socket.
+ * The SMTP transport, seen as two functions. That is what makes the layer
+ * testable without a server: a test provides a fake that records the envelope
+ * and returns, without opening a socket.
  */
 export type SmtpTransport = {
   verify: () => Promise<void>;
@@ -127,41 +125,39 @@ export type SmtpTransportFactory = (options: SmtpOptions) => SmtpTransport;
 export type NotificationTransports = {
   fetch: FetchLike;
   smtp: SmtpTransportFactory;
-  /** Borne haute d'un appel réseau. Le worker la fixe, les canaux l'appliquent. */
+  /** Upper bound of a network call. The worker sets it, the channels apply it. */
   timeoutMs: number;
 };
 
-// ─── expurgation ──────────────────────────────────────────────────────────────
+// ─── redaction ────────────────────────────────────────────────────────────────
 
 /**
- * Formes que prennent les jetons chez les fournisseurs visés, y compris
- * **masquées** par eux.
+ * Shapes tokens take at the targeted providers, including **masked** by them.
  *
- * Constaté ailleurs dans ce dépôt (`@pupitre/core/ai`) : sur une clé refusée, un
- * fournisseur renvoie « Incorrect API key provided: sk-abcd1234***…***wxyz » —
- * soit une partie de la clé, en clair, dans un message que nous relayons
- * ensuite dans une réponse HTTP et dans le journal d'audit. Le masque du
- * fournisseur n'est pas notre masque.
+ * Seen elsewhere in this repository (`@pupitre/core/ai`): on a refused key, a
+ * provider returns "Incorrect API key provided: sk-abcd1234***…***wxyz" — that
+ * is part of the key, in clear, in a message we then relay in an HTTP response
+ * and in the audit log. The provider's mask is not our mask.
  *
- * Ici : le jeton de bot Telegram (`123456789:AA…`), qui apparaît tel quel dans
- * l'URL que le client HTTP recopie dans ses messages d'erreur, et le jeton
- * terminal d'une URL de webhook Discord.
+ * Here: the Telegram bot token (`123456789:AA…`), which appears as is in the URL
+ * the HTTP client copies into its error messages, and the trailing token of a
+ * Discord webhook URL.
  */
 const TOKEN_LIKE: readonly RegExp[] = [
-  // Jeton de bot Telegram, y compris quand il est encore dans l'URL.
+  // Telegram bot token, including when it is still in the URL.
   /\b\d{6,12}:[A-Za-z0-9_-]{20,}/g,
-  // Jeton d'un webhook Discord — dernier segment, après l'identifiant.
+  // A Discord webhook's token — last segment, after the identifier.
   /(\/api\/webhooks\/\d+\/)[A-Za-z0-9_.-]{10,}/g,
   /\bBearer\s+[A-Za-z0-9._~+/=-]{8,}/gi,
 ];
 
 /**
- * Retire d'un message tout ce qui ressemble à un secret, avant qu'il n'atteigne
- * une réponse, un log, le journal d'audit ou la colonne `last_error`.
+ * Removes from a message everything that looks like a secret, before it reaches
+ * a response, a log, the audit log or the `last_error` column.
  *
- * Deux passes, dans cet ordre : les valeurs exactes que l'on connaît — la seule
- * garantie réelle —, puis les formes reconnaissables, qui rattrapent les
- * variantes tronquées ou reformatées par le service distant.
+ * Two passes, in this order: the exact values we know — the only real guarantee
+ * —, then the recognizable shapes, which catch the variants truncated or
+ * reformatted by the remote service.
  */
 const MASK: Record<UiLanguage, string> = { fr: '[secret masqué]', en: '[redacted secret]' };
 
@@ -177,8 +173,8 @@ export function redactSecrets(
     const secret = typeof value === 'string' ? value.trim() : '';
     if (secret.length < 6) continue;
     result = result.split(secret).join(mask);
-    // Une URL de webhook Discord traverse aussi les messages tronquée à son
-    // jeton : on masque donc aussi ce qui suit le dernier `/`.
+    // A Discord webhook URL also goes through messages truncated at its token: we
+    // therefore also mask what follows the last `/`.
     const tail = secret.slice(secret.lastIndexOf('/') + 1);
     if (tail.length >= 10 && tail !== secret) result = result.split(tail).join(mask);
   }
@@ -193,13 +189,13 @@ export function redactSecrets(
 }
 
 /**
- * Message d'une erreur quelconque, tronqué et expurgé.
+ * Any error's message, truncated and scrubbed.
  *
- * La cause est dépliée d'un cran, et ce n'est pas du confort : `fetch` remonte
- * « fetch failed » pour *toutes* les pannes de transport — DNS muet, connexion
- * refusée, TLS rejeté, délai dépassé —, et range la vraie raison dans `cause`.
- * Un `last_error` qui dit « fetch failed » ne rend pas l'échec visible, il le
- * rend seulement mentionné.
+ * The cause is unfolded one level, and it is not for comfort: `fetch` reports
+ * "fetch failed" for *every* transport failure — silent DNS, connection refused,
+ * TLS rejected, timeout —, and stores the real reason in `cause`. A
+ * `last_error` that says "fetch failed" does not make the failure visible, it
+ * only mentions it.
  */
 export function describeFailure(
   error: unknown,
@@ -218,20 +214,20 @@ export function describeFailure(
   return redactSecrets(raw, secrets, language).slice(0, 400);
 }
 
-// ─── ce qu'un envoi transporte ────────────────────────────────────────────────
+// ─── what a send carries ──────────────────────────────────────────────────────
 
 /**
- * La charge d'une distribution : une alerte unitaire, ou un résumé.
+ * A delivery's payload: a single alert, or a digest.
  *
- * Le discriminant vit ici plutôt que dans le worker : c'est la couche des
- * canaux qui connaît les deux formes, et c'est elle qui doit rester le seul
- * endroit où l'on choisit entre `send()` et `sendDigest()`.
+ * The discriminant lives here rather than in the worker: it is the channels'
+ * layer that knows both shapes, and it must stay the only place where we choose
+ * between `send()` and `sendDigest()`.
  */
 export type NotificationPayload =
   | { readonly type: 'event'; readonly message: NotificationMessage }
   | { readonly type: 'digest'; readonly digest: NotificationDigest };
 
-/** Le **seul** aiguillage entre alerte unitaire et résumé, dans tout le projet. */
+/** The **only** switch between single alert and digest, in the whole project. */
 export function deliverNotification(
   channel: NotificationChannel,
   resolved: ResolvedChannelConfig,
@@ -242,7 +238,7 @@ export function deliverNotification(
     : channel.send(resolved, payload.message);
 }
 
-/** L'événement porté par une charge, quel que soit son type — pour les en-têtes et les logs. */
+/** The event carried by a payload, whatever its type — for headers and logs. */
 export function notificationPayloadEvent(payload: NotificationPayload): string {
   return payload.type === 'digest' ? payload.digest.event : payload.message.event;
 }

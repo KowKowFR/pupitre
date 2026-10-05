@@ -5,9 +5,8 @@ import { Kbd } from '@/components/ui/kbd';
 import { useHotkey, useShell } from './shell-provider';
 
 /**
- * « Déployer » : l'action primaire de la vue d'ensemble. Elle ouvre la palette
- * en mode « Déployer › », qui liste les applications ; la touche D fait de
- * même depuis l'écran.
+ * "Deploy": the overview's primary action. It opens the palette in "Deploy ›"
+ * mode, which lists the applications; the D key does the same from the screen.
  */
 export function DeployButton({ label }: { label: string }) {
   const { openPalette } = useShell();

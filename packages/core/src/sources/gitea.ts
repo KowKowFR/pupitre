@@ -18,44 +18,43 @@ import {
 } from './types.js';
 
 /**
- * Gitea, Forgejo et Codeberg — une seule API (`/api/v1`), par un **jeton
- * d'accès** d'un compte de la forge.
+ * Gitea, Forgejo and Codeberg — a single API (`/api/v1`), through an **access
+ * token** of an account on the forge.
  *
- * Pas d'équivalent des GitHub Apps ici : le jeton appartient à un compte, de
- * préférence un compte de service. Il ne lui faut que deux portées —
- * `write:repository` (lire le code, écrire l'état d'un déploiement sur un
- * commit ; Gitea n'a pas de portée plus étroite pour les statuts) et
- * `read:user` (savoir à quel compte il ouvre). Il est chiffré en base et ne
- * vit en clair qu'en mémoire, dans ce client.
+ * No equivalent of GitHub Apps here: the token belongs to an account,
+ * preferably a service account. It only needs two scopes — `write:repository`
+ * (read the code, write a deployment's state on a commit; Gitea has no narrower
+ * scope for statuses) and `read:user` (know which account it opens). It is
+ * encrypted in the database and only lives in clear in memory, in this client.
  *
- * Comme pour GitHub, tout part de Pupitre : aucun webhook, la forge n'appelle
- * jamais le panel. Gitea ne pose pas d'ETag sur une branche ; le polling
- * compare donc l'empreinte rendue au dernier commit vu.
+ * As for GitHub, everything starts from Pupitre: no webhook, the forge never
+ * calls the panel. Gitea sets no ETag on a branch; polling therefore compares
+ * the returned hash with the last commit seen.
  *
- * L'adresse de la forge est saisie dans le panel : chaque appel passe la garde
- * des sorties réseau (`assertEgressAllowed`) — un réseau privé est permis,
- * l'adresse des métadonnées d'un cloud ne l'est pas.
+ * The forge's address is entered in the panel: each call goes through the
+ * network egress guard (`assertEgressAllowed`) — a private network is allowed, a
+ * cloud's metadata address is not.
  */
 
 type FetchLike = typeof fetch;
 
 export type GiteaCredentials = {
-  /** L'adresse de la forge, telle qu'un navigateur l'ouvre : `https://codeberg.org`. */
+  /** The forge's address, as a browser opens it: `https://codeberg.org`. */
   baseUrl: string;
-  /** Le jeton d'accès. Déchiffré juste avant l'appel, jamais journalisé. */
+  /** The access token. Decrypted just before the call, never logged. */
   token: string;
-  /** La langue de ce que le client dit — celle de l'instance. Français par défaut. */
+  /** The language of what the client says — the instance's. French by default. */
   language?: UiLanguage;
 };
 
-/** Au-delà, une comparaison ne se croit plus : on traite tout comme changé. */
+/** Beyond this, a comparison is no longer trusted: everything is treated as changed. */
 const COMPARE_FILE_LIMIT = 300;
 const PAGE_SIZE = 50;
 const MAX_PAGES = 40;
 
 const BASE_HEADERS = { accept: 'application/json', 'user-agent': 'pupitre' };
 
-/** `https://forge.exemple.fr/` → `https://forge.exemple.fr` ; refuse ce qui n'est pas http(s). */
+/** `https://forge.example.com/` → `https://forge.example.com`; refuses what is not http(s). */
 export function giteaBaseUrl(raw: string): string {
   const url = new URL(raw.trim());
   if (url.protocol !== 'https:' && url.protocol !== 'http:') {
@@ -70,7 +69,7 @@ export function giteaBaseUrl(raw: string): string {
   return url.toString().replace(/\/+$/, '');
 }
 
-/** `owner/name` → segments encodés, pour un chemin d'API sûr. */
+/** `owner/name` → encoded segments, for a safe API path. */
 function repoPath(fullName: string): string {
   return fullName
     .split('/')
@@ -151,12 +150,14 @@ export class GiteaSourceProvider implements SourceProvider {
     const sha = body.commit?.id ?? '';
     if (!/^[0-9a-f]{40}([0-9a-f]{24})?$/.test(sha)) {
       throw new SourceProviderError(
-        `empreinte de commit illisible : « ${sha.slice(0, 60)} »`,
+        sourceSay(this.credentials.language ?? 'fr')('commit.unreadableSha', {
+          sha: sha.slice(0, 60),
+        }),
         null,
         'gitea',
       );
     }
-    // Pas d'ETag : c'est la comparaison au dernier commit vu qui dit « rien de neuf ».
+    // No ETag: it is the comparison with the last commit seen that says "nothing new".
     return { changed: true, sha, etag: null };
   }
 
@@ -177,27 +178,27 @@ export class GiteaSourceProvider implements SourceProvider {
       }>;
     }>(response);
     const commits = body.commits ?? [];
-    // Rien entre les deux, ou une base qui n'est pas un ancêtre de la tête :
-    // l'historique a été réécrit (force-push), la liste ne dit pas tout.
-    if (commits.length === 0) return { kind: 'unknown', reason: 'historique réécrit' };
+    // Nothing in between, or a base that is not an ancestor of the head: the
+    // history was rewritten (force-push), the list does not tell everything.
+    if (commits.length === 0) return { kind: 'unknown', reason: 'history rewritten' };
     if (!commits.some((commit) => commit.parents?.some((parent) => parent.sha === base))) {
-      return { kind: 'unknown', reason: 'historique divergent' };
+      return { kind: 'unknown', reason: 'history diverged' };
     }
     if (body.total_commits !== undefined && commits.length < body.total_commits) {
-      return { kind: 'unknown', reason: `${body.total_commits} commits, liste incomplète` };
+      return { kind: 'unknown', reason: `${body.total_commits} commits, incomplete list` };
     }
     const files = new Set<string>();
     for (const commit of commits) {
       for (const file of commit.files ?? []) {
-        // Gitea ne donne pas l'ancien chemin d'un renommage : on ne sait pas
-        // tout ce qui a bougé, donc tout compte.
+        // Gitea does not give a rename's old path: we do not know everything that
+        // moved, so everything counts.
         if (file.status === 'renamed')
-          return { kind: 'unknown', reason: `renommage de ${file.filename}` };
+          return { kind: 'unknown', reason: `rename of ${file.filename}` };
         files.add(file.filename);
       }
     }
     if (files.size >= COMPARE_FILE_LIMIT) {
-      return { kind: 'unknown', reason: `plus de ${COMPARE_FILE_LIMIT} fichiers modifiés` };
+      return { kind: 'unknown', reason: `more than ${COMPARE_FILE_LIMIT} files changed` };
     }
     return { kind: 'files', files: [...files].sort() };
   }
@@ -215,8 +216,8 @@ export class GiteaSourceProvider implements SourceProvider {
   }
 
   async findFiles(repo: RepositoryRef, sha: string, name: string): Promise<string[]> {
-    // L'arbre récursif, par pages. Au-delà de `MAX_PAGES`, on rend ce qu'on a :
-    // un dépôt de cette taille garde son pupitre.json près de la racine.
+    // The recursive tree, by pages. Beyond `MAX_PAGES`, we return what we have: a
+    // repository of that size keeps its pupitre.json near the root.
     const found: string[] = [];
     for (let page = 1; page <= MAX_PAGES; page += 1) {
       const body = await this.json<{
@@ -258,7 +259,8 @@ export class GiteaSourceProvider implements SourceProvider {
     destination: string,
     maxBytes: number,
   ): Promise<{ bytes: number }> {
-    // Un dossier de tête, au nom du dépôt : le driver le retire à l'extraction.
+    // A leading folder, named after the repository: the driver strips it on
+    // extraction.
     const response = await this.call(
       `/repos/${repoPath(repo.fullName)}/archive/${encodeURIComponent(sha)}.tar.gz`,
       { headers: { accept: 'application/octet-stream' } },
@@ -312,9 +314,9 @@ export class GiteaSourceProvider implements SourceProvider {
   }
 
   /**
-   * Les dépôts que le compte du jeton possède, partage ou voit par ses
-   * organisations — jamais la recherche publique de l'instance, qui sur une
-   * forge comme Codeberg rendrait des centaines de milliers de dépôts.
+   * The repositories the token's account owns, shares or sees through its
+   * organizations — never the instance's public search, which on a forge like
+   * Codeberg would return hundreds of thousands of repositories.
    */
   async listRepositories(): Promise<SourceRepository[]> {
     const repositories = new Map<string, SourceRepository>();
@@ -339,18 +341,18 @@ export class GiteaSourceProvider implements SourceProvider {
 }
 
 export type GiteaAccount = {
-  /** Le compte du jeton. */
+  /** The token's account. */
   login: string;
-  /** La version de la forge : Gitea et Forgejo l'annoncent tous deux. */
+  /** The forge's version: Gitea and Forgejo both announce it. */
   version: string;
-  /** L'adresse de la forge, nettoyée. */
+  /** The forge's address, cleaned up. */
   baseUrl: string;
 };
 
 /**
- * Vérifie une adresse et un jeton saisis à la main : la forge répond-elle,
- * et à quel compte le jeton ouvre-t-il ? C'est « Tester » sur l'écran des
- * intégrations, avant d'enregistrer quoi que ce soit.
+ * Checks an address and a token entered by hand: does the forge answer, and
+ * which account does the token open? It is "Test" on the integrations screen,
+ * before saving anything.
  */
 export async function fetchGiteaAccount(
   credentials: GiteaCredentials,
@@ -376,7 +378,11 @@ export async function fetchGiteaAccount(
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      throw new SourceProviderError(`forge injoignable : ${message}`, null, 'gitea');
+      throw new SourceProviderError(
+        sourceSay(credentials.language ?? 'fr')('forge.unreachable', { detail: message }),
+        null,
+        'gitea',
+      );
     }
     if (!response.ok) {
       throw new SourceProviderError(await errorMessage(response), response.status, 'gitea');

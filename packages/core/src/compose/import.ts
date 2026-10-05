@@ -15,27 +15,26 @@ import {
 import { issueMessage } from '../validation.js';
 
 /**
- * Importer un `docker-compose.yml` : la porte d'entrée de qui arrive avec un
- * projet existant.
+ * Importing a `docker-compose.yml`: the way in for whoever arrives with an
+ * existing project.
  *
- * Le résultat est une AppSpec **proposée**, jamais enregistrée d'office, et la
- * liste de tout ce qui n'a pas pu passer tel quel, en trois niveaux :
+ * The result is a **proposed** AppSpec, never saved automatically, and the list
+ * of everything that could not go through as is, on three levels:
  *
- *   - `blocking` : l'application ne fonctionnera probablement pas sans une
- *     décision humaine (une commande de démarrage, la socket Docker, un
- *     fichier de l'hôte monté) ;
- *   - `warning`  : traduit, mais par approximation (un dossier de l'hôte
- *     devenu volume vide, un secret dont la valeur n'est pas reprise) ;
- *   - `info`     : ignoré à dessein, parce que Pupitre en décide autrement
- *     (`restart`, `container_name`, les réseaux).
+ *   - `blocking`: the application will probably not work without a human
+ *     decision (a start command, the Docker socket, a mounted host file);
+ *   - `warning`:  translated, but approximately (a host folder turned into an
+ *     empty volume, a secret whose value is not carried over);
+ *   - `info`:     deliberately ignored, because Pupitre decides it otherwise
+ *     (`restart`, `container_name`, networks).
  *
- * Rien n'est silencieux : chaque clé du fichier est soit traduite, soit
- * nommée dans un message. Et rien de ce qui touche à l'isolation n'est
- * traduit « au mieux » — un `privileged: true` ne devient pas une AppSpec
- * presque privilégiée, il devient un message bloquant.
+ * Nothing is silent: each key of the file is either translated or named in a
+ * message. And nothing that touches isolation is translated "as best we can" —
+ * a `privileged: true` does not become an almost privileged AppSpec, it becomes
+ * a blocking message.
  *
- * Module pur : pas d'E/S, pas de réseau. Le YAML est lu avec une limite sur
- * les alias, pour qu'un fichier piégé ne fasse pas exploser la mémoire.
+ * A pure module: no I/O, no network. The YAML is read with a limit on aliases,
+ * so that a booby-trapped file does not blow up memory.
  */
 
 export type ComposeIssueLevel = 'blocking' | 'warning' | 'info';
@@ -43,19 +42,19 @@ export type ComposeIssueLevel = 'blocking' | 'warning' | 'info';
 export type ComposeIssue = {
   level: ComposeIssueLevel;
   code: ComposeIssueCode;
-  /** Le service concerné, sous son nom d'origine. `null` : le fichier entier. */
+  /** The service concerned, under its original name. `null`: the whole file. */
   service: string | null;
   vars: Vars;
-  /** Motif d'un `ignored` / `unsupported` / `topLevel`, traduit à part. */
+  /** Reason for an `ignored` / `unsupported` / `topLevel`, translated separately. */
   reason?: ComposeReason;
-  /** Un reproche du schéma d'AppSpec, gardé entier pour être redit (`issueMessage()`). */
+  /** An AppSpec schema complaint, kept whole to be said again (`issueMessage()`). */
   schemaIssue?: { path: string; message: string; params?: unknown };
 };
 
 export type ComposeImport = {
-  /** `null` seulement quand le fichier est illisible ou ne décrit aucun service. */
+  /** `null` only when the file is unreadable or describes no service. */
   spec: AppSpecInput | null;
-  /** L'AppSpec passe `appSpecSchema` telle quelle. */
+  /** The AppSpec passes `appSpecSchema` as is. */
   valid: boolean;
   issues: ComposeIssue[];
 };
@@ -65,7 +64,7 @@ type Record_ = Record<string, unknown>;
 
 const DEFAULT_APP_NAME = 'imported-app';
 
-/** Les images dont on connaît le port, quand le compose ne le dit pas. */
+/** Images whose port is known, when the compose file does not say it. */
 const KNOWN_PORTS: Array<[RegExp, number]> = [
   [/^(postgres|postgis|timescaledb|pgvector)$/, 5432],
   [/^(mysql|mariadb|percona)$/, 3306],
@@ -79,11 +78,11 @@ const KNOWN_PORTS: Array<[RegExp, number]> = [
   [/^(nginx|httpd|caddy|apache|php)$/, 80],
 ];
 
-/** Les images qui ne sont jamais la porte d'entrée d'une application. */
+/** Images that are never an application's entry point. */
 const BACKING_IMAGES =
   /^(postgres|postgis|timescaledb|pgvector|mysql|mariadb|percona|redis|valkey|keydb|dragonfly|mongo|memcached|rabbitmq|elasticsearch|opensearch|clickhouse(-server)?|minio)$/;
 
-/** Les noms qu'on donne d'habitude au service qui reçoit le trafic. */
+/** The names usually given to the service that receives the traffic. */
 const ENTRY_NAMES = ['web', 'app', 'front', 'frontend', 'nginx', 'proxy', 'server', 'api', 'ui'];
 
 const IGNORED: Partial<Record<string, ComposeReason>> = {
@@ -147,7 +146,7 @@ const HANDLED = new Set([
   'labels',
 ]);
 
-// ─── petites lectures ────────────────────────────────────────────────────────
+// ─── small reads ─────────────────────────────────────────────────────────────
 
 function isRecord(value: unknown): value is Record_ {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -159,7 +158,7 @@ function asString(value: unknown): string | null {
   return null;
 }
 
-/** `Mon Service_2` → `mon-service-2`, au moins deux caractères, au plus 48. */
+/** `My Service_2` → `my-service-2`, at least two characters, at most 48. */
 export function slugify(raw: string, fallback: string): string {
   const slug = raw
     .normalize('NFD')
@@ -173,7 +172,7 @@ export function slugify(raw: string, fallback: string): string {
   return slug.length < 2 ? `${slug}-svc` : slug;
 }
 
-/** `30s`, `1m30s`, `500ms`, `2h` → secondes, arrondi au-dessus. `null` si illisible. */
+/** `30s`, `1m30s`, `500ms`, `2h` → seconds, rounded up. `null` if unreadable. */
 export function parseDuration(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) return Math.max(1, Math.ceil(value));
   if (typeof value !== 'string') return null;
@@ -187,7 +186,7 @@ export function parseDuration(value: unknown): number | null {
   return matched ? Math.max(1, Math.ceil(total)) : null;
 }
 
-/** `512m`, `1g`, `1.5G`, `512Mi`, `1048576` (octets) → Mio. */
+/** `512m`, `1g`, `1.5G`, `512Mi`, `1048576` (bytes) → MiB. */
 export function parseMemoryMi(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return Math.max(16, Math.round(value / (1024 * 1024)));
@@ -210,7 +209,7 @@ export function parseCpusMilli(value: unknown): number | null {
   return Math.min(64_000, Math.max(10, Math.round(amount * 1000)));
 }
 
-/** Le nom court d'une image : `ghcr.io/org/postgres:16-alpine` → `postgres`. */
+/** An image's short name: `ghcr.io/org/postgres:16-alpine` → `postgres`. */
 function imageBase(image: string): string {
   const withoutDigest = image.split('@')[0] ?? image;
   const last = withoutDigest.split('/').pop() ?? withoutDigest;
@@ -249,7 +248,7 @@ function parsePort(entry: unknown): PortEntry | null {
   return { kind: 'tcp', container, host: host.length > 0 ? host : null };
 }
 
-/** Variables d'environnement, en liste ou en dictionnaire. `null` : prise dans le shell. */
+/** Environment variables, as a list or a dictionary. `null`: taken from the shell. */
 function readEnvironment(value: unknown): Array<[string, string | null]> {
   if (Array.isArray(value)) {
     return value.flatMap((item): Array<[string, string | null]> => {
@@ -291,11 +290,11 @@ const INTERPOLATION =
 
 type Interpolated = {
   value: string;
-  /** La première variable du shell rencontrée, et sa valeur par défaut. */
+  /** The first shell variable met, and its default value. */
   variable: { name: string; fallback: string | null; expression: string } | null;
 };
 
-/** Résout `${VAR:-défaut}` par son défaut, `${VAR}` par du vide, `$$` par `$`. */
+/** Resolves `${VAR:-default}` to its default, `${VAR}` to empty, `$$` to `$`. */
 function interpolate(raw: string): Interpolated {
   let variable: Interpolated['variable'] = null;
   const value = raw.replace(
@@ -311,10 +310,9 @@ function interpolate(raw: string): Interpolated {
 }
 
 /**
- * Une variable qui ressemble à un secret. Une valeur purement numérique ou
- * booléenne n'en est pas un, même sous un nom inquiétant
- * (`PASSWORD_MIN_LENGTH=8`) : la remplacer par une valeur aléatoire casserait
- * l'application.
+ * A variable that looks like a secret. A purely numeric or boolean value is not
+ * one, even under a worrying name (`PASSWORD_MIN_LENGTH=8`): replacing it with a
+ * random value would break the application.
  */
 function looksSecret(name: string, value: string | null): boolean {
   if (name.endsWith('_FILE')) return false;
@@ -327,7 +325,7 @@ function looksSecret(name: string, value: string | null): boolean {
 const HTTP_IN_PROBE =
   /https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(?::(\d+))?(\/[^\s'"\\|;&]*)?/;
 
-// ─── l'import ────────────────────────────────────────────────────────────────
+// ─── the import ──────────────────────────────────────────────────────────────
 
 type Draft = {
   original: string;
@@ -375,7 +373,7 @@ export function importCompose(
     return { spec: null, valid: false, issues };
   }
 
-  // ── Premier niveau ──────────────────────────────────────────────────────
+  // ── Top level ───────────────────────────────────────────────────────────
   for (const key of Object.keys(document)) {
     if (key === 'services' || key === 'name') continue;
     if (key.startsWith('x-')) issue('info', 'topLevel', null, { key }, 'extension');
@@ -391,7 +389,7 @@ export function importCompose(
   );
   issue('info', 'app.name', null, { name: appName });
 
-  // ── Noms de services : stables, uniques, au format de l'AppSpec ─────────
+  // ── Service names: stable, unique, in the AppSpec's format ──────────────
   const renamed = new Map<string, string>();
   for (const original of Object.keys(document.services)) {
     let name =
@@ -406,8 +404,8 @@ export function importCompose(
       issue('warning', 'service.renamed', original, { from: original, to: name });
   }
 
-  // Secrets : un groupe par valeur partagée (ou par variable du shell). Le
-  // premier nom rencontré porte la valeur, les autres la reprennent par alias.
+  // Secrets: one group per shared value (or per shell variable). The first name
+  // met carries the value, the others reuse it through an alias.
   const secretRoots = new Map<string, string>();
   const secretGroupOf = new Map<string, string>();
   let dependsOnConditionNoted = false;
@@ -421,7 +419,7 @@ export function importCompose(
       continue;
     }
 
-    // ── Clés que l'AppSpec n'a pas ────────────────────────────────────────
+    // ── Keys the AppSpec does not have ────────────────────────────────────
     for (const key of Object.keys(raw)) {
       if (HANDLED.has(key)) continue;
       const ignored = IGNORED[key];
@@ -430,7 +428,7 @@ export function importCompose(
       if (key.startsWith('x-')) issue('info', 'ignored', original, { key }, 'extension');
       else if (ignored) issue('info', 'ignored', original, { key }, ignored);
       else if (blocking) {
-        // `privileged: false` ne demande rien : inutile de bloquer.
+        // `privileged: false` asks for nothing: no need to block.
         if (!(key === 'privileged' && raw[key] === false)) {
           issue('blocking', 'unsupported', original, { key }, blocking);
         }
@@ -438,7 +436,7 @@ export function importCompose(
       else issue('warning', 'unknown', original, { key });
     }
 
-    // ── Ce qu'on lance ────────────────────────────────────────────────────
+    // ── What is started ───────────────────────────────────────────────────
     let serviceSource: ServiceInput['source'] | null = null;
     const image = asString(raw.image);
     if (raw.build !== undefined) {
@@ -471,7 +469,7 @@ export function importCompose(
         issue('blocking', 'command', original, { key });
     }
 
-    // ── Labels Traefik : domaine et port, s'ils y sont ────────────────────
+    // ── Traefik labels: domain and port, if they are there ────────────────
     const labels = readLabels(raw.labels);
     const traefik: Draft['traefik'] = { host: null, tls: false, port: null };
     for (const [key, value] of Object.entries(labels)) {
@@ -523,7 +521,7 @@ export function importCompose(
       issue('warning', known ? 'port.guessed' : 'port.default', original, { port });
     }
 
-    // ── Environnement et secrets ──────────────────────────────────────────
+    // ── Environment and secrets ───────────────────────────────────────────
     const env: Record<string, string> = {};
     const secrets: ServiceInput['secrets'] = [];
     for (const [variable, rawValue] of readEnvironment(raw.environment)) {
@@ -540,8 +538,8 @@ export function importCompose(
           : interpolate(rawValue);
 
       if (looksSecret(variable, rawValue)) {
-        // Le groupe : la variable du shell si la valeur en vient, sinon la
-        // valeur elle-même. Deux noms, une valeur : un secret, un alias.
+        // The group: the shell variable if the value comes from it, otherwise the value
+        // itself. Two names, one value: a secret, an alias.
         const group = interpolated.variable
           ? `shell:${interpolated.variable.name}`
           : `value:${interpolated.value}`;
@@ -570,7 +568,7 @@ export function importCompose(
         issue('warning', 'env.interpolated', original, {
           name: variable,
           expression: interpolated.variable.expression,
-          // La suite de la phrase dépend de la langue : traduite au rendu.
+          // The rest of the sentence depends on the language: translated at render.
           outcomeCode:
             interpolated.variable.fallback !== null
               ? 'env.interpolated.default'
@@ -664,7 +662,7 @@ export function importCompose(
       }
     }
 
-    // ── Dépendances ───────────────────────────────────────────────────────
+    // ── Dependencies ──────────────────────────────────────────────────────
     const dependsOn: string[] = [];
     const wanted: string[] = Array.isArray(raw.depends_on)
       ? raw.depends_on.flatMap((item) => (asString(item) ? [asString(item) as string] : []))
@@ -688,7 +686,7 @@ export function importCompose(
       else if (mapped !== name && !dependsOn.includes(mapped)) dependsOn.push(mapped);
     }
 
-    // ── Répliques et ressources ───────────────────────────────────────────
+    // ── Replicas and resources ────────────────────────────────────────────
     const deploy = isRecord(raw.deploy) ? raw.deploy : {};
     const replicasRaw = Number(deploy.replicas ?? raw.scale ?? 1);
     const replicas = Number.isInteger(replicasRaw) ? Math.min(50, Math.max(1, replicasRaw)) : 1;
@@ -730,7 +728,7 @@ export function importCompose(
       });
     }
 
-    // ── Sonde : lue maintenant, jugée une fois l'exposition connue ────────
+    // ── Probe: read now, judged once the exposure is known ────────────────
     let probe: Draft['probe'] = null;
     let healthcheck: NonNullable<ServiceInput['healthcheck']> = {};
     if (isRecord(raw.healthcheck)) {
@@ -776,7 +774,7 @@ export function importCompose(
     return { spec: null, valid: false, issues };
   }
 
-  // ── Le service exposé : un seul, la porte d'entrée ──────────────────────
+  // ── The exposed service: a single one, the entry point ──────────────────
   const rank = (draft: Draft) => {
     const index = ENTRY_NAMES.indexOf(draft.name);
     return [draft.traefik.host ? 0 : 1, index === -1 ? ENTRY_NAMES.length : index];
@@ -808,7 +806,7 @@ export function importCompose(
     issue('warning', 'replicas.exposed', exposed.original, { count: exposedReplicas });
   }
 
-  // ── Les sondes, maintenant qu'on sait qui parle HTTP ────────────────────
+  // ── The probes, now that we know who speaks HTTP ────────────────────────
   for (const draft of drafts) {
     if (!draft.probe) continue;
     if (draft.probe.kind === 'http') {
@@ -872,9 +870,9 @@ export function importCompose(
 }
 
 /**
- * La phrase d'un message, dans la langue de l'écran. Les `outcome` et
- * `reason` composés à part sont retraduits ici, pour que tout le message
- * parle la même langue.
+ * A message's sentence, in the screen's language. The `outcome` and `reason`
+ * composed separately are translated again here, so that the whole message
+ * speaks the same language.
  */
 export function renderComposeIssue(issue: ComposeIssue, lang: UiLanguage): string {
   const vars: Record<string, string | number> = { ...issue.vars };
@@ -893,5 +891,5 @@ export function renderComposeIssue(issue: ComposeIssue, lang: UiLanguage): strin
   return renderMessage(composeImportMessages, lang, issue.code, vars);
 }
 
-/** Les niveaux, du plus grave au moins grave : l'ordre de lecture. */
+/** The levels, from the most to the least severe: the reading order. */
 export const COMPOSE_ISSUE_LEVELS: readonly ComposeIssueLevel[] = ['blocking', 'warning', 'info'];

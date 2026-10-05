@@ -31,39 +31,39 @@ import { errorMessage } from '../../error-message.js';
 import { npmSay } from './messages.js';
 
 /**
- * Nginx Proxy Manager, piloté par son API — un proxy **distant** : Pupitre ne
- * pilote pas sa machine, il lui confie des hôtes.
+ * Nginx Proxy Manager, driven through its API — a **remote** proxy: Pupitre does
+ * not drive its machine, it hands it hosts.
  *
- * ── Ce qui est à Pupitre ────────────────────────────────────────────────────
- * Un domaine = un « proxy host » de NPM, marqué dans son `meta` (`pupitre` :
- * l'application, la machine servie). Pupitre ne lit, ne modifie et ne retire
- * que ceux-là ; les hôtes posés à la main restent intacts — et un domaine
- * qu'ils portent déjà est refusé par NPM, ce qui est dit tel quel.
+ * ── What belongs to Pupitre ─────────────────────────────────────────────────
+ * One domain = one NPM "proxy host", marked in its `meta` (`pupitre`: the
+ * application, the served machine). Pupitre only reads, changes and removes
+ * those; hosts set up by hand stay intact — and a domain they already carry is
+ * refused by NPM, which is reported as is.
  *
- * Sur un hôte de Pupitre, seuls le domaine, l'amont et le HTTPS sont tenus :
- * ce qu'on y règle dans NPM (liste d'accès, cache, protection, en-têtes) est
- * conservé d'un déploiement à l'autre.
+ * On a Pupitre host, only the domain, the upstream and HTTPS are held: what is
+ * set on it in NPM (access list, cache, protection, headers) is kept from one
+ * deployment to the next.
  *
- * ── Les certificats ─────────────────────────────────────────────────────────
- * Un certificat déjà présent dans NPM qui couvre le domaine — un joker
- * `*.exemple.fr` obtenu par défi DNS, typiquement — est repris tel quel. Sinon,
- * NPM en demande un à Let's Encrypt, au nom du compte ; celui-là est à
- * Pupitre, et part avec l'hôte. Une demande refusée (DNS qui ne pointe pas
- * encore vers NPM, port 80 fermé) laisse le domaine servi en HTTP : le
- * prochain déploiement ou « Appliquer » la refait.
+ * ── Certificates ────────────────────────────────────────────────────────────
+ * A certificate already present in NPM that covers the domain — a
+ * `*.example.com` wildcard obtained through a DNS challenge, typically — is
+ * reused as is. Otherwise, NPM requests one from Let's Encrypt, in the account's
+ * name; that one belongs to Pupitre, and leaves with the host. A refused request
+ * (DNS not yet pointing to NPM, port 80 closed) leaves the domain served over
+ * HTTP: the next deployment or "Apply" requests it again.
  */
 
 const MARK = 'pupitre';
-/** Le domaine des hôtes éphémères du test d'une liaison — jamais résolu. */
+/** The domain of a link test's ephemeral hosts — never resolved. */
 const REACH_DOMAIN = 'reach.pupitre.invalid';
-/** Un hôte de test plus vieux que cela a été oublié par un test interrompu. */
+/** A test host older than this was forgotten by an interrupted test. */
 const REACH_STALE_MS = 10 * 60_000;
-/** Le relais du test se borne comme `checkReach()` : 5 s pour se connecter. */
+/** The test's relay is bounded like `checkReach()`: 5 s to connect. */
 const REACH_NGINX = 'proxy_connect_timeout 5s;\nproxy_read_timeout 10s;';
 
 /**
- * La réponse vient-elle du site par défaut de NPM, et non d'un hôte ? Sa page
- * d'accueil, ou le 404 de son nginx pour tout autre chemin.
+ * Does the response come from NPM's default site, and not from a host? Its home
+ * page, or its nginx's 404 for any other path.
  */
 function servedByDefaultSite(answer: { code: number; body: string }): boolean {
   return (
@@ -72,13 +72,13 @@ function servedByDefaultSite(answer: { code: number; body: string }): boolean {
   );
 }
 
-/** Un refus plus rapide que cela n'a pas atteint l'autorité de certification. */
+/** A refusal faster than this did not reach the certificate authority. */
 const BUSY_FAILURE_MS = 1500;
 
-/** Les demandes de certificat en cours, par instance de NPM. */
+/** The certificate requests in progress, per NPM instance. */
 const certificateQueues = new Map<string, Promise<unknown>>();
 
-/** Une demande à la fois par instance : la suivante attend la fin de la précédente. */
+/** One request at a time per instance: the next one waits for the previous one to finish. */
 async function oneAtATime<T>(key: string, run: () => Promise<T>): Promise<T> {
   const previous = certificateQueues.get(key) ?? Promise.resolve();
   const current = previous.catch(() => undefined).then(run);
@@ -92,9 +92,9 @@ async function oneAtATime<T>(key: string, run: () => Promise<T>): Promise<T> {
 }
 
 /**
- * Le mot de passe du compte passerait-il en clair sur Internet ? En HTTP vers
- * une adresse IP publique, oui. Un nom ne se juge pas sans le résoudre : il
- * passe, avec le conseil de le réserver à un réseau privé.
+ * Would the account's password travel in clear over the Internet? Over HTTP to
+ * a public IP address, yes. A name cannot be judged without resolving it: it
+ * passes, with the advice to keep it to a private network.
  */
 export function plainOnPublicAddress(value: string): boolean {
   const url = new URL(value);
@@ -107,7 +107,7 @@ function markOf(host: NpmHost): NpmMark | null {
   return mark && typeof mark === 'object' ? (mark as NpmMark) : null;
 }
 
-/** Le certificat couvre-t-il ce nom — exactement, ou par un joker d'un niveau ? */
+/** Does the certificate cover this name — exactly, or through a one-level wildcard? */
 export function certificateCovers(certificate: NpmCertificate, hostname: string): boolean {
   const parent = hostname.slice(hostname.indexOf('.') + 1);
   return certificate.domain_names.some(
@@ -115,7 +115,7 @@ export function certificateCovers(certificate: NpmCertificate, hostname: string)
   );
 }
 
-/** Une date de NPM — `2026-12-31 07:54:28`, en UTC sans le dire. */
+/** An NPM date — `2026-12-31 07:54:28`, in UTC without saying so. */
 export function npmDate(value: string): number {
   return Date.parse(`${value.trim().replace(' ', 'T')}Z`);
 }
@@ -126,7 +126,7 @@ function certificateUsable(certificate: NpmCertificate, now = Date.now()): boole
   return Number.isNaN(expires) || expires > now;
 }
 
-/** Le certificat à reprendre pour ce nom : le plus lointain qui le couvre. */
+/** The certificate to reuse for this name: the furthest-expiring one that covers it. */
 export function coveringCertificate(
   certificates: NpmCertificate[],
   hostname: string,
@@ -156,7 +156,7 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
     };
   }
 
-  // ─── tester ─────────────────────────────────────────────────────────────────
+  // ─── testing ────────────────────────────────────────────────────────────────
 
   async check(ctx: RemoteProxyContext, onLog: LogSink): Promise<ProxyCheck> {
     const say = npmSay(ctx.language);
@@ -235,7 +235,7 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
       });
     }
 
-    // Les sondes des domaines partent du panel vers l'entrée de NPM.
+    // Domain probes go from the panel to NPM's entrance.
     const entrypoint = npmEntrypoint(config);
     const answers = await entrypointAnswers(entrypoint);
     checks.push({
@@ -260,7 +260,7 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
     return done();
   }
 
-  // ─── poser les routes ───────────────────────────────────────────────────────
+  // ─── applying routes ────────────────────────────────────────────────────────
 
   async apply(ctx: RemoteProxyContext, set: ProxyRouteSet, onLog: LogSink): Promise<void> {
     const say = npmSay(ctx.language);
@@ -280,10 +280,10 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
       upstream = { host: set.upstream.host, port: set.upstream.port };
     }
 
-    // Les certificats de NPM, lus une fois — pour reprendre ceux qui couvrent déjà un domaine.
+    // NPM's certificates, read once — to reuse those that already cover a domain.
     let certificates: NpmCertificate[] | null = null;
     const listCertificates = async () => (certificates ??= await client.certificates());
-    // Les certificats qui ont quitté un hôte de Pupitre : à retirer s'il les avait demandés.
+    // Certificates that left a Pupitre host: to remove if it had requested them.
     const released = new Set<number>();
     const problems: string[] = [];
 
@@ -320,7 +320,7 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
       }
     }
 
-    // Un certificat demandé par Pupitre et que plus aucun hôte n'emploie part.
+    // A certificate requested by Pupitre that no host uses anymore goes.
     if (released.size > 0) {
       const still = new Set((await client.hosts()).map((host) => host.certificate_id));
       for (const id of released) {
@@ -337,8 +337,8 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
   }
 
   /**
-   * Un domaine, posé : l'hôte (créé ou mis à jour), puis son certificat. Rend
-   * le certificat de Pupitre que l'hôte vient de quitter, s'il y en a un.
+   * A domain, set up: the host (created or updated), then its certificate.
+   * Returns the Pupitre certificate the host just left, if there is one.
    */
   private async ensureHost(
     client: NpmClient,
@@ -372,11 +372,11 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
       }
     }
 
-    // Un hôte neuf sans certificat qui le couvre : on le demande **avant** de
-    // créer l'hôte. Tant qu'aucun hôte ne porte ce nom, c'est le site par
-    // défaut de NPM qui répond au défi HTTP-01, et lui le sert toujours ; un
-    // hôte déjà là, NPM doit le retirer de nginx le temps de la demande, et
-    // ne laisse pas à nginx le temps de recharger (voir `requestCertificate`).
+    // A new host without a certificate covering it: we request it **before**
+    // creating the host. As long as no host carries this name, it is NPM's default
+    // site that answers the HTTP-01 challenge, and it always serves it; for a host
+    // already there, NPM must remove it from nginx during the request, and does not
+    // give nginx time to reload (see `requestCertificate`).
     if (route.tls && certificateId === 0 && !existing) {
       const obtained = await this.requestCertificate(client, route.hostname, 1, onLog);
       if (obtained) {
@@ -399,8 +399,8 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
     if (!existing) {
       await client.createHost({
         ...fields(certificateId, owned),
-        // Les réglages que Pupitre ne tient pas : ceux d'un hôte neuf dans NPM,
-        // le relais des WebSockets en plus. On peut les changer dans NPM ensuite.
+        // The settings Pupitre does not hold: those of a new host in NPM, plus
+        // WebSocket relaying. They can be changed in NPM afterwards.
         hsts_enabled: false,
         hsts_subdomains: false,
         block_exploits: false,
@@ -437,7 +437,7 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
         );
       }
 
-      // Un hôte déjà là, toujours sans certificat : on le redemande.
+      // A host already there, still without a certificate: we request it again.
       if (route.tls && certificateId === 0) {
         const obtained = await this.requestCertificate(client, route.hostname, 2, onLog);
         if (obtained) {
@@ -452,12 +452,12 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
   }
 
   /**
-   * Un certificat Let's Encrypt, demandé par NPM. `attempts` : 2 pour un hôte
-   * déjà en service — NPM le retire de nginx, recharge, et lance certbot sans
-   * attendre que le rechargement ait pris ; si l'ancien nginx répond encore au
-   * défi, il le relaie à l'application. Un seul nouvel essai, cinq secondes
-   * plus tard : chaque échec compte dans la limite de Let's Encrypt (cinq
-   * validations ratées par heure et par nom). `null` : pas de certificat.
+   * A Let's Encrypt certificate, requested by NPM. `attempts`: 2 for a host
+   * already in service — NPM removes it from nginx, reloads, and runs certbot
+   * without waiting for the reload to take; if the old nginx still answers the
+   * challenge, it relays it to the application. A single retry, five seconds
+   * later: each failure counts toward Let's Encrypt's limit (five failed
+   * validations per hour and per name). `null`: no certificate.
    */
   private async requestCertificate(
     client: NpmClient,
@@ -467,8 +467,8 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
   ): Promise<number | null> {
     const say = npmSay(client.language);
     onLog(say('certificate.requesting', { hostname }));
-    // NPM ne lance qu'un certbot à la fois et refuse aussitôt le second : les
-    // demandes de ce worker vers une même instance passent l'une après l'autre.
+    // NPM only runs one certbot at a time and immediately refuses a second: this
+    // worker's requests to one instance go one after the other.
     return oneAtATime(client.base, async () => {
       let failure = '';
       let busy = 0;
@@ -481,8 +481,8 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
           return certificate.id;
         } catch (error) {
           failure = errorMessage(error);
-          // Refusé avant même d'interroger l'autorité — un autre certbot
-          // tournait, lancé depuis l'interface de NPM : l'essai ne compte pas.
+          // Refused before even querying the authority — another certbot was running,
+          // started from NPM's interface: the attempt does not count.
           if (Date.now() - started < BUSY_FAILURE_MS && busy < 3) {
             busy += 1;
             attempt -= 1;
@@ -494,14 +494,14 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
     });
   }
 
-  // ─── sonder ─────────────────────────────────────────────────────────────────
+  // ─── probing ────────────────────────────────────────────────────────────────
 
   async probe(ctx: RemoteProxyContext, route: ProxyRoute, path: string): Promise<RouteProbe> {
     const config = this.parseConfig(ctx.config);
     const probe = await probeDirect(npmEntrypoint(config), route, path, NPM_PROBE, ctx.language);
     if (probe.ok || !route.tls || (probe.https ?? 0) !== 0) return probe;
-    // HTTPS ne répond pas : NPM refuse la poignée de main d'un nom sans
-    // certificat. On lui demande si c'est cela, pour le dire.
+    // HTTPS does not answer: NPM refuses the handshake of a name without a
+    // certificate. We ask it whether that is the case, to say so.
     try {
       const { client } = await this.open(ctx);
       const host = (await client.hosts()).find(
@@ -515,12 +515,12 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
         };
       }
     } catch {
-      // La sonde a déjà dit l'essentiel.
+      // The probe already said the essential.
     }
     return probe;
   }
 
-  // ─── éprouver une liaison ───────────────────────────────────────────────────
+  // ─── testing a link ─────────────────────────────────────────────────────────
 
   async reach(
     ctx: RemoteProxyContext,
@@ -530,7 +530,7 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
     const { config, client } = await this.open(ctx);
     const hostname = `${request.token}.${REACH_DOMAIN}`;
 
-    // Les hôtes de test oubliés par un test interrompu.
+    // Test hosts forgotten by an interrupted test.
     for (const stale of await client.hosts()) {
       if (markOf(stale)?.reach && Date.now() - npmDate(stale.created_on) > REACH_STALE_MS) {
         await client.deleteHost(stale.id).catch(() => undefined);
@@ -562,10 +562,10 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
         }),
       );
       const entrypoint = npmEntrypoint(config);
-      // NPM recharge nginx sans attendre qu'il ait pris : tant que son site par
-      // défaut répond pour ce nom — sa page, ou son 404 pour un autre chemin —,
-      // l'hôte de test n'est pas encore en service. Rien n'a alors atteint
-      // l'écouteur : on peut redemander.
+      // NPM reloads nginx without waiting for it to take: as long as its default site
+      // answers for this name — its page, or its 404 for another path —, the test
+      // host is not in service yet. Nothing has reached the listener then: we can ask
+      // again.
       let answer = await requestThrough(entrypoint, hostname, `/${request.token}`);
       for (let wait = 0; wait < 20 && servedByDefaultSite(answer); wait += 1) {
         await new Promise((resolve) => setTimeout(resolve, 500));
@@ -581,7 +581,7 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
           'reach',
         );
       }
-      // nginx : 502, la connexion a été refusée ou coupée ; 504, rien dans le délai.
+      // nginx: 502, the connection was refused or cut; 504, nothing in time.
       if (answer.code === 502) return { curlCode: 7, body: '' };
       if (answer.code === 504) return { curlCode: 28, body: '' };
       return { curlCode: 0, body: answer.body };

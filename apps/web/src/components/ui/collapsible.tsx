@@ -5,21 +5,20 @@ import { ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 /**
- * Dépliant. Un en-tête qu'on ouvre, un panneau qui apparaît dessous.
+ * A disclosure. A header one opens, a panel that appears underneath.
  *
- * **Un vrai `<button>`, pas un `<div onClick>`.** C'est ce qui donne
- * gratuitement le focus au clavier, l'activation à Entrée et à Espace, et le
- * rôle annoncé par un lecteur d'écran. `aria-expanded` dit l'état,
- * `aria-controls` désigne le panneau — les deux sont posés par le composant,
- * pas laissés à l'appelant qui les oublierait.
+ * **A real `<button>`, not a `<div onClick>`.** That is what gives for free the
+ * keyboard focus, activation with Enter and Space, and the role announced by a
+ * screen reader. `aria-expanded` says the state, `aria-controls` designates the
+ * panel — both are set by the component, not left to the caller who would
+ * forget them.
  *
- * Le déclencheur est **à côté** du contenu de l'en-tête, jamais autour : une
- * ligne de supervision porte des liens et des commandes, et imbriquer un lien
- * dans un bouton produit un balisage invalide que les navigateurs réparent
- * chacun à leur façon.
+ * The trigger is **next to** the header's content, never around it: a monitoring
+ * row carries links and commands, and nesting a link in a button produces
+ * invalid markup that browsers each repair in their own way.
  *
- * Le panneau reste dans le document, masqué par `hidden` : le contenu est déjà
- * là, ouvrir ne déclenche aucun chargement et fermer ne perd rien.
+ * The panel stays in the document, hidden by `hidden`: the content is already
+ * there, opening triggers no load and closing loses nothing.
  */
 
 type CollapsibleContextValue = {
@@ -34,7 +33,7 @@ const CollapsibleContext = React.createContext<CollapsibleContextValue | null>(n
 function useCollapsibleContext(component: string): CollapsibleContextValue {
   const context = React.useContext(CollapsibleContext);
   if (!context) {
-    throw new Error(`<${component}> doit être rendu à l'intérieur de <Collapsible>`);
+    throw new Error(`<${component}> must be rendered inside <Collapsible>`);
   }
   return context;
 }
@@ -46,7 +45,7 @@ export function Collapsible({
   className,
   children,
 }: {
-  /** Passer `open` rend le composant contrôlé ; sinon il gère son propre état. */
+  /** Passing `open` makes the component controlled; otherwise it manages its own state. */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   defaultOpen?: boolean;
@@ -84,8 +83,8 @@ export function Collapsible({
 }
 
 /**
- * Le bouton qui ouvre. Le chevron pivote — un état qui se lit à la forme, pas
- * seulement à la couleur — et se fige sous `prefers-reduced-motion`.
+ * The button that opens. The chevron rotates — a state that reads from the
+ * shape, not only from the color — and freezes under `prefers-reduced-motion`.
  */
 export function CollapsibleTrigger({
   className,
@@ -125,7 +124,7 @@ export function CollapsibleTrigger({
   );
 }
 
-/** Le panneau contrôlé par le déclencheur. Nommé par lui, pour les lecteurs d'écran. */
+/** The panel controlled by the trigger. Named by it, for screen readers. */
 export function CollapsiblePanel({ className, children, ...props }: React.ComponentProps<'div'>) {
   const { open, triggerId, panelId } = useCollapsibleContext('CollapsiblePanel');
 

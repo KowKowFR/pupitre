@@ -5,57 +5,57 @@ import type { NextConfig } from 'next';
 const monorepoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 const nextConfig: NextConfig = {
-  // Une seule image Docker : le serveur Next embarque ses dépendances tracées.
+  // A single Docker image: the Next server embeds its traced dependencies.
   output: 'standalone',
   outputFileTracingRoot: monorepoRoot,
   reactStrictMode: true,
   typedRoutes: true,
-  // Rien à gagner à annoncer la pile : `X-Powered-By: Next.js` ne sert qu'à qui cherche une faille.
+  // Nothing to gain by announcing the stack: `X-Powered-By: Next.js` only helps
+  // whoever looks for a flaw.
   poweredByHeader: false,
-  // `pg` et `ioredis` doivent rester des modules Node, jamais bundlés.
+  // `pg` and `ioredis` must stay Node modules, never bundled.
   serverExternalPackages: ['pg', 'ioredis', 'bullmq', 'pino', 'ssh2', 'node-ssh'],
   /**
-   * Le prompt système et ses fixtures sont des **fichiers**, pas des chaînes en
-   * dur. Next inline `@pupitre/core` dans ses chunks serveur : `import.meta.url` n'y
-   * désigne plus le paquet, et le traceur ne voit aucun `import` vers un `.md`.
-   * On les déclare donc explicitement. Ils sont recopiés dans `standalone` en
-   * conservant leur chemin depuis `outputFileTracingRoot`, et le serveur
-   * standalone se place dans `apps/web` : `readCoreAsset()` les y retrouve.
+   * The system prompt and its fixtures are **files**, not hard-coded strings. Next
+   * inlines `@pupitre/core` into its server chunks: `import.meta.url` no longer
+   * designates the package there, and the tracer sees no `import` of a `.md`. So
+   * they are declared explicitly. They are copied into `standalone` keeping their
+   * path from `outputFileTracingRoot`, and the standalone server sits in
+   * `apps/web`: `readCoreAsset()` finds them there.
    */
   outputFileTracingIncludes: {
     '/api/applications/generate': [
       '../../packages/core/src/ai/prompts/**/*.md',
       '../../packages/core/src/spec/__fixtures__/*.json',
     ],
-    // `/api/health` charge le prompt lui aussi, pour que son absence se voie
-    // dans la sonde de santé plutôt que devant le premier utilisateur.
+    // `/api/health` loads the prompt too, so that its absence shows in the health
+    // probe rather than in front of the first user.
     '/api/health': [
       '../../packages/core/src/ai/prompts/**/*.md',
       '../../packages/core/src/spec/__fixtures__/*.json',
     ],
   },
   /**
-   * L'écran de traçabilité s'appelle « Logs » et vit sous `/admin/logs`. Le
-   * chemin `/admin/audit` a existé : il traîne dans des runbooks, des tickets et
-   * des URL filtrées collées à la main. Un 308 le rattrape — les paramètres de
-   * requête sont conservés, donc une URL filtrée reste une URL filtrée.
+   * The traceability screen is called "Logs" and lives under `/admin/logs`. The
+   * `/admin/audit` path existed: it lingers in runbooks, tickets and filtered URLs
+   * pasted by hand. A 308 catches it — the query parameters are kept, so a
+   * filtered URL stays a filtered URL.
    *
-   * La clé de permission, elle, reste `audit:read` : c'est une donnée en base,
-   * pas un libellé.
+   * The permission key, for its part, stays `audit:read`: it is data in the
+   * database, not a label.
    */
   /**
-   * Les en-têtes de protection, sur toutes les réponses.
+   * The protection headers, on every response.
    *
-   * - Le panel ne s'affiche dans aucune iframe (`frame-ancestors 'none'`, et
-   *   `X-Frame-Options` pour les navigateurs qui ne lisent pas la CSP) : une
-   *   page tierce ne peut pas le recouvrir pour faire cliquer à l'insu de
-   *   quelqu'un sur « Détruire ».
-   * - La CSP s'arrête là, volontairement : `script-src` demanderait des nonces
-   *   sur les scripts que Next injecte, et `form-action 'self'` casserait la
-   *   création de l'App GitHub, qui poste un vrai formulaire vers github.com.
-   * - HSTS n'a d'effet qu'en HTTPS — un navigateur l'ignore sur une réponse en
-   *   clair — et sans `includeSubDomains` : le panel ne décide pas pour les
-   *   applications déployées sur les sous-domaines voisins.
+   * - The panel shows in no iframe (`frame-ancestors 'none'`, and
+   *   `X-Frame-Options` for browsers that do not read the CSP): a third-party page
+   *   cannot cover it to make someone click "Destroy" unknowingly.
+   * - The CSP stops there, on purpose: `script-src` would require nonces on the
+   *   scripts Next injects, and `form-action 'self'` would break the creation of
+   *   the GitHub App, which posts a real form to github.com.
+   * - HSTS only has an effect over HTTPS — a browser ignores it on a plain
+   *   response — and without `includeSubDomains`: the panel does not decide for
+   *   the applications deployed on the neighboring subdomains.
    */
   headers() {
     return Promise.resolve([
@@ -81,13 +81,13 @@ const nextConfig: NextConfig = {
   redirects() {
     return Promise.resolve([
       { source: '/admin/audit', destination: '/admin/logs', permanent: true },
-      // Les paramètres n'ont plus de sommaire : leur racine mène au premier
-      // onglet du premier groupe. Un 307 franc, avant tout rendu — la page
-      // racine le fait aussi, mais en cours de flux, donc côté navigateur.
+      // The settings no longer have a summary: their root leads to the first tab of
+      // the first group. A plain 307, before any rendering — the root page does it
+      // too, but mid-stream, hence on the browser side.
       { source: '/admin/settings', destination: '/admin/settings/identite', permanent: false },
-      // Les fiches vivent dans des tiroirs, par-dessus leur liste. Les anciennes
-      // adresses — liens d'e-mails, de notifications, du chat — y mènent ; les
-      // paramètres de requête suivent (`?tab=proxy`).
+      // Records live in drawers, on top of their list. The old addresses — links
+      // from emails, notifications, the chat — lead there; the query parameters
+      // follow (`?tab=proxy`).
       {
         source: '/applications/:id([0-9a-f-]{36})',
         destination: '/applications?app=:id',

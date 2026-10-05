@@ -10,15 +10,14 @@ import type { DeploymentRow } from './deployments-table';
 import type { RunRecord } from './record/record';
 import { DeploymentStatusBadge } from './status-badge';
 
-/** La part de la fiche que rend le serveur, telle qu'elle traverse jusqu'ici. */
+/** The part of the record the server renders, as it travels all the way here. */
 export type RunRecordView = Pick<RunRecord, 'key' | 'header' | 'body'>;
 
 /**
- * Le suivi d'un run, dans un tiroir : son résumé et ses gestes, le pipeline,
- * le flux de logs, les scans et l'AppSpec figée — tout ce qu'était la page
- * du run. L'en-tête se lit sur la ligne quand elle est affichée, sur la fiche
- * sinon : un run ouvert depuis un lien n'est pas forcément sur la page de la
- * liste.
+ * A run's follow-up, in a drawer: its summary and its gestures, the pipeline,
+ * the log stream, the scans and the frozen AppSpec — everything the run's page
+ * used to be. The header reads from the row when it is shown, from the record
+ * otherwise: a run opened from a link is not necessarily on the list's page.
  */
 export function RunDrawer({
   selected,
@@ -28,10 +27,10 @@ export function RunDrawer({
   onPrevious,
   onNext,
 }: {
-  /** Le run demandé — ligne affichée ou non. */
+  /** The requested run — row shown or not. */
   selected: string | null;
   row: DeploymentRow | null;
-  /** La fiche rendue au serveur, si c'est bien celle de `selected`. */
+  /** The record rendered on the server, if it is indeed `selected`'s. */
   record: RunRecordView | null;
   onClose: () => void;
   onPrevious?: () => void;

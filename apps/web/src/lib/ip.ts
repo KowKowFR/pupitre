@@ -1,7 +1,7 @@
 /**
- * Une IPv6 écrite en entier (`0000:0000:…:0001`, telle que Better Auth la
- * range) sous sa forme courte (`::1`) : la plus longue suite de groupes nuls
- * devient `::`, les zéros de tête tombent. Une IPv4 passe telle quelle.
+ * An IPv6 written in full (`0000:0000:…:0001`, as Better Auth stores it) in its
+ * short form (`::1`): the longest run of zero groups becomes `::`, the leading
+ * zeros drop. An IPv4 goes through as is.
  */
 export function compactIp(ip: string | null | undefined): string | null {
   if (!ip) return null;

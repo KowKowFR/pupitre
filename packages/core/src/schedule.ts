@@ -3,20 +3,21 @@ import { translator, type Translate, type Translated, type UiLanguage } from './
 import { z } from 'zod';
 
 /**
- * Vocabulaire des tâches planifiées, partagé par le panel, le worker et la base.
+ * Vocabulary of scheduled tasks, shared by the panel, the worker and the
+ * database.
  *
- * ── Arbitrage sur `scheduled_job_type` ───────────────────────────────────────
- * L'enum Postgres date du schéma d'origine et vaut `scan | healthcheck | preflight |
- * cleanup`. L'ordonnancement, lui, nomme les tâches `scan:periodic`,
- * `health:periodic`, `cleanup:versions`, `target:preflight`. **L'enum n'a pas
- * été migrée** : ses quatre valeurs recouvrent exactement les quatre tâches, et
- * migrer une enum Postgres pour un renommage cosmétique, sur une table déjà
- * appliquée, coûte une migration destructive sans rien apporter.
+ * ── Trade-off on `scheduled_job_type` ───────────────────────────────────────
+ * The Postgres enum dates from the original schema and holds `scan |
+ * healthcheck | preflight | cleanup`. Scheduling names the tasks
+ * `scan:periodic`, `health:periodic`, `cleanup:versions`, `target:preflight`.
+ * **The enum was not migrated**: its four values cover exactly the four tasks,
+ * and migrating a Postgres enum for a cosmetic rename, on a table already
+ * applied, costs a destructive migration for nothing.
  *
- * Le nom BullMQ vit donc là où il a du sens : dans `scheduled_jobs.key`, qui
- * *est* l'identifiant du job scheduler côté BullMQ. La correspondance
- * type → nom de tâche est cette table de données ; il n'existe nulle part de
- * `if (type === 'scan')`.
+ * The BullMQ name therefore lives where it makes sense: in
+ * `scheduled_jobs.key`, which *is* the job scheduler's identifier on the BullMQ
+ * side. The type → task name mapping is this data table; there is no
+ * `if (type === 'scan')` anywhere.
  */
 
 export const SCHEDULED_JOB_TYPES_LIST = [
@@ -32,24 +33,24 @@ export const scheduledJobTypeSchema = z.enum(SCHEDULED_JOB_TYPES_LIST);
 export type ScheduledJobType = z.infer<typeof scheduledJobTypeSchema>;
 
 export type ScheduledJobDefinition = {
-  /** Nom de la tâche BullMQ produite par le scheduler. */
+  /** Name of the BullMQ task produced by the scheduler. */
   jobName: string;
-  /** Clé BullMQ proposée par défaut à la création. */
+  /** BullMQ key offered by default at creation. */
   defaultKey: string;
   label: string;
   description: string;
   defaultCron: string;
-  /** Ce que la tâche ne fait **pas** — affiché dans l'UI, à dessein. */
+  /** What the task does **not** do — shown in the UI, on purpose. */
   neverDoes: string;
 };
 
 /**
- * Les mots de l'ordonnancement — et rien que les mots.
+ * Scheduling's words — and nothing but the words.
  *
- * Le nom BullMQ, la clé par défaut et l'expression cron n'entrent pas ici :
- * ce sont des identifiants et des données, pas de la prose. Ce qui s'affiche,
- * en revanche, y est en entier, de sorte que la table ci-dessous n'a plus une
- * seule phrase écrite en dur.
+ * The BullMQ name, the default key and the cron expression do not come in
+ * here: they are identifiers and data, not prose. What is displayed, on the
+ * other hand, is all here, so that the table below no longer has a single
+ * hard-coded sentence.
  */
 const fr = {
   'job.scan.label': 'Scan périodique',
@@ -84,9 +85,9 @@ const fr = {
   'job.panel_backup.neverDoes':
     'Ne sauvegarde pas MASTER_KEY : sans elle, aucune sauvegarde ne se relit. Gardez-la ailleurs.',
 
-  // ── Champs d'une expression cron, nommés pour un humain ─────────────────
-  // La *clé* d'un champ reste anglaise et sert à la logique (alias de mois,
-  // alias de jour) ; seul ce libellé-ci s'affiche.
+  // ── Fields of a cron expression, named for a human ─────────────────────
+  // A field's *key* stays English and serves the logic (month aliases, day
+  // aliases); only this label is displayed.
   'cron.field.second': 'seconde',
   'cron.field.minute': 'minute',
   'cron.field.hour': 'heure',
@@ -155,8 +156,8 @@ export const scheduleCopy = { fr, en };
 type ScheduleTranslate = Translate<typeof fr>;
 
 /**
- * Une seule table. Ajouter une tâche planifiée = ajouter une entrée ici et un
- * handler dans le worker ; aucune autre ligne du projet ne change.
+ * A single table. Adding a scheduled task = adding an entry here and a handler
+ * in the worker; no other line of the project changes.
  */
 function buildScheduledJobTypes(
   t: ScheduleTranslate,
@@ -187,10 +188,10 @@ function buildScheduledJobTypes(
       neverDoes: t('job.cleanup.neverDoes'),
     },
     preflight: {
-      // Nom volontairement distinct de la tâche `target:preflight` du preflight manuel,
-      // qui prend UNE cible et ouvre une session SSH. Celle-ci balaye toutes les
-      // cibles et enfile un `target:preflight` par cible : elle réutilise le
-      // handler existant au lieu d'en dupliquer la logique.
+      // A name deliberately distinct from the manual preflight's `target:preflight`
+      // task, which takes ONE target and opens an SSH session. This one sweeps every
+      // target and enqueues one `target:preflight` per target: it reuses the existing
+      // handler instead of duplicating its logic.
       jobName: 'target:preflight:all',
       defaultKey: 'target:preflight',
       label: t('job.preflight.label'),
@@ -199,8 +200,8 @@ function buildScheduledJobTypes(
       neverDoes: t('job.preflight.neverDoes'),
     },
     backup: {
-      // La tâche planifiée ne fait qu'enfiler une sauvegarde par application,
-      // sur la file `backups` : elle rend la main en une seconde.
+      // The scheduled task only enqueues one backup per application, on the `backups`
+      // queue: it returns within a second.
       jobName: 'backup:schedule',
       defaultKey: 'backup:applications',
       label: t('job.backup.label'),
@@ -222,8 +223,8 @@ function buildScheduledJobTypes(
 const TABLES = new Map<UiLanguage, Record<ScheduledJobType, ScheduledJobDefinition>>();
 
 /**
- * La table dans une langue. Mémoïsée : une table par langue effectivement
- * demandée, construite une fois, jamais à chaque rendu.
+ * The table in one language. Memoized: one table per language actually
+ * requested, built once, never at each render.
  */
 export function scheduledJobTypes(
   language: UiLanguage = 'fr',
@@ -236,9 +237,9 @@ export function scheduledJobTypes(
 }
 
 /**
- * La table en français. Conservée pour les appelants qui n'ont pas de langue à
- * offrir — le worker, la base — et qui n'y lisent de toute façon que `jobName`
- * et `defaultKey`.
+ * The table in French. Kept for callers that have no language to offer — the
+ * worker, the database — and that only read `jobName` and `defaultKey` from it
+ * anyway.
  */
 export const SCHEDULED_JOB_TYPES: Record<ScheduledJobType, ScheduledJobDefinition> =
   scheduledJobTypes('fr');
@@ -247,13 +248,13 @@ export const SCHEDULED_JOB_NAMES: readonly string[] = SCHEDULED_JOB_TYPES_LIST.m
   (type) => SCHEDULED_JOB_TYPES[type].jobName,
 );
 
-/** Données portées par toute tâche issue du scheduler. */
+/** Data carried by every task coming from the scheduler. */
 export const scheduledJobDataSchema = z.object({
   scheduledJobId: z.string().uuid(),
   type: scheduledJobTypeSchema,
   key: z.string().min(1).max(120),
   payload: z.record(z.string(), z.unknown()).default({}),
-  /** Renseigné pour un déclenchement manuel depuis l'UI. */
+  /** Filled in for a manual trigger from the UI. */
   actorId: z.string().min(1).nullable().default(null),
   ip: z.string().min(1).nullable().default(null),
   manual: z.boolean().default(false),
@@ -270,18 +271,18 @@ export const scheduledJobResultSchema = z.object({
 
 export type ScheduledJobResult = z.infer<typeof scheduledJobResultSchema>;
 
-// ─── expressions cron ─────────────────────────────────────────────────────────
+// ─── cron expressions ─────────────────────────────────────────────────────────
 
 /**
- * Validation d'une expression cron à 5 ou 6 champs.
+ * Validation of a 5- or 6-field cron expression.
  *
- * Écrite ici plutôt que déléguée à `cron-parser` : ce paquet n'est chez nous
- * qu'une dépendance transitive de BullMQ, et s'appuyer dessus reviendrait à
- * dépendre d'un détail d'implémentation d'une autre bibliothèque. Le panel doit
- * pouvoir refuser une expression invalide **avant** de l'écrire en base.
+ * Written here rather than delegated to `cron-parser`: that package is only a
+ * transitive dependency of BullMQ for us, and relying on it would mean
+ * depending on another library's implementation detail. The panel must be able
+ * to refuse an invalid expression **before** writing it to the database.
  */
 type CronBound = {
-  /** Clé de logique et de libellé. Jamais affichée nue. */
+  /** Logic and label key. Never displayed bare. */
   key: 'second' | 'minute' | 'hour' | 'dayOfMonth' | 'month' | 'weekday';
   min: number;
   max: number;
@@ -345,11 +346,11 @@ function validateField(raw: string, bound: CronBound, t: ScheduleTranslate): str
 }
 
 /**
- * `null` si l'expression est valide, sinon le motif du refus.
+ * `null` if the expression is valid, otherwise the reason for the refusal.
  *
- * Le motif s'affiche sous le champ de saisie : il se rend donc dans la langue
- * qu'on lui donne. Le défaut reste le français, pour `cronSchema` — un message
- * Zod voyage dans `details`, que le panel n'affiche pas.
+ * The reason shows under the input field: it is therefore rendered in the
+ * language it is given. The default stays French, for `cronSchema` — a Zod
+ * message travels in `details`, which the panel does not show.
  */
 export function cronError(expression: string, language: UiLanguage = 'fr'): string | null {
   const t = translator(scheduleCopy, language);
@@ -383,23 +384,23 @@ export const cronSchema = z
   });
 
 
-// ─── périodicité simplifiée ───────────────────────────────────────────────────
+// ─── simplified schedule ──────────────────────────────────────────────────────
 
 /**
- * Périodicité exprimée sans écrire de cron.
+ * A schedule expressed without writing cron.
  *
- * C'est une **surcouche de saisie**, pas un second format de stockage. Rien de
- * cette union n'est écrit en base : ce qui est persisté et ce que BullMQ
- * consomme reste l'expression cron produite par `toCron()`. Deux vérités
- * persistées finiraient par diverger ; celle-ci ne survit pas à la requête HTTP.
+ * It is an **input layer**, not a second storage format. Nothing of this union
+ * is written to the database: what is persisted and what BullMQ consumes stays
+ * the cron expression produced by `toCron()`. Two persisted truths would end up
+ * diverging; this one does not outlive the HTTP request.
  *
- * `toCron()` et `fromCron()` sont réciproques :
- *   `toCron(fromCron(e)) === e`  pour toute expression que `fromCron` accepte
- *   `fromCron(toCron(s))` équivaut à `s`  pour toute `SimpleSchedule` valide
- * `scripts/test-schedule.ts` vérifie les deux sens.
+ * `toCron()` and `fromCron()` are inverses:
+ *   `toCron(fromCron(e)) === e`  for every expression `fromCron` accepts
+ *   `fromCron(toCron(s))` equals `s`  for every valid `SimpleSchedule`
+ * `scripts/test-schedule.ts` checks both directions.
  */
 
-/** Les seuls intervalles proposés : au-delà, un cron dit la chose plus clairement. */
+/** The only intervals offered: beyond them, a cron says the thing more clearly. */
 export const SIMPLE_INTERVAL_MINUTES = [5, 10, 15, 30] as const;
 
 export type SimpleIntervalMinutes = (typeof SIMPLE_INTERVAL_MINUTES)[number];
@@ -416,15 +417,15 @@ export const simpleScheduleSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('daily'), hour: hourField, minute: minuteField }),
   z.object({
     kind: z.literal('weekly'),
-    // 0 = dimanche, comme cron. Plusieurs jours possibles, au moins un.
+    // 0 = Sunday, like cron. Several days possible, at least one.
     weekdays: z.array(z.number().int().min(0).max(6)).min(1).max(7),
     hour: hourField,
     minute: minuteField,
   }),
   z.object({
     kind: z.literal('monthly'),
-    // 29 à 31 sont acceptés parce que cron les accepte : les mois trop courts
-    // sont alors sautés. L'UI le dit ; on ne réécrit pas le choix de l'opérateur.
+    // 29 to 31 are accepted because cron accepts them: months that are too short are
+    // then skipped. The UI says so; we do not rewrite the operator's choice.
     day: z.number().int().min(1).max(31),
     hour: hourField,
     minute: minuteField,
@@ -442,7 +443,7 @@ export const SIMPLE_SCHEDULE_KINDS: readonly SimpleScheduleKind[] = [
   'monthly',
 ];
 
-/** Périodicité simplifiée → expression cron à 5 champs. Toujours valide. */
+/** Simplified schedule → 5-field cron expression. Always valid. */
 export function toCron(simple: SimpleSchedule): string {
   switch (simple.kind) {
     case 'interval':
@@ -460,14 +461,14 @@ export function toCron(simple: SimpleSchedule): string {
   }
 }
 
-/** Entier nu — ni plage, ni pas, ni liste. */
+/** A bare integer — no range, no step, no list. */
 function plainInt(token: string, min: number, max: number): number | null {
   if (!/^\d{1,2}$/.test(token)) return null;
   const value = Number(token);
   return value >= min && value <= max ? value : null;
 }
 
-/** Jour de semaine nu : chiffre 0-7 (7 = dimanche) ou alias à trois lettres. */
+/** A bare weekday: digit 0-7 (7 = Sunday) or three-letter alias. */
 function plainWeekday(token: string): number | null {
   const alias = DAY_ALIASES.indexOf(token.toLowerCase());
   if (alias >= 0) return alias;
@@ -476,28 +477,28 @@ function plainWeekday(token: string): number | null {
 }
 
 /**
- * Expression cron → périodicité simplifiée, ou `null`.
+ * Cron expression → simplified schedule, or `null`.
  *
- * **Tout ou rien.** On n'approche pas, on ne devine pas : une expression qui
- * n'a pas d'équivalent *exact* dans l'union rend `null`, et l'écran bascule en
- * mode expert plutôt que d'afficher une périodicité fausse.
+ * **All or nothing.** We do not approximate, we do not guess: an expression
+ * without an *exact* equivalent in the union returns `null`, and the screen
+ * switches to expert mode rather than showing a wrong schedule.
  *
- * Accepté :
- *   `*&#47;N * * * *`  avec N ∈ {5, 10, 15, 30}            → interval
- *   `M * * * *`        M entier                            → hourly
- *   `M H * * *`        M et H entiers                      → daily
- *   `M H * * d[,d…]`   jours nus (0-7 ou `sun`…`sat`)      → weekly
- *   `M H D * *`        D entier 1-31                       → monthly
+ * Accepted:
+ *   `*&#47;N * * * *`  with N ∈ {5, 10, 15, 30}            → interval
+ *   `M * * * *`        M integer                           → hourly
+ *   `M H * * *`        M and H integers                    → daily
+ *   `M H * * d[,d…]`   bare days (0-7 or `sun`…`sat`)      → weekly
+ *   `M H D * *`        D integer 1-31                      → monthly
  *
- * Refusé — et c'est délibéré : toute plage (`2-5`), tout pas hors du champ
- * minute (`*&#47;3` en heure), tout mois restreint, toute combinaison jour du
- * mois **et** jour de semaine (cron les traite en OU, aucun `kind` ne le dit),
- * `*` en minute, et plus généralement toute forme non listée ci-dessus.
+ * Refused — deliberately: any range (`2-5`), any step outside the minute field
+ * (`*&#47;3` in hours), any restricted month, any combination of day of month
+ * **and** day of week (cron treats them as OR, no `kind` says so), `*` in
+ * minutes, and more generally any form not listed above.
  *
- * Une expression à six champs n'est acceptée que si le champ seconde vaut
- * exactement `0` : `0 30 3 * * *` est alors *strictement* équivalent à
- * `30 3 * * *`. Ce n'est pas une approximation, c'est la même chose ; le retour
- * par `toCron()` produit la forme à cinq champs.
+ * A six-field expression is only accepted if the seconds field is exactly `0`:
+ * `0 30 3 * * *` is then *strictly* equivalent to `30 3 * * *`. It is not an
+ * approximation, it is the same thing; going back through `toCron()` produces
+ * the five-field form.
  */
 export function fromCron(expression: string): SimpleSchedule | null {
   if (cronError(expression) !== null) return null;
@@ -517,7 +518,7 @@ export function fromCron(expression: string): SimpleSchedule | null {
     string,
   ];
 
-  // Un mois restreint n'a aucun équivalent simple : on s'arrête là.
+  // A restricted month has no simple equivalent: we stop there.
   if (month !== '*') return null;
 
   // interval : `*/N * * * *`
@@ -563,20 +564,20 @@ export function fromCron(expression: string): SimpleSchedule | null {
   return { kind: 'weekly', weekdays, hour: hr, minute: min };
 }
 
-// ─── fuseau horaire ───────────────────────────────────────────────────────────
+// ─── time zone ────────────────────────────────────────────────────────────────
 
 /**
- * Fuseau d'une tâche planifiée.
+ * Time zone of a scheduled task.
  *
- * Le fuseau n'est **pas** celui du process qui ordonnance : il est porté par la
- * tâche (`scheduled_jobs.timezone`) et transmis à BullMQ sous la forme
- * `{ pattern, tz }`, depuis le panel comme depuis le worker. Sans cette option,
- * cron-parser retombait sur le fuseau du process — UTC dans nos conteneurs — et
- * une tâche réglée « à 3 h » tournait à 05:00 à Paris l'été.
+ * The time zone is **not** the scheduling process's: it is carried by the task
+ * (`scheduled_jobs.timezone`) and passed to BullMQ as `{ pattern, tz }`, from
+ * the panel as from the worker. Without this option, cron-parser fell back on
+ * the process's time zone — UTC in our containers — and a task set "at 3 am"
+ * ran at 05:00 in Paris in summer.
  *
- * Le validateur est celui des paramètres d'instance : un seul juge de ce qu'est
- * un fuseau IANA — `Intl`, donc l'ICU réellement embarqué — et pas une seconde
- * liste qui divergerait de la première.
+ * The validator is the instance settings' one: a single judge of what an IANA
+ * time zone is — `Intl`, hence the ICU actually embedded — and not a second
+ * list that would diverge from the first.
  */
 export const scheduleTimeZoneSchema = z
   .string()
@@ -586,22 +587,22 @@ export const scheduleTimeZoneSchema = z
   .refine(isValidTimeZone, { message: 'Fuseau horaire IANA inconnu' });
 
 /**
- * Fuseau des tâches antérieures à la colonne `timezone`.
+ * Time zone of tasks older than the `timezone` column.
  *
- * `UTC`, et surtout pas le fuseau d'instance : ces tâches ont été installées
- * alors que BullMQ interprétait leur motif dans le fuseau du process, c'est-à-dire
- * en UTC. Leur appliquer rétroactivement `Europe/Paris` déplacerait de deux
- * heures l'exécution d'une tâche que personne n'a demandé à changer. La
- * migration `0009` pose donc cette valeur sur l'existant ; le fuseau d'instance
- * n'est le défaut que des tâches créées ensuite.
+ * `UTC`, and above all not the instance's time zone: those tasks were installed
+ * while BullMQ interpreted their pattern in the process's time zone, that is,
+ * in UTC. Retroactively applying `Europe/Paris` to them would move by two hours
+ * the execution of a task nobody asked to change. Migration `0009` therefore
+ * sets this value on the existing ones; the instance's time zone is only the
+ * default of tasks created afterwards.
  */
 export const LEGACY_SCHEDULE_TIMEZONE = 'UTC';
 
 /**
- * Fuseau du navigateur qui regarde — jamais celui qui ordonnance.
+ * Time zone of the browser looking — never of the one scheduling.
  *
- * Sert uniquement à afficher, à côté de l'heure de la tâche, ce que cela donne
- * sur l'horloge du lecteur quand les deux fuseaux diffèrent.
+ * Only used to show, next to the task's time, what it gives on the reader's
+ * clock when the two time zones differ.
  */
 export function browserTimeZone(): string {
   try {
@@ -611,13 +612,13 @@ export function browserTimeZone(): string {
   }
 }
 
-// ─── description lisible ──────────────────────────────────────────────────────
+// ─── readable description ─────────────────────────────────────────────────────
 
 export type CronLocale = 'fr' | 'en';
 
 export type DescribeCronOptions = {
   locale?: CronLocale | string;
-  /** Affiché à côté de l'heure. C'est celui de la tâche. */
+  /** Shown next to the time. It is the task's. */
   timeZone?: string;
 };
 
@@ -708,13 +709,12 @@ function joinList(items: readonly string[], conjunction: string): string {
 const pad2 = (value: number): string => String(value).padStart(2, '0');
 
 /**
- * Description lisible d'une expression cron.
+ * Readable description of a cron expression.
  *
- * Elle fonctionne pour **toute** expression valide, y compris celles que
- * `fromCron()` rejette : dans ce cas elle décrit champ par champ ce que
- * l'expression dit réellement, sans arrondir. Une expression invalide, ou une
- * forme qu'on ne sait pas mettre en mots, est rendue telle quelle — une
- * description fausse serait pire que pas de description.
+ * It works for **any** valid expression, including those `fromCron()` rejects:
+ * in that case it describes field by field what the expression really says,
+ * without rounding. An invalid expression, or a form we cannot put into words,
+ * is returned as is — a wrong description would be worse than no description.
  */
 export function describeCron(expression: string, options: DescribeCronOptions = {}): string {
   const words = wordsFor(options.locale);
@@ -724,7 +724,7 @@ export function describeCron(expression: string, options: DescribeCronOptions = 
   if (simple) {
     switch (simple.kind) {
       case 'interval':
-        // Un intervalle en minutes ne dépend d'aucun fuseau : pas de suffixe.
+        // An interval in minutes depends on no time zone: no suffix.
         return words.everyNMinutes(simple.everyMinutes);
       case 'hourly':
         return simple.minute === 0
@@ -761,8 +761,8 @@ export function describeCron(expression: string, options: DescribeCronOptions = 
   const minuteList = sorted(minutes);
   const hourList = sorted(hours);
 
-  // Une minute unique et des heures énumérées se disent en heures pleines —
-  // « à 00:00, 03:00, 06:00 » plutôt que « aux minutes 0, à 0, 3, 6 h ».
+  // A single minute and enumerated hours read as full hours — "at 00:00, 03:00,
+  // 06:00" rather than "at minutes 0, at 0, 3, 6 h".
   const singleMinute = parsed.raw.minute !== '*' && minuteStep === undefined && minuteList.length === 1;
   if (singleMinute && restricted.hours) {
     const clocks = capList(hourList).map((hour) =>
@@ -788,8 +788,8 @@ export function describeCron(expression: string, options: DescribeCronOptions = 
     }
   }
 
-  // Jour du mois et jour de semaine : cron les combine en OU dès que les deux
-  // sont restreints. Le dire autrement serait faux.
+  // Day of month and day of week: cron combines them as OR as soon as both are
+  // restricted. Saying it otherwise would be wrong.
   const dayParts: string[] = [];
   if (restricted.daysOfMonth) {
     dayParts.push(words.onDaysOfMonth(joinList(capList(sorted(daysOfMonth)).map(String), words.and)));
@@ -825,12 +825,12 @@ function sorted(values: ReadonlySet<number>): number[] {
   return [...values].sort((a, b) => a - b);
 }
 
-/** Une énumération de vingt valeurs n'apprend rien : on la borne. */
+/** An enumeration of twenty values teaches nothing: we cap it. */
 function capList(values: readonly number[]): (number | string)[] {
   return values.length <= 8 ? [...values] : [...values.slice(0, 8), '…'];
 }
 
-// ─── prochaines occurrences ───────────────────────────────────────────────────
+// ─── next occurrences ─────────────────────────────────────────────────────────
 
 type CronFields = {
   raw: { second: string; minute: string; hour: string; dayOfMonth: string; month: string; dayOfWeek: string };
@@ -877,7 +877,7 @@ function expandField(
       if (start === null) return null;
       if (bounds.length === 1) {
         from = start;
-        // `5/10` signifie « à partir de 5, tous les 10 » ; `5` seul, juste 5.
+        // `5/10` means "from 5, every 10"; `5` alone, just 5.
         to = stepRaw === undefined ? start : max;
       } else if (bounds.length === 2) {
         const end = read(bounds[1] ?? '');
@@ -895,7 +895,7 @@ function expandField(
   return out.size === 0 ? null : out;
 }
 
-/** Champs d'une expression cron, développés en ensembles de valeurs. */
+/** Fields of a cron expression, expanded into sets of values. */
 function parseCronFields(expression: string): CronFields | null {
   if (cronError(expression) !== null) return null;
   const fields = expression.trim().split(/\s+/);
@@ -921,7 +921,7 @@ function parseCronFields(expression: string): CronFields | null {
   const rawDaysOfWeek = expandField(dayOfWeek, 0, 7, DAY_ALIASES, 0);
   if (!seconds || !minutes || !hours || !daysOfMonth || !months || !rawDaysOfWeek) return null;
 
-  // 7 et 0 désignent tous deux le dimanche.
+  // 7 and 0 both designate Sunday.
   const daysOfWeek = new Set([...rawDaysOfWeek].map((day) => day % 7));
 
   return {
@@ -941,7 +941,7 @@ function parseCronFields(expression: string): CronFields | null {
   };
 }
 
-/** Champs horaires d'un instant, lus dans un fuseau donné. */
+/** Time fields of an instant, read in a given time zone. */
 export function wallClockOf(instantMs: number, timeZone: string): number {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone,
@@ -969,10 +969,10 @@ export function wallClockOf(instantMs: number, timeZone: string): number {
   );
 }
 
-/** Instant réel correspondant à une heure murale donnée dans un fuseau. */
+/** Real instant matching a given wall-clock time in a time zone. */
 export function instantOfWallClock(wallMs: number, timeZone: string): number {
   let guess = wallMs - (wallClockOf(wallMs, timeZone) - wallMs);
-  // Une seule reprise suffit : la correction ne dépasse jamais un décalage DST.
+  // A single retry is enough: the correction never exceeds a DST offset.
   guess = wallMs - (wallClockOf(guess, timeZone) - guess);
   return guess;
 }
@@ -980,22 +980,22 @@ export function instantOfWallClock(wallMs: number, timeZone: string): number {
 export type NextRunsOptions = {
   from?: Date;
   count?: number;
-  /** Fuseau dans lequel l'expression est interprétée — celui de la tâche. */
+  /** Time zone in which the expression is interpreted — the task's. */
   timeZone?: string;
-  /** Au-delà, on renonce plutôt que de balayer indéfiniment. */
+  /** Beyond this, we give up rather than sweep forever. */
   horizonDays?: number;
 };
 
 /**
- * Prochaines occurrences d'une expression cron, dans un fuseau donné.
+ * Next occurrences of a cron expression, in a given time zone.
  *
- * Sert **uniquement** à l'aperçu du formulaire : pour une tâche déjà installée,
- * la prochaine occurrence affichée reste celle que BullMQ a calculée, sans quoi
- * deux calculs indépendants finiraient par ne plus dire la même chose. Ici il
- * n'y a rien dans Redis à interroger — l'expression n'est pas encore enregistrée.
+ * Used **only** for the form's preview: for a task already installed, the next
+ * occurrence shown stays the one BullMQ computed, otherwise two independent
+ * computations would end up no longer saying the same thing. Here there is
+ * nothing in Redis to query — the expression is not saved yet.
  *
- * Rend un tableau vide si l'expression est invalide ou si aucune occurrence ne
- * tombe dans l'horizon (un `0 0 29 2 *` n'a rien à dire pendant trois ans).
+ * Returns an empty array if the expression is invalid or if no occurrence falls
+ * within the horizon (a `0 0 29 2 *` has nothing to say for three years).
  */
 export function nextRuns(expression: string, options: NextRunsOptions = {}): Date[] {
   const parsed = parseCronFields(expression);
@@ -1012,8 +1012,7 @@ export function nextRuns(expression: string, options: NextRunsOptions = {}): Dat
 
   const fromMs = from.getTime();
   const startWall = wallClockOf(fromMs, timeZone);
-  // On repart de la minute suivante : « maintenant » n'est pas une occurrence
-  // à venir.
+  // We start from the next minute: "now" is not an upcoming occurrence.
   const dayWall = Math.floor(startWall / 86_400_000) * 86_400_000;
 
   const out: Date[] = [];
@@ -1028,7 +1027,7 @@ export function nextRuns(expression: string, options: NextRunsOptions = {}): Dat
           dayWall + dayIndex * 86_400_000 + hour * 3_600_000 + minute * 60_000 + second * 1000;
         const instant = instantOfWallClock(wall, timeZone);
         if (instant <= fromMs) continue;
-        // Un créneau avalé par un saut d'heure d'été n'existe pas : on le passe.
+        // A slot swallowed by a summer-time jump does not exist: we skip it.
         if (wallClockOf(instant, timeZone) !== wall) continue;
         out.push(new Date(instant));
         if (out.length >= count) break;
@@ -1046,8 +1045,8 @@ function matchesDay(dayWall: Date, parsed: CronFields): boolean {
   const domMatches = parsed.daysOfMonth.has(dayWall.getUTCDate());
   const dowMatches = parsed.daysOfWeek.has(dayWall.getUTCDay());
 
-  // Sémantique cron historique : quand les deux champs sont restreints, un jour
-  // convient s'il satisfait l'un **ou** l'autre.
+  // Historical cron semantics: when both fields are restricted, a day matches if
+  // it satisfies one **or** the other.
   if (parsed.restricted.daysOfMonth && parsed.restricted.daysOfWeek) {
     return domMatches || dowMatches;
   }

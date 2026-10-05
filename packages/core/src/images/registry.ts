@@ -2,30 +2,31 @@ import { createHash } from 'node:crypto';
 import type { ImageReference } from './reference.js';
 
 /**
- * Ce qu'un registre dit d'une image, sans la télécharger.
+ * What a registry says about an image, without downloading it.
  *
- * ── Deux questions, deux requêtes ────────────────────────────────────────────
- * « Quel contenu le tag désigne-t-il aujourd'hui ? » : un `HEAD` sur le
- * manifeste, dont l'en-tête `Docker-Content-Digest` est la réponse. Le `HEAD`
- * ne télécharge rien et ne compte pas dans le quota de Docker Hub (vérifié :
- * `ratelimit-remaining` ne bouge pas). « Existe-t-il un tag plus récent ? » :
- * la liste des tags, paginée, bornée.
+ * ── Two questions, two requests ──────────────────────────────────────────────
+ * "Which content does the tag designate today?": a `HEAD` on the manifest, whose
+ * `Docker-Content-Digest` header is the answer. The `HEAD` downloads nothing and
+ * does not count toward Docker Hub's quota (checked: `ratelimit-remaining` does
+ * not move). "Is there a more recent tag?": the list of tags, paginated,
+ * bounded.
  *
- * Le digest demandé est celui de l'**index** multi-architecture quand il
- * existe — d'où l'en-tête `Accept` qui le cite en premier. C'est aussi celui que
- * les deux runtimes retiennent après un pull par tag (`RepoDigests` côté
- * Docker, `imageID` côté containerd), mesuré sur les deux : la comparaison se
- * fait donc à forme égale.
+ * The requested digest is that of the multi-architecture **index** when it
+ * exists — hence the `Accept` header that lists it first. It is also the one
+ * both runtimes keep after a pull by tag (`RepoDigests` on the Docker side,
+ * `imageID` on the containerd side), measured on both: the comparison is
+ * therefore made on equal footing.
  *
- * ── Authentification ─────────────────────────────────────────────────────────
- * Anonyme, par le défi standard : un 401 annonce dans `WWW-Authenticate` où
- * demander un jeton et pour quelle portée. Une image privée répond 401 même
- * après — c'est un « non vérifiable », pas une erreur du panel.
+ * ── Authentication ───────────────────────────────────────────────────────────
+ * Anonymous, through the standard challenge: a 401 announces in
+ * `WWW-Authenticate` where to ask for a token and for which scope. A private
+ * image answers 401 even afterwards — it is a "cannot be checked", not a panel
+ * error.
  *
- * ── Ce que ce client refuse ─────────────────────────────────────────────────
- * Le registre vient d'une AppSpec, et le serveur de jetons de la réponse du
- * registre : deux adresses que le panel ne choisit pas. Seul HTTPS est suivi,
- * pour l'un comme pour l'autre ; un registre en clair n'est pas interrogé.
+ * ── What this client refuses ────────────────────────────────────────────────
+ * The registry comes from an AppSpec, and the token server from the registry's
+ * response: two addresses the panel does not choose. Only HTTPS is followed, for
+ * either; a clear-text registry is not queried.
  */
 
 export type RegistryErrorCode =
@@ -44,7 +45,7 @@ export class RegistryError extends Error {
 export type RegistryClientOptions = {
   fetch?: typeof fetch;
   timeoutMs?: number;
-  /** Pages de mille tags au plus, pour un dépôt qui en compte des milliers. */
+  /** Pages of a thousand tags at most, for a repository that counts thousands. */
   maxTagPages?: number;
   userAgent?: string;
 };
@@ -58,7 +59,7 @@ const MANIFEST_ACCEPT = [
 
 type Challenge = { realm: string; service: string | null; scope: string | null };
 
-/** `Bearer realm="https://…",service="…",scope="…"` → ses paramètres. */
+/** `Bearer realm="https://…",service="…",scope="…"` → its parameters. */
 export function parseBearerChallenge(header: string | null): Challenge | null {
   if (!header || !/^bearer\s/i.test(header)) return null;
   const params = new Map<string, string>();
@@ -70,7 +71,7 @@ export function parseBearerChallenge(header: string | null): Challenge | null {
   return { realm, service: params.get('service') ?? null, scope: params.get('scope') ?? null };
 }
 
-/** `</v2/…/tags/list?last=x&n=1000>; rel="next"` → l'URL suivante, relative au registre. */
+/** `</v2/…/tags/list?last=x&n=1000>; rel="next"` → the next URL, relative to the registry. */
 export function nextPage(link: string | null): string | null {
   if (!link) return null;
   const match = /<([^>]+)>\s*;\s*rel="?next"?/i.exec(link);
@@ -103,7 +104,7 @@ export function createRegistryClient(options: RegistryClientOptions = {}) {
     } catch (error) {
       throw new RegistryError(
         'unreachable',
-        error instanceof Error ? error.message : 'registre injoignable',
+        error instanceof Error ? error.message : 'registry unreachable',
       );
     }
   }
@@ -113,26 +114,26 @@ export function createRegistryClient(options: RegistryClientOptions = {}) {
     const cached = tokens.get(key);
     if (cached) return cached;
     if (!isHttps(challenge.realm)) {
-      throw new RegistryError('unexpected', `serveur de jetons non HTTPS : ${challenge.realm}`);
+      throw new RegistryError('unexpected', `token server is not HTTPS: ${challenge.realm}`);
     }
     const url = new URL(challenge.realm);
     if (challenge.service) url.searchParams.set('service', challenge.service);
     if (challenge.scope) url.searchParams.set('scope', challenge.scope);
     const response = await call(url.toString(), { method: 'GET' });
     if (!response.ok) {
-      throw new RegistryError('unauthorized', `jeton refusé (HTTP ${response.status})`);
+      throw new RegistryError('unauthorized', `token refused (HTTP ${response.status})`);
     }
     const body = (await response.json().catch(() => ({}))) as {
       token?: string;
       access_token?: string;
     };
     const value = body.token ?? body.access_token;
-    if (!value) throw new RegistryError('unauthorized', 'jeton absent de la réponse');
+    if (!value) throw new RegistryError('unauthorized', 'no token in the response');
     tokens.set(key, value);
     return value;
   }
 
-  /** Une requête au registre, avec le défi d'authentification si besoin. */
+  /** A request to the registry, with the authentication challenge if needed. */
   async function request(
     ref: ImageReference,
     path: string,
@@ -142,8 +143,8 @@ export function createRegistryClient(options: RegistryClientOptions = {}) {
     let response = await call(url, init);
     if (response.status === 401) {
       const challenge = parseBearerChallenge(response.headers.get('www-authenticate'));
-      if (!challenge) throw new RegistryError('unauthorized', 'accès refusé par le registre');
-      // Sans portée annoncée (HEAD sur certains registres), on la déduit.
+      if (!challenge) throw new RegistryError('unauthorized', 'access refused by the registry');
+      // Without an announced scope (HEAD on some registries), we infer it.
       const scoped = challenge.scope
         ? challenge
         : { ...challenge, scope: `repository:${ref.repository}:pull` };
@@ -154,19 +155,19 @@ export function createRegistryClient(options: RegistryClientOptions = {}) {
       });
     }
     if (response.status === 401 || response.status === 403) {
-      throw new RegistryError('unauthorized', 'image privée ou accès refusé');
+      throw new RegistryError('unauthorized', 'private image or access refused');
     }
-    if (response.status === 404) throw new RegistryError('not_found', 'tag ou dépôt introuvable');
-    if (response.status === 429)
-      throw new RegistryError('rate_limited', 'quota du registre atteint');
+    if (response.status === 404)
+      throw new RegistryError('not_found', 'tag or repository not found');
+    if (response.status === 429) throw new RegistryError('rate_limited', 'registry quota reached');
     if (!response.ok) {
-      throw new RegistryError('unexpected', `réponse inattendue (HTTP ${response.status})`);
+      throw new RegistryError('unexpected', `unexpected response (HTTP ${response.status})`);
     }
     return response;
   }
 
   return {
-    /** Le digest que le tag désigne aujourd'hui, côté registre. */
+    /** The digest the tag designates today, on the registry side. */
     async manifestDigest(ref: ImageReference): Promise<string> {
       const path = `/v2/${ref.repository}/manifests/${ref.tag}`;
       const headers = { accept: MANIFEST_ACCEPT };
@@ -174,13 +175,13 @@ export function createRegistryClient(options: RegistryClientOptions = {}) {
       const announced = head.headers.get('docker-content-digest');
       if (announced && /^sha256:[a-f0-9]{64}$/.test(announced)) return announced;
 
-      // Quelques registres n'annoncent rien sur un HEAD : le digest d'un
-      // manifeste est le SHA-256 de ses octets, tels que servis.
+      // A few registries announce nothing on a HEAD: a manifest's digest is the
+      // SHA-256 of its bytes, as served.
       const body = await (await request(ref, path, { method: 'GET', headers })).arrayBuffer();
       return `sha256:${createHash('sha256').update(Buffer.from(body)).digest('hex')}`;
     },
 
-    /** Les tags du dépôt, page par page, dans la limite fixée. */
+    /** The repository's tags, page by page, within the set limit. */
     async listTags(ref: ImageReference): Promise<string[]> {
       const tags: string[] = [];
       let path: string | null = `/v2/${ref.repository}/tags/list?n=1000`;
@@ -191,7 +192,7 @@ export function createRegistryClient(options: RegistryClientOptions = {}) {
           tags.push(...body.tags.filter((tag): tag is string => typeof tag === 'string'));
         }
         const next = nextPage(response.headers.get('link'));
-        // Une page suivante ne quitte pas le registre interrogé.
+        // A next page does not leave the queried registry.
         path = next && next.startsWith('/v2/') ? next : null;
       }
       return tags;

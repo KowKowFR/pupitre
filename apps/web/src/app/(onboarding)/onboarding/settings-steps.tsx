@@ -14,23 +14,23 @@ import { onboarding } from '@/i18n/messages/onboarding';
 import { formatDateTime } from '@/lib/format';
 
 /**
- * Les deux étapes qui n'ont pas de formulaire à réutiliser : elles écrivent
- * dans les paramètres d'instance, et `PATCH /api/settings` accepte un patch
- * *partiel*. C'est ce qui permet à l'assistant de n'envoyer que ce qu'il montre
- * — le fuseau ici, les scanners là — sans réinitialiser au passage un réglage
- * qu'il n'affiche pas. Aucune validation n'est refaite côté client : le schéma
- * Zod de la route reste le seul juge.
+ * The two steps that have no form to reuse: they write into the instance
+ * settings, and `PATCH /api/settings` accepts a *partial* patch. That is what
+ * allows the assistant to only send what it shows — the time zone here, the
+ * scanners there — without resetting along the way a setting it does not show.
+ * No validation is redone on the client side: the route's Zod schema stays the
+ * only judge.
  */
 
 type ApiError = { error?: { message?: string } };
 
-/** Instant fixe : deux `new Date()` séparés produiraient deux rendus différents. */
+/** A fixed instant: two separate `new Date()` would produce two different renderings. */
 const PREVIEW_INSTANT = new Date('2026-01-15T14:32:07Z');
 
 /**
- * `httpFailure` est passé par l'appelant plutôt que rendu ici : cette fonction
- * n'est pas un composant, elle n'a donc pas de `t`. Le repli reste une phrase
- * du dictionnaire partagé, la même que partout ailleurs dans le panel.
+ * `httpFailure` is passed by the caller rather than rendered here: this function
+ * is not a component, so it has no `t`. The fallback stays a sentence of the
+ * shared dictionary, the same as everywhere else in the panel.
  */
 async function patchSettings(
   body: Record<string, unknown>,
@@ -139,12 +139,12 @@ export function IdentityStep({
         <div className="field">
           <Label htmlFor="ob-locale">{t('identity.locale.label')}</Label>
           {/*
-            Même sélecteur qu'à la section Régionalisation, et pas un réglage
-            « langue » de plus : la locale décide déjà du nom des mois, elle
-            décide aussi des mots. Les libellés sont ceux de `LOCALE_LABELS` —
-            chaque langue se nomme dans sa propre langue, pour qu'un anglophone
-            reconnaisse sa ligne sur un écran en français.
-          */}
+            The same selector as in the Regional settings section, and not one
+            more "language" setting: the locale already decides the months'
+            names, it also decides the words. The labels are `LOCALE_LABELS`' —
+            each language names itself in its own language, so that an English
+            speaker recognizes their row on a screen in French.
+                     */}
           <Select
             id="ob-locale"
             value={locale}
@@ -223,7 +223,7 @@ export function SecurityStep({
     settings.security.disabledScanners,
   );
   const [aiEnabled, setAiEnabled] = useState(settings.ai.enabled);
-  /** Jamais préremplie : la clé ne ressort pas de la base, même masquée. */
+  /** Never prefilled: the key does not come out of the database, even masked. */
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -234,8 +234,8 @@ export function SecurityStep({
       security: { scanningEnabled, disabledScanners },
       ai: { enabled: aiEnabled },
     };
-    // Champ vide = clé inchangée. La propriété n'est présente que si l'on veut
-    // vraiment poser une clé — même distinction qu'à l'écran des paramètres.
+    // Empty field = key unchanged. The property is only present if one really wants
+    // to set a key — the same distinction as on the settings screen.
     if (apiKeyInput.trim() !== '') body.aiApiKey = apiKeyInput.trim();
 
     const message = await patchSettings(body, (status) => tc('http.failure', { status }));
@@ -319,9 +319,10 @@ export function SecurityStep({
           autoComplete="off"
           value={apiKeyInput}
           /*
-            Trois phrases plutôt qu'une phrase à trous : la variante à quatre
-            derniers caractères place ce fragment ailleurs selon la langue, et
-            un `${}` au milieu d'une chaîne traduite l'aurait figé en français.
+            Three sentences rather than a sentence with holes: the variant with the
+            last four characters places this fragment elsewhere depending on the
+            language, and a `${}` in the middle of a translated string would have
+            frozen it in French.
           */
           placeholder={
             aiApiKeyConfigured

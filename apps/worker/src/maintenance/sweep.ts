@@ -12,23 +12,23 @@ import { releaseHeldNotification } from '../handlers/notification.js';
 import { logger } from '../logger.js';
 
 /**
- * Le balayage des fenêtres de maintenance, chaque minute.
+ * The maintenance windows sweep, every minute.
  *
- * La mise en sourdine, elle, n'attend pas ce balayage : la distribution des
- * notifications compare l'heure aux bornes de la fenêtre à chaque alerte. Le
- * balayage ne fait que ce qui doit arriver **une fois** :
- *   - annoncer le début (`maintenance.started`) ;
- *   - à la fin, remettre en distribution ce qui est resté en panne — pour
- *     chaque famille, la dernière alerte retenue si elle ouvre un problème —
- *     puis annoncer la fin (`maintenance.ended`), avec ce qui est parti.
+ * Muting does not wait for this sweep: the notification delivery compares the
+ * time with the window's bounds at each alert. The sweep only does what must
+ * happen **once**:
+ *   - announce the start (`maintenance.started`);
+ *   - at the end, put back into delivery what stayed down — for each family, the
+ *     last held alert if it opens a problem — then announce the end
+ *     (`maintenance.ended`), with what went out.
  *
- * Les deux prises (`claimMaintenanceStarts`, `claimMaintenanceEnds`) sont des
- * `UPDATE … RETURNING` : deux balayages qui se croisent ne traitent pas deux
- * fois la même fenêtre, sans verrou de plus.
+ * The two claims (`claimMaintenanceStarts`, `claimMaintenanceEnds`) are
+ * `UPDATE … RETURNING`s: two sweeps that cross do not handle the same window
+ * twice, without an extra lock.
  */
 
 export const MAINTENANCE_SWEEP_JOB = 'maintenance:sweep' as const;
-/** Clé du scheduler BullMQ — sans deux-points. */
+/** BullMQ scheduler key — without a colon. */
 export const MAINTENANCE_SWEEP_SCHEDULER_KEY = 'maintenance-sweep';
 export const MAINTENANCE_SWEEP_EVERY_MS = 60_000;
 
@@ -62,9 +62,9 @@ export async function sweepMaintenance(now: Date = new Date()): Promise<Maintena
     for (const alert of release) {
       const parsed = notificationDispatchJobDataSchema.safeParse(alert.data);
       if (!parsed.success) {
-        // Une alerte recopiée par une version antérieure et devenue illisible :
-        // on le dit plutôt que de la perdre sans un mot.
-        logger.error({ windowId: row.id, alertId: alert.id }, 'alerte retenue illisible');
+        // An alert copied by an earlier version and become unreadable: we say so rather
+        // than lose it without a word.
+        logger.error({ windowId: row.id, alertId: alert.id }, 'held alert unreadable');
         continue;
       }
       await releaseHeldNotification(parsed.data, `maintenance-release:${alert.id}`);
@@ -95,7 +95,7 @@ export async function sweepMaintenance(now: Date = new Date()): Promise<Maintena
 export async function handleMaintenanceSweep(job: Job): Promise<MaintenanceSweepResult> {
   const result = await sweepMaintenance();
   if (result.started > 0 || result.ended > 0) {
-    logger.info({ jobId: job.id, ...result }, 'balayage des maintenances');
+    logger.info({ jobId: job.id, ...result }, 'maintenance sweep');
   }
   return result;
 }

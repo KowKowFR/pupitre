@@ -1,21 +1,21 @@
 import type { Translated } from '@pupitre/core';
 
 /**
- * L'espace personnel : mot de passe et second facteur, l'écran et les quatre
- * routes qui le servent.
+ * The personal space: password and second factor, the screen and the four routes
+ * that serve it.
  *
- * Séparé de `auth` parce que les deux surfaces ne s'adressent pas à la même
- * personne : `auth` parle à quelqu'un qui n'est pas encore entré, `account` à
- * quelqu'un qui est connecté et agit sur son propre compte. Les phrases n'ont
- * donc rien à se prêter — et un même mot y prend un sens différent (« Mot de
- * passe » est un champ à l'entrée, une section ici).
+ * Separate from `auth` because the two surfaces do not speak to the same person:
+ * `auth` speaks to someone who has not come in yet, `account` to someone who is
+ * signed in and acts on their own account. The sentences therefore have nothing
+ * to lend each other — and the same word takes a different meaning there
+ * ("Password" is a field at the entrance, a section here).
  *
- * Les messages d'erreur des routes passent par `msg()` : `apiRoute()` les rend
- * dans la langue de l'instance au moment de sérialiser, et `error.message`
- * reste français pour les logs.
+ * The routes' error messages go through `msg()`: `apiRoute()` renders them in the
+ * instance's language at serialization time, and `error.message` stays in French,
+ * the dictionaries' source language, for the logs.
  */
 const fr = {
-  // ── L'écran ─────────────────────────────────────────────────────────────
+  // ── The screen ──────────────────────────────────────────────────────────
   'meta.title': 'Mon compte — Pupitre',
   'page.title': 'Sécurité du compte',
   'crumb': 'Mon compte',
@@ -23,13 +23,13 @@ const fr = {
     "Ce qui protège l'accès au panel : le mot de passe, et un second facteur qui survit à sa fuite. Les deux se gèrent ici, pour soi seul — un administrateur n'a pas le pouvoir d'activer un second facteur à votre place.",
 
   /**
-   * Repli d'un `fetch` du panel dont la réponse ne porte pas de message. Il
-   * ressemble à `common.http.failure`, mais il finit par un point : la
-   * ponctuation d'origine est reproduite telle quelle, comme partout ailleurs.
+   * The fallback of a panel `fetch` whose response carries no message. It looks
+   * like `common.http.failure`, but it ends with a period: the original punctuation
+   * is reproduced as is, as everywhere else.
    */
   'error.http': 'Échec (HTTP {status}).',
 
-  // ── Mot de passe ────────────────────────────────────────────────────────
+  // ── Password ────────────────────────────────────────────────────────────
   'avatar.edit': 'Changer la photo de profil',
   'avatar.dialog.title': 'Photo de profil',
   'avatar.dialog.description':
@@ -65,7 +65,7 @@ const fr = {
   'password.changed':
     'Mot de passe changé. Toutes les autres sessions ont été fermées ; celle-ci reste ouverte.',
 
-  // ── Second facteur ──────────────────────────────────────────────────────
+  // ── Second factor ───────────────────────────────────────────────────────
   'twoFactor.title': 'Double authentification (TOTP)',
   'twoFactor.badge.on': 'active',
   'twoFactor.badge.off': 'inactive',
@@ -83,7 +83,7 @@ const fr = {
     'Second facteur désactivé. La connexion ne demande plus que le mot de passe.',
   'twoFactor.badge.required': 'exigé',
 
-  // ── L'activation exigée (`/two-factor-setup`) ──────────────────────────
+  // ── The required activation (`/two-factor-setup`) ──────────────────────
   'enroll.meta.title': 'Second facteur exigé — Pupitre',
   'enroll.eyebrow': 'Second facteur',
   'enroll.title': 'Votre rôle exige un second facteur',
@@ -93,7 +93,7 @@ const fr = {
   'twoFactor.locked.body':
     'Votre rôle l’exige : il ne se désactive pas. Appareil perdu ? Un administrateur peut le réinitialiser, et vous le réactiverez à la connexion suivante.',
 
-  // ── L'activation, étape par étape ───────────────────────────────────────
+  // ── The activation, step by step ────────────────────────────────────────
   'setup.scan':
     'Scannez ce code, ou saisissez la clé à la main si votre application ne peut pas lire de QR.',
   'setup.key': 'Clé de configuration',
@@ -105,17 +105,17 @@ const fr = {
   'setup.submit': 'Vérifier et activer',
 
   /**
-   * Les verdicts d'un e-mail transactionnel que l'appelant a choisi d'attendre
-   * — l'invitation lancée depuis `/admin/users`. Le texte de l'e-mail lui-même
-   * vit dans `@pupitre/core`, à côté de sa composition : c'est le worker qui le
-   * rend, et il n'atteindrait pas un dictionnaire du panel.
+   * The verdicts of a transactional email the caller chose to wait for — the
+   * invitation started from `/admin/users`. The email's text itself lives in
+   * `@pupitre/core`, next to its composition: it is the worker that renders it,
+   * and it would not reach a panel dictionary.
    */
   'mail.timeout':
     "L'e-mail n'est pas parti dans le délai imparti. Le worker est peut-être saturé — le compte existe, vous pouvez relancer l’invitation.",
   'mail.failed': 'L’e-mail n’est pas parti : {message}',
   'mail.unreadableVerdict': 'Le worker a renvoyé un verdict illisible',
 
-  // ── Erreurs des routes ──────────────────────────────────────────────────
+  // ── Route errors ────────────────────────────────────────────────────────
   'error.invalidPassword': 'Le mot de passe actuel est incorrect.',
   'error.passwordTooShort': 'Le nouveau mot de passe est trop court.',
   'error.passwordTooLong': 'Le nouveau mot de passe est trop long.',

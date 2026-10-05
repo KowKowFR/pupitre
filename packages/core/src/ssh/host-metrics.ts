@@ -16,42 +16,41 @@ import type { UiLanguage } from '../i18n.js';
 import { sshSay, type SshSay } from './messages.js';
 
 /**
- * Relevé des métriques d'une machine cible.
+ * Reading a target machine's metrics.
  *
- * Même règle de conception que le preflight, dont ce module est le voisin :
- * **chaque relevé est indépendant**. `nproc` absent laisse la charge lisible,
- * `df` absent laisse la mémoire lisible. Seule l'impossibilité d'ouvrir la
- * session SSH est fatale — et même là, elle rend un rapport « injoignable »
- * plutôt qu'une exception, parce que l'écran doit pouvoir *dire* qu'il n'a pas
- * pu relever, et continuer d'afficher ce que la base sait de la machine.
+ * The same design rule as the preflight, this module's neighbor: **each reading
+ * is independent**. A missing `nproc` leaves the load readable, a missing `df`
+ * leaves memory readable. Only the impossibility of opening the SSH session is
+ * fatal — and even then, it returns an "unreachable" report rather than an
+ * exception, because the screen must be able to *say* it could not read, and
+ * keep showing what the database knows about the machine.
  *
- * Rien ici ne dépend du runtime : aucun `docker`, aucun `kubectl`, aucune
- * branche sur `docker | k3s`. C'est ce qui justifie que ce code ne soit pas
- * dans les drivers.
+ * Nothing here depends on the runtime: no `docker`, no `kubectl`, no branch on
+ * `docker | k3s`. That is what justifies this code not being in the drivers.
  */
 
 /**
- * Chaque commande est plafonnée court. Ce sont des lectures de `/proc` et un
- * `df` : au-delà de cinq secondes, ce n'est plus une machine lente, c'est une
- * machine qui ne répond plus, et le relevé doit le dire au lieu d'attendre.
+ * Each command is capped short. They are reads of `/proc` and a `df`: beyond
+ * five seconds, it is no longer a slow machine, it is a machine that no longer
+ * answers, and the reading must say so instead of waiting.
  */
 const PROBE_TIMEOUT_MS = 5_000;
 
 /**
- * Une seule tentative de connexion, garde courte.
+ * A single connection attempt, short guard.
  *
- * Le preflight, lui, réessaie : c'est un diagnostic, il a le droit d'insister.
- * Un relevé de supervision est rafraîchi à la demande et sa réponse est
- * attendue par une requête HTTP ; trois tentatives avec backoff mettraient près
- * d'une minute à conclure « injoignable » — une conclusion qu'on tire mieux en
- * huit secondes, quitte à la redemander.
+ * The preflight retries: it is a diagnosis, it has the right to insist. A
+ * monitoring reading is refreshed on demand and its answer is awaited by an HTTP
+ * request; three attempts with backoff would take nearly a minute to conclude
+ * "unreachable" — a conclusion better drawn in eight seconds, even if it means
+ * asking again.
  */
 const CONNECT_TIMEOUT_MS = 8_000;
 const CONNECT_RETRIES = 1;
 
 /**
- * Exécute un relevé en capturant son échec au lieu de le propager, et rend
- * `null` quand la mesure n'a pas pu être prise.
+ * Runs a reading capturing its failure instead of propagating it, and returns
+ * `null` when the measurement could not be taken.
  */
 async function probe<T>(
   key: string,
@@ -87,7 +86,7 @@ async function probe<T>(
   }
 }
 
-/** `/proc/loadavg` — « 0.42 0.31 0.28 1/234 5678 ». */
+/** `/proc/loadavg` — "0.42 0.31 0.28 1/234 5678". */
 export function parseLoadAvg(output: string): Omit<HostLoad, 'cores' | 'perCore'> | null {
   const columns = output.trim().split(/\s+/);
   const [one, five, fifteen] = [columns[0], columns[1], columns[2]].map((value) =>
@@ -98,8 +97,8 @@ export function parseLoadAvg(output: string): Omit<HostLoad, 'cores' | 'perCore'
 }
 
 /**
- * `/proc/meminfo`. On y lit `MemAvailable` et **pas** `MemFree` : voir le
- * commentaire de `hostMemorySchema`.
+ * `/proc/meminfo`. We read `MemAvailable` and **not** `MemFree`: see the comment
+ * of `hostMemorySchema`.
  */
 export function parseMemInfo(output: string): HostMemory | null {
   const fields = new Map<string, number>();
@@ -110,8 +109,8 @@ export function parseMemInfo(output: string): HostMemory | null {
 
   const totalKb = fields.get('MemTotal');
   const availableKb = fields.get('MemAvailable');
-  // Sans `MemAvailable` (noyaux antérieurs à 3.14), toute proportion serait une
-  // invention : on préfère ne rien dire.
+  // Without `MemAvailable` (kernels before 3.14), any proportion would be made
+  // up: we prefer to say nothing.
   if (totalKb === undefined || availableKb === undefined || totalKb <= 0) return null;
 
   const usedKb = Math.max(0, totalKb - availableKb);
@@ -123,7 +122,7 @@ export function parseMemInfo(output: string): HostMemory | null {
   };
 }
 
-/** `df -Pk <chemin>` — le format POSIX est stable, contrairement à `df -h`. */
+/** `df -Pk <path>` — the POSIX format is stable, unlike `df -h`. */
 export function parseDf(output: string, path: string): HostDisk | null {
   const lines = output.trim().split('\n');
   if (lines.length < 2) return null;
@@ -150,7 +149,7 @@ export function parseDf(output: string, path: string): HostDisk | null {
   };
 }
 
-/** `/proc/uptime` — « 12345.67 98765.43 ». Seul le premier nombre nous intéresse. */
+/** `/proc/uptime` — "12345.67 98765.43". Only the first number interests us. */
 export function parseUptime(output: string): number | null {
   const seconds = Number.parseFloat(output.trim().split(/\s+/)[0] ?? '');
   return Number.isNaN(seconds) ? null : Math.floor(seconds);
@@ -175,16 +174,16 @@ function parseOsRelease(content: string): Omit<HostOs, 'kernel'> {
   };
 }
 
-/** Kibioctets → Gio, une décimale. Pour les seules lignes de détail. */
+/** Kibibytes → GiB, one decimal. For the detail lines only. */
 
 /**
- * `df` sur la racine des déploiements — ou, si elle n'existe pas encore, sur
- * l'ancêtre existant le plus proche.
+ * `df` on the deployments' root — or, if it does not exist yet, on the closest
+ * existing ancestor.
  *
- * Une cible neuve n'a pas encore de `/opt/bootstrap` : répondre « inconnu »
- * serait exact mais inutile, alors que la partition qui *portera* les
- * déploiements, elle, est parfaitement mesurable. Le chemin réellement mesuré
- * repart dans le relevé, donc rien n'est déguisé.
+ * A new target has no `/opt/bootstrap` yet: answering "unknown" would be
+ * accurate but useless, whereas the partition that *will carry* the
+ * deployments is perfectly measurable. The path actually measured goes back in
+ * the reading, so nothing is disguised.
  */
 async function probeDisk(
   session: SshSession,
@@ -210,19 +209,19 @@ async function probeDisk(
 }
 
 export type HostMetricsOptions = {
-  /** Racine des déploiements, pour choisir la partition à mesurer. */
+  /** The deployments' root, to choose the partition to measure. */
   rootPath: string;
-  /** La langue des libellés et des erreurs du relevé : celle de l'instance. */
+  /** The language of the reading's labels and errors: the instance's. */
   language: UiLanguage;
   logger?: SshLogger;
 };
 
 /**
- * Ouvre une session, prend les six relevés, referme.
+ * Opens a session, takes the six readings, closes.
  *
- * Les relevés partent ensemble : ce sont six lectures indépendantes sur la même
- * session, les enchaîner ne ferait qu'additionner six allers-retours réseau
- * pour un résultat identique.
+ * The readings go out together: they are six independent reads on the same
+ * session, chaining them would only add up six network round trips for an
+ * identical result.
  */
 export async function collectHostMetrics(
   targetId: string,

@@ -23,7 +23,7 @@ import {
 import { statusPages as messages } from '@/i18n/messages/status-pages';
 import { NotFoundError, msg } from '@/lib/errors';
 
-/** Une annonce telle que l'écran et l'API la rendent. L'auteur y est : ce n'est pas une page publique. */
+/** An announcement as the screen and the API return it. With its author: not a public page. */
 export type StatusUpdateJson = {
   id: string;
   subject: StatusUpdateSubject;
@@ -49,7 +49,7 @@ export function statusUpdateJson(
   };
 }
 
-/** Le sujet d'une annonce doit exister : un incident de sonde, une fenêtre de maintenance. */
+/** An announcement's subject must exist: a probe incident, a maintenance window. */
 export async function assertStatusUpdateSubject(subject: StatusUpdateSubject): Promise<void> {
   const found =
     subject.type === 'incident'
@@ -58,36 +58,35 @@ export async function assertStatusUpdateSubject(subject: StatusUpdateSubject): P
   if (!found) throw new NotFoundError(msg(messages, 'error.announce.subject'));
 }
 
-/** Pour le journal : ce qui a été dit, et à propos de quoi. Le texte est public, il peut y figurer. */
+/** For the log: what was said, and about what. The text is public, it can appear there. */
 export function statusUpdateAuditSummary(row: StatusUpdateRow) {
   return { subject: statusUpdateSubjectOf(row), phase: row.phase, message: row.message };
 }
 
-/** Ce qu'on peut annoncer, tel que l'écran des annonces le reçoit. */
+/** What can be announced, as the announcements screen receives it. */
 export type AnnounceSubjectJson = {
   key: string;
   type: StatusUpdateSubjectType;
   id: string;
-  /** Le nom de la sonde, ou le titre de la fenêtre : pour l'équipe, pas pour les visiteurs. */
+  /** The probe's name, or the window's title: for the team, not for the visitors. */
   title: string;
   startsAt: string;
-  /** La fin de la panne (`null` : en cours), ou celle de la fenêtre. */
+  /** The outage's end (`null`: ongoing), or the window's. */
   endsAt: string | null;
   state: 'ongoing' | 'upcoming' | 'ended';
-  /** Une page de statut montre-t-elle ce sujet ? Sinon, l'annonce ne paraîtra nulle part. */
+  /** Does a status page show this subject? Otherwise, the announcement will appear nowhere. */
   onPage: boolean;
-  /** Les noms sous lesquels les visiteurs voient les sondes touchées. */
+  /** The names under which the visitors see the affected probes. */
   seenAs: string[];
-  /** Des plus anciennes aux plus récentes. */
+  /** From the oldest to the newest. */
   updates: StatusUpdateJson[];
 };
 
 /**
- * Les sujets à annoncer : les pannes des sondes de vos pages, en cours ou
- * refermées depuis peu, et les maintenances qui les touchent, à venir, en
- * cours ou tout juste finies. `extraKey` — un sujet demandé par son adresse,
- * depuis la fiche d'une sonde ou d'une fenêtre — s'y ajoute même hors de ces
- * bornes, marqué hors page.
+ * The subjects to announce: the outages of your pages' probes, ongoing or closed
+ * recently, and the maintenance windows that touch them, upcoming, ongoing or
+ * just finished. `extraKey` — a subject requested by its address, from a probe's
+ * or a window's record — is added even outside these bounds, marked as off-page.
  */
 export async function loadAnnounceSubjects(
   pages: readonly StatusPageRow[],
@@ -107,7 +106,7 @@ export async function loadAnnounceSubjects(
     monitorIds.length > 0 ? listMonitors() : Promise.resolve([]),
   ]);
 
-  // Le nom public d'une sonde, page par page : son libellé, sinon son nom.
+  // A probe's public name, page by page: its label, otherwise its name.
   const names = new Map(monitors.map((monitor) => [monitor.id, monitor.name]));
   const labels = new Map<string, Set<string>>();
   for (const page of pages) {
@@ -198,7 +197,7 @@ export async function loadAnnounceSubjects(
     bySubject.set(key, list);
   }
 
-  // En cours d'abord, puis à venir, puis finis ; les plus récents d'abord.
+  // Ongoing first, then upcoming, then finished; the most recent first.
   const rank = { ongoing: 0, upcoming: 1, ended: 2 } as const;
   return subjects
     .map((subject) => ({ ...subject, updates: bySubject.get(subject.key) ?? [] }))

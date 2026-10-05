@@ -15,19 +15,17 @@ import { probeSay } from './messages.js';
 import { ProbeTimeoutError, SsrfBlockedError, messageOf, resolveGuarded } from './net.js';
 
 /**
- * Le relevé d'un domaine, pour son tiroir : DNS, adresses, RDAP, certificat.
+ * A domain's reading, for its drawer: DNS, addresses, RDAP, certificate.
  *
- * Il reprend les sondes de supervision — même client RDAP, même garde réseau —
- * mais n'en rend aucun verdict : il montre. Les quatre lectures partent
- * ensemble une fois le nom résolu, chacune bornée, et l'échec de l'une ne
- * prive pas des autres.
+ * It reuses the monitoring probes — same RDAP client, same network guard — but
+ * gives no verdict: it shows. The four reads go out together once the name is
+ * resolved, each bounded, and the failure of one does not deprive the others.
  *
- * Les gardes ne changent pas. RDAP ne joint que des adresses publiques (voir
- * `domain.ts`). La poignée de main TLS va à l'adresse du nom, sous la liste
- * d'autorisation de la supervision (`MONITOR_ALLOWED_CIDRS`) : un domaine qui
- * résout vers une adresse interne n'est pas sondé sans qu'on l'ait permis.
- * Le DNS, lui, ne joint que le résolveur du système : les adresses obtenues
- * sont des données.
+ * The guards do not change. RDAP only reaches public addresses (see
+ * `domain.ts`). The TLS handshake goes to the name's address, under monitoring's
+ * allow list (`MONITOR_ALLOWED_CIDRS`): a domain that resolves to an internal
+ * address is not probed without it being allowed. DNS only reaches the system's
+ * resolver: the addresses obtained are data.
  */
 
 const DNS_TIMEOUT_MS = 4_000;
@@ -39,10 +37,10 @@ const DAY_MS = 86_400_000;
 export type DomainInspectInput = {
   hostname: string;
   tls: boolean;
-  /** Les machines du proxy qui sert le nom (nom ou adresse) ; vide si on l'ignore. */
+  /** The machines of the proxy serving the name (name or address); empty if unknown. */
   expectedHosts: string[];
   allowlist: readonly Cidr[];
-  /** La langue des erreurs relevées — celle de l'instance. */
+  /** The language of the errors read — the instance's. */
   language?: UiLanguage;
 };
 
@@ -50,7 +48,7 @@ function resolver(): Resolver {
   return new Resolver({ timeout: DNS_TIMEOUT_MS, tries: 1 });
 }
 
-/** Une question DNS dont le « rien » est une réponse, pas une panne. */
+/** A DNS question whose "nothing" is an answer, not a failure. */
 async function answer<T>(question: Promise<T[]>): Promise<T[]> {
   try {
     return await question;
@@ -121,7 +119,7 @@ async function reverseOf(address: string): Promise<string[]> {
   return answer(resolver().reverse(address)).catch(() => []);
 }
 
-/** Les adresses d'une machine, qu'on la connaisse par son nom ou son adresse. */
+/** A machine's addresses, whether it is known by its name or its address. */
 async function addressesOf(host: string): Promise<string[]> {
   if (classifyAddress(host) !== null) return [host];
   const dns = resolver();
@@ -256,7 +254,7 @@ async function certificateOf(
   try {
     address = (await resolveGuarded(hostname, allowlist)).address;
   } catch (error) {
-    // Un nom qui ne résout pas n'est pas une adresse refusée : c'est une panne.
+    // A name that does not resolve is not a refused address: it is a failure.
     const unresolved =
       error instanceof SsrfBlockedError &&
       (error.refusal.key === 'reason.unresolved' || error.refusal.key === 'reason.noAddress');
@@ -271,9 +269,9 @@ async function certificateOf(
   let socket: TLSSocket;
   try {
     socket = await new Promise<TLSSocket>((resolve, reject) => {
-      // Connexion à l'adresse contrôlée, SNI sur le nom. La chaîne n'est pas
-      // exigée valide : on veut **voir** le certificat, même mauvais, et dire
-      // pourquoi il l'est.
+      // Connection to the checked address, SNI on the name. The chain is not required
+      // to be valid: we want to **see** the certificate, even a bad one, and say why
+      // it is.
       const opened = connect({
         host: address,
         port: 443,

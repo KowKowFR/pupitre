@@ -46,35 +46,35 @@ function play(outcomes: MonitorOutcome[], thresholds = THRESHOLDS, from: Monitor
   return { state, transitions };
 }
 
-// ─── machine à états ──────────────────────────────────────────────────────────
+// ─── state machine ────────────────────────────────────────────────────────────
 
-test('une première mesure saine confirme « sain » sans transition', () => {
+test('a first healthy measurement confirms “healthy” without a transition', () => {
   const { state, transitions } = play(['healthy']);
   assert.equal(state.status, 'healthy');
   assert.deepEqual(transitions, []);
 });
 
-test("un échec isolé ne fait pas tomber la sonde ni ouvrir d'incident", () => {
+test("an isolated failure neither brings the probe down nor opens an incident", () => {
   const { state, transitions } = play(['healthy', 'unreachable', 'healthy']);
   assert.equal(state.status, 'healthy');
-  assert.deepEqual(transitions, [], 'un rebond ne doit produire aucune transition');
+  assert.deepEqual(transitions, [], 'a bounce must produce no transition');
 });
 
-test('la sonde tombe au seuil de confirmation, pas au premier échec', () => {
+test('the probe goes down at the confirmation threshold, not at the first failure', () => {
   const first = play(['healthy', 'unreachable']);
-  assert.equal(first.state.status, 'healthy', 'premier échec : toujours saine');
+  assert.equal(first.state.status, 'healthy', 'first failure: still healthy');
   assert.deepEqual(first.transitions, []);
 
   const second = play(['healthy', 'unreachable', 'unreachable']);
-  assert.equal(second.state.status, 'healthy', 'deuxième échec : toujours saine');
+  assert.equal(second.state.status, 'healthy', 'second failure: still healthy');
   assert.deepEqual(second.transitions, []);
 
   const third = play(['healthy', 'unreachable', 'unreachable', 'unreachable']);
   assert.equal(third.state.status, 'unreachable');
-  assert.deepEqual(third.transitions, ['down'], 'la panne est confirmée au troisième');
+  assert.deepEqual(third.transitions, ['down'], 'the outage is confirmed at the third');
 });
 
-test('une seule transition « down » pour une panne qui dure', () => {
+test('a single “down” transition for a lasting outage', () => {
   const { transitions } = play([
     'healthy',
     'unreachable',
@@ -84,12 +84,12 @@ test('une seule transition « down » pour une panne qui dure', () => {
     'unreachable',
     'unreachable',
   ]);
-  assert.deepEqual(transitions, ['down'], 'une panne, une alerte — pas une par mesure');
+  assert.deepEqual(transitions, ['down'], 'one outage, one alert — not one per measurement');
 });
 
-test('le rétablissement demande lui aussi son seuil', () => {
+test('recovery needs its threshold too', () => {
   const one = play(['healthy', 'unreachable', 'unreachable', 'unreachable', 'healthy']);
-  assert.equal(one.state.status, 'unreachable', 'un seul succès ne relève pas la sonde');
+  assert.equal(one.state.status, 'unreachable', 'a single success does not bring the probe back up');
   assert.deepEqual(one.transitions, ['down']);
 
   const two = play(['healthy', 'unreachable', 'unreachable', 'unreachable', 'healthy', 'healthy']);
@@ -97,7 +97,7 @@ test('le rétablissement demande lui aussi son seuil', () => {
   assert.deepEqual(two.transitions, ['down', 'up']);
 });
 
-test('un seuil à 1 fait tomber la sonde dès le premier échec', () => {
+test('a threshold of 1 brings the probe down at the first failure', () => {
   const { state, transitions } = play(['healthy', 'unhealthy'], {
     failureThreshold: 1,
     recoveryThreshold: 1,
@@ -106,7 +106,7 @@ test('un seuil à 1 fait tomber la sonde dès le premier échec', () => {
   assert.deepEqual(transitions, ['down']);
 });
 
-test("la nature de la panne se met à jour sans rouvrir d'incident", () => {
+test("the outage's nature updates without reopening an incident", () => {
   const { state, transitions } = play([
     'healthy',
     'unreachable',
@@ -118,22 +118,22 @@ test("la nature de la panne se met à jour sans rouvrir d'incident", () => {
   assert.deepEqual(transitions, ['down']);
 });
 
-test('depuis unknown, les échecs demandent le seuil complet', () => {
+test('from unknown, failures need the full threshold', () => {
   const { state, transitions } = play(['unreachable', 'unreachable']);
   assert.equal(state.status, 'unknown');
   assert.deepEqual(transitions, []);
 });
 
-test("l'incident suit la panne : ouvert à la chute, refermé au rétablissement", () => {
+test("the incident follows the outage: opened at the fall, closed at the recovery", () => {
   const down = play(['healthy', 'unreachable', 'unreachable', 'unreachable']);
   assert.equal(down.state.incidentOpen, true);
   const up = play(['healthy', 'unreachable', 'unreachable', 'unreachable', 'healthy', 'healthy']);
   assert.equal(up.state.incidentOpen, false);
 });
 
-// ─── changement de cible pendant une panne ────────────────────────────────────
+// ─── target change during an outage ───────────────────────────────────────────
 
-/** Ce que `updateMonitor` laisse quand on change l'URL d'une sonde en panne. */
+/** What `updateMonitor` leaves when the URL of a down probe is changed. */
 const RETARGETED: MonitorState = {
   status: 'unknown',
   consecutiveFailures: 0,
@@ -141,25 +141,25 @@ const RETARGETED: MonitorState = {
   incidentOpen: true,
 };
 
-test('nouvelle cible saine : le rétablissement attend son seuil, puis s’annonce', () => {
+test('new healthy target: the recovery waits for its threshold, then announces itself', () => {
   const one = play(['healthy'], THRESHOLDS, RETARGETED);
-  assert.equal(one.state.status, 'unknown', 'un succès ne referme pas un incident annoncé');
+  assert.equal(one.state.status, 'unknown', 'one success does not close an announced incident');
   assert.deepEqual(one.transitions, []);
 
   const two = play(['healthy', 'healthy'], THRESHOLDS, RETARGETED);
   assert.equal(two.state.status, 'healthy');
   assert.equal(two.state.incidentOpen, false);
-  assert.deepEqual(two.transitions, ['up'], 'le retour à la normale est annoncé');
+  assert.deepEqual(two.transitions, ['up'], 'the return to normal is announced');
 });
 
-test('nouvelle cible en échec : la même panne continue, sans seconde alerte', () => {
+test('new failing target: the same outage goes on, without a second alert', () => {
   const { state, transitions } = play(['unreachable', 'unhealthy'], THRESHOLDS, RETARGETED);
-  assert.equal(state.status, 'unhealthy', "l'état dit la panne dès le premier échec");
+  assert.equal(state.status, 'unhealthy', "the state says the outage from the first failure");
   assert.equal(state.incidentOpen, true);
   assert.deepEqual(transitions, []);
 });
 
-test('après le rétablissement, la panne suivante est de nouveau annoncée', () => {
+test('after the recovery, the next outage is announced again', () => {
   const { transitions } = play(
     ['healthy', 'healthy', 'unreachable', 'unreachable', 'unreachable'],
     THRESHOLDS,
@@ -168,9 +168,9 @@ test('après le rétablissement, la panne suivante est de nouveau annoncée', ()
   assert.deepEqual(transitions, ['up', 'down']);
 });
 
-test('un incident resté ouvert sous un état « sain » se referme au prochain succès', () => {
-  // L'état qu'a laissé l'ancien code : cible changée pendant une panne, puis
-  // une mesure saine — « sain » affiché, incident toujours ouvert.
+test('an incident left open under a “healthy” state closes at the next success', () => {
+  // The state the old code left: target changed during an outage, then a healthy
+  // measurement — "healthy" shown, incident still open.
   const stuck: MonitorState = {
     status: 'healthy',
     consecutiveFailures: 0,
@@ -182,14 +182,14 @@ test('un incident resté ouvert sous un état « sain » se referme au prochain 
   assert.deepEqual(transitions, ['up']);
 });
 
-// ─── taux de disponibilité ────────────────────────────────────────────────────
+// ─── availability rate ────────────────────────────────────────────────────────
 
-test('un taux sans mesure vaut null, jamais 0 %', () => {
+test('a rate without measurements is null, never 0%', () => {
   assert.equal(uptimeRatio(0, 0), null);
   assert.equal(formatUptime({ hours: 24, samples: 0, up: 0, ratio: null }), 'aucune mesure');
 });
 
-test('le taux dit sur combien de mesures il porte', () => {
+test('the rate says how many measurements it covers', () => {
   assert.equal(formatUptime({ hours: 24, samples: 3, up: 3, ratio: 1 }), '100 % sur 3 mesures');
   assert.equal(
     formatUptime({ hours: 24, samples: 1440, up: 1439, ratio: 1439 / 1440 }),
@@ -198,7 +198,7 @@ test('le taux dit sur combien de mesures il porte', () => {
   assert.equal(formatUptime({ hours: 24, samples: 1, up: 1, ratio: 1 }), '100 % sur 1 mesure');
 });
 
-test('le taux est exact sur un historique connu', () => {
+test('the rate is exact on a known history', () => {
   assert.equal(uptimeRatio(9, 10), 0.9);
   assert.equal(
     formatUptime({ hours: 24, samples: 10, up: 9, ratio: 0.9 }),
@@ -206,7 +206,7 @@ test('le taux est exact sur un historique connu', () => {
   );
 });
 
-test('les durées et les cadences se lisent en français', () => {
+test('durations and intervals read in French', () => {
   assert.equal(formatInterval(30), '30 secondes');
   assert.equal(formatInterval(60), '1 minute');
   assert.equal(formatInterval(300), '5 minutes');
@@ -214,9 +214,9 @@ test('les durées et les cadences se lisent en français', () => {
   assert.equal(formatInterval(21600), '6 heures');
   assert.equal(formatInterval(86400), '1 jour');
 
-  // Le français ne se compose pas : « toutes les » devant une minute, « tous
-  // les » devant un jour. Concaténer une durée après un « toutes les » figé
-  // produisait « toutes les heure ».
+  // French does not compose: « toutes les » before a minute, « tous les » before
+  // a day. Concatenating a duration after a frozen « toutes les » produced
+  // « toutes les heure ».
   assert.equal(formatCadence(30), 'toutes les 30 secondes');
   assert.equal(formatCadence(60), 'toutes les minutes');
   assert.equal(formatCadence(300), 'toutes les 5 minutes');
@@ -226,90 +226,90 @@ test('les durées et les cadences se lisent en français', () => {
   assert.equal(formatCadence(2 * 86400), 'tous les 2 jours');
 });
 
-// ─── catalogue : l'abstraction ────────────────────────────────────────────────
+// ─── catalog: the abstraction ─────────────────────────────────────────────────
 
-test('chaque type déclare tout ce dont l\'écran a besoin', () => {
+test('each type declares everything the screen needs', () => {
   for (const type of MONITOR_TYPES_LIST) {
     const definition = monitorTypeDefinition(type);
     assert.equal(definition.type, type);
-    assert.ok(definition.label.length > 0, `${type} : libellé manquant`);
+    assert.ok(definition.label.length > 0, `${type}: label missing`);
     assert.ok(definition.description.length > 0, `${type} : description manquante`);
-    assert.ok(definition.neverDoes.length > 0, `${type} : « ne fait pas » manquant`);
-    assert.ok(definition.fields.length > 0, `${type} : aucun champ de configuration`);
-    assert.ok(definition.metrics.length > 0, `${type} : aucune mesure déclarée`);
-    assert.ok(definition.minIntervalSeconds >= 30, `${type} : cadence minimale absurde`);
+    assert.ok(definition.neverDoes.length > 0, `${type}: “never does” missing`);
+    assert.ok(definition.fields.length > 0, `${type}: no configuration field`);
+    assert.ok(definition.metrics.length > 0, `${type}: no measurement declared`);
+    assert.ok(definition.minIntervalSeconds >= 30, `${type}: absurd minimum interval`);
     assert.ok(
       definition.defaultIntervalSeconds >= definition.minIntervalSeconds,
-      `${type} : la cadence par défaut est sous le minimum`,
+      `${type}: the default interval is under the minimum`,
     );
-    // Les valeurs de départ doivent au moins être de la bonne forme — les
-    // champs obligatoires vides sont attendus, l'écran les fait remplir.
-    assert.ok(definition.defaults !== undefined, `${type} : pas de valeurs de départ`);
+    // The starting values must at least have the right shape — empty required
+    // fields are expected, the screen has them filled in.
+    assert.ok(definition.defaults !== undefined, `${type}: no starting values`);
   }
 });
 
-test('chaque type du catalogue a une sonde enregistrée', () => {
+test('each catalog type has a registered probe', () => {
   for (const type of MONITOR_TYPES_LIST) {
     const probe = getMonitorProbe(type);
-    assert.ok(probe, `${type} : aucune sonde`);
-    assert.equal(probe.type, type, `${type} : la sonde annonce un autre type`);
+    assert.ok(probe, `${type}: no probe`);
+    assert.equal(probe.type, type, `${type}: the probe announces another type`);
   }
 });
 
-test('les champs déclarés existent dans le schéma du type', () => {
+test('the declared fields exist in the type’s schema', () => {
   for (const type of MONITOR_TYPES_LIST) {
     const definition = monitorTypeDefinition(type);
     const defaults = definition.defaults as Record<string, unknown>;
     for (const field of definition.fields) {
-      assert.ok(field.key in defaults, `${type}.${field.key} : absent des valeurs de départ`);
+      assert.ok(field.key in defaults, `${type}.${field.key}: missing from the starting values`);
     }
   }
 });
 
-test('la cadence minimale de TLS est bien plus lente que celle de HTTP', () => {
-  // Un certificat ne change pas à la minute, et chaque mesure est une poignée
-  // de main complète chez quelqu'un d'autre.
+test('TLS’s minimum interval is much slower than HTTP’s', () => {
+  // A certificate does not change by the minute, and each measurement is a full
+  // handshake at someone else's.
   assert.ok(MONITOR_TYPES.tls.minIntervalSeconds > MONITOR_TYPES.http.minIntervalSeconds);
   assert.equal(MONITOR_TYPES.http.minIntervalSeconds, 30);
   assert.equal(MONITOR_TYPES.tls.minIntervalSeconds, 3600);
 });
 
-test('la configuration est validée par le schéma de son type', () => {
+test('the configuration is validated by its type’s schema', () => {
   const good = safeParseMonitorConfig('http', { url: 'https://exemple.fr/' });
   assert.equal(good.ok, true);
 
   const bad = safeParseMonitorConfig('http', { url: 'file:///etc/passwd' });
   assert.equal(bad.ok, false);
 
-  // Une configuration HTTP n'est pas une configuration TLS : le catalogue le
-  // sait, personne d'autre n'a besoin de le savoir.
+  // An HTTP configuration is not a TLS configuration: the catalog knows it,
+  // nobody else needs to.
   const mixed = safeParseMonitorConfig('tls', { url: 'https://exemple.fr/' });
   assert.equal(mixed.ok, false);
 });
 
-test('la cible se décrit sans connaître le type', () => {
+test('the target describes itself without knowing the type', () => {
   assert.equal(describeMonitorTarget('http', { url: 'https://exemple.fr/' }), 'https://exemple.fr/');
   assert.equal(describeMonitorTarget('tls', { host: 'exemple.fr' }), 'exemple.fr');
   assert.equal(describeMonitorTarget('tls', { host: 'exemple.fr', port: 8443 }), 'exemple.fr:8443');
-  assert.equal(describeMonitorTarget('http', { url: 'pas une url' }), '(unreadable configuration)');
+  assert.equal(describeMonitorTarget('http', { url: 'not a url' }), '(unreadable configuration)');
   assert.equal(
-    describeMonitorTarget('http', { url: 'pas une url' }, 'fr'),
+    describeMonitorTarget('http', { url: 'not a url' }, 'fr'),
     '(configuration illisible)',
   );
 });
 
-test('le mot-clé existe aux deux étages, et les deux étages restent distincts', () => {
-  // Le raccourci : une option de la sonde HTTP, sous-chaîne exacte, pour qui
-  // veut juste vérifier un jeton stable sans créer un second type.
+test('the keyword exists at both levels, and both levels stay distinct', () => {
+  // The shortcut: an option of the HTTP probe, exact substring, for whoever just
+  // wants to check a stable token without creating a second type.
   const shortcut = safeParseMonitorConfig('http', {
     url: 'https://exemple.fr/',
     keyword: 'Bienvenue',
   });
   assert.equal(shortcut.ok, true);
 
-  // Le type : présence *et* absence, comparaison tolérante, borne de lecture
-  // réglable. Ce que le champ de la sonde HTTP ne saura jamais faire sans
-  // devenir un catalogue caché dans une option.
+  // The type: presence *and* absence, tolerant comparison, adjustable read cap.
+  // What the HTTP probe's field will never be able to do without becoming a
+  // catalog hidden in an option.
   const full = safeParseMonitorConfig('keyword', {
     url: 'https://exemple.fr/',
     mustContain: 'Se connecter',
@@ -317,38 +317,38 @@ test('le mot-clé existe aux deux étages, et les deux étages restent distincts
   });
   assert.equal(full.ok, true);
 
-  // L'option HTTP ne doit pas disparaître : des sondes la portent en base, et
-  // Zod dépouille les clés inconnues sans rien dire — la retirer ferait
-  // *silencieusement* repasser ces sondes au vert.
+  // The HTTP option must not disappear: probes carry it in the database, and Zod
+  // strips unknown keys without saying anything — removing it would *silently*
+  // turn those probes green again.
   assert.ok('keyword' in (MONITOR_TYPES.http.defaults as Record<string, unknown>));
 });
 
-// ─── politique SSRF ───────────────────────────────────────────────────────────
+// ─── SSRF policy ──────────────────────────────────────────────────────────────
 
-test('les schémas exotiques sont refusés', () => {
+test('exotic schemes are refused', () => {
   assert.equal(checkUrlShape('https://example.com/').allowed, true);
   assert.equal(checkUrlShape('http://example.com/').allowed, true);
   assert.equal(checkUrlShape('file:///etc/passwd').allowed, false);
   assert.equal(checkUrlShape('gopher://example.com/').allowed, false);
   assert.equal(checkUrlShape('ftp://example.com/').allowed, false);
-  assert.equal(checkUrlShape('pas une url').allowed, false);
+  assert.equal(checkUrlShape('not a url').allowed, false);
 });
 
-test('une URL portant des identifiants est refusée', () => {
+test('a URL carrying credentials is refused', () => {
   assert.equal(checkUrlShape('https://admin:secret@example.com/').allowed, false);
 });
 
-test('localhost est refusé par son nom, pas seulement par son adresse', () => {
+test('localhost is refused by its name, not only by its address', () => {
   assert.equal(checkUrlShape('http://localhost:3000/').allowed, false);
   assert.equal(checkUrlShape('http://app.localhost/').allowed, false);
 });
 
-test('classification des adresses', () => {
+test('address classification', () => {
   assert.equal(classifyAddress('93.184.216.34'), 'public');
   assert.equal(classifyAddress('127.0.0.1'), 'loopback');
   assert.equal(classifyAddress('10.1.2.3'), 'private');
   assert.equal(classifyAddress('172.16.0.1'), 'private');
-  assert.equal(classifyAddress('172.32.0.1'), 'public', '172.32 est hors du /12');
+  assert.equal(classifyAddress('172.32.0.1'), 'public', '172.32 is outside the /12');
   assert.equal(classifyAddress('192.168.1.1'), 'private');
   assert.equal(classifyAddress('169.254.169.254'), 'link-local');
   assert.equal(classifyAddress('100.64.0.1'), 'cgnat');
@@ -359,21 +359,21 @@ test('classification des adresses', () => {
   assert.equal(classifyAddress('2606:4700:4700::1111'), 'public');
 });
 
-test('les formes encapsulées ne contournent pas le contrôle', () => {
+test('wrapped forms do not bypass the check', () => {
   assert.equal(classifyAddress('::ffff:127.0.0.1'), 'loopback');
   assert.equal(classifyAddress('::ffff:169.254.169.254'), 'link-local');
   assert.equal(classifyAddress('::ffff:10.0.0.1'), 'private');
 });
 
-test('les octets décoratifs ne sont pas des adresses', () => {
-  // `0177.0.0.1` est 127.0.0.1 en octal : on refuse de le lire plutôt que de le
-  // lire de travers.
+test('decorative octets are not addresses', () => {
+  // `0177.0.0.1` is 127.0.0.1 in octal: we refuse to read it rather than read it
+  // wrong.
   assert.equal(classifyAddress('0177.0.0.1'), null);
   assert.equal(classifyAddress('010.0.0.1'), null);
   assert.equal(classifyAddress('2130706433'), null);
 });
 
-test("sans liste d'autorisation, tout ce qui n'est pas public est refusé", () => {
+test("without an allow list, everything that is not public is refused", () => {
   const none = parseCidrList(undefined);
   assert.equal(checkAddress('93.184.216.34', none).allowed, true);
   assert.equal(checkAddress('127.0.0.1', none).allowed, false);
@@ -382,38 +382,38 @@ test("sans liste d'autorisation, tout ce qui n'est pas public est refusé", () =
   assert.equal(checkAddress('169.254.169.254', none).allowed, false);
 });
 
-test("la liste d'autorisation ouvre exactement la plage demandée", () => {
+test("the allow list opens exactly the requested range", () => {
   const allow = parseCidrList('10.0.0.0/8, 192.168.1.0/24');
   assert.equal(checkAddress('10.9.9.9', allow).allowed, true);
   assert.equal(checkAddress('192.168.1.20', allow).allowed, true);
-  assert.equal(checkAddress('192.168.2.20', allow).allowed, false, 'hors du /24');
-  assert.equal(checkAddress('172.16.0.1', allow).allowed, false, 'plage non listée');
-  assert.equal(checkAddress('127.0.0.1', allow).allowed, false, 'bouclage non listé');
+  assert.equal(checkAddress('192.168.2.20', allow).allowed, false, 'outside the /24');
+  assert.equal(checkAddress('172.16.0.1', allow).allowed, false, 'range not listed');
+  assert.equal(checkAddress('127.0.0.1', allow).allowed, false, 'loopback not listed');
 });
 
-test('le lien-local reste refusé même listé explicitement', () => {
+test('link-local stays refused even when listed explicitly', () => {
   const allow = parseCidrList('169.254.0.0/16,0.0.0.0/0');
   const verdict = checkAddress('169.254.169.254', allow);
   assert.equal(verdict.allowed, false);
   assert.match(verdict.allowed ? '' : verdict.reason, /aucune liste/);
 });
 
-test('un CIDR illisible est ignoré, pas fatal', () => {
-  assert.equal(parseCidrList('pas-un-cidr, 10.0.0.0/8').length, 1);
+test('an unreadable CIDR is ignored, not fatal', () => {
+  assert.equal(parseCidrList('not-a-cidr, 10.0.0.0/8').length, 1);
   assert.equal(parseCidrList('10.0.0.0/99').length, 0);
 });
 
-test('la politique SSRF vaut pour tous les types, pas seulement HTTP', () => {
-  // La sonde TLS ne prend pas d'URL mais un hôte : le contrôle doit quand même
-  // s'appliquer, sinon le type suivant rouvre le trou.
+test('the SSRF policy holds for every type, not only HTTP', () => {
+  // The TLS probe takes not a URL but a host: the check must still apply,
+  // otherwise the next type reopens the hole.
   assert.equal(safeParseMonitorConfig('tls', { host: 'localhost' }).ok, false);
   assert.equal(safeParseMonitorConfig('tls', { host: 'https://exemple.fr' }).ok, false);
   assert.equal(safeParseMonitorConfig('tls', { host: 'exemple.fr' }).ok, true);
 });
 
-// ─── charge utile d'alerte ────────────────────────────────────────────────────
+// ─── alert payload ────────────────────────────────────────────────────────────
 
-test('l\'alerte porte text et content, pour Slack comme pour Discord', () => {
+test('the alert carries text and content, for Slack as for Discord', () => {
   const alert = buildMonitorAlert({
     event: 'monitor.down',
     monitor: { id: 'm1', name: 'Site', type: 'http', target: 'https://example.com/' },
@@ -429,7 +429,7 @@ test('l\'alerte porte text et content, pour Slack comme pour Discord', () => {
   assert.equal(alert.incident.durationSeconds, null);
 });
 
-test("l'alerte de rétablissement porte la durée de la panne", () => {
+test("the recovery alert carries the outage's duration", () => {
   const alert = buildMonitorAlert({
     event: 'monitor.up',
     monitor: { id: 'm1', name: 'Site', type: 'tls', target: 'example.com' },

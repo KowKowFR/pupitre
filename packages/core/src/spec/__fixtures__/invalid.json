@@ -1,5 +1,5 @@
 {
-  "_comment": "Cumule volontairement six violations, une par refinement.",
+  "_comment": "Deliberately piles up six violations, one per refinement.",
   "name": "Boutique_Invalide",
   "version": "2.3",
   "services": [
@@ -22,12 +22,12 @@
       "source": { "type": "image", "ref": "node:24-alpine" },
       "port": 8080,
       "exposed": false,
-      "dependsOn": ["worker-fantome"]
+      "dependsOn": ["ghost-worker"]
     }
   ],
   "ingress": {
     "host": "boutique.example.com",
     "tls": true,
-    "targetService": "service-qui-nexiste-pas"
+    "targetService": "service-that-does-not-exist"
   }
 }

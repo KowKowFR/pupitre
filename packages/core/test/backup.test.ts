@@ -31,9 +31,9 @@ import {
 } from '../src/index.js';
 
 /**
- * Les sauvegardes : le format chiffré, la signature S3, le plan, la rétention,
- * une destination. Les transferts réels — MinIO, SFTP, volumes Docker et K3s —
- * se vérifient à part, contre de vraies machines.
+ * Backups: the encrypted format, the S3 signature, the plan, retention, a
+ * destination. The real transfers — MinIO, SFTP, Docker and K3s volumes — are
+ * checked separately, against real machines.
  */
 
 const KEY = 'a'.repeat(64);
@@ -53,26 +53,26 @@ function chunked(data: Buffer, size: number): Readable {
 }
 
 describe('format .pupb', () => {
-  it('chiffre et déchiffre en flux, quel que soit le découpage', async () => {
+  it('encrypts and decrypts as a stream, whatever the chunking', async () => {
     const plain = Buffer.alloc(300_000);
     for (let index = 0; index < plain.length; index += 1) plain[index] = (index * 31) % 251;
     const sealed = await collect(chunked(plain, 7_777).pipe(createEncryptStream(KEY)));
     assert.equal(sealed.subarray(0, 4).toString(), 'PUPB');
     assert.equal(sealed.length, plain.length + BACKUP_HEADER_BYTES + 16);
-    // Découpage hostile : morceaux plus petits que l'en-tête et que l'étiquette.
+    // Hostile chunking: pieces smaller than the header and than the tag.
     const back = await collect(chunked(sealed, 5).pipe(createDecryptStream(KEY)));
     assert.ok(back.equals(plain));
   });
 
-  it('deux chiffrements du même contenu ne se ressemblent pas', async () => {
-    const a = await encryptBuffer(Buffer.from('même contenu'), KEY);
-    const b = await encryptBuffer(Buffer.from('même contenu'), KEY);
+  it('two encryptions of the same content do not look alike', async () => {
+    const a = await encryptBuffer(Buffer.from('same content'), KEY);
+    const b = await encryptBuffer(Buffer.from('same content'), KEY);
     assert.notDeepEqual(a, b);
-    assert.equal((await decryptBuffer(a, KEY)).toString(), 'même contenu');
+    assert.equal((await decryptBuffer(a, KEY)).toString(), 'same content');
   });
 
-  it('refuse un fichier altéré, tronqué, ou chiffré sous une autre clé', async () => {
-    const sealed = await encryptBuffer(Buffer.from('données importantes'), KEY);
+  it('refuses a file tampered with, truncated, or encrypted under another key', async () => {
+    const sealed = await encryptBuffer(Buffer.from('important data'), KEY);
     const tampered = Buffer.from(sealed);
     tampered[BACKUP_HEADER_BYTES + 2] = (tampered[BACKUP_HEADER_BYTES + 2] ?? 0) ^ 1;
     await assert.rejects(decryptBuffer(tampered, KEY), BackupFormatError);
@@ -81,29 +81,26 @@ describe('format .pupb', () => {
       BackupFormatError,
     );
     await assert.rejects(decryptBuffer(sealed, OTHER_KEY), BackupFormatError);
-    // L'en-tête est authentifié lui aussi : changer le sel, c'est changer la clé.
+    // The header is authenticated too: changing the salt is changing the key.
     const header = Buffer.from(sealed);
     header[6] = (header[6] ?? 0) ^ 1;
     await assert.rejects(decryptBuffer(header, KEY), BackupFormatError);
-    await assert.rejects(
-      decryptBuffer(Buffer.from('pas une sauvegarde du tout'), KEY),
-      BackupFormatError,
-    );
+    await assert.rejects(decryptBuffer(Buffer.from('not a backup at all'), KEY), BackupFormatError);
   });
 
-  it('chiffre aussi un contenu vide', async () => {
+  it('also encrypts an empty content', async () => {
     const sealed = await encryptBuffer(Buffer.alloc(0), KEY);
     assert.equal((await decryptBuffer(sealed, KEY)).length, 0);
   });
 });
 
-describe('signature S3 (SigV4)', () => {
-  // La clé d'exemple de la documentation d'AWS, publique. Écrite en deux
-  // morceaux : d'un seul tenant, elle a la forme exacte d'une vraie clé, et la
-  // garde « aucun secret dans le dépôt » de la CI la refuserait — à raison.
+describe('S3 signature (SigV4)', () => {
+  // The example key from AWS's documentation, public. Written in two pieces: in
+  // one piece, it has the exact shape of a real key, and the CI's "no secret in
+  // the repository" guard would refuse it — rightly.
   const EXAMPLE_KEY_ID = ['AKIA', 'IOSFODNN7EXAMPLE'].join('');
 
-  it('reproduit le vecteur officiel d’AWS (GET Object)', () => {
+  it('reproduces AWS’s official vector (GET Object)', () => {
     // docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-header-based-auth.html
     const headers = signV4({
       method: 'GET',
@@ -147,8 +144,8 @@ const spec = parseAppSpec({
   ],
 });
 
-describe('le plan', () => {
-  it('reconnaît les bases dont il sait l’outil — et pas les autres', () => {
+describe('the plan', () => {
+  it('recognizes the databases whose tool it knows — and not the others', () => {
     assert.equal(databaseEngineOf('postgres:16-alpine'), 'postgres');
     assert.equal(databaseEngineOf('docker.io/library/postgres:15'), 'postgres');
     assert.equal(databaseEngineOf('postgis/postgis:16-3.4'), 'postgres');
@@ -160,14 +157,14 @@ describe('le plan', () => {
     assert.equal(databaseEngineOf('redis:7'), null);
   });
 
-  it('à chaud : export de la base, archive des autres volumes', () => {
+  it('hot: export of the database, archive of the other volumes', () => {
     assert.deepEqual(planBackup(spec, 'hot'), [
       { kind: 'dump', service: 'db', engine: 'postgres' },
       { kind: 'volume', service: 'web', volume: 'content', mountPath: '/var/lib/ghost/content' },
     ]);
   });
 
-  it('à l’arrêt : tous les volumes, aucun export', () => {
+  it('stopped: every volume, no export', () => {
     assert.deepEqual(planBackup(spec, 'stop'), [
       { kind: 'volume', service: 'db', volume: 'data', mountPath: '/var/lib/postgresql/data' },
       { kind: 'volume', service: 'web', volume: 'content', mountPath: '/var/lib/ghost/content' },
@@ -176,7 +173,7 @@ describe('le plan', () => {
     assert.equal(hasBackupData(spec), true);
   });
 
-  it('nomme fichiers et dossiers sans ambiguïté', () => {
+  it('names files and folders unambiguously', () => {
     assert.equal(
       pieceFile({ kind: 'volume', service: 'web', volume: 'content', mountPath: '/x' }),
       'volume-web-content.tar.gz.pupb',
@@ -196,7 +193,7 @@ describe('le plan', () => {
     );
   });
 
-  it('lit les identifiants dans l’environnement du conteneur, jamais en clair', () => {
+  it('reads the credentials from the container’s environment, never in clear', () => {
     for (const engine of ['postgres', 'mysql', 'mongo'] as const) {
       assert.doesNotMatch(dumpCommand(engine), /password\s*=\s*['"][^$]/i);
       assert.ok(restoreCommand(engine).length > 0);
@@ -208,10 +205,10 @@ describe('le plan', () => {
   });
 });
 
-describe('rétention', () => {
+describe('retention', () => {
   const at = (iso: string) => new Date(iso);
   const backups = [
-    // Trois le même jour : la plus récente du jour seule compte pour « jour ».
+    // Three on the same day: only the most recent of the day counts for "day".
     { id: 'a', createdAt: at('2026-10-01T03:00:00Z') },
     { id: 'b', createdAt: at('2026-10-01T10:00:00Z') },
     { id: 'c', createdAt: at('2026-10-01T15:00:00Z') },
@@ -222,24 +219,24 @@ describe('rétention', () => {
     { id: 'old', createdAt: at('2025-01-15T03:00:00Z') },
   ];
 
-  it('garde les plus récentes, puis une par jour, semaine, mois', () => {
+  it('keeps the most recent, then one per day, week, month', () => {
     const expired = new Set(expiredBackups(backups, DEFAULT_BACKUP_RETENTION).map((b) => b.id));
-    // Les trois du jour : `keepLast` = 3.
+    // The three of the day: `keepLast` = 3.
     for (const id of ['a', 'b', 'c']) assert.ok(!expired.has(id), id);
-    // Les six jours précédents complètent les sept quotidiennes.
+    // The six previous days complete the seven dailies.
     for (let index = 0; index < 6; index += 1) assert.ok(!expired.has(`d${index}`), `d${index}`);
-    // Au-delà, seules survivent les plus récentes de leur semaine ou de leur mois.
+    // Beyond that, only the most recent of their week or month survive.
     assert.ok(expired.has('d6') || expired.has('d7'));
     assert.ok(!expired.has('old') || DEFAULT_BACKUP_RETENTION.monthly < 7);
     assert.ok(expired.size > 0);
   });
 
-  it('ne rend rien tant qu’il y a de la place', () => {
+  it('returns nothing as long as there is room', () => {
     assert.deepEqual(expiredBackups(backups.slice(0, 3), DEFAULT_BACKUP_RETENTION), []);
     assert.deepEqual(expiredBackups([], DEFAULT_BACKUP_RETENTION), []);
   });
 
-  it('keepLast seul : les N plus récentes, et rien d’autre', () => {
+  it('keepLast alone: the N most recent, and nothing else', () => {
     const expired = expiredBackups(backups, { keepLast: 2, daily: 0, weekly: 0, monthly: 0 });
     assert.equal(expired.length, backups.length - 2);
     assert.ok(!expired.some((backup) => backup.id === 'c' || backup.id === 'b'));
@@ -247,7 +244,7 @@ describe('rétention', () => {
 });
 
 describe('destinations', () => {
-  it('valide réglages et secrets selon le genre', () => {
+  it('validates settings and secrets according to the kind', () => {
     const s3 = parseBackupDestination(
       's3',
       {
@@ -285,8 +282,8 @@ describe('destinations', () => {
   });
 });
 
-describe('destination « dossier monté »', () => {
-  it('dépose, liste, relit et efface — sans jamais sortir du dossier', async () => {
+describe('“mounted folder” destination', () => {
+  it('places, lists, reads back and deletes — without ever leaving the folder', async () => {
     const root = await mkdtemp(join(tmpdir(), 'pupitre-store-'));
     try {
       const store = new LocalBackupStore({ path: root });

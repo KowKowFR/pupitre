@@ -15,14 +15,14 @@ export const dynamic = 'force-dynamic';
 const paramsSchema = z.object({ id: z.string().uuid() });
 type Context = { params: Promise<{ id: string }> };
 
-/** Les registres publics comptent les requêtes : pas de rafale depuis un bouton. */
+/** Public registries count requests: no burst from a button. */
 const CHECK_RULE: RateLimitRule = { name: 'images:check', limit: 6, windowSec: 60 };
 
 /**
- * « Vérifier maintenant » : la même tâche que la vérification planifiée,
- * restreinte à cette application. Par la file — une vérification ouvre une
- * session SSH par cible et interroge des registres. Le résultat revient par le
- * signal temps réel `applications`, qui rafraîchit la fiche.
+ * "Check now": the same job as the scheduled check, restricted to this
+ * application. Through the queue — a check opens an SSH session per target and
+ * queries registries. The result comes back through the `applications` real-time
+ * signal, which refreshes the record.
  */
 export const POST = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'application:read');
@@ -37,7 +37,7 @@ export const POST = apiRoute<Context>(async (request, context) => {
     actorId: auth.userId,
     ip: auth.ip,
   });
-  // Un identifiant par application : deux clics rapprochés ne font qu'une tâche.
+  // One identifier per application: two clicks close together make only one job.
   const job = await getSupervisionQueue().add(IMAGE_CHECK_JOB, data, {
     jobId: `images-check-${id}-${Math.floor(Date.now() / 10_000)}`,
     attempts: 1,

@@ -28,62 +28,59 @@ import {
 } from "./ssrf.js";
 
 /**
- * Catalogue des types de sonde.
+ * Catalog of probe types.
  *
- * ── La forme, et pourquoi celle-là ──────────────────────────────────────────
- * Superviser un site, ce n'est pas une chose mais six : disponibilité HTTP,
- * mot-clé dans la page, certificat TLS, enregistrements DNS, expiration de
- * domaine, empreinte de contenu. Ce ne sont pas six fonctionnalités — c'est
- * **une abstraction et six implémentations**, exactement la forme de `Scanner`
- * et de `DeploymentDriver`.
+ * ── The shape, and why this one ─────────────────────────────────────────────
+ * Monitoring a site is not one thing but six: HTTP availability, a keyword in
+ * the page, TLS certificate, DNS records, domain expiry, content fingerprint.
+ * They are not six features — they are **one abstraction and six
+ * implementations**, exactly the shape of `Scanner` and `DeploymentDriver`.
  *
- * D'où ce catalogue, sur le motif de `ai/catalog.ts` : une table de **données**
- * qui décrit, pour chaque type, son schéma de configuration, les champs que
- * l'écran doit afficher, les mesures qu'il rend, et sa cadence minimale. L'UI
- * se construit à partir de cette table ; il n'existe nulle part de
- * `if (type === 'http')`.
+ * Hence this catalog, on the `ai/catalog.ts` pattern: a table of **data** that
+ * describes, for each type, its configuration schema, the fields the screen
+ * must show, the measurements it returns, and its minimum interval. The UI is
+ * built from this table; there is no `if (type === 'http')` anywhere.
  *
- * La configuration propre à un type vit dans une colonne **JSONB** validée par
- * le schéma Zod du type — pas dans des colonnes dédiées à HTTP. La table
- * `monitors` ne porte que le commun : le type, la cadence, l'état, les seuils
- * de confirmation, le rattachement éventuel à une application.
+ * A type's own configuration lives in a **JSONB** column validated by the
+ * type's Zod schema — not in columns dedicated to HTTP. The `monitors` table
+ * only carries what is common: the type, the interval, the state, the
+ * confirmation thresholds, the optional link to an application.
  *
- * ── Deux conséquences, traitées ici ─────────────────────────────────────────
+ * ── Two consequences, handled here ──────────────────────────────────────────
  *
- * 1. **La cadence dépend du type.** Une sonde HTTP à la minute est
- *    raisonnable ; interroger l'expiration d'un domaine toutes les minutes ne
- *    l'est pas — un domaine n'expire pas entre deux minutes, et ça harcèlerait
- *    les registres pour rien. Chaque type porte donc son `minIntervalSeconds`,
- *    et la validation le fait respecter.
+ * 1. **The interval depends on the type.** An HTTP probe every minute is
+ *    reasonable; querying a domain's expiry every minute is not — a domain does
+ *    not expire between two minutes, and it would harass the registries for
+ *    nothing. Each type therefore carries its `minIntervalSeconds`, and
+ *    validation enforces it.
  *
- * 2. **Les mesures dépendent du type.** Une sonde HTTP rend une latence et un
- *    code ; une sonde TLS rend des jours restants et un émetteur. Rien n'est
- *    forcé dans des colonnes HTTP : le résultat porte un espace de mesures
- *    structuré (`metrics`), et le catalogue dit à l'écran comment l'afficher.
+ * 2. **The measurements depend on the type.** An HTTP probe returns a latency
+ *    and a code; a TLS probe returns days left and an issuer. Nothing is forced
+ *    into HTTP columns: the result carries a structured measurement space
+ *    (`metrics`), and the catalog tells the screen how to show it.
  *
- * ── Ajouter un type ─────────────────────────────────────────────────────────
- * Une entrée ici, une implémentation sous `@pupitre/core/probe`, une ligne dans le
- * registre des sondes. Ni la table, ni le runner, ni les routes, ni l'écran ne
- * changent. `monitors.type` est volontairement du `text` et non un enum
- * Postgres : un enum ajouterait une migration à cette liste, et c'est
- * précisément la chirurgie qu'on veut éviter. Le vocabulaire reste fermé — il
- * est ici, et Zod le fait respecter à chaque entrée.
+ * ── Adding a type ───────────────────────────────────────────────────────────
+ * An entry here, an implementation under `@pupitre/core/probe`, a line in the
+ * probe registry. Neither the table, nor the runner, nor the routes, nor the
+ * screen change. `monitors.type` is deliberately `text` and not a Postgres
+ * enum: an enum would add a migration to this list, and that is precisely the
+ * surgery we want to avoid. The vocabulary stays closed — it is here, and Zod
+ * enforces it on every input.
  *
- * ── L'empreinte de contenu, et pourquoi elle n'est pas là ───────────────────
- * Des six types annoncés plus haut, quatre sont écrits. Le sixième — alerter
- * quand une page **change** — n'est pas une variante du mot-clé, malgré la
- * ressemblance : une assertion de mot-clé est *sans mémoire* (une config, une
- * réponse, un verdict), tandis qu'une empreinte n'a de sens que comparée à la
- * précédente. Or `MonitorProbe.run(config, ctx)` ne reçoit pas l'état
- * antérieur, et c'est volontaire : c'est ce qui rend une sonde rejouable et
- * testable sans base.
+ * ── The content fingerprint, and why it is not here ─────────────────────────
+ * Of the six types announced above, four are written. The sixth — alerting
+ * when a page **changes** — is not a variant of the keyword, despite the
+ * resemblance: a keyword assertion is *memoryless* (a config, a response, a
+ * verdict), whereas a fingerprint only makes sense compared with the previous
+ * one. But `MonitorProbe.run(config, ctx)` does not receive the previous state,
+ * deliberately: it is what makes a probe replayable and testable without a
+ * database.
  *
- * Le livrer « à moitié » aurait deux formes, toutes deux mauvaises : épingler
- * une empreinte dans la configuration, ce que personne ne sait remplir à la
- * main ; ou publier une empreinte comme simple mesure, qui scintillerait à
- * chaque jeton CSRF et n'alerterait de rien. Le faire correctement demande
- * d'élargir le contrat des sondes — une décision qui se prend, pas un effet de
- * bord d'un autre type.
+ * Shipping it "halfway" would take two shapes, both bad: pinning a fingerprint
+ * in the configuration, which nobody can fill in by hand; or publishing a
+ * fingerprint as a mere measurement, which would flicker with every CSRF token
+ * and alert on nothing. Doing it properly requires widening the probes'
+ * contract — a decision to make, not a side effect of another type.
  */
 
 export const MONITOR_TYPES_LIST = [
@@ -97,28 +94,28 @@ export const MONITOR_TYPES_LIST = [
 export const monitorTypeSchema = z.enum(MONITOR_TYPES_LIST);
 export type MonitorType = z.infer<typeof monitorTypeSchema>;
 
-// ─── description des champs, pour que l'écran se construise tout seul ─────────
+// ─── field descriptions, so the screen builds itself ──────────────────────────
 
 export type ConfigFieldBase = {
   key: string;
   label: string;
   hint?: string;
-  /** Un champ optionnel peut être laissé vide ; sa valeur est alors `null`. */
+  /** An optional field can be left empty; its value is then `null`. */
   optional?: boolean;
-  /** Champ de réglage fin, replié derrière « Options avancées ». */
+  /** A fine-tuning field, folded behind "Advanced options". */
   advanced?: boolean;
 };
 
 /**
- * `url` et `host` ne sont pas des habillages de saisie : ils **déclarent que le
- * worker ouvrira une socket vers cette valeur**. C'est ce marquage, et lui seul,
- * qui déclenche le contrôle d'adresse SSRF (`checkMonitorTargetLiterals`), sans
- * que personne n'ait à tenir une liste de « quels champs sont des cibles ».
+ * `url` and `host` are not input decoration: they **declare that the worker
+ * will open a socket to this value**. It is this marking, and it alone, that
+ * triggers the SSRF address check (`checkMonitorTargetLiterals`), without
+ * anybody having to keep a list of "which fields are targets".
  *
- * Corollaire, et il compte pour la sonde DNS : le nom qu'on **interroge** n'est
- * pas une cible de connexion — on ne s'y connecte jamais, on pose une question à
- * son sujet. Il se déclare donc en `text`, et c'est le **résolveur** qui porte
- * le `host`, parce que c'est lui, et lui seul, qu'on joint par le réseau.
+ * A corollary, and it matters for the DNS probe: the name we **query** is not a
+ * connection target — we never connect to it, we ask a question about it. It is
+ * therefore declared as `text`, and it is the **resolver** that carries the
+ * `host`, because it is the one, and the only one, reached over the network.
  */
 export type ConfigField = ConfigFieldBase &
   (
@@ -132,60 +129,57 @@ export type ConfigField = ConfigFieldBase &
       }
   );
 
-/** Comment afficher une mesure. L'écran ne connaît que ces formes. */
+/** How to show a measurement. The screen only knows these shapes. */
 export type MetricDescriptor = {
   key: string;
   label: string;
   kind: "duration-ms" | "days" | "number" | "text" | "http-status";
-  /** Mise en avant dans la liste, à côté de l'état. */
+  /** Highlighted in the list, next to the state. */
   primary?: boolean;
 };
 
 export type MonitorTypeDefinition<Config> = {
   type: MonitorType;
   label: string;
-  /** Ce que ce type constate, en une phrase. */
+  /** What this type observes, in one sentence. */
   description: string;
-  /** Ce qu'il **ne** constate **pas** — affiché dans l'écran, à dessein. */
+  /** What it does **not** observe — shown on screen, on purpose. */
   neverDoes: string;
   schema: z.ZodType<Config>;
   fields: readonly ConfigField[];
   metrics: readonly MetricDescriptor[];
   /**
-   * Cadence minimale, en secondes. Par type parce que c'est une propriété du
-   * type : ce qu'il coûte à l'autre bout, et la vitesse à laquelle ce qu'il
-   * observe peut changer.
+   * Minimum interval, in seconds. Per type because it is a property of the type:
+   * what it costs at the other end, and how fast what it observes can change.
    */
   minIntervalSeconds: number;
   defaultIntervalSeconds: number;
-  /** Valeurs de départ du formulaire. */
+  /** Starting values of the form. */
   defaults: Config;
-  /** La cible, en une ligne, pour une liste. */
+  /** The target, in one line, for a list. */
   describeTarget: (config: Config) => string;
-  /** Lien cliquable vers la cible, quand ça a un sens. */
+  /** Clickable link to the target, when it makes sense. */
   linkFor: (config: Config) => string | null;
-  /** Comment le taux de disponibilité de ce type se lit. */
+  /** How this type's availability rate reads. */
   uptimeMeans: string;
 };
 
-// ─── les mots du catalogue ────────────────────────────────────────────────────
+// ─── the catalog's words ──────────────────────────────────────────────────────
 
 /**
- * Tout ce que le catalogue **affiche**, et rien d'autre.
+ * Everything the catalog **displays**, and nothing else.
  *
- * Les clés d'énumération (`http`, `lenient`, `A`), les schémas Zod, les bornes
- * et les valeurs de départ restent en dessous : ce sont des données, elles
- * n'ont pas de langue. Ce qui apparaît à l'écran — le nom d'un type, le libellé
- * d'un champ, l'aide de saisie, le nom d'une mesure — est ici, une fois, et le
- * compilateur refuse une traduction incomplète.
+ * Enumeration keys (`http`, `lenient`, `A`), Zod schemas, bounds and starting
+ * values stay below: they are data, they have no language. What appears on
+ * screen — a type's name, a field's label, input help, a measurement's name —
+ * is here, once, and the compiler refuses an incomplete translation.
  *
- * Les libellés partagés par plusieurs types (« Hôte », « Code attendu »,
- * « Temps de réponse ») ne sont écrits qu'une fois, sous un préfixe neutre :
- * deux types qui affichent le même mot ne doivent pas pouvoir en donner deux
- * traductions différentes.
+ * Labels shared by several types ("Host", "Expected code", "Response time") are
+ * only written once, under a neutral prefix: two types that show the same word
+ * must not be able to give it two different translations.
  */
 const fr = {
-  // ── Libellés partagés ───────────────────────────────────────────────────
+  // ── Shared labels ───────────────────────────────────────────────────────
   "field.url.label": "URL",
   "field.host.label": "Hôte",
   "field.port.label": "Port",
@@ -204,7 +198,7 @@ const fr = {
   "metric.certValidTo": "Certificat valable jusqu'au",
   "unit.days": "jours",
   "unit.kib": "kio",
-  /** Rendu quand la configuration ne se relit pas — voir `describeMonitorTarget`. */
+  /** Rendered when the configuration cannot be read — see `describeMonitorTarget`. */
   "target.unreadable": "(configuration illisible)",
 
   // ── http ────────────────────────────────────────────────────────────────
@@ -591,8 +585,8 @@ export const httpConfigSchema = z.object({
   method: httpMethodSchema.default("GET"),
   expectedStatus: z.number().int().min(100).max(599).default(200),
   /**
-   * Mot-clé à trouver dans le corps. Option de la sonde HTTP, et non type à
-   * part : c'est la même requête, on regarde simplement une chose de plus.
+   * Keyword to find in the body. An option of the HTTP probe, and not a separate
+   * type: it is the same request, we simply look at one more thing.
    */
   keyword: z.string().trim().min(1).max(200).nullable().default(null),
   timeoutMs: z.number().int().min(1_000).max(30_000).default(10_000),
@@ -666,9 +660,8 @@ const httpDefinition = (t: CatalogTranslate): MonitorTypeDefinition<HttpConfig> 
     { key: "certDaysRemaining", label: t("metric.certDaysRemaining"), kind: "days" },
     { key: "certValidTo", label: t("metric.certValidTo"), kind: "text" },
   ],
-  // Trente secondes : en dessous, une sonde coûte plus au worker qu'elle ne
-  // rapporte, et la série temporelle double pour détecter une panne trois
-  // secondes plus tôt.
+  // Thirty seconds: below that, a probe costs the worker more than it brings,
+  // and the time series doubles to detect an outage three seconds earlier.
   minIntervalSeconds: 30,
   defaultIntervalSeconds: 60,
   defaults: {
@@ -686,19 +679,19 @@ const httpDefinition = (t: CatalogTranslate): MonitorTypeDefinition<HttpConfig> 
 // ─── keyword ──────────────────────────────────────────────────────────────────
 
 /**
- * Comment on compare. Deux intentions nommées plutôt que trois interrupteurs
- * orthogonaux (casse, accents, espaces) que personne ne combine correctement.
+ * How we compare. Two named intentions rather than three orthogonal switches
+ * (case, accents, spaces) that nobody combines correctly.
  */
 export const KEYWORD_MATCHINGS = ["lenient", "strict"] as const;
 export const keywordMatchingSchema = z.enum(KEYWORD_MATCHINGS);
 export type KeywordMatching = z.infer<typeof keywordMatchingSchema>;
 
-/** Sur quoi on cherche : la réponse telle quelle, ou une approximation du texte. */
+/** What we search in: the response as is, or an approximation of the text. */
 export const KEYWORD_SCOPES = ["raw", "text"] as const;
 export const keywordScopeSchema = z.enum(KEYWORD_SCOPES);
 export type KeywordScope = z.infer<typeof keywordScopeSchema>;
 
-/** Plafond de lecture, en kio. Voir `maxKib` pour le raisonnement. */
+/** Read cap, in KiB. See `maxKib` for the reasoning. */
 export const KEYWORD_MIN_KIB = 16;
 export const KEYWORD_MAX_KIB = 2048;
 
@@ -706,18 +699,16 @@ export const keywordConfigSchema = z
   .object({
     url: monitorUrlSchema,
     /**
-     * **Présence et absence, les deux.** Ce sont deux besoins réels et opposés :
-     * « la page de connexion doit dire *Se connecter* » prouve que
-     * l'application rend ; « elle ne doit pas dire *Erreur 500* » attrape la
-     * page d'erreur applicative qui répond fièrement 200. Refuser l'un des deux
-     * obligerait à sonder deux fois la même page pour deux moitiés de la même
-     * question.
+     * **Presence and absence, both.** They are two real and opposite needs: "the
+     * sign-in page must say *Sign in*" proves the application renders; "it must not
+     * say *Error 500*" catches the application error page that proudly answers 200.
+     * Refusing one of the two would force probing the same page twice for two
+     * halves of the same question.
      *
-     * Un mot-clé par champ, et non une liste. Cinq mots-clés dans une sonde ne
-     * donnent qu'un seul voyant rouge ; cinq sondes disent lequel a lâché. Le
-     * jour où la liste s'impose, elle demandera une forme de champ que l'écran
-     * ne sait pas encore rendre — c'est-à-dire une modification d'écran, donc
-     * une décision, pas un effet de bord.
+     * One keyword per field, not a list. Five keywords in one probe give a single
+     * red light; five probes say which one failed. The day a list is needed, it will
+     * require a field shape the screen cannot render yet — that is, a screen change,
+     * hence a decision, not a side effect.
      */
     mustContain: z.string().trim().min(1).max(200).nullable().default(null),
     mustNotContain: z.string().trim().min(1).max(200).nullable().default(null),
@@ -725,14 +716,14 @@ export const keywordConfigSchema = z
     scope: keywordScopeSchema.default("raw"),
     expectedStatus: z.number().int().min(100).max(599).default(200),
     /**
-     * Ce qu'on accepte de télécharger pour y chercher un mot.
+     * What we accept to download to look for a word in it.
      *
-     * Les deux bornes sont des vrais problèmes : tirer 40 Mo toutes les minutes
-     * pour un mot est une charge absurde ; s'arrêter à 64 kio rate un pied de
-     * page. 512 kio par défaut couvre très largement une page HTML servie
-     * proprement, et la sonde **dit** quand elle a coupé — un mot-clé « absent »
-     * d'une réponse tronquée n'est pas la même information qu'un mot-clé absent
-     * d'une réponse complète, et le message ne les confond pas.
+     * Both bounds are real problems: pulling 40 MB every minute for a word is an
+     * absurd load; stopping at 64 KiB misses a footer. 512 KiB by default very
+     * comfortably covers a cleanly served HTML page, and the probe **says** when it
+     * cut — a keyword "absent" from a truncated response is not the same
+     * information as a keyword absent from a complete response, and the message does
+     * not confuse them.
      */
     maxKib: z
       .number()
@@ -858,8 +849,8 @@ const keywordDefinition = (
     { key: "certDaysRemaining", label: t("metric.certDaysRemaining"), kind: "days" },
     { key: "certValidTo", label: t("metric.certValidTo"), kind: "text" },
   ],
-  // Même cadence que HTTP : c'est la même requête, avec un peu de lecture en
-  // plus. Ce qui coûte, c'est le nombre de requêtes, pas ce qu'on en fait.
+  // Same interval as HTTP: it is the same request, with a bit more reading. What
+  // costs is the number of requests, not what is done with them.
   minIntervalSeconds: 30,
   defaultIntervalSeconds: 60,
   defaults: {
@@ -883,16 +874,16 @@ export const tlsConfigSchema = z.object({
   host: monitorHostSchema,
   port: z.number().int().min(1).max(65_535).default(443),
   /**
-   * Nom présenté en SNI, quand il diffère de l'hôte joint. Utile pour vérifier
-   * le certificat d'un vhost derrière une adresse partagée.
+   * Name presented in SNI, when it differs from the host reached. Useful to check
+   * the certificate of a vhost behind a shared address.
    */
   servername: z.string().trim().min(1).max(253).nullable().default(null),
   /**
-   * Préavis, en jours. Ce **n'est pas** un simple avertissement : en deçà, la
-   * sonde passe en échec. Une sonde de certificat n'a d'intérêt que si elle
-   * alerte *avant* la panne ; attendre l'expiration reviendrait à constater
-   * l'incendie. Le taux de disponibilité d'une sonde TLS se lit donc « part du
-   * temps où le certificat était valide **et pas en fin de vie** ».
+   * Notice, in days. It **is not** a mere warning: below it, the probe fails. A
+   * certificate probe is only useful if it alerts *before* the outage; waiting for
+   * the expiry would amount to observing the fire. A TLS probe's availability rate
+   * therefore reads "share of the time the certificate was valid **and not near
+   * its end**".
    */
   warnDays: z.number().int().min(1).max(180).default(21),
   timeoutMs: z.number().int().min(1_000).max(30_000).default(10_000),
@@ -955,8 +946,8 @@ const tlsDefinition = (t: CatalogTranslate): MonitorTypeDefinition<TlsConfig> =>
     { key: "protocol", label: t("tls.metric.protocol"), kind: "text" },
     { key: "handshakeMs", label: t("tls.metric.handshakeMs"), kind: "duration-ms" },
   ],
-  // Une heure : un certificat ne change pas plus vite, et chaque mesure est une
-  // poignée de main TLS complète chez quelqu'un d'autre.
+  // One hour: a certificate does not change faster, and each measurement is a
+  // full TLS handshake at someone else's place.
   minIntervalSeconds: 3_600,
   defaultIntervalSeconds: 6 * 3_600,
   defaults: {
@@ -979,14 +970,14 @@ const tlsDefinition = (t: CatalogTranslate): MonitorTypeDefinition<TlsConfig> =>
 
 export const tcpConfigSchema = z.object({
   host: monitorHostSchema,
-  // Pas de port « par défaut » raisonnable au sens strict : on met 22 parce
-  // que c'est le port qu'on veut surveiller le plus souvent sans HTTP devant,
-  // et parce que c'est aussi celui qui illustre la bannière.
+  // No reasonable "default" port in the strict sense: we put 22 because it is the
+  // port most often worth watching without HTTP in front, and because it is also
+  // the one that illustrates the banner.
   port: z.number().int().min(1).max(65_535).default(22),
   /**
-   * Bannière attendue, cherchée sans égard à la casse dans les premiers octets
-   * que le service envoie **de lui-même**. C'est ce qui sépare « quelque chose
-   * écoute » de « le bon service écoute ».
+   * Expected banner, looked for case-insensitively in the first bytes the service
+   * sends **by itself**. It is what separates "something listens" from "the right
+   * service listens".
    */
   expectBanner: z.string().trim().min(1).max(200).nullable().default(null),
   timeoutMs: z.number().int().min(1_000).max(30_000).default(10_000),
@@ -998,33 +989,32 @@ const tcpDefinition = (t: CatalogTranslate): MonitorTypeDefinition<TcpConfig> =>
   type: "tcp",
   label: t("tcp.label"),
   /**
-   * ── Qu'est-ce que « répondre » ? ──────────────────────────────────────────
-   * La poignée TCP suffit à établir un fait, et un seul : quelque chose accepte
-   * les connexions sur ce port. C'est déjà l'essentiel — un `ECONNREFUSED` sur
-   * le 5432 d'une base, c'est le service arrêté ou le pare-feu refermé, et on
-   * veut le savoir. Mais ce n'est **que** ça : un processus qui a gardé la
-   * socket ouverte en étant incapable de servir accepte encore la poignée. La
-   * poignée prouve l'écoute, pas la santé.
+   * ── What is "answering"? ─────────────────────────────────────────────────────
+   * The TCP handshake is enough to establish a fact, and only one: something
+   * accepts connections on this port. That is already the essential — an
+   * `ECONNREFUSED` on a database's 5432 means the service is stopped or the
+   * firewall closed, and we want to know. But it is **only** that: a process that
+   * kept the socket open while unable to serve still accepts the handshake. The
+   * handshake proves listening, not health.
    *
-   * D'où la bannière, en option. SMTP, SSH, FTP, IMAP, POP3 et Redis avec
-   * `MOTD` parlent **les premiers** : ils annoncent qui ils sont avant qu'on
-   * ouvre la bouche. Attendre `SSH-2.0` ou `220 ` fait donc passer la sonde de
-   * « un port est ouvert » à « le bon service, vivant, écoute derrière ». C'est
-   * une preuve qualitativement différente, et elle ne coûte qu'une lecture.
+   * Hence the banner, as an option. SMTP, SSH, FTP, IMAP, POP3 and Redis with
+   * `MOTD` speak **first**: they announce who they are before anyone opens their
+   * mouth. Expecting `SSH-2.0` or `220 ` therefore takes the probe from "a port is
+   * open" to "the right service, alive, listens behind it". It is a qualitatively
+   * different proof, and it only costs a read.
    *
-   * ── Ce qu'on ne fait pas, et c'est un choix ───────────────────────────────
-   * On **n'envoie jamais rien**. Pas de `EHLO`, pas de `PING`, pas même un
-   * retour à la ligne. Deux raisons : une sonde est un constat, pas une action
-   * — envoyer des octets à un service inconnu toutes les minutes, c'est le
-   * solliciter, parfois le polluer (un `GET / HTTP/1.0` finit dans les journaux
-   * d'accès, une commande SMTP dans les compteurs anti-abus) ; et un protocole
-   * où le client parle d'abord (PostgreSQL, MySQL, HTTP) demanderait de savoir
-   * *quel* protocole, ce qui ferait de cette sonde un client universel. Pour
-   * ces services-là, la poignée nue est la bonne réponse, et le mot-clé HTTP
-   * ou la sonde TLS font le reste quand on veut plus.
+   * ── What we do not do, and it is a choice ───────────────────────────────────
+   * We **never send anything**. No `EHLO`, no `PING`, not even a newline. Two
+   * reasons: a probe is an observation, not an action — sending bytes to an
+   * unknown service every minute is soliciting it, sometimes polluting it (a
+   * `GET / HTTP/1.0` ends up in the access logs, an SMTP command in the anti-abuse
+   * counters); and a protocol where the client speaks first (PostgreSQL, MySQL,
+   * HTTP) would require knowing *which* protocol, which would make this probe a
+   * universal client. For those services, the bare handshake is the right answer,
+   * and the HTTP keyword or the TLS probe do the rest when more is wanted.
    *
-   * Conséquence assumée : attendre une bannière d'un service qui n'en émet pas
-   * coûte le délai d'expiration entier, à chaque mesure. Le message le dit.
+   * An accepted consequence: expecting a banner from a service that emits none
+   * costs the whole timeout, at every measurement. The message says so.
    */
   description: t("tcp.description"),
   neverDoes: t("tcp.neverDoes"),
@@ -1067,16 +1057,16 @@ const tcpDefinition = (t: CatalogTranslate): MonitorTypeDefinition<TcpConfig> =>
     { key: "banner", label: t("tcp.metric.banner"), kind: "text" },
     { key: "bannerMs", label: t("tcp.metric.bannerMs"), kind: "duration-ms" },
   ],
-  // Trente secondes, comme HTTP : une poignée TCP coûte moins qu'une requête
-  // HTTP, et ce qu'elle observe — un service tombé — change aussi vite.
+  // Thirty seconds, like HTTP: a TCP handshake costs less than an HTTP request,
+  // and what it observes — a service down — changes just as fast.
   minIntervalSeconds: 30,
   defaultIntervalSeconds: 60,
   defaults: { host: "", port: 22, expectBanner: null, timeoutMs: 10_000 },
   describeTarget: (config) => `${config.host}:${config.port}`,
   /**
-   * `null`, et c'est délibéré : `https://hôte:25/` serait un lien cliquable qui
-   * mène nulle part. Un port brut n'a pas d'URL, et en inventer une pour
-   * remplir la case serait mentir à l'écran.
+   * `null`, deliberately: `https://host:25/` would be a clickable link that leads
+   * nowhere. A raw port has no URL, and making one up to fill the box would be
+   * lying on screen.
    */
   linkFor: () => null,
   uptimeMeans: t("tcp.uptime"),
@@ -1085,9 +1075,8 @@ const tcpDefinition = (t: CatalogTranslate): MonitorTypeDefinition<TcpConfig> =>
 // ─── dns ──────────────────────────────────────────────────────────────────────
 
 /**
- * Un résolveur se déclare par son **adresse**, jamais par son nom : un nom
- * demanderait une résolution pour résoudre, et il faudrait bien la faire par
- * quelque chose.
+ * A resolver is declared by its **address**, never by its name: a name would
+ * require a resolution to resolve, and it would have to be done by something.
  */
 const dnsResolverSchema = z
   .string()
@@ -1102,8 +1091,8 @@ const dnsResolverSchema = z
       });
       return;
     }
-    // Le contrôle complet (liste d'autorisation) a lieu côté serveur : ici on
-    // ne peut refuser que ce qu'aucune liste ne débloque.
+    // The full check (allowlist) happens on the server side: here we can only
+    // refuse what no list unlocks.
     const verdict = checkNeverAllowable(value);
     if (!verdict.allowed) {
       ctx.addIssue({
@@ -1118,17 +1107,16 @@ const dnsResolverSchema = z
 export const dnsConfigSchema = z
   .object({
     /**
-     * Le nom interrogé. `kind: 'text'` et non `'host'` : on ne s'y **connecte**
-     * pas, on pose une question à son sujet. Il passe quand même par
-     * `monitorHostSchema` pour sa forme.
+     * The name queried. `kind: 'text'` and not `'host'`: we do not **connect** to
+     * it, we ask a question about it. It still goes through `monitorHostSchema` for
+     * its shape.
      */
     name: monitorHostSchema,
     recordType: dnsRecordTypeSchema.default("A"),
     /**
-     * Les valeurs attendues, une par ligne (ou séparées par des virgules, sauf
-     * pour TXT dont la donnée peut en contenir). **Vide = contrôle de présence** :
-     * la sonde vérifie seulement que le nom rend au moins un enregistrement de
-     * ce type.
+     * The expected values, one per line (or comma-separated, except for TXT, whose
+     * data can contain commas). **Empty = presence check**: the probe only checks
+     * that the name returns at least one record of this type.
      */
     expected: z.string().trim().max(4_096).default(""),
     match: dnsMatchModeSchema.default("exact"),
@@ -1136,9 +1124,9 @@ export const dnsConfigSchema = z
     timeoutMs: z.number().int().min(1_000).max(15_000).default(5_000),
   })
   .superRefine((config, ctx) => {
-    // Une valeur attendue mal écrite est une fausse alerte garantie, tous les
-    // quarts d'heure, jusqu'à ce que quelqu'un s'en aperçoive. On la refuse à
-    // la saisie, avec le format en clair.
+    // A badly written expected value is a guaranteed false alert, every quarter of
+    // an hour, until someone notices. We refuse it on input, with the format spelled
+    // out.
     for (const value of parseExpectedRecords(
       config.recordType,
       config.expected,
@@ -1161,51 +1149,48 @@ const dnsDefinition = (t: CatalogTranslate): MonitorTypeDefinition<DnsConfig> =>
   type: "dns",
   label: t("dns.label"),
   /**
-   * ── Comparer à quoi ? ─────────────────────────────────────────────────────
-   * Deux régimes existent dans les services du marché, et ils ne servent pas la
-   * même chose : *l'attendu déclaré* (« le A doit valoir 203.0.113.7 ») attrape
-   * une erreur de configuration ; *la détection de changement* (« alerte si ça
-   * bouge ») attrape un détournement.
+   * ── Compare with what? ───────────────────────────────────────────────────────
+   * Two regimes exist in the services on the market, and they do not serve the
+   * same thing: *the declared expectation* ("the A must be 203.0.113.7") catches a
+   * configuration error; *change detection* ("alert if it moves") catches a
+   * hijacking.
    *
-   * Ce type n'en implémente qu'**un**, l'attendu déclaré — et rend le second
-   * gratuitement, ce qui évite de doubler la complexité. Comparer un ensemble
-   * observé à un ensemble déclaré alerte sur toute suppression *et* sur tout
-   * ajout : c'est déjà de la détection de changement, avec une référence
-   * explicite.
+   * This type implements only **one**, the declared expectation — and gets the
+   * second for free, which avoids doubling the complexity. Comparing an observed
+   * set with a declared set alerts on every removal *and* every addition: it is
+   * already change detection, with an explicit reference.
    *
-   * ── « Qui valide la nouvelle valeur ? », et pourquoi la réponse est bonne ──
-   * Une référence apprise automatiquement — « je mémorise ce que je vois au
-   * premier passage, j'alerte ensuite » — pose la question de la réadoption :
-   * après une alerte, il faut bien qu'une nouvelle valeur devienne la référence.
-   * Si le panel réadopte tout seul, il finit par **apprendre le détournement** —
-   * la sonde crie une fois puis se tait, ce qui est exactement le contraire du
-   * service rendu. Si l'humain réadopte, il le fait par un bouton… qui écrit la
-   * nouvelle valeur quelque part.
+   * ── "Who approves the new value?", and why the answer is right ──────────────
+   * A reference learned automatically — "I memorize what I see on the first pass,
+   * then alert" — raises the question of re-adoption: after an alert, a new value
+   * has to become the reference. If the panel re-adopts by itself, it ends up
+   * **learning the hijacking** — the probe shouts once then goes quiet, exactly
+   * the opposite of the service rendered. If the human re-adopts, they do it
+   * through a button… which writes the new value somewhere.
    *
-   * Ce « quelque part », ici, c'est le champ « valeurs attendues » lui-même. Un
-   * humain modifie la sonde, ce qui passe par la même route, la même validation
-   * et le même journal d'audit que tout le reste. Il n'y a donc pas de second
-   * mécanisme de référence à écrire, pas de colonne à ajouter, et surtout pas de
-   * réadoption silencieuse.
+   * That "somewhere", here, is the "expected values" field itself. A human edits
+   * the probe, which goes through the same route, the same validation and the
+   * same audit log as everything else. There is therefore no second reference
+   * mechanism to write, no column to add, and above all no silent re-adoption.
    *
-   * Ce choix a aussi une raison de structure : l'abstraction `MonitorProbe` est
-   * `run(config, ctx) → CheckResult`. Une sonde **ne peut rien écrire**. Une
-   * référence apprise demanderait de rendre les sondes capables d'écrire dans
-   * leur propre configuration — c'est-à-dire de percer l'abstraction pour un
-   * seul type. Ça ne valait pas le prix.
+   * This choice also has a structural reason: the `MonitorProbe` abstraction is
+   * `run(config, ctx) → CheckResult`. A probe **cannot write anything**. A learned
+   * reference would require making probes able to write into their own
+   * configuration — that is, piercing the abstraction for a single type. It was
+   * not worth the price.
    *
-   * ── Quel résolveur ? ──────────────────────────────────────────────────────
-   * Par défaut, celui du système — celui du conteneur worker. Il ne mesure pas
-   * « ce que le monde voit » : il mesure ce que voit une machine du parc, avec
-   * son cache, ses éventuelles vues internes (split-horizon) et son suffixe de
-   * recherche. C'est un défaut assumé, pour deux raisons : c'est le chemin de
-   * résolution qui compte réellement pour les machines qu'on exploite, et il
-   * n'ajoute aucune dépendance envers un tiers.
+   * ── Which resolver? ──────────────────────────────────────────────────────────
+   * By default, the system's — the worker container's. It does not measure "what
+   * the world sees": it measures what a machine of the fleet sees, with its
+   * cache, its possible internal views (split-horizon) and its search suffix. It
+   * is an accepted default, for two reasons: it is the resolution path that really
+   * matters for the machines we operate, and it adds no dependency on a third
+   * party.
    *
-   * Déclarer un résolveur public (`1.1.1.1`, `9.9.9.9`) bascule la sonde vers
-   * l'autre question — « qu'est-ce que le monde voit ? » — qui est la bonne pour
-   * détecter un détournement, et qui contourne le cache local. C'est un champ,
-   * pas un type à part, parce que c'est la même mesure vue d'un autre point.
+   * Declaring a public resolver (`1.1.1.1`, `9.9.9.9`) switches the probe to the
+   * other question — "what does the world see?" — which is the right one to detect
+   * a hijacking, and which bypasses the local cache. It is a field, not a separate
+   * type, because it is the same measurement seen from another point.
    */
   description: t("dns.description"),
   neverDoes: t("dns.neverDoes"),
@@ -1289,21 +1274,20 @@ const dnsDefinition = (t: CatalogTranslate): MonitorTypeDefinition<DnsConfig> =>
     { key: "minTtl", label: t("dns.metric.minTtl"), kind: "number" },
   ],
   /**
-   * Cinq minutes au minimum, un quart d'heure par défaut.
+   * Five minutes at least, a quarter of an hour by default.
    *
-   * Deux bornes se rencontrent ici. Par le bas : 300 s est le TTL le plus court
-   * qu'on configure couramment, et en deçà du TTL la réponse sort du cache du
-   * résolveur — on paie une interrogation pour réapprendre ce qu'on savait déjà.
-   * Interroger plus vite que le TTL, c'est mesurer son propre cache.
+   * Two bounds meet here. From below: 300 s is the shortest TTL commonly
+   * configured, and under the TTL the answer comes from the resolver's cache — we
+   * pay a query to learn again what we already knew. Querying faster than the TTL
+   * is measuring one's own cache.
    *
-   * Par le bas aussi, mais pour une autre raison : un résolveur public est une
-   * ressource **partagée et gratuite**. Une requête HTTP vers son propre site,
-   * on se la doit à soi-même ; une requête à `1.1.1.1` toutes les minutes, c'est
-   * quelqu'un d'autre qui la paie. Cinquante sondes DNS à la minute feraient de
-   * ce panel un nuisible pour un gain nul.
+   * From below too, but for another reason: a public resolver is a **shared and
+   * free** resource. An HTTP request to one's own site is owed to oneself; a
+   * request to `1.1.1.1` every minute is paid by someone else. Fifty DNS probes a
+   * minute would make this panel a nuisance for zero gain.
    *
-   * Par le haut : un détournement de NS doit se voir dans l'heure, pas dans la
-   * journée. Un quart d'heure par défaut tient les deux.
+   * From above: an NS hijacking must show within the hour, not within the day. A
+   * quarter of an hour by default holds both.
    */
   minIntervalSeconds: 300,
   defaultIntervalSeconds: 900,
@@ -1316,7 +1300,7 @@ const dnsDefinition = (t: CatalogTranslate): MonitorTypeDefinition<DnsConfig> =>
     timeoutMs: 5_000,
   },
   describeTarget: (config) => `${config.recordType} ${config.name}`,
-  /** Aucun lien : un enregistrement DNS n'est pas une page. */
+  /** No link: a DNS record is not a page. */
   linkFor: () => null,
   uptimeMeans: t("dns.uptime"),
 });
@@ -1324,32 +1308,32 @@ const dnsDefinition = (t: CatalogTranslate): MonitorTypeDefinition<DnsConfig> =>
 // ─── domain ───────────────────────────────────────────────────────────────────
 
 /**
- * ── Quels TLD publient du RDAP, et pourquoi ce contrôle est ici ─────────────
+ * ── Which TLDs publish RDAP, and why this check is here ─────────────────────
  *
- * Tous les TLD ne servent pas de RDAP. Mesuré sur les fichiers de l'IANA du
- * 2026-09-09 : **1 200 des 1 438 TLD** en ont un. Les 238 absents se répartissent
- * en trois familles, et c'est ce qui rend le contrôle compact :
+ * Not every TLD serves RDAP. Measured on IANA's files of 2026-09-09: **1,200 of
+ * the 1,438 TLDs** have one. The 238 without fall into three families, which is
+ * what makes the check compact:
  *
- *   • 178 ccTLD à deux lettres — dont `.de`, `.io`, `.co`, `.eu`, `.ch`, `.it`,
- *     `.es`, `.be`, `.us`, `.jp` : aucune obligation ne pèse sur eux ;
- *   • 3 TLD de rôle : `arpa`, `edu`, `mil` ;
- *   • une partie des TLD internationalisés (`xn--…`).
+ *   • 178 two-letter ccTLDs — including `.de`, `.io`, `.co`, `.eu`, `.ch`,
+ *     `.it`, `.es`, `.be`, `.us`, `.jp`: no obligation weighs on them;
+ *   • 3 role TLDs: `arpa`, `edu`, `mil`;
+ *   • part of the internationalized TLDs (`xn--…`).
  *
- * Tout le reste — les gTLD — en publie un : l'ICANN l'impose par contrat. Le
- * contrôle tient donc en une règle et une liste de 70 codes : *un TLD à deux
- * lettres hors liste, ou un TLD de rôle, n'a pas de RDAP ; sinon, oui.*
+ * Everything else — the gTLDs — publishes one: ICANN requires it by contract.
+ * The check therefore fits in one rule and a list of 70 codes: *a two-letter
+ * TLD outside the list, or a role TLD, has no RDAP; otherwise, it does.*
  *
- * **Pourquoi refuser à la création plutôt qu'échouer à l'exécution.** Une sonde
- * `domain` sur un `.io` ne peut rien constater, jamais. La laisser se créer,
- * c'est promettre une surveillance qui n'existera pas, puis afficher un voyant
- * rouge qui ment : l'absence de service RDAP n'est pas une panne du domaine.
- * Refuser tout de suite, avec le motif, est la seule réponse qui n'invente rien.
+ * **Why refuse at creation rather than fail at execution.** A `domain` probe on
+ * a `.io` can never observe anything. Letting it be created is promising
+ * monitoring that will not exist, then showing a red light that lies: the
+ * absence of an RDAP service is not an outage of the domain. Refusing right
+ * away, with the reason, is the only answer that makes nothing up.
  *
- * **Ce que ça coûte.** La liste vieillit : un ccTLD qui ouvre un RDAP demain
- * sera refusé à tort jusqu'à ce qu'on ajoute deux lettres ici. C'est un défaut
- * assumé et réparable en une ligne — l'inverse (accepter puis mentir tous les
- * jours) ne l'est pas. Les `xn--` ne sont pas tranchés : trop peu utilisés pour
- * mériter 94 entrées de plus, on les laisse passer et l'exécution décidera.
+ * **What it costs.** The list ages: a ccTLD that opens an RDAP tomorrow will be
+ * wrongly refused until two letters are added here. It is an accepted defect,
+ * fixable in one line — the reverse (accepting then lying every day) is not.
+ * The `xn--` ones are not decided: too rarely used to deserve 94 more entries,
+ * we let them through and execution will decide.
  */
 const CC_TLDS_WITH_RDAP: ReadonlySet<string> = new Set([
   "ad",
@@ -1424,15 +1408,15 @@ const CC_TLDS_WITH_RDAP: ReadonlySet<string> = new Set([
   "zm",
 ]);
 
-/** TLD de rôle, hors du système commercial et sans RDAP. */
+/** Role TLDs, outside the commercial system and without RDAP. */
 const TLDS_WITHOUT_RDAP: ReadonlySet<string> = new Set(["arpa", "edu", "mil"]);
 
-/** Date de publication des fichiers IANA d'où sortent les deux listes ci-dessus. */
+/** Publication date of the IANA files both lists above come from. */
 export const RDAP_TLD_KNOWLEDGE_DATE = "2026-09-09";
 
 /**
- * `true` publie du RDAP, `false` n'en publie pas, `null` on ne tranche pas.
- * Seul `false` refuse une sonde : on ne bloque jamais sur une ignorance.
+ * `true` publishes RDAP, `false` does not, `null` we do not decide. Only
+ * `false` refuses a probe: we never block on ignorance.
  */
 export function tldPublishesRdap(tld: string): boolean | null {
   const value = tld.toLowerCase();
@@ -1442,7 +1426,7 @@ export function tldPublishesRdap(tld: string): boolean | null {
   return true;
 }
 
-/** Le dernier label d'un nom de domaine, en minuscules. */
+/** The last label of a domain name, lowercase. */
 export function tldOf(domain: string): string {
   const labels = domain.toLowerCase().replace(/\.$/, "").split(".");
   return labels[labels.length - 1] ?? "";
@@ -1451,12 +1435,12 @@ export function tldOf(domain: string): string {
 const DOMAIN_LABEL = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
 /**
- * Un nom de domaine **enregistrable**, pas une URL et pas un hôte quelconque.
+ * A **registrable** domain name, not a URL and not any host.
  *
- * On ne réécrit rien en silence : `www.exemple.fr` est accepté tel quel et le
- * registre répondra « inconnu », ce qui est un message plus utile qu'une
- * correction invisible. Deviner le domaine enregistrable demanderait la Public
- * Suffix List — 250 kio de données à tenir à jour pour retirer un `www.`.
+ * Nothing is silently rewritten: `www.example.com` is accepted as is and the
+ * registry will answer "unknown", which is a more useful message than an
+ * invisible correction. Guessing the registrable domain would require the
+ * Public Suffix List — 250 KiB of data to keep up to date to strip a `www.`.
  */
 export const monitorDomainSchema = z
   .string()
@@ -1477,8 +1461,8 @@ export const monitorDomainSchema = z
     if (labels.some((label) => !DOMAIN_LABEL.test(label))) {
       return refuse(`« ${raw} » n'est pas un nom de domaine valide`);
     }
-    // Une adresse IP n'a pas de registre de noms — et son dernier label
-    // passerait le contrôle de TLD sans qu'on s'en aperçoive.
+    // An IP address has no name registry — and its last label would pass the TLD
+    // check without anyone noticing.
     if (/^\d+$/.test(labels[labels.length - 1] ?? "")) {
       return refuse(
         "une adresse IP ne s’enregistre pas auprès d’un registre de noms",
@@ -1502,27 +1486,26 @@ export type DomainLockMode = z.infer<typeof domainLockModeSchema>;
 export const domainConfigSchema = z.object({
   domain: monitorDomainSchema,
   /**
-   * Préavis, en jours. Même parti pris que pour TLS : **en deçà, la sonde passe
-   * en échec**. Voir `uptimeMeans` — et la note sur la machine à états, qui ne
-   * connaît que sain / malade / injoignable et n'a pas de « en danger ».
+   * Notice, in days. The same stance as for TLS: **below it, the probe fails**.
+   * See `uptimeMeans` — and the note on the state machine, which only knows
+   * healthy / unhealthy / unreachable and has no "at risk".
    *
-   * 30 jours par défaut, et non 21 comme pour un certificat : renouveler un
-   * domaine peut demander de réveiller une carte bancaire expirée, un contact
-   * de facturation parti, parfois un transfert. Un certificat se renouvelle en
-   * une commande.
+   * 30 days by default, and not 21 as for a certificate: renewing a domain may
+   * require reviving an expired bank card, a billing contact who left, sometimes a
+   * transfer. A certificate renews in one command.
    */
   warnDays: z.number().int().min(1).max(365).default(30),
   /**
-   * Registrar attendu. Facultatif, et c'est une **détection d'attaque**, pas un
-   * confort : un domaine qu'on vous transfère sous le nez change de registrar,
-   * et ça se voit ici avant que le trafic ne parte ailleurs. Comparé en
-   * sous-chaîne tolérante — « OVH » reconnaît « OVH SAS ».
+   * Expected registrar. Optional, and it is **attack detection**, not convenience:
+   * a domain transferred away from under you changes registrar, and it shows here
+   * before the traffic goes elsewhere. Compared as a tolerant substring — "OVH"
+   * recognizes "OVH SAS".
    */
   expectedRegistrar: z.string().trim().min(2).max(120).nullable().default(null),
   /**
-   * Suffixe attendu d'au moins un serveur de noms — `ovh.net`, `cloudflare.com`.
-   * Un suffixe plutôt qu'une liste : c'est la délégation qui compte, pas le
-   * nombre de machines, et un registre en ajoute ou en retire sans prévenir.
+   * Expected suffix of at least one name server — `ovh.net`, `cloudflare.com`. A
+   * suffix rather than a list: the delegation is what counts, not the number of
+   * machines, and a registry adds or removes some without warning.
    */
   expectedNameserverSuffix: z
     .string()
@@ -1532,13 +1515,12 @@ export const domainConfigSchema = z.object({
     .nullable()
     .default(null),
   /**
-   * Exiger le verrou de transfert (`clientTransferProhibited`). Désactivé par
-   * défaut : beaucoup de registres — `.fr` le premier — ne publient qu'un
-   * statut `active` et feraient échouer la sonde pour un verrou qui existe
-   * peut-être mais ne se lit pas.
+   * Require the transfer lock (`clientTransferProhibited`). Off by default: many
+   * registries — `.fr` first — only publish an `active` status and would make the
+   * probe fail for a lock that may exist but cannot be read.
    */
   transferLock: domainLockModeSchema.default("off"),
-  /** Les registres ne sont pas des CDN : 15 s par défaut, et c'est parfois juste. */
+  /** Registries are not CDNs: 15 s by default, and it is sometimes tight. */
   timeoutMs: z.number().int().min(2_000).max(30_000).default(15_000),
 });
 
@@ -1625,9 +1607,9 @@ const domainDefinition = (
     { key: "rdapServer", label: t("domain.metric.rdapServer"), kind: "text" },
     { key: "latencyMs", label: t("metric.latencyMs"), kind: "duration-ms" },
   ],
-  // Six heures au minimum. Un domaine n'expire pas entre deux minutes, et un
-  // registre est un service public gratuit : l'interroger plus souvent, c'est
-  // faire du panel un nuisible sans rien apprendre de plus.
+  // Six hours at least. A domain does not expire between two minutes, and a
+  // registry is a free public service: querying it more often makes the panel a
+  // nuisance without learning anything more.
   minIntervalSeconds: 6 * 3_600,
   defaultIntervalSeconds: 86_400,
   defaults: {
@@ -1639,20 +1621,20 @@ const domainDefinition = (
     timeoutMs: 15_000,
   },
   describeTarget: (config) => config.domain,
-  // Pas de lien : un domaine surveillé pour son expiration n'a pas forcément de
-  // site, ni même d'adresse. `linkFor` sert aussi de cible au contrôle SSRF de
-  // création (`assertConfigAllowed`) ; rendre une URL ici obligerait le domaine
-  // à résoudre publiquement pour qu'on accepte de surveiller sa date de fin.
+  // No link: a domain watched for its expiry does not necessarily have a site, or
+  // even an address. `linkFor` also serves as the target of the creation SSRF
+  // check (`assertConfigAllowed`); returning a URL here would force the domain to
+  // resolve publicly before we accept to watch its end date.
   linkFor: () => null,
   uptimeMeans: t("domain.uptime"),
 });
 
-// ─── registre ─────────────────────────────────────────────────────────────────
+// ─── registry ─────────────────────────────────────────────────────────────────
 
 /**
- * Une entrée par type. Le catalogue est typé de façon opaque côté consommateur :
- * personne d'autre que l'implémentation n'a besoin du type exact de la config,
- * et c'est précisément ce qui permet à l'écran de ne connaître aucun type.
+ * One entry per type. The catalog is typed opaquely on the consumer side:
+ * nobody but the implementation needs the config's exact type, and that is
+ * precisely what lets the screen know no type.
  */
 function buildCatalog(
   t: CatalogTranslate,
@@ -1673,11 +1655,11 @@ const CATALOGS = new Map<
 >();
 
 /**
- * Le catalogue dans une langue, construit une fois par langue demandée.
+ * The catalog in one language, built once per requested language.
  *
- * Les schémas Zod, eux, ne sont pas dupliqués : ce sont les mêmes objets de
- * module dans les deux catalogues. Seuls les libellés diffèrent — ce qui est
- * exactement ce qu'on voulait dire en séparant les mots des données.
+ * The Zod schemas are not duplicated: they are the same module objects in both
+ * catalogs. Only the labels differ — which is exactly what we meant by
+ * separating words from data.
  */
 function catalogFor(
   language: UiLanguage,
@@ -1711,7 +1693,7 @@ export type AnyMonitorTypeDefinition = {
 };
 
 /**
- * La définition d'un type, dans une langue.
+ * A type's definition, in one language.
  *
  * The default is the fallback language: the worker and the database read a
  * schema, a minimum interval or a log label from it, and have no instance
@@ -1724,7 +1706,7 @@ export function monitorTypeDefinition(
   return catalogFor(language)[type] as unknown as AnyMonitorTypeDefinition;
 }
 
-/** Valide la configuration d'une sonde contre le schéma de **son** type. */
+/** Validates a probe's configuration against **its** type's schema. */
 export function parseMonitorConfig(
   type: MonitorType,
   config: unknown,
@@ -1742,7 +1724,7 @@ export function safeParseMonitorConfig(
     : { ok: false, error: parsed.error };
 }
 
-/** La cible d'une sonde, en une ligne. Jamais un `switch` chez l'appelant. */
+/** A probe's target, in one line. Never a `switch` in the caller. */
 export function describeMonitorTarget(
   type: MonitorType,
   config: unknown,
@@ -1770,36 +1752,35 @@ export function isMonitorType(value: string): value is MonitorType {
   return (MONITOR_TYPES_LIST as readonly string[]).includes(value);
 }
 
-// ─── contrôle SSRF à la création, sans switch et sans réseau ──────────────────
+// ─── SSRF check at creation, without a switch and without network ─────────────
 
 export type MonitorTargetVerdict =
   | { allowed: true }
   | { allowed: false; field: string; refusal: SsrfRefusal; reason: string };
 
 /**
- * Refuse, **au moment d'enregistrer la sonde**, toute cible écrite en adresse
- * littérale interdite.
+ * Refuses, **when the probe is saved**, any target written as a forbidden
+ * literal address.
  *
- * Pourquoi ici et pas dans chaque schéma : le catalogue sait déjà quels champs
- * sont des endpoints, puisqu'il les déclare en `kind: 'host'` ou `kind: 'url'`
- * pour que l'écran les affiche. On réutilise ce marquage plutôt que d'ajouter
- * une liste parallèle à tenir à jour — un type qui arrive plus tard est couvert
- * dès qu'il déclare ses champs, sans rien ajouter ici. Il n'y a donc aucun
+ * Why here and not in each schema: the catalog already knows which fields are
+ * endpoints, since it declares them as `kind: 'host'` or `kind: 'url'` for the
+ * screen to show them. We reuse this marking rather than add a parallel list to
+ * keep up to date — a type that comes later is covered as soon as it declares
+ * its fields, without adding anything here. There is therefore no
  * `if (type === …)`.
  *
- * Pourquoi pas dans le schéma Zod du type : la liste d'autorisation vient de
- * `MONITOR_ALLOWED_CIDRS`, donc de l'environnement du serveur. Le catalogue est
- * importé par des composants client, où cet environnement n'existe pas — un
- * schéma qui le lirait refuserait dans le navigateur une plage que le serveur
- * accepte. Le schéma s'en tient donc à ce qui est vrai partout (les catégories
- * qu'aucune liste ne débloque, via `checkHostname`) et l'appelant serveur
- * complète par cette fonction.
+ * Why not in the type's Zod schema: the allowlist comes from
+ * `MONITOR_ALLOWED_CIDRS`, hence from the server's environment. The catalog is
+ * imported by client components, where that environment does not exist — a
+ * schema reading it would refuse in the browser a range the server accepts. The
+ * schema therefore sticks to what is true everywhere (the categories no list
+ * unlocks, through `checkHostname`) and the server caller completes with this
+ * function.
  *
- * Ce qu'elle **ne** fait **pas** : résoudre. Un nom n'est jugé qu'au moment de
- * sonder, par `resolveGuarded()`, qui contrôle toutes ses adresses. Une
- * validation ne fait pas de requête réseau, et de toute façon le contrôle qui
- * compte est celui d'avant la connexion — la fenêtre de rebinding se ferme là,
- * pas ici.
+ * What it does **not** do: resolve. A name is only judged at probe time, by
+ * `resolveGuarded()`, which checks all its addresses. A validation makes no
+ * network request, and anyway the check that matters is the one before the
+ * connection — the rebinding window closes there, not here.
  */
 export function checkMonitorTargetLiterals(
   type: MonitorType,
@@ -1808,8 +1789,8 @@ export function checkMonitorTargetLiterals(
 ): MonitorTargetVerdict {
   const definition = monitorTypeDefinition(type);
   const parsed = definition.schema.safeParse(config);
-  // Une configuration illisible est refusée par ailleurs, avec un meilleur
-  // message ; ce n'est pas à la garde de le dire.
+  // An unreadable configuration is refused elsewhere, with a better message; it
+  // is not the guard's job to say it.
   if (!parsed.success) return { allowed: true };
   const record = parsed.data as Record<string, unknown>;
 
@@ -1828,7 +1809,7 @@ export function checkMonitorTargetLiterals(
     }
     host = host.replace(/^\[|\]$/g, "");
 
-    // Un nom : rien à dire ici, tout se joue à la résolution.
+    // A name: nothing to say here, everything happens at resolution.
     if (classifyAddress(host) === null) continue;
 
     const verdict = checkAddress(host, allowlist);
@@ -1845,6 +1826,6 @@ export function checkMonitorTargetLiterals(
   return { allowed: true };
 }
 
-/** Bornes absolues de cadence, tous types confondus — ce que la base accepte. */
+/** Absolute interval bounds, all types together — what the database accepts. */
 export const MONITOR_INTERVAL_FLOOR_SECONDS = 30;
 export const MONITOR_INTERVAL_CEILING_SECONDS = 30 * 86_400;

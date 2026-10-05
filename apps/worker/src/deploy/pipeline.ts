@@ -47,11 +47,11 @@ import { verifyLinkBeforeDeploy } from '../proxy/link.js';
 import { applyCoupleRoutes, exposureFor, seedRouteFromSpec } from '../proxy/routes.js';
 
 /**
- * Exécution du pipeline de déploiement.
+ * Running the deployment pipeline.
  *
- * Le worker ne connaît aucun runtime : il enchaîne des étapes et délègue au
- * driver. Une étape que le driver ne peut pas remplir retourne `null`, et
- * c'est **le driver** qui décide — jamais un `if (runtime === ...)` ici.
+ * The worker knows no runtime: it chains steps and delegates to the driver. A
+ * step the driver cannot fulfill returns `null`, and it is **the driver** that
+ * decides — never an `if (runtime === ...)` here.
  */
 
 export type PipelineOutcome = {
@@ -60,11 +60,11 @@ export type PipelineOutcome = {
   publishedPort: number | null;
   failedStep: DeploymentStepKey | null;
   error: string | null;
-  /** Version vers laquelle un rollback automatique a ramené, le cas échéant. */
+  /** Version an automatic rollback brought back to, if any. */
   rolledBackTo: string | null;
 };
 
-/** État partagé entre les étapes. */
+/** State shared between the steps. */
 type PipelineState = {
   artifacts: RenderedArtifacts | null;
   port: number | null;
@@ -78,7 +78,7 @@ export async function runDeploymentPipeline(
   publisher: Redis,
   actor: { actorId: string | null; ip: string | null } = { actorId: null, ip: null },
 ): Promise<PipelineOutcome> {
-  // La langue de tout ce que ce déploiement écrira : son journal, ses erreurs.
+  // The language of everything this deployment will write: its log, its errors.
   const language = await instanceLanguage();
   const say = workerSay(language);
 
@@ -89,7 +89,7 @@ export async function runDeploymentPipeline(
   const log = logger.child({ deploymentId, runtime: deployment.runtime });
   const stream = new DeployLogStream(deploymentId, publisher);
 
-  // Relance : ce qui a déjà réussi n'est pas rejoué, le reste repart de zéro.
+  // Retry: what already succeeded is not replayed, the rest starts from scratch.
   await resetUnsuccessfulSteps(deploymentId);
   await markDeploymentRunning(deploymentId);
   stream.event({ type: 'deployment', key: deploymentId, status: 'running', detail: null });
@@ -113,13 +113,13 @@ export async function runDeploymentPipeline(
     : null;
 
   /**
-   * Plage de ports retenue : celle de la cible, resserrée par celle du worker.
+   * Port range chosen: the target's, narrowed by the worker's.
    *
-   * Les deux disent une vérité différente. `targets.port_range_*` décrit ce que
-   * cette machine-là accepte de publier ; `DRIVER_PORT_RANGE` décrit ce que
-   * l'environnement du worker peut atteindre — un tunnel, un hôte qui ne
-   * republie qu'une poignée de ports. Garder l'intersection respecte les deux ;
-   * garder la dernière lue en trahirait une.
+   * Both tell a different truth. `targets.port_range_*` describes what that
+   * machine accepts to publish; `DRIVER_PORT_RANGE` describes what the worker's
+   * environment can reach — a tunnel, a host that only republishes a handful of
+   * ports. Keeping the intersection respects both; keeping the last one read would
+   * betray one.
    */
   const targetRange: PortRange = {
     min: secret.target.portRangeStart,
@@ -165,24 +165,28 @@ export async function runDeploymentPipeline(
       : {}),
     portAllocator: createPortAllocator(),
     portRange,
-    // Les valeurs des secrets viennent du magasin de l'application, pas du
-    // déploiement : elles doivent être les mêmes à chaque mise en ligne.
+    // The secrets' values come from the application's store, not from the
+    // deployment: they must be the same at each release.
     resolveSecrets: secretResolverFor(deployment.applicationId),
-    // Le code d'un dépôt ira dans `source/` de la release : le rendu doit le
-    // savoir pour y résoudre les contextes de construction.
+    // A repository's code will go into the release's `source/`: the render must know
+    // it to resolve the build contexts there.
     ...(carriesSourceCode(deployment, spec) ? { sourceInRelease: true } : {}),
   };
 
   const driver = getDriver(deployment.runtime);
 
-  // Les domaines d'abord, parce qu'ils décident de la publication du port :
-  // celui de l'AppSpec au premier déploiement sur cette cible, puis la liste de
-  // la cible. Un proxy de la machine la joint par la boucle locale ; celui
-  // d'une autre, par un port publié sur l'adresse privée qu'il joint, ouvert à
-  // lui seul. Dans les deux cas, le port n'est plus ouvert au monde.
+  // Domains first, because they decide how the port is published: the AppSpec's at
+  // the first deployment on this target, then the target's list. A proxy of the
+  // machine reaches it through loopback; another's, through a port published on
+  // the private address it reaches, opened to it alone. In both cases, the port is
+  // no longer open to the world.
   if (!ctx.previousDeployment) {
-    await seedRouteFromSpec(deployment.applicationId, deployment.targetId, spec, (line) =>
-      stream.line('preflight', line),
+    await seedRouteFromSpec(
+      deployment.applicationId,
+      deployment.targetId,
+      spec,
+      ctx.language,
+      (line) => stream.line('preflight', line),
     );
   }
   const exposure = await exposureFor(deployment.applicationId, deployment.targetId);
@@ -196,9 +200,9 @@ export async function runDeploymentPipeline(
   };
 
   /**
-   * Une étape aboutit (`success`) ou est sans objet (`skipped`) — l'échec passe
-   * par une exception. `skipped` vient toujours du driver ou du provider,
-   * jamais d'une condition sur le runtime écrite ici.
+   * A step succeeds (`success`) or is not applicable (`skipped`) — failure goes
+   * through an exception. `skipped` always comes from the driver or the provider,
+   * never from a condition on the runtime written here.
    */
   type StepOutcome = 'success' | 'skipped';
 
@@ -210,9 +214,9 @@ export async function runDeploymentPipeline(
       }
       if (!report.ok) throw new Error(say('pipeline.preflightRefused'));
 
-      // Servie par le proxy d'une autre machine : la connexion de l'une à
-      // l'autre est éprouvée avant de rien construire, sur la plage où le port
-      // sera publié. L'adresse d'arrivée relevée devient celle à qui l'ouvrir.
+      // Served by another machine's proxy: the connection from one to the other is
+      // tested before building anything, on the range where the port will be
+      // published. The arrival address noted becomes the one to open it to.
       const linked = await verifyLinkBeforeDeploy({
         applicationId: deployment.applicationId,
         targetId: deployment.targetId,
@@ -240,9 +244,9 @@ export async function runDeploymentPipeline(
         say('pipeline.port.reserved', { port: state.port, min: portRange.min, max: portRange.max }),
       );
 
-      // Ouverture du pare-feu. Le worker ne demande pas quel runtime il pilote :
-      // il demande si le driver sait ouvrir un port. Un driver qui n'expose pas
-      // par port n'implémente pas la méthode, et l'étape se poursuit sans elle.
+      // Opening the firewall. The worker does not ask which runtime it drives: it asks
+      // whether the driver can open a port. A driver that does not expose by port does
+      // not implement the method, and the step goes on without it.
       if (driver.openFirewall) {
         await driver.openFirewall(ctx, state.port, (line) => stream.line('allocate_port', line));
       } else {
@@ -254,8 +258,8 @@ export async function runDeploymentPipeline(
 
     render: async () => {
       state.artifacts = await driver.render(ctx);
-      // Une relance saute `allocate_port` si elle avait déjà réussi : le port
-      // effectif vient alors du rendu, qui l'a relu.
+      // A retry skips `allocate_port` if it had already succeeded: the effective port
+      // then comes from the render, which read it again.
       state.port ??= state.artifacts.publishedPort;
       for (const file of state.artifacts.files) {
         stream.line(
@@ -268,8 +272,8 @@ export async function runDeploymentPipeline(
 
     upload: async () => {
       if (!state.artifacts) throw new Error(say('pipeline.upload.nothing'));
-      // Un run venu d'un dépôt lié apporte le code de son commit : l'archive
-      // est téléchargée ici, passée au driver, puis effacée du worker.
+      // A run coming from a linked repository brings its commit's code: the archive is
+      // downloaded here, handed to the driver, then erased from the worker.
       const source = await prepareSourceArchive(
         deployment,
         spec,
@@ -301,9 +305,9 @@ export async function runDeploymentPipeline(
     scan: async () => {
       const config = parseScanConfig(deployment.scanConfig);
       if (config.scanners.length === 0) {
-        // Deux raisons de ne rien avoir à faire, et elles ne se valent pas :
-        // personne n'a demandé de scan, ou l'instance l'a coupé pour tout le
-        // monde. La seconde mérite d'être lue dans le journal du déploiement.
+        // Two reasons to have nothing to do, and they are not equivalent: nobody asked
+        // for a scan, or the instance turned it off for everybody. The second deserves
+        // to be read in the deployment's log.
         stream.line(
           'scan',
           config.disabledBy === 'settings'
@@ -313,7 +317,7 @@ export async function runDeploymentPipeline(
         return 'skipped';
       }
 
-      // Le driver sait comment il nomme ses images ; le worker, non.
+      // The driver knows how it names its images; the worker does not.
       const images = await driver.images(ctx);
       const result = await runSecurityScan({
         deploymentId,
@@ -384,13 +388,13 @@ export async function runDeploymentPipeline(
     },
 
     /**
-     * La sauvegarde avant déploiement — ou avant une mise à jour d'image, qui
-     * est un redéploiement. Elle sauvegarde ce qui tourne **encore**, juste
-     * avant qu'on le remplace : après le build et l'analyse, pour ne rien
-     * sauvegarder d'un déploiement qui n'aurait pas eu lieu.
+     * The backup before deployment — or before an image update, which is a
+     * redeploy. It backs up what is **still** running, just before it is replaced:
+     * after the build and the analysis, so as to back up nothing of a deployment
+     * that would not have happened.
      *
-     * Si elle échoue, le déploiement s'arrête là : c'est le sens même de
-     * l'option. Rien n'a encore changé sur la cible.
+     * If it fails, the deployment stops there: it is the very meaning of the option.
+     * Nothing has changed on the target yet.
      */
     backup: async () => {
       const policy = await getBackupPolicy(deployment.applicationId);
@@ -447,10 +451,10 @@ export async function runDeploymentPipeline(
       );
       if (health.healthy) return 'success';
 
-      // Le diagnostic a été capturé par le driver **avant** de rendre la main :
-      // un rollback qui suit redémarre l'ancienne version et effacerait la
-      // scène. On le diffuse ligne à ligne, puis on le joint au message d'échec
-      // pour qu'il atterrisse dans `deployment_steps.error`.
+      // The diagnosis was captured by the driver **before** returning: a rollback that
+      // follows restarts the old version and would wipe the scene. We stream it line
+      // by line, then attach it to the failure message so that it lands in
+      // `deployment_steps.error`.
       if (health.diagnostics) {
         for (const line of health.diagnostics.split('\n')) {
           stream.line('healthcheck', line, 'stderr');
@@ -465,10 +469,9 @@ export async function runDeploymentPipeline(
     },
 
     /**
-     * Chemin nominal : il n'y a rien à défaire, l'étape est sans objet.
-     * Le rollback réel est déclenché plus bas, après le verdict de
-     * `healthcheck` — une étape ne peut pas se lancer elle-même en réaction à
-     * l'échec d'une autre.
+     * Nominal path: there is nothing to undo, the step is not applicable. The real
+     * rollback is triggered further down, after `healthcheck`'s verdict — a step
+     * cannot start itself in reaction to another's failure.
      */
     rollback: async () => {
       stream.line('rollback', say('pipeline.rollback.notNeeded'));
@@ -489,9 +492,9 @@ export async function runDeploymentPipeline(
         return 'skipped';
       }
       state.url = applied.url;
-      // Un domaine qui ne répond pas n'annule pas un déploiement sain : la
-      // nouvelle version tourne. La route est notée en échec, la sonde
-      // périodique prévient, et le journal de l'étape dit pourquoi.
+      // A domain that does not answer does not cancel a healthy deployment: the new
+      // version runs. The route is marked as failed, the periodic probe warns, and the
+      // step's log says why.
       for (const problem of applied.problems) stream.line('proxy', `⚠ ${problem}`, 'stderr');
       return 'success';
     },
@@ -499,7 +502,7 @@ export async function runDeploymentPipeline(
 
   let failedStep: DeploymentStepKey | null = null;
   let failure: string | null = null;
-  /** La version en échec a pris la place de la précédente : on y revient. */
+  /** The failed version took the previous one's place: we go back to it. */
   let unhealthyRelease = false;
   let finalStatus: PipelineOutcome['status'] = 'failed';
   let rolledBackTo: string | null = null;
@@ -520,18 +523,18 @@ export async function runDeploymentPipeline(
 
       await startStep(deploymentId, key);
       stream.event({ type: 'step', key, status: 'running', detail: null });
-      log.info({ step: key }, 'étape démarrée');
+      log.info({ step: key }, 'step started');
 
       try {
         const status = await handlers[key]();
         await finishStep(deploymentId, key, status);
         stream.event({ type: 'step', key, status, detail: null });
-        log.info({ step: key, status }, 'étape terminée');
+        log.info({ step: key, status }, 'step completed');
       } catch (error) {
         let message = error instanceof Error ? error.message : String(error);
-        // Une version mise en place mais restée malsaine se lit comme un
-        // healthcheck en échec : même diagnostic, diffusé avant le rollback
-        // qui effacerait la scène, et joint à l'erreur de l'étape.
+        // A version put in place but left unhealthy reads as a failed healthcheck: the
+        // same diagnosis, streamed before the rollback that would wipe the scene, and
+        // attached to the step's error.
         if (error instanceof UnhealthyReleaseError && error.diagnostics) {
           for (const line of error.diagnostics.split('\n')) stream.line(key, line, 'stderr');
           message = `${message}\n\n${error.diagnostics}`;
@@ -539,7 +542,7 @@ export async function runDeploymentPipeline(
         await finishStep(deploymentId, key, 'failed', message);
         stream.line(key, message, 'stderr');
         stream.event({ type: 'step', key, status: 'failed', detail: message });
-        log.error({ step: key, err: error }, 'étape en échec');
+        log.error({ step: key, err: error }, 'step failed');
 
         failedStep = key;
         failure = message;
@@ -549,19 +552,17 @@ export async function runDeploymentPipeline(
     }
 
     /**
-     * Rollback automatique.
+     * Automatic rollback.
      *
-     * Trois conditions, toutes des données : la nouvelle version a pris la
-     * place de la précédente sans devenir saine, la politique du déploiement
-     * l'autorise, et il existe une version antérieure vers laquelle revenir.
-     * Aucune n'est un réglage global.
+     * Three conditions, all data: the new version took the previous one's place
+     * without becoming healthy, the deployment's policy allows it, and there is an
+     * earlier version to go back to. None is a global setting.
      *
-     * « Sans devenir saine », c'est un `healthcheck` en échec — ou un `deploy`
-     * dont le driver dit qu'il a remplacé les services avant d'attendre leur
-     * santé (`UnhealthyReleaseError`) : Compose comme Kubernetes le font.
-     * Un échec ailleurs — un scan bloquant, un `deploy` qui n'a rien remplacé —
-     * ne déclenche rien : il n'y a rien à défaire, la version précédente n'a
-     * jamais cessé de tourner.
+     * "Without becoming healthy" is a failed `healthcheck` — or a `deploy` whose
+     * driver says it replaced the services before waiting for their health
+     * (`UnhealthyReleaseError`): Compose and Kubernetes both do. A failure elsewhere
+     * — a blocking scan, a `deploy` that replaced nothing — triggers nothing: there
+     * is nothing to undo, the previous version never stopped running.
      */
     if (unhealthyRelease && deployment.autoRollback && ctx.previousDeployment) {
       const restored = ctx.previousDeployment;
@@ -582,13 +583,13 @@ export async function runDeploymentPipeline(
         await driver.rollback(ctx, (line) => stream.line('rollback', line));
 
         /**
-         * La version restaurée doit répondre — et elle se décrit avec **sa**
-         * spec, pas avec celle qui vient d'échouer.
+         * The restored version must answer — and it is described with **its** spec, not
+         * with the one that just failed.
          *
-         * C'est tout l'intérêt de figer l'AppSpec dans chaque déploiement : la
-         * v2 a pu déplacer sa route de santé, changer de port ou d'image. La
-         * sonder avec les réglages de la v2 poserait la mauvaise question à la
-         * bonne machine, et un rollback réussi passerait pour un échec.
+         * It is the whole point of freezing the AppSpec in each deployment: v2 may have
+         * moved its health route, changed port or image. Probing it with v2's settings
+         * would ask the wrong question to the right machine, and a successful rollback
+         * would pass for a failure.
          */
         const restoredCtx: DriverContext = {
           ...ctx,
@@ -634,7 +635,7 @@ export async function runDeploymentPipeline(
 
         finalStatus = 'rolled_back';
         rolledBackTo = restored.version;
-        // L'URL redevient celle de la version qui tourne réellement.
+        // The URL becomes again that of the version really running.
         state.url = previous?.deployment.url ?? state.url;
 
         await logAudit({
@@ -655,14 +656,11 @@ export async function runDeploymentPipeline(
           ip: actor.ip,
         });
 
-        log.warn(
-          { from: spec.version, to: restored.version },
-          'rollback automatique effectué',
-        );
+        log.warn({ from: spec.version, to: restored.version }, 'automatic rollback done');
       } catch (error) {
-        // **Jamais de second rollback.** Un rollback qui échoue signale un
-        // problème que rejouer la même commande ne réglera pas, et enchaîner
-        // les tentatives ne ferait qu'éloigner la machine d'un état connu.
+        // **Never a second rollback.** A rollback that fails signals a problem that
+        // replaying the same command will not fix, and chaining attempts would only move
+        // the machine further from a known state.
         const message = error instanceof Error ? error.message : String(error);
         await finishStep(deploymentId, 'rollback', 'failed', message);
         stream.line('rollback', message, 'stderr');
@@ -672,7 +670,7 @@ export async function runDeploymentPipeline(
           failure: failure ?? say('pipeline.healthcheckFailed'),
           error: message,
         });
-        log.error({ err: error }, 'rollback automatique en échec');
+        log.error({ err: error }, 'automatic rollback failed');
 
         await logAudit({
           actorId: actor.actorId,
@@ -730,10 +728,10 @@ export async function runDeploymentPipeline(
       rolledBackTo,
     };
   } finally {
-    // Un port réservé pour un déploiement qui n'a rien démarré est un port
-    // perdu : personne ne le libérera jamais, et la plage d'une cible n'est pas
-    // extensible. Le `finally` couvre aussi le crash — une exception hors
-    // pipeline ne doit pas laisser de trace derrière elle.
+    // A port reserved for a deployment that started nothing is a lost port: nobody
+    // will ever release it, and a target's range is not extensible. The `finally`
+    // also covers the crash — an exception outside the pipeline must not leave a
+    // trace behind it.
     await releaseOrphanPort({
       status: finalStatus,
       deployment,
@@ -749,17 +747,17 @@ export async function runDeploymentPipeline(
 }
 
 /**
- * Libère la réservation de port si plus rien ne l'occupe.
+ * Releases the port reservation if nothing occupies it anymore.
  *
- * La condition n'est pas « le déploiement a échoué » mais « aucune version de
- * cette application ne tourne sur cette cible ». Le verdict vient de
- * `hasLiveDeploymentOnTarget()`, c'est-à-dire de l'unique définition de
- * « vivant » portée par `@pupitre/db` — le worker n'en a pas une à lui.
+ * The condition is not "the deployment failed" but "no version of this
+ * application runs on this target". The verdict comes from
+ * `hasLiveDeploymentOnTarget()`, that is from the single definition of "alive"
+ * carried by `@pupitre/db` — the worker does not have one of its own.
  *
- * Le déploiement qui vient d'échouer entre dans le calcul au lieu d'en être
- * exclu : s'il a dépassé l'étape `deploy`, ce sont ses propres conteneurs qui
- * occupent le port. Un échec plus tôt — préflight, rendu, build, scan — n'a rien
- * démarré, et la réservation part.
+ * The deployment that just failed goes into the computation instead of being
+ * excluded from it: if it went past the `deploy` step, it is its own containers
+ * occupying the port. An earlier failure — preflight, render, build, scan —
+ * started nothing, and the reservation goes.
  */
 async function releaseOrphanPort(input: {
   status: PipelineOutcome['status'];
@@ -792,9 +790,9 @@ async function releaseOrphanPort(input: {
     }
     await ctx.portAllocator.release(key);
     stream.line('allocate_port', workerSay(ctx.language)('pipeline.port.released', { port }));
-    log.info({ port }, 'port libéré après échec');
+    log.info({ port }, 'port released after failure');
   } catch (error) {
-    // Le ménage ne doit jamais masquer la cause réelle de l'échec.
-    log.error({ err: error }, 'libération du port impossible');
+    // Cleanup must never hide the real cause of the failure.
+    log.error({ err: error }, 'port release failed');
   }
 }

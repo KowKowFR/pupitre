@@ -18,30 +18,30 @@ import {
 } from './types.js';
 
 /**
- * GitHub, par une **GitHub App** — jamais par un jeton personnel.
+ * GitHub, through a **GitHub App** — never through a personal token.
  *
- * Une App a trois avantages qui comptent ici : ses droits se limitent aux
- * dépôts qu'on lui a confiés (lecture du code, écriture des statuts de
- * commit) ; ses jetons d'installation expirent au bout d'une heure ; et elle
- * n'appartient à personne — un départ ne coupe pas les déploiements.
+ * An App has three advantages that matter here: its rights are limited to the
+ * repositories entrusted to it (reading code, writing commit statuses); its
+ * installation tokens expire after an hour; and it belongs to nobody — someone
+ * leaving does not cut deployments.
  *
- * Le webhook de l'App est **désactivé** : le panel est privé, GitHub ne
- * pourrait pas l'atteindre. Tout passe par des appels sortants — c'est Pupitre
- * qui demande, voir `types.ts`.
+ * The App's webhook is **disabled**: the panel is private, GitHub could not
+ * reach it. Everything goes through outgoing calls — it is Pupitre that asks,
+ * see `types.ts`.
  *
- * Aucune dépendance : l'API REST suffit, et le jeton de l'App (un JWT signé
- * RS256) se fabrique avec `node:crypto`.
+ * No dependency: the REST API is enough, and the App's token (an RS256-signed
+ * JWT) is made with `node:crypto`.
  */
 
 export type FetchLike = typeof fetch;
 
 export type GitHubAppCredentials = {
   appId: number;
-  /** La clé privée PEM de l'App. Déchiffrée juste avant l'appel, jamais journalisée. */
+  /** The App's PEM private key. Decrypted just before the call, never logged. */
   privateKey: string;
-  /** `https://api.github.com`, ou l'API d'un GitHub Enterprise. */
+  /** `https://api.github.com`, or a GitHub Enterprise's API. */
   apiUrl?: string;
-  /** La langue de ce que le client dit — celle de l'instance. Français par défaut. */
+  /** The language of what the client says — the instance's. French by default. */
   language?: UiLanguage;
 };
 
@@ -53,10 +53,10 @@ const BASE_HEADERS = {
   'user-agent': 'pupitre',
 };
 
-/** GitHub plafonne une comparaison à 300 fichiers : au-delà, la liste ment. */
+/** GitHub caps a comparison at 300 files: beyond that, the list lies. */
 const COMPARE_FILE_LIMIT = 300;
 
-/** Un jeton d'installation vit une heure ; on le renouvelle cinq minutes avant. */
+/** An installation token lives one hour; we renew it five minutes before. */
 const TOKEN_MARGIN_MS = 5 * 60_000;
 
 function base64url(input: string | Buffer): string {
@@ -64,8 +64,8 @@ function base64url(input: string | Buffer): string {
 }
 
 /**
- * Le jeton de l'App : un JWT RS256 valable neuf minutes (GitHub en accepte
- * dix au plus). `iat` recule d'une minute pour absorber un écart d'horloge.
+ * The App's token: an RS256 JWT valid for nine minutes (GitHub accepts ten at
+ * most). `iat` goes back one minute to absorb clock skew.
  */
 export function githubAppJwt(appId: number, privateKey: string, now = Date.now()): string {
   const seconds = Math.floor(now / 1000);
@@ -76,7 +76,7 @@ export function githubAppJwt(appId: number, privateKey: string, now = Date.now()
   return `${header}.${payload}.${signer.sign(privateKey, 'base64url')}`;
 }
 
-/** `owner/name` → segments encodés, pour un chemin d'API sûr. */
+/** `owner/name` → encoded segments, for a safe API path. */
 function repoPath(fullName: string): string {
   return fullName
     .split('/')
@@ -111,13 +111,13 @@ export class GitHubSourceProvider implements SourceProvider {
     this.apiUrl = (credentials.apiUrl ?? GITHUB_API_URL).replace(/\/+$/, '');
   }
 
-  // ─── authentification ───────────────────────────────────────────────────────
+  // ─── authentication ─────────────────────────────────────────────────────────
 
   private appJwt(): string {
     return githubAppJwt(this.credentials.appId, this.credentials.privateKey, this.now());
   }
 
-  /** Jeton d'installation, gardé en mémoire tant qu'il vit. Jamais persisté. */
+  /** Installation token, kept in memory while it lives. Never persisted. */
   private async installationToken(installationId: number | null): Promise<string> {
     if (installationId === null) {
       throw new SourceProviderError(
@@ -144,7 +144,7 @@ export class GitHubSourceProvider implements SourceProvider {
     return body.token;
   }
 
-  /** `'app'` : le jeton de l'App elle-même ; sinon celui d'une installation. */
+  /** `'app'`: the token of the App itself; otherwise that of an installation. */
   private async call(
     installationId: number | null | 'app',
     path: string,
@@ -176,7 +176,7 @@ export class GitHubSourceProvider implements SourceProvider {
   // ─── SourceProvider ─────────────────────────────────────────────────────────
 
   async resolveHead(repo: RepositoryRef, branch: string, etag: string | null): Promise<HeadResult> {
-    // `application/vnd.github.sha` : GitHub ne rend que l'empreinte, en texte.
+    // `application/vnd.github.sha`: GitHub only returns the hash, as text.
     const response = await this.call(
       repo.installationId,
       `/repos/${repoPath(repo.fullName)}/commits/${encodeURIComponent(branch)}`,
@@ -193,7 +193,13 @@ export class GitHubSourceProvider implements SourceProvider {
     }
     const sha = (await response.text()).trim();
     if (!/^[0-9a-f]{40}$/.test(sha)) {
-      throw new SourceProviderError(`empreinte de commit illisible : « ${sha.slice(0, 60)} »`, null, 'github');
+      throw new SourceProviderError(
+        sourceSay(this.credentials.language ?? 'fr')('commit.unreadableSha', {
+          sha: sha.slice(0, 60),
+        }),
+        null,
+        'github',
+      );
     }
     return { changed: true, sha, etag: response.headers.get('etag') };
   }
@@ -210,16 +216,16 @@ export class GitHubSourceProvider implements SourceProvider {
       status: string;
       files?: Array<{ filename: string; previous_filename?: string }>;
     }>(response);
-    // `behind` ou `diverged` : l'historique a été réécrit, la liste ne dit pas
-    // tout ce qui a changé par rapport à ce qui tourne.
+    // `behind` or `diverged`: the history was rewritten, the list does not tell
+    // everything that changed compared with what runs.
     if (body.status !== 'ahead' && body.status !== 'identical') {
       return { kind: 'unknown', reason: `historique ${body.status}` };
     }
     const files = body.files ?? [];
     if (files.length >= COMPARE_FILE_LIMIT) {
-      return { kind: 'unknown', reason: `plus de ${COMPARE_FILE_LIMIT} fichiers modifiés` };
+      return { kind: 'unknown', reason: `more than ${COMPARE_FILE_LIMIT} files changed` };
     }
-    // Un renommage touche l'ancien chemin comme le nouveau.
+    // A rename touches the old path as well as the new one.
     return {
       kind: 'files',
       files: files.flatMap((file) =>
@@ -242,9 +248,9 @@ export class GitHubSourceProvider implements SourceProvider {
   }
 
   async findFiles(repo: RepositoryRef, sha: string, name: string): Promise<string[]> {
-    // L'arbre récursif d'un commit, en un appel. GitHub le tronque au-delà de
-    // ~100 000 entrées : on rend alors ce qu'il a donné — un dépôt de cette
-    // taille garde son pupitre.json près de la racine.
+    // A commit's recursive tree, in one call. GitHub truncates it beyond ~100,000
+    // entries: we then return what it gave — a repository of that size keeps its
+    // pupitre.json near the root.
     const body = await this.json<{ tree: Array<{ path: string; type: string }> }>(
       await this.call(
         repo.installationId,
@@ -281,7 +287,7 @@ export class GitHubSourceProvider implements SourceProvider {
     destination: string,
     maxBytes: number,
   ): Promise<{ bytes: number }> {
-    // GitHub répond par une redirection vers codeload, signée : `fetch` la suit.
+    // GitHub answers with a signed redirect to codeload: `fetch` follows it.
     const response = await this.call(
       repo.installationId,
       `/repos/${repoPath(repo.fullName)}/tarball/${sha}`,
@@ -326,7 +332,7 @@ export class GitHubSourceProvider implements SourceProvider {
         method: 'POST',
         body: {
           state: status.state,
-          // GitHub refuse au-delà de 140 caractères.
+          // GitHub refuses beyond 140 characters.
           description: status.description.slice(0, 140),
           context: status.context,
           ...(status.targetUrl ? { target_url: status.targetUrl } : {}),
@@ -368,7 +374,7 @@ export class GitHubSourceProvider implements SourceProvider {
   }
 }
 
-// ─── l'App elle-même ──────────────────────────────────────────────────────────
+// ─── the App itself ───────────────────────────────────────────────────────────
 
 export type GitHubInstallation = {
   id: number;
@@ -378,7 +384,7 @@ export type GitHubInstallation = {
   htmlUrl: string | null;
 };
 
-/** Les comptes (personnes ou organisations) où l'App est installée. */
+/** The accounts (people or organizations) where the App is installed. */
 export async function listGitHubInstallations(
   credentials: GitHubAppCredentials,
   fetchImpl: FetchLike = fetch,
@@ -417,7 +423,7 @@ export type GitHubAppInfo = {
   owner: string;
 };
 
-/** Vérifie des identifiants d'App saisis à la main, et dit à quelle App ils ouvrent. */
+/** Checks App credentials entered by hand, and says which App they open. */
 export async function fetchGitHubAppInfo(
   credentials: GitHubAppCredentials,
   fetchImpl: FetchLike = fetch,
@@ -450,13 +456,13 @@ export async function fetchGitHubAppInfo(
 }
 
 /**
- * Le manifeste de création de l'App.
+ * The App's creation manifest.
  *
- * C'est ce qui rend l'installation possible depuis un panel **privé** : le
- * navigateur de l'opérateur porte le manifeste jusqu'à GitHub, puis GitHub le
- * renvoie sur `redirectUrl` avec un code — à aucun moment GitHub n'appelle le
- * panel. Les droits sont les plus petits qui suffisent : lire le code, écrire
- * l'état des déploiements sur les commits.
+ * It is what makes installation possible from a **private** panel: the
+ * operator's browser carries the manifest to GitHub, then GitHub sends it back
+ * to `redirectUrl` with a code — at no point does GitHub call the panel. The
+ * rights are the smallest that suffice: read the code, write the deployments'
+ * state on the commits.
  */
 export function githubAppManifest(options: {
   name: string;
@@ -469,17 +475,17 @@ export function githubAppManifest(options: {
     url: options.panelUrl,
     redirect_url: options.redirectUrl,
     setup_url: options.setupUrl,
-    // Pas de `hook_attributes` : le panel est privé et n'attend aucun webhook.
-    // Le bloc est facultatif, et s'il est là, GitHub exige que son URL soit
-    // joignable depuis Internet — même avec `active: false` — et refuse le
-    // manifeste d'un panel en `localhost` ou sur un réseau privé.
+    // No `hook_attributes`: the panel is private and expects no webhook. The block
+    // is optional, and if it is there, GitHub requires its URL to be reachable from
+    // the Internet — even with `active: false` — and refuses the manifest of a
+    // panel on `localhost` or on a private network.
     public: false,
     default_permissions: { contents: 'read', metadata: 'read', statuses: 'write' },
     default_events: [],
   };
 }
 
-/** L'adresse où poster le manifeste : compte personnel, ou organisation. */
+/** The address to post the manifest to: personal account, or organization. */
 export function githubManifestUrl(organization: string | null, state: string): string {
   const base = organization
     ? `https://github.com/organizations/${encodeURIComponent(organization)}/settings/apps/new`
@@ -490,9 +496,9 @@ export function githubManifestUrl(organization: string | null, state: string): s
 export type GitHubManifestConversion = GitHubAppInfo & { privateKey: string };
 
 /**
- * Le code rendu par GitHub après création, échangé contre les identifiants de
- * l'App — dont la clé privée, montrée **une seule fois** : l'appelant doit la
- * chiffrer et la ranger aussitôt.
+ * The code returned by GitHub after creation, exchanged for the App's
+ * credentials — including the private key, shown **only once**: the caller must
+ * encrypt and store it right away.
  */
 export async function convertGitHubManifest(
   code: string,
@@ -524,7 +530,7 @@ export async function convertGitHubManifest(
   };
 }
 
-/** Où installer l'App (et choisir ses dépôts) : l'écran de GitHub. */
+/** Where to install the App (and choose its repositories): GitHub's screen. */
 export function githubInstallUrl(slug: string): string {
   return `https://github.com/apps/${encodeURIComponent(slug)}/installations/new`;
 }

@@ -38,9 +38,9 @@ const querySchema = z.object({
 });
 
 /**
- * Le refus de `resolveConfig()` arrive en donnée ; la phrase se fabrique dans
- * `lib/monitors`, où la langue de l'instance est lisible. Les deux routes de
- * sonde passent par là, donc disent la même chose.
+ * `resolveConfig()`'s refusal arrives as data; the sentence is made in
+ * `lib/monitors`, where the instance's language is readable. Both probe routes go
+ * through there, so they say the same thing.
  */
 async function translate(error: unknown): Promise<never> {
   if (error instanceof MonitorConfigError) throw await monitorConfigMessage(error);
@@ -63,7 +63,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
 
   return NextResponse.json({
     ...item,
-    // De la plus ancienne à la plus récente : c'est le sens d'une courbe.
+    // From the oldest to the most recent: it is a curve's direction.
     checks: checkRows.slice().reverse().map(toCheckView),
     incidents: incidentRows.map(toIncidentView),
     retentionDays: MONITOR_CHECK_RETENTION_DAYS,
@@ -78,8 +78,8 @@ export const PATCH = apiRoute<Context>(async (request, context) => {
   const before = await getMonitor(id);
   if (!before) throw new NotFoundError(msg(messages, 'error.monitorNotFound', { id }));
 
-  // Le type ne se modifie pas : changer le type d'une sonde, c'est en créer une
-  // autre — son historique et ses incidents porteraient sur autre chose.
+  // The type cannot be changed: changing a probe's type is creating another one —
+  // its history and its incidents would be about something else.
   if (patch.config !== undefined && isMonitorType(before.type)) {
     await assertConfigAllowed(before.type, patch.config);
   }
@@ -134,8 +134,8 @@ export const DELETE = apiRoute<Context>(async (request, context) => {
   const row = await getMonitor(id);
   if (!row) throw new NotFoundError(msg(messages, 'error.monitorNotFound', { id }));
 
-  // Les mesures et les incidents partent avec, par cascade : une sonde
-  // supprimée n'a pas d'historique à conserver — c'est son historique.
+  // The measurements and incidents go with it, through cascade: a deleted probe has
+  // no history to keep — it is its history.
   const removed = await deleteMonitor(id);
   if (!removed) throw new NotFoundError(msg(messages, 'error.monitorNotFound', { id }));
 

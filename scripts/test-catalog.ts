@@ -1,28 +1,29 @@
 /**
- * Le catalogue, pour de vrai.
+ * The catalog, for real.
  *
- * Chaque modèle du catalogue est déployé sur une cible, sondé, puis détruit —
- * par le même driver que le pipeline, avec les mêmes images, les mêmes sondes,
- * le même durcissement. Les tests unitaires prouvent qu'un modèle rend une
- * AppSpec valable ; ce script prouve qu'elle **démarre et répond**.
+ * Each catalog template is deployed on a target, probed, then destroyed — by
+ * the same driver as the pipeline, with the same images, the same probes, the
+ * same hardening. The unit tests prove that a template renders a valid AppSpec;
+ * this script proves that it **starts and answers**.
  *
- *   pnpm test:catalog <cible> [--only id,id] [--skip id,id] [--runtime docker|k3s]
- *                             [--prune-images] [--report fichier.md]
+ *   pnpm test:catalog <target> [--only id,id] [--skip id,id] [--runtime docker|k3s]
+ *                              [--prune-images] [--report file.md]
  *
- * Pour chaque modèle :
- *   1. l'AppSpec, rendue par le modèle comme à l'installation (sans domaine) ;
- *   2. port, rendu, dépôt sur la cible, déploiement — pull compris ;
- *   3. la sonde du driver, puis une requête HTTP depuis la cible sur le port
- *      publié et le chemin de santé du modèle : il faut un code 2xx ou 3xx ;
- *   4. destroy, et la vérification que rien ne reste (conteneurs, port).
+ * For each template:
+ *   1. the AppSpec, rendered by the template as at installation (no domain);
+ *   2. port, rendering, upload to the target, deployment — pull included;
+ *   3. the driver's probe, then an HTTP request from the target on the
+ *      published port and the template's health path: a 2xx or 3xx code is
+ *      required;
+ *   4. destroy, and the check that nothing remains (containers, port).
  *
- * `--prune-images` supprime ensuite **toutes** les images inutilisées de la
- * cible, pour que vingt-huit modèles tiennent sur un disque de test. À ne
- * jamais passer sur une machine qui sert à autre chose.
+ * `--prune-images` then deletes **all** the target's unused images, so that
+ * twenty-eight templates fit on a test disk. Never to be passed on a machine
+ * that serves anything else.
  *
- * Une image publiée sans variante pour l'architecture de la cible (ARM, en
- * général) n'est pas un modèle cassé : elle est rapportée à part, hors du
- * décompte des échecs, avec l'architecture en cause.
+ * An image published without a variant for the target's architecture (ARM,
+ * usually) is not a broken template: it is reported apart, outside the failure
+ * count, with the architecture in question.
  */
 import { randomBytes } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
@@ -91,16 +92,16 @@ function parseArgs(argv: string[]): Options {
   const target = positional[0];
   if (!target) {
     write(
-      'Usage : pnpm test:catalog <cible> [--only id,id] [--skip id,id] [--runtime docker|k3s]\n' +
-        '                          [--prune-images] [--report fichier.md]\n\n' +
-        'La cible est un nom ou un UUID de cible enregistrée.\n' +
-        `Modèles : ${CATALOG_TEMPLATES.map((template) => template.id).join(', ')}\n`,
+      'Usage: pnpm test:catalog <target> [--only id,id] [--skip id,id] [--runtime docker|k3s]\n' +
+        '                          [--prune-images] [--report file.md]\n\n' +
+        'The target is the name or the UUID of a registered target.\n' +
+        `Templates: ${CATALOG_TEMPLATES.map((template) => template.id).join(', ')}\n`,
     );
     process.exit(1);
   }
   const runtime = listArg(argv, '--runtime')?.[0] ?? null;
   if (runtime !== null && runtime !== 'docker' && runtime !== 'k3s') {
-    write(`Runtime inconnu : ${runtime}\n`);
+    write(`Unknown runtime: ${runtime}\n`);
     process.exit(1);
   }
   return {
@@ -129,12 +130,12 @@ async function openTarget(ref: string, wanted: RuntimeKind | null): Promise<Targ
   const found = all.find((candidate) => candidate.id === ref || candidate.name === ref);
   if (!found) {
     throw new Error(
-      `Cible « ${ref} » introuvable. Cibles connues : ` +
-        (all.map((target) => target.name).join(', ') || 'aucune'),
+      `Target "${ref}" not found. Known targets: ` +
+        (all.map((target) => target.name).join(', ') || 'none'),
     );
   }
   const record = await getTargetSecret(found.id);
-  if (!record) throw new Error(`Impossible de relire la cible ${found.id}`);
+  if (!record) throw new Error(`Could not read target ${found.id} again`);
 
   const secret = decrypt(record.encryptedCredential);
   const sshTarget: SshTarget = {
@@ -149,7 +150,7 @@ async function openTarget(ref: string, wanted: RuntimeKind | null): Promise<Targ
   };
   const session = await connect(sshTarget);
   const uname = await exec(session, 'uname -m', { timeout: 15_000 });
-  // Le runtime : celui demandé, sinon le premier que le preflight a vu, sinon Docker.
+  // The runtime: the requested one, otherwise the first one the preflight saw, otherwise Docker.
   const runtime = wanted ?? usableRuntimes(found.runtimesAvailable)[0] ?? 'docker';
   return {
     id: found.id,
@@ -161,22 +162,22 @@ async function openTarget(ref: string, wanted: RuntimeKind | null): Promise<Targ
   };
 }
 
-// ─── un modèle ────────────────────────────────────────────────────────────────
+// ─── a template ───────────────────────────────────────────────────────────────
 
 type Outcome = 'ok' | 'failed' | 'architecture';
 
 type Result = {
   template: CatalogTemplate;
   outcome: Outcome;
-  /** L'étape où ça s'est arrêté, ou ce qui a répondu. */
+  /** The step where it stopped, or what answered. */
   detail: string;
   seconds: number;
   images: string[];
-  /** Les dernières lignes du driver, pour comprendre un échec sans relancer. */
+  /** The driver's last lines, to understand a failure without rerunning. */
   tail: string[];
 };
 
-/** Une image sans variante pour l'architecture de la cible : `docker pull` le dit ainsi. */
+/** An image without a variant for the target's architecture: `docker pull` says it this way. */
 const NO_PLATFORM =
   /no matching manifest for|does not provide the specified platform|image with reference .* was found but does not match the specified platform|exec format error/i;
 
@@ -194,7 +195,7 @@ async function ensureApplication(spec: AppSpec): Promise<string> {
     .insert(applications)
     .values({ slug: spec.name, name: spec.name, appSpec: spec })
     .returning({ id: applications.id });
-  if (!created) throw new Error("l'insertion de l'application n'a rien retourné");
+  if (!created) throw new Error('inserting the application returned nothing');
   return created.id;
 }
 
@@ -213,8 +214,8 @@ function contextFor(target: Target, spec: AppSpec, applicationId: string): Drive
     appSlug: spec.name,
     applicationId,
     portAllocator: createPortAllocator(),
-    // Des valeurs fraîches pour chaque secret, demandé ou non : ici, on prouve
-    // que l'application démarre, pas qu'on retient un mot de passe.
+    // Fresh values for each secret, asked for or not: here, we prove that the
+    // application starts, not that we remember a password.
     resolveSecrets: (names) =>
       Promise.resolve(
         Object.fromEntries(names.map((name) => [name, randomBytes(24).toString('base64url')])),
@@ -231,7 +232,7 @@ function contextFor(target: Target, spec: AppSpec, applicationId: string): Drive
   };
 }
 
-/** Une requête HTTP **depuis la cible**, seule à joindre le port publié à coup sûr. */
+/** An HTTP request **from the target**, the only one sure to reach the published port. */
 async function probe(
   session: SshSession,
   port: number,
@@ -296,55 +297,55 @@ async function checkTemplate(
     stage = 'healthcheck()';
     const health = await driver.healthcheck(ctx);
     if (!health.healthy) {
-      result = finish('failed', `sonde du driver : ${health.detail ?? 'en échec'}`);
+      result = finish('failed', `driver probe: ${health.detail ?? 'failing'}`);
     } else if (port === null) {
-      result = finish('failed', "le driver n'a publié aucun port à sonder");
+      result = finish('failed', 'the driver published no port to probe');
     } else {
-      stage = 'requête HTTP';
+      stage = 'HTTP request';
       const answer = await probe(target.session, port, exposed?.healthcheck.path ?? '/');
       result =
         answer.status !== null && answer.status >= 200 && answer.status < 400
           ? finish('ok', `HTTP ${answer.status} — ${answer.url}`)
-          : finish('failed', `HTTP ${answer.status ?? 'sans réponse'} — ${answer.url}`);
+          : finish('failed', `HTTP ${answer.status ?? 'no answer'} — ${answer.url}`);
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const platform = [message, ...tail].some((line) => NO_PLATFORM.test(line));
     result = platform
-      ? finish('architecture', `pas d'image ${target.architecture} — ${message.split('\n')[0]}`)
-      : finish('failed', `${stage} : ${message.split('\n')[0]}`);
+      ? finish('architecture', `no ${target.architecture} image — ${message.split('\n')[0]}`)
+      : finish('failed', `${stage}: ${message.split('\n')[0]}`);
   }
 
-  // Le ménage, quoi qu'il soit arrivé : un modèle raté ne doit pas gêner le suivant.
+  // The cleanup, whatever happened: a failed template must not get in the next one's way.
   try {
     await driver.destroy(ctx, onLog);
   } catch (error) {
     write(
-      `      ${yellow(`destroy : ${error instanceof Error ? error.message : String(error)}`)}\n`,
+      `      ${yellow(`destroy: ${error instanceof Error ? error.message : String(error)}`)}\n`,
     );
   }
   const leftovers = await exec(
     target.session,
-    `docker ps -a --filter 'label=tp.app=${spec.name}' --format '{{.Names}}'`,
+    `docker ps -a --filter 'label=pupitre.app=${spec.name}' --format '{{.Names}}'`,
     { timeout: 30_000 },
   );
   if (leftovers.stdout.trim() && result.outcome === 'ok') {
     result = {
       ...result,
       outcome: 'failed',
-      detail: `restes après destroy : ${leftovers.stdout.trim()}`,
+      detail: `leftovers after destroy: ${leftovers.stdout.trim()}`,
     };
   }
   await getDb().delete(applications).where(eq(applications.id, applicationId));
   return result;
 }
 
-// ─── récapitulatif ────────────────────────────────────────────────────────────
+// ─── summary ──────────────────────────────────────────────────────────────────
 
 function summary(results: Result[], target: Target): boolean {
-  const width = Math.max(...results.map((result) => result.template.id.length), 'Modèle'.length);
+  const width = Math.max(...results.map((result) => result.template.id.length), 'Template'.length);
   write(
-    `\n${bold(`Récapitulatif — catalogue sur ${target.name} (${target.runtime}, ${target.architecture})`)}\n\n`,
+    `\n${bold(`Summary — catalog on ${target.name} (${target.runtime}, ${target.architecture})`)}\n\n`,
   );
   for (const result of results) {
     const mark =
@@ -361,8 +362,8 @@ function summary(results: Result[], target: Target): boolean {
   const skipped = results.filter((result) => result.outcome === 'architecture').length;
   const failed = results.filter((result) => result.outcome === 'failed');
   write(
-    `\n  ${ok}/${results.length - skipped} modèle(s) déployé(s) et joignable(s)` +
-      (skipped > 0 ? `, ${skipped} sans image ${target.architecture} (hors décompte)` : '') +
+    `\n  ${ok}/${results.length - skipped} template(s) deployed and reachable` +
+      (skipped > 0 ? `, ${skipped} without a ${target.architecture} image (not counted)` : '') +
       '\n',
   );
   for (const result of failed) {
@@ -375,22 +376,22 @@ function summary(results: Result[], target: Target): boolean {
 function markdownReport(results: Result[], target: Target): string {
   const date = new Date().toISOString().slice(0, 16).replace('T', ' ');
   const label = {
-    ok: '✅ répond',
-    failed: '❌ échec',
-    architecture: '➖ sans image pour cette architecture',
+    ok: '✅ answers',
+    failed: '❌ failure',
+    architecture: '➖ no image for this architecture',
   };
   const rows = results.map(
     (result) =>
       `| ${result.template.name} | \`${result.images.join('`, `')}\` | ${label[result.outcome]} | ${result.seconds} s | ${result.detail.replace(/\|/g, '\\|')} |`,
   );
   return [
-    `# Vérification du catalogue`,
+    `# Catalog verification`,
     '',
-    `${date} UTC — cible \`${target.name}\`, runtime ${target.runtime}, architecture ${target.architecture}.`,
+    `${date} UTC — target \`${target.name}\`, runtime ${target.runtime}, architecture ${target.architecture}.`,
     '',
-    'Chaque modèle déployé par le driver, sondé, requêté en HTTP depuis la cible sur son chemin de santé, puis détruit.',
+    'Each template deployed by the driver, probed, requested over HTTP from the target on its health path, then destroyed.',
     '',
-    '| Modèle | Images | Résultat | Durée | Détail |',
+    '| Template | Images | Result | Duration | Detail |',
     '| --- | --- | --- | --- | --- |',
     ...rows,
     '',
@@ -407,12 +408,12 @@ async function main(): Promise<void> {
       !options.skip.includes(template.id),
   );
   if (templates.length === 0) {
-    write('Aucun modèle à vérifier avec ces filtres.\n');
+    write('No template to check with these filters.\n');
     process.exitCode = 1;
     return;
   }
 
-  write(`\n${bold('1. La cible')}\n`);
+  write(`\n${bold('1. The target')}\n`);
   const target = await openTarget(options.target, options.runtime);
   const driver = getDriver(target.runtime);
   write(
@@ -436,7 +437,7 @@ async function main(): Promise<void> {
       for (const check of preflight.checks) {
         write(`  ${check.ok ? green('✓') : red('✗')} ${check.label} — ${check.detail ?? ''}\n`);
       }
-      throw new Error('preflight en échec : la cible ne peut rien déployer');
+      throw new Error('preflight failing: the target cannot deploy anything');
     }
     write(`  ${green('OK')} preflight — ${preflight.runtimeVersion ?? ''}\n`);
 
@@ -461,12 +462,12 @@ async function main(): Promise<void> {
     const allGreen = summary(results, target);
     if (options.report) {
       writeFileSync(options.report, markdownReport(results, target));
-      write(`\n  ${dim(`rapport écrit dans ${options.report}`)}\n`);
+      write(`\n  ${dim(`report written to ${options.report}`)}\n`);
     }
     write(
       allGreen
-        ? `\n${green(bold('Catalogue vérifié : chaque modèle démarre et répond.'))}\n\n`
-        : `\n${red(bold('Catalogue NON vérifié.'))}\n\n`,
+        ? `\n${green(bold('Catalog verified: each template starts and answers.'))}\n\n`
+        : `\n${red(bold('Catalog NOT verified.'))}\n\n`,
     );
     if (!allGreen) process.exitCode = 1;
   } finally {

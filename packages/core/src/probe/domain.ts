@@ -13,65 +13,64 @@ import { probeSay } from './messages.js';
 import type { MonitorProbe, ProbeContext } from './types.js';
 
 /**
- * Sonde d'expiration de domaine, **par RDAP**.
+ * Domain expiry probe, **through RDAP**.
  *
- * ── RDAP et pas WHOIS ───────────────────────────────────────────────────────
- * Décision déjà prise, et elle tient en une phrase : RDAP rend du JSON dont la
- * forme est spécifiée (RFC 9083), WHOIS rend du texte libre dont le format
- * change d'un registre à l'autre. Écrire un analyseur WHOIS, c'est écrire
- * quarante analyseurs et se tromper sur le quarante-et-unième — au moment
- * précis où le mensonge coûte le plus cher, puisqu'on parle de la date à
- * laquelle un domaine disparaît.
+ * ── RDAP and not WHOIS ──────────────────────────────────────────────────────
+ * A decision already made, and it fits in one sentence: RDAP returns JSON whose
+ * shape is specified (RFC 9083), WHOIS returns free text whose format changes
+ * from one registry to the next. Writing a WHOIS parser means writing forty
+ * parsers and getting the forty-first wrong — at the precise moment when the lie
+ * costs the most, since we are talking about the date a domain disappears.
  *
- * ── Trouver le bon serveur ──────────────────────────────────────────────────
- * L'IANA publie la liste d'amorçage `dns.json` : TLD → serveur RDAP. Les deux
- * extrêmes sont mauvais. La chercher à chaque interrogation, c'est 71 kio et un
- * aller-retour pour lire une date qui bouge une fois par an. L'embarquer en dur,
- * c'est la périmer : de nouveaux TLD apparaissent, des registres déménagent.
+ * ── Finding the right server ────────────────────────────────────────────────
+ * IANA publishes the `dns.json` bootstrap list: TLD → RDAP server. Both extremes
+ * are bad. Fetching it at each query means 71 KiB and a round trip to read a
+ * date that moves once a year. Hard-coding it means letting it go stale: new
+ * TLDs appear, registries move.
  *
- * D'où : **cache en mémoire, une semaine**, remplie paresseusement au premier
- * besoin ; en cas d'échec réseau, **une amorce embarquée** couvrant les TLD
- * qu'une instance a des chances de surveiller, et un cache d'échec de dix
- * minutes pour ne pas marteler l'IANA. Un worker fait donc *une* requête
- * d'amorçage par semaine, et continue de fonctionner sans elle.
+ * Hence: an **in-memory cache, one week**, filled lazily at first need; on a
+ * network failure, **an embedded seed** covering the TLDs an instance is likely
+ * to monitor, and a ten-minute failure cache so as not to hammer IANA. A worker
+ * therefore makes *one* bootstrap request per week, and keeps working without
+ * it.
  *
- * ── La garde SSRF, qui n'est pas la même que pour les autres sondes ─────────
- * Les autres sondes joignent une cible **que l'opérateur a choisie**, d'où
- * l'existence de `MONITOR_ALLOWED_CIDRS` : c'est lui qui décide quelles plages
- * internes son panel a le droit d'atteindre.
+ * ── The SSRF guard, which is not the same as for the other probes ───────────
+ * The other probes reach a target **the operator chose**, hence the existence of
+ * `MONITOR_ALLOWED_CIDRS`: it is the operator who decides which internal ranges
+ * their panel may reach.
  *
- * Ici, personne n'a choisi la destination. L'opérateur saisit `exemple.fr` ; le
- * serveur joint est celui qu'un fichier tiers désigne, résolu par un DNS qui
- * peut mentir. Faire hériter cette requête de la liste d'autorisation reviendrait
- * à dire : « une entrée d'amorçage empoisonnée peut atteindre mon 10.0.0.0/8 ».
- * Donc **`PUBLIC_ONLY`** : adresses publiques uniquement, quelle que soit la
- * configuration du panel. Un registre est sur l'internet public par définition ;
- * s'il résout vers une adresse privée, c'est une attaque, pas une exception à
- * accommoder. Même règle pour la liste d'amorçage elle-même, dont l'URL est en
- * dur ici et jamais dérivée d'une saisie.
+ * Here, nobody chose the destination. The operator enters `example.com`; the
+ * server reached is the one a third-party file designates, resolved by a DNS
+ * that can lie. Letting this request inherit the allow list would amount to
+ * saying: "a poisoned bootstrap entry can reach my 10.0.0.0/8". Hence
+ * **`PUBLIC_ONLY`**: public addresses only, whatever the panel's configuration.
+ * A registry is on the public Internet by definition; if it resolves to a
+ * private address, it is an attack, not an exception to accommodate. The same
+ * rule for the bootstrap list itself, whose URL is hard-coded here and never
+ * derived from an input.
  *
- * S'y ajoute `requireHttps` : une réponse RDAP altérée en transit dirait
- * n'importe quoi sur une date d'expiration, et le seul coût de l'exiger est de
- * refuser des registres qui n'existent pas — la liste d'amorçage ne publie que
- * des URL `https`.
+ * On top of that comes `requireHttps`: an RDAP response altered in transit would
+ * say anything about an expiry date, and the only cost of requiring it is
+ * refusing registries that do not exist — the bootstrap list only publishes
+ * `https` URLs.
  */
 
-// ─── liste d'amorçage ─────────────────────────────────────────────────────────
+// ─── bootstrap list ───────────────────────────────────────────────────────────
 
 const IANA_BOOTSTRAP_URL = 'https://data.iana.org/rdap/dns.json';
 
-/** Une semaine : la liste bouge de quelques entrées par mois, pas par heure. */
+/** One week: the list moves by a few entries a month, not an hour. */
 const BOOTSTRAP_TTL_MS = 7 * 86_400_000;
-/** Après un échec, on retente dans dix minutes — pas à chaque sonde. */
+/** After a failure, we retry in ten minutes — not at every probe. */
 const BOOTSTRAP_RETRY_MS = 10 * 60_000;
 const BOOTSTRAP_TIMEOUT_MS = 15_000;
 
 /**
- * Amorce de secours. **Ce n'est pas une copie de la liste de l'IANA** — la
- * copier serait la périmer en 71 kio. C'est le strict nécessaire pour qu'une
- * instance sans accès à `data.iana.org` continue de surveiller les domaines
- * qu'on surveille en pratique : les gTLD courants et les TLD francophones.
- * Relevé sur la liste du 2026-09-09.
+ * Fallback seed. **It is not a copy of IANA's list** — copying it would mean
+ * letting 71 KiB go stale. It is the bare minimum for an instance without
+ * access to `data.iana.org` to keep monitoring the domains monitored in
+ * practice: the common gTLDs and the French-speaking TLDs. Taken from the list
+ * of 2026-09-09.
  */
 const BOOTSTRAP_SEED: ReadonlyMap<string, string> = new Map([
   ['com', 'https://rdap.verisign.com/com/v1/'],
@@ -114,19 +113,19 @@ const BOOTSTRAP_SEED: ReadonlyMap<string, string> = new Map([
   ['cc', 'https://tld-rdap.verisign.com/cc/v1/'],
 ]);
 
-/** La forme de `dns.json`, telle que la RFC 9224 la décrit. */
+/** The shape of `dns.json`, as RFC 9224 describes it. */
 const bootstrapSchema = z.object({
   services: z.array(z.tuple([z.array(z.string()), z.array(z.string())])),
 });
 
-/** TLD → URL de base, à partir du document d'amorçage. */
+/** TLD → base URL, from the bootstrap document. */
 export function readBootstrap(payload: unknown): Map<string, string> {
   const parsed = bootstrapSchema.safeParse(payload);
   const map = new Map<string, string>();
   if (!parsed.success) return map;
   for (const [tlds, urls] of parsed.data.services) {
-    // On retient la première URL https : la liste en propose parfois deux, et
-    // une réponse RDAP en clair ne se vérifie pas.
+    // We keep the first https URL: the list sometimes offers two, and an RDAP
+    // response in clear cannot be verified.
     const base = urls.find((url) => url.startsWith('https://'));
     if (base === undefined) continue;
     for (const tld of tlds) map.set(tld.toLowerCase(), base.endsWith('/') ? base : `${base}/`);
@@ -137,7 +136,7 @@ export function readBootstrap(payload: unknown): Map<string, string> {
 type BootstrapCache = { map: Map<string, string> | null; until: number };
 let cache: BootstrapCache = { map: null, until: 0 };
 
-/** Pour les tests et le harnais : repartir d'un cache vide. */
+/** For tests and the harness: start again from an empty cache. */
 export function resetRdapBootstrapCache(): void {
   cache = { map: null, until: 0 };
 }
@@ -149,8 +148,8 @@ async function bootstrapMap(): Promise<Map<string, string> | null> {
     url: IANA_BOOTSTRAP_URL,
     method: 'GET',
     timeoutMs: BOOTSTRAP_TIMEOUT_MS,
-    // 71 kio au 2026-09-09 ; le plafond commun laisse de la marge sans
-    // permettre à data.iana.org de nous servir un flux sans fin.
+    // 71 KiB on 2026-09-09; the shared cap leaves room without letting
+    // data.iana.org serve us an endless stream.
     maxBytes: MONITOR_MAX_RESPONSE_BYTES,
     readBody: true,
     allowlist: PUBLIC_ONLY,
@@ -159,8 +158,8 @@ async function bootstrapMap(): Promise<Map<string, string> | null> {
   });
 
   if (!result.ok || result.status !== 200 || result.truncated) {
-    // Échec mis en cache aussi : sinon cinquante sondes de domaine retentent
-    // chacune, toutes les six heures, un service qui ne répond pas.
+    // Failure cached too: otherwise fifty domain probes would each retry, every six
+    // hours, a service that does not answer.
     cache = { map: cache.map, until: Date.now() + BOOTSTRAP_RETRY_MS };
     return cache.map;
   }
@@ -185,7 +184,7 @@ async function bootstrapMap(): Promise<Map<string, string> | null> {
 
 export type RdapEndpoint = { base: string; source: 'iana' | 'seed' };
 
-/** Le serveur RDAP d'un TLD : la liste de l'IANA d'abord, l'amorce ensuite. */
+/** A TLD's RDAP server: IANA's list first, the seed next. */
 export async function rdapEndpointFor(tld: string): Promise<RdapEndpoint | null> {
   const key = tld.toLowerCase();
   const live = await bootstrapMap();
@@ -195,17 +194,17 @@ export async function rdapEndpointFor(tld: string): Promise<RdapEndpoint | null>
   return seeded === undefined ? null : { base: seeded, source: 'seed' };
 }
 
-// ─── lecture d'une réponse RDAP ───────────────────────────────────────────────
+// ─── reading an RDAP response ─────────────────────────────────────────────────
 
 export type RdapDomainFacts = {
   ldhName: string | null;
-  /** ISO 8601, tel que le registre l'écrit. `null` si le registre ne le publie pas. */
+  /** ISO 8601, as the registry writes it. `null` if the registry does not publish it. */
   expiresOn: string | null;
   registeredOn: string | null;
   lastChangedOn: string | null;
   registrar: string | null;
   nameservers: string[];
-  /** Statuts EPP, normalisés en minuscules sans espaces ni tirets. */
+  /** EPP statuses, normalized to lowercase without spaces or dashes. */
   statuses: string[];
 };
 
@@ -229,9 +228,9 @@ const rdapDomainSchema = z.object({
 });
 
 /**
- * Le nom lisible d'une entité, dans son vCard. La forme jCard est un tableau
- * de tableaux (`['fn', {}, 'text', 'OVH SAS']`) qu'aucun schéma Zod ne décrit
- * élégamment : on la parcourt à la main plutôt que de prétendre le contraire.
+ * An entity's readable name, in its vCard. The jCard form is an array of arrays
+ * (`['fn', {}, 'text', 'OVH SAS']`) that no Zod schema describes elegantly: we
+ * walk it by hand rather than pretend otherwise.
  */
 function vcardFullName(vcardArray: unknown): string | null {
   if (!Array.isArray(vcardArray) || vcardArray.length < 2) return null;
@@ -257,14 +256,14 @@ function eventDate(
 }
 
 /**
- * Les faits, extraits d'une réponse RDAP. Fonction **pure** : c'est elle que
- * les tests éprouvent sur des réponses réelles figées, sans réseau.
+ * The facts, extracted from an RDAP response. A **pure** function: it is what
+ * the tests exercise on real frozen responses, without network.
  *
- * Elle est délibérément tolérante. Les registres ne remplissent pas tous les
- * mêmes champs — `.com` majuscule son `ldhName` et publie trois statuts EPP,
- * `.fr` minuscule le sien et n'annonce souvent qu'`active` — et un champ absent
- * n'est pas une réponse invalide. Ce qui manque vaut `null` ; ce qui manque
- * *vraiment* (la date d'expiration) est traité par le verdict, pas ici.
+ * It is deliberately tolerant. Registries do not all fill the same fields —
+ * `.com` uppercases its `ldhName` and publishes three EPP statuses, `.fr`
+ * lowercases its own and often only announces `active` — and a missing field is
+ * not an invalid response. What is missing is `null`; what is *really* missing
+ * (the expiry date) is handled by the verdict, not here.
  */
 export function readRdapDomain(payload: unknown): RdapDomainFacts {
   const parsed = rdapDomainSchema.safeParse(payload);
@@ -301,8 +300,8 @@ export function readRdapDomain(payload: unknown): RdapDomainFacts {
       .map((server) => server.ldhName?.toLowerCase().replace(/\.$/, '') ?? '')
       .filter((name) => name !== '')
       .sort(),
-    // « client transfer prohibited » (RFC 9083) et « clientTransferProhibited »
-    // (forme EPP brute) désignent la même chose ; on aplatit les deux.
+    // "client transfer prohibited" (RFC 9083) and "clientTransferProhibited" (raw
+    // EPP form) mean the same thing; we flatten both.
     statuses: (data.status ?? []).map((status) => status.toLowerCase().replace(/[\s_-]+/g, '')),
   };
 }
@@ -315,7 +314,7 @@ function daysUntil(iso: string, now: Date): number {
   return Math.floor((new Date(iso).getTime() - now.getTime()) / DAY_MS);
 }
 
-/** « 25/09/2026 » en français ; la date ISO, sans ambiguïté, ailleurs. */
+/** "25/09/2026" in French; the ISO date, unambiguous, elsewhere. */
 function displayDate(iso: string, language: UiLanguage): string {
   const [date] = iso.split('T');
   const parts = (date ?? iso).split('-');
@@ -330,24 +329,24 @@ export type DomainVerdict = {
 };
 
 /**
- * Le jugement, séparé de la requête pour être éprouvable sur des fixtures.
+ * The judgment, separate from the request to be testable on fixtures.
  *
- * ── « Expire bientôt » dans une machine à états qui n'a que trois cases ─────
- * `healthy / unhealthy / unreachable`. Un domaine qui expire dans douze jours
- * n'est en panne d'aucune de ces façons : il est *en danger*. Aucune des trois
- * ne le dit, et il n'y en a pas de quatrième — en ajouter une toucherait le
- * verdict, la colonne `health_status`, le voyant de l'écran et une migration.
+ * ── "Expires soon" in a state machine that only has three boxes ─────────────
+ * `healthy / unhealthy / unreachable`. A domain expiring in twelve days is down
+ * in none of these ways: it is *at risk*. None of the three says it, and there is
+ * no fourth — adding one would touch the verdict, the `health_status` column,
+ * the screen's indicator and a migration.
  *
- * On garde donc `unhealthy`, exactement comme la sonde TLS l'a déjà tranché
- * pour son préavis, et **la phrase porte la vérité que l'état ne porte pas** :
- * « expire dans 12 jours (le 25/09/2026) — sous le préavis de 30 jours ». Le
- * mot juste est dans le détail et dans `uptimeMeans` ; l'état, lui, ne sait dire
- * que « il faut s'en occuper ». C'est un compromis, et il est signalé comme tel
- * plutôt que maquillé.
+ * We therefore keep `unhealthy`, exactly as the TLS probe already decided for
+ * its notice period, and **the sentence carries the truth the state does not
+ * carry**: "expires in 12 days (on 25/09/2026) — within the 30-day notice". The
+ * right word is in the detail and in `uptimeMeans`; the state can only say "it
+ * needs attention". It is a compromise, and it is flagged as such rather than
+ * disguised.
  *
- * Plusieurs constats peuvent tomber ensemble — une expiration proche *et* un
- * registrar changé. On les rend tous : n'en dire qu'un ferait disparaître
- * l'autre du message d'alerte, et le second est souvent le plus grave.
+ * Several findings can come together — an expiry close by *and* a changed
+ * registrar. We return them all: saying only one would make the other disappear
+ * from the alert message, and the second is often the more serious.
  */
 export function judgeDomain(
   facts: RdapDomainFacts,
@@ -362,9 +361,9 @@ export function judgeDomain(
   const daysRemaining = facts.expiresOn === null ? null : daysUntil(facts.expiresOn, now);
 
   if (facts.expiresOn === null || daysRemaining === null) {
-    // Le registre a répondu et connaît le domaine : il *est* enregistré. Ne pas
-    // publier de date n'est pas une panne, c'est une limite de ce registre — et
-    // la taire serait laisser croire qu'on surveille l'expiration.
+    // The registry answered and knows the domain: it *is* registered. Not
+    // publishing a date is not an outage, it is a limit of that registry — and
+    // keeping quiet about it would suggest we monitor the expiry.
     notes.push(say('domain.noExpiry'));
   } else if (daysRemaining < 0) {
     problems.push(
@@ -433,7 +432,7 @@ export function judgeDomain(
   };
 }
 
-// ─── la sonde ─────────────────────────────────────────────────────────────────
+// ─── the probe ────────────────────────────────────────────────────────────────
 
 function emptyMetrics(rdapServer: string | null) {
   return {
@@ -455,10 +454,10 @@ async function runDomain(config: DomainConfig, language: UiLanguage): Promise<Ch
   const endpoint = await rdapEndpointFor(tld);
 
   if (endpoint === null) {
-    // Normalement impossible : le catalogue refuse à la création les TLD dont
-    // on sait qu'ils n'ont pas de RDAP. On y arrive quand même si la liste
-    // d'amorçage est injoignable *et* que le TLD n'est pas dans l'amorce, ou
-    // pour un `xn--` que le catalogue laisse passer faute de trancher.
+    // Normally impossible: the catalog refuses at creation the TLDs known to have
+    // no RDAP. We still get here if the bootstrap list is unreachable *and* the TLD
+    // is not in the seed, or for an `xn--` the catalog lets through for lack of a
+    // ruling.
     const known = tldPublishesRdap(tld);
     return {
       outcome: 'unreachable',
@@ -475,8 +474,8 @@ async function runDomain(config: DomainConfig, language: UiLanguage): Promise<Ch
     timeoutMs: config.timeoutMs,
     maxBytes: MONITOR_MAX_RESPONSE_BYTES,
     readBody: true,
-    // Adresses publiques uniquement : voir l'en-tête de ce fichier. Le serveur
-    // n'est pas choisi par l'opérateur, il n'hérite donc pas de ses ouvertures.
+    // Public addresses only: see this file's header. The server is not chosen by
+    // the operator, so it does not inherit their openings.
     allowlist: PUBLIC_ONLY,
     requireHttps: true,
     accept: 'application/rdap+json, application/json',
@@ -493,9 +492,9 @@ async function runDomain(config: DomainConfig, language: UiLanguage): Promise<Ch
   }
 
   if (result.status === 404) {
-    // Le seul cas où le registre nous dit vraiment quelque chose de mauvais sur
-    // le domaine : il ne le connaît pas. Soit il a expiré et a été purgé, soit
-    // ce n'est pas le nom enregistré — un sous-domaine, typiquement.
+    // The only case where the registry really tells us something bad about the
+    // domain: it does not know it. Either it expired and was purged, or it is not
+    // the registered name — a subdomain, typically.
     return {
       outcome: 'unhealthy',
       latencyMs: result.latencyMs,
@@ -505,7 +504,7 @@ async function runDomain(config: DomainConfig, language: UiLanguage): Promise<Ch
   }
 
   if (result.status !== 200) {
-    // 429, 5xx, page d'erreur HTML… : le registre va mal, pas le domaine.
+    // 429, 5xx, HTML error page…: the registry is unwell, not the domain.
     return {
       outcome: 'unreachable',
       latencyMs: result.latencyMs,

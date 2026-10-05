@@ -4,16 +4,16 @@ import { headers } from 'next/headers';
 import { bearerToken, hashApiToken } from './api-token-format';
 
 /**
- * Donne à `logAudit()` le navigateur de la requête en cours, et le jeton d'API
- * par lequel elle s'est authentifiée.
+ * Gives `logAudit()` the current request's browser, and the API token through
+ * which it authenticated.
  *
- * `headers()` répond dans une page comme dans un Route Handler — y compris
- * dans les crochets de Better Auth, appelés depuis sa route. Hors requête
- * (démarrage, tâche de fond), il lève : l'entrée part alors sans navigateur ni
- * jeton, ce qui est exact.
+ * `headers()` answers in a page as in a Route Handler — including in Better
+ * Auth's hooks, called from its route. Outside a request (startup, background
+ * job), it throws: the entry then goes out without a browser or token, which is
+ * accurate.
  *
- * Le jeton est retrouvé par son empreinte, y compris révoqué ou échu : le refus
- * d'un jeton révoqué se lit au journal avec le nom de ce jeton.
+ * The token is found by its fingerprint, revoked or expired included: a revoked
+ * token's refusal reads in the log with that token's name.
  */
 export function installAuditContext(): void {
   setAuditContextProvider(async () => {

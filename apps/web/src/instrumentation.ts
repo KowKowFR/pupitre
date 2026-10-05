@@ -1,39 +1,38 @@
 /**
- * Amorçage du processus serveur.
+ * Bootstrapping the server process.
  *
- * `register()` est appelée une fois, avant que Next n'accepte la première
- * requête. C'est le seul endroit du panel où l'on peut installer quelque chose
- * « au démarrage » : un Route Handler n'est chargé qu'à la première requête qui
- * le vise, et un layout n'est pas réexécuté à chaque navigation.
+ * `register()` is called once, before Next accepts the first request. It is the
+ * only place in the panel where something can be installed "at startup": a Route
+ * Handler is only loaded at the first request that targets it, and a layout is
+ * not re-run at each navigation.
  *
- * On y branche l'observateur du journal d'audit sur la file des notifications.
- * Sans lui, un changement de rôle ou une réinitialisation de second facteur
- * seraient tracés — mais n'alerteraient personne. Et le fournisseur qui donne
- * au journal le navigateur de chaque requête.
+ * We plug the audit log's observer into the notifications queue there. Without
+ * it, a role change or a second factor reset would be traced — but would alert
+ * nobody. And the provider that gives the log each request's browser.
  */
 export async function register(): Promise<void> {
-  // `register()` est aussi appelée pour le runtime Edge, où ni `ioredis` ni
-  // `pg` n'existent. L'import est donc dynamique et conditionné.
+  // `register()` is also called for the Edge runtime, where neither `ioredis` nor
+  // `pg` exist. The import is therefore dynamic and conditional.
   if (process.env.NEXT_RUNTIME !== 'nodejs') return;
 
   const { installAuditNotifications } = await import('./lib/notifications');
   installAuditNotifications();
 
-  // Le navigateur de chaque action tracée, lu dans la requête qui l'a portée.
+  // The browser of each traced action, read from the request that carried it.
   const { installAuditContext } = await import('./lib/audit-context');
   installAuditContext();
 
-  // Chaque action tracée réveille les écrans ouverts qu'elle concerne.
+  // Each traced action wakes up the open screens it concerns.
   const { installRealtimeAudit } = await import('./lib/realtime');
   installRealtimeAudit();
 
-  // La connexion unique se règle depuis le panel : sa configuration effective
-  // est lue ici, avant la première requête. Un fournisseur injoignable ne
-  // bloque pas le démarrage — l'écran de connexion retentera.
+  // Single sign-on is set from the panel: its effective configuration is read
+  // here, before the first request. An unreachable provider does not block the
+  // startup — the sign-in screen will try again.
   const { refreshSso } = await import('./lib/sso');
   await refreshSso().catch(() => undefined);
 
-  // La durée des sessions se règle aussi depuis le panel.
+  // The sessions' duration is also set from the panel.
   const { refreshSessionPolicy } = await import('./lib/session-policy');
   await refreshSessionPolicy();
 }

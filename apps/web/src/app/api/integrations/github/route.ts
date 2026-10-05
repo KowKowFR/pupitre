@@ -18,9 +18,9 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * La GitHub App de l'instance : son état, ses installations.
+ * The instance's GitHub App: its state, its installations.
  *
- * Aucune route ne rend la clé privée : elle entre chiffrée, elle ne ressort pas.
+ * No route returns the private key: it comes in encrypted, it does not come out.
  */
 export const GET = apiRoute(async (request) => {
   await requirePermission(request, 'settings:read');
@@ -38,13 +38,13 @@ const manualSchema = z.object({
 });
 
 /**
- * Connecter une App créée à la main sur GitHub : son identifiant et sa clé.
- * Les deux sont vérifiés auprès de GitHub avant d'être rangés.
+ * Connecting an App created by hand on GitHub: its identifier and its key. Both
+ * are checked with GitHub before being stored.
  */
 export const POST = apiRoute(async (request) => {
   const auth = await requirePermission(request, 'settings:manage');
   const body = await readJsonBody(request, manualSchema);
-  // Une clé tronquée ou collée à côté se dit en clair, pas en erreur de schéma.
+  // A truncated key, or one pasted off target, is spelled out, not as a schema error.
   if (body.privateKey.length < 64 || !body.privateKey.includes('PRIVATE KEY')) {
     throw new HttpError(422, 'invalid_private_key', msg(messages, 'error.privateKey'));
   }
@@ -76,7 +76,7 @@ export const POST = apiRoute(async (request) => {
   return NextResponse.json({ connection: githubConnectionView(connection) }, { status: 201 });
 });
 
-/** Déconnecter : la connexion et ses liaisons partent ; l'historique reste. */
+/** Disconnecting: the connection and its links go; the history stays. */
 export const DELETE = apiRoute(async (request) => {
   const auth = await requirePermission(request, 'settings:manage');
   const removed = await deleteSourceConnection('github');

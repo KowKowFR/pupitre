@@ -15,11 +15,10 @@ import { interpretTraefikContainer } from '../src/proxy/traefik/detect.js';
 import { traefikCopy } from '../src/proxy/traefik/messages.js';
 
 /**
- * Les reverse proxys et les sondes de supervision parlent la langue de
- * l'instance : le « Tester » d'un proxy, la pose des domaines, l'épreuve d'une
- * liaison, le `detail` d'un relevé — repris tel quel par l'écran et par les
- * alertes. Même contrôle que pour les drivers : mêmes `{variables}` dans les
- * deux langues, pas de français dans l'anglais.
+ * Reverse proxies and monitoring probes speak the instance's language: a
+ * proxy's "Test", applying domains, testing a link, a reading's `detail` —
+ * taken as is by the screen and the alerts. The same check as for the drivers:
+ * the same `{variables}` in both languages, no French in the English.
  */
 
 type Entry = string | Readonly<Record<string, string>>;
@@ -44,30 +43,30 @@ const bundles = {
   probe: probeCopy,
 } as const;
 
-describe('Messages des proxys et des sondes — deux langues', () => {
+describe('Proxy and probe messages — two languages', () => {
   for (const [name, bundle] of Object.entries(bundles)) {
-    it(`${name} : les mêmes variables dans les deux langues`, () => {
+    it(`${name}: the same variables in both languages`, () => {
       const fr = bundle.fr as Record<string, Entry>;
       const en = bundle.en as Record<string, Entry>;
       for (const key of Object.keys(fr)) {
         const english = en[key];
-        assert.ok(english !== undefined, `${key} manque en anglais`);
+        assert.ok(english !== undefined, `${key} missing in English`);
         assert.deepEqual(placeholders(english), placeholders(fr[key] as Entry), key);
       }
     });
 
-    it(`${name} : l'anglais ne contient pas de français`, () => {
+    it(`${name}: the English contains no French`, () => {
       for (const [key, value] of Object.entries(bundle.en as Record<string, Entry>)) {
         for (const form of forms(value)) {
-          assert.doesNotMatch(form, /[éèêàçùœ«»]/, `${key} : « ${form} »`);
+          assert.doesNotMatch(form, /[éèêàçùœ«»]/, `${key}: “${form}”`);
         }
       }
     });
   }
 });
 
-describe('Proxys — rendus en anglais', () => {
-  it('le verdict d’une sonde de route', () => {
+describe('Proxies — rendered in English', () => {
+  it('a route probe’s verdict', () => {
     const route = {
       hostname: 'app.example.com',
       tls: true,
@@ -92,7 +91,7 @@ describe('Proxys — rendus en anglais', () => {
     assert.equal(fine.detail, 'answers — HTTP 308, HTTPS 200');
   });
 
-  it('l’épreuve d’une liaison', () => {
+  it('testing a link', () => {
     const refused = interpretReach({
       curlCode: 7,
       body: '',
@@ -106,14 +105,14 @@ describe('Proxys — rendus en anglais', () => {
     assert.match(refused.detail, /^10\.0\.0\.5:30001 refuses the connection from “edge”/);
   });
 
-  it('un nom de domaine refusé', () => {
+  it('a refused domain name', () => {
     assert.equal(hostnameProblem('localhost', 'en'), 'at least one dot is required (example.com)');
     assert.equal(hostnameProblem('*.example.com', 'en'), 'wildcards are not supported');
-    // Sans langue, le français reste la valeur par défaut.
+    // Without a language, French stays the default value.
     assert.equal(hostnameProblem('*.example.com'), 'les jokers ne sont pas pris en charge');
   });
 
-  it('un Traefik trouvé en conteneur', () => {
+  it('a Traefik found in a container', () => {
     const finding = interpretTraefikContainer(
       { Args: ['--entrypoints.web.address=:80', '--providers.file.directory=/dyn'] },
       null,
@@ -128,10 +127,10 @@ describe('Proxys — rendus en anglais', () => {
   });
 });
 
-describe('Sondes — rendus en anglais', () => {
+describe('Probes — rendered in English', () => {
   const NOW = new Date('2026-09-13T12:00:00Z');
 
-  it('un domaine sous le préavis, sa date sans ambiguïté', () => {
+  it('a domain within the notice period, its date unambiguous', () => {
     const facts = readRdapDomain({
       events: [{ eventAction: 'expiration', eventDate: '2026-09-25T00:00:00Z' }],
     });
@@ -141,7 +140,7 @@ describe('Sondes — rendus en anglais', () => {
     assert.match(judgeDomain(facts, config, NOW).detail ?? '', /\(le 25\/09\/2026\)/);
   });
 
-  it('un écart DNS', () => {
+  it('a DNS mismatch', () => {
     const detail = describeDnsComparison(
       { ok: false, missing: ['10.0.0.1'], unexpected: ['10.0.0.2', '10.0.0.3'] } as never,
       400,
@@ -150,7 +149,7 @@ describe('Sondes — rendus en anglais', () => {
     assert.equal(detail, 'missing: 10.0.0.1 · unexpected: 10.0.0.2, 10.0.0.3');
   });
 
-  it('un délai dépassé, dit dans la langue de qui lit', () => {
+  it('a timeout, said in the language of whoever reads', () => {
     const error = new ProbeTimeoutError(5000);
     assert.equal(messageOf(error, 'en'), 'timed out after 5000 ms');
     assert.equal(messageOf(error), 'délai dépassé après 5000 ms');

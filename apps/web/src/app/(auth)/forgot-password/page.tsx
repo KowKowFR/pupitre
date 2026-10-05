@@ -15,15 +15,15 @@ export async function generateMetadata(): Promise<Metadata> {
 export const dynamic = 'force-dynamic';
 
 /**
- * Sans canal e-mail, le formulaire n'est pas affiché.
+ * Without an email channel, the form is not shown.
  *
- * C'est le point que ce chantier tenait à ne pas rater : un écran qui accepte
- * une adresse, remercie, et n'envoie rien, est pire que pas d'écran du tout —
- * la personne attend un message qui ne peut pas exister, et conclut que le
- * panel est cassé. Ici elle lit ce qui se passe réellement, et à qui s'adresser.
+ * It is the point this work was determined not to miss: a screen that accepts an
+ * address, says thank you, and sends nothing, is worse than no screen at all —
+ * the person waits for a message that cannot exist, and concludes that the panel
+ * is broken. Here they read what really happens, and whom to turn to.
  *
- * Le lien vers cette page est masqué sur l'écran de connexion dans le même cas :
- * les deux lisent la même fonction, il n'y a donc pas deux vérités.
+ * The link to this page is hidden on the sign-in screen in the same case: both
+ * read the same function, so there are not two truths.
  */
 export default async function ForgotPasswordPage() {
   if (!(await canSendAccountMail())) {

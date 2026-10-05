@@ -1,12 +1,12 @@
 import type { RouteCertificate } from './model.js';
 
 /**
- * Quand l'échéance d'un certificat devient une alerte.
+ * When a certificate's expiry becomes an alert.
  *
- * Let's Encrypt renouvelle trente jours avant l'échéance, et le proxy retente
- * ensuite chaque jour. Un certificat qui entre dans ses quatorze derniers jours
- * a donc raté deux semaines de renouvellements : quelque chose bloque, et il
- * reste le temps de le régler.
+ * Let's Encrypt renews thirty days before expiry, and the proxy then retries
+ * every day. A certificate that enters its last fourteen days has therefore
+ * missed two weeks of renewals: something is blocking, and there is still time
+ * to fix it.
  */
 export const CERTIFICATE_WARN_DAYS = 14;
 
@@ -18,16 +18,16 @@ export type CertificateTransition =
   | null;
 
 /**
- * Ce qu'une sonde apprend d'un certificat, au regard de l'échéance déjà
- * signalée pour la route (`alerted`, ou `null`).
+ * What a probe learns about a certificate, with regard to the expiry already
+ * reported for the route (`alerted`, or `null`).
  *
- *   - **une alerte par certificat** : un certificat qui entre dans la fenêtre
- *     est signalé une fois ; le suivant, s'il y entre à son tour, le sera
- *     aussi — c'est un autre certificat ;
- *   - **son pendant** : un certificat signalé, remplacé par un autre hors de
- *     la fenêtre, est annoncé renouvelé ;
- *   - une sonde **sans certificat** ne dit rien : elle n'efface pas ce qui a
- *     été signalé, sans quoi un échec passager ferait repartir l'alerte.
+ *   - **one alert per certificate**: a certificate that enters the window is
+ *     reported once; the next one, if it enters in turn, will be too — it is
+ *     another certificate;
+ *   - **its counterpart**: a reported certificate, replaced by another outside
+ *     the window, is announced renewed;
+ *   - a probe **without a certificate** says nothing: it does not erase what was
+ *     reported, otherwise a passing failure would start the alert again.
  */
 export function certificateTransition(
   alerted: string | null,

@@ -2,12 +2,12 @@ import { languageOf, type UiLanguage } from '@pupitre/core';
 import { getAppSettingsValue } from '@pupitre/db';
 
 /**
- * La langue de l'instance, relue au début de chaque tâche : celle de tout ce
- * que le worker écrit pour quelqu'un — journal d'un déploiement, preflight
- * d'une cible, erreurs, statuts de commit, notifications.
+ * The instance's language, read again at the start of each job: that of
+ * everything the worker writes for someone — a deployment's log, a target's
+ * preflight, errors, commit statuses, notifications.
  *
- * Changer la langue dans les paramètres vaut pour la tâche suivante ; ce qui
- * est déjà écrit — les lignes d'un journal, un relevé — garde la sienne.
+ * Changing the language in the settings holds for the next job; what is already
+ * written — a log's lines, a reading — keeps its own.
  */
 export async function instanceLanguage(): Promise<UiLanguage> {
   return languageOf((await getAppSettingsValue()).locale);

@@ -48,7 +48,7 @@ const DURATIONS: ReadonlyArray<{ label: string; minutes: number }> = [
 
 const when = maintenanceWhen;
 
-/** « 1 h 30 », « 45 min », « 2 j 3 h », « moins d'une minute ». */
+/** "1 h 30", "45 min", "2 d 3 h", "less than a minute". */
 function duration(startsAt: string, endsAt: string, t: Translate<typeof messages.fr>): string {
   const minutes = Math.floor((new Date(endsAt).getTime() - new Date(startsAt).getTime()) / 60_000);
   const days = Math.floor(minutes / 1440);
@@ -69,7 +69,7 @@ async function failure(response: Response, fallback: string): Promise<string> {
   return body.error?.message ?? fallback;
 }
 
-/** Le bouton de l'en-tête : il ouvre le tiroir de planification (`?nouvelle=1`). */
+/** The header's button: it opens the scheduling drawer (`?nouvelle=1`). */
 export function NewMaintenanceButton() {
   const t = useT(messages);
   const adding = useDrawerSelection('nouvelle');
@@ -92,7 +92,7 @@ export function MaintenanceView({
   windows: MaintenanceWindowJson[];
   format: FormatSettings;
   canManage: boolean;
-  /** Publier une annonce sur les pages de statut : le tiroir y mène. */
+  /** Publishing an announcement on the status pages: the drawer leads there. */
   canAnnounce?: boolean;
   targets: Option[];
   monitors: Option[];
@@ -111,8 +111,8 @@ export function MaintenanceView({
     .map((phase) => ({ phase, items: windows.filter((window) => window.phase === phase) }))
     .filter((group) => group.items.length > 0);
 
-  // Un lien « Mettre en maintenance » depuis une cible ou une sonde arrive
-  // avec son sujet : le formulaire part de là.
+  // A "Put under maintenance" link from a target or a probe arrives with its
+  // subject: the form starts from there.
   const prefill = {
     targetIds: [searchParams.get('cible')].filter((id): id is string =>
       targets.some((target) => target.id === id),
@@ -492,7 +492,7 @@ function SubjectLinks({
   );
 }
 
-/** Les alertes retenues, lues à l'ouverture du tiroir — elles peuvent être nombreuses. */
+/** The held alerts, read when the drawer opens — there can be many of them. */
 function HeldAlerts({ window, format }: { window: MaintenanceWindowJson; format: FormatSettings }) {
   const t = useT(messages);
   const [state, setState] = React.useState<HeldAlertJson[] | 'loading' | 'error'>('loading');
@@ -546,7 +546,7 @@ function HeldAlerts({ window, format }: { window: MaintenanceWindowJson; format:
   );
 }
 
-/** Une case par sujet, avec un filtre quand la liste est longue. */
+/** One checkbox per subject, with a filter when the list is long. */
 function SubjectPicker({
   label,
   help,
@@ -612,10 +612,9 @@ function SubjectPicker({
 }
 
 /**
- * La minute en cours : la saisie n'a pas de secondes, et « mettre en
- * maintenance » veut dire maintenant — arrondir à la minute suivante ferait
- * une fenêtre « à venir » pendant quelques secondes, et une alerte de ces
- * secondes-là partirait.
+ * The current minute: the input has no seconds, and "put under maintenance"
+ * means now — rounding to the next minute would make a window "upcoming" for a
+ * few seconds, and an alert from those seconds would go out.
  */
 function currentMinute(): Date {
   return new Date(Math.floor(Date.now() / 60_000) * 60_000);
@@ -692,8 +691,8 @@ function MaintenanceForm({
     if (datesError || subjectsError || !startsAt || !endsAt) return;
     setPending(true);
     setError(null);
-    // En modification, les sujets ne partent que s'ils ont changé : une sonde
-    // que la session ne voit pas n'est pas retirée parce qu'elle n'est pas cochée.
+    // When editing, the subjects only go out if they changed: a probe the session
+    // does not see is not removed because it is not checked.
     const body = {
       title,
       note: note.trim() === '' ? null : note,

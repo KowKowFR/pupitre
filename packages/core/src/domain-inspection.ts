@@ -1,17 +1,16 @@
 import { z } from 'zod';
 
 /**
- * Ce que l'on sait d'un domaine quand on le regarde de près : où il pointe,
- * à qui il appartient, quel certificat il présente.
+ * What we know about a domain when we look at it closely: where it points, who
+ * it belongs to, which certificate it presents.
  *
- * Le relevé est fait **par le worker**, à la demande (`domain:inspect`) : il
- * ouvre des sockets — DNS, RDAP, TLS — et le panel n'en ouvre pas. Il n'est
- * pas gardé : c'est une photographie, refaite à chaque ouverture du tiroir.
+ * The reading is made **by the worker**, on demand (`domain:inspect`): it opens
+ * sockets — DNS, RDAP, TLS — and the panel does not open any. It is not kept: it
+ * is a snapshot, taken again at each opening of the drawer.
  *
- * Les messages d'erreur sont ceux du réseau (`getaddrinfo ENOTFOUND`,
- * `certificate has expired`), tels quels : techniques, et plus utiles ainsi
- * qu'une traduction approximative. Les états, eux, sont des codes que l'écran
- * met en mots.
+ * Error messages are the network's (`getaddrinfo ENOTFOUND`,
+ * `certificate has expired`), as is: technical, and more useful that way than an
+ * approximate translation. The states are codes the screen puts into words.
  */
 
 const ADDRESS_SCOPES = [
@@ -29,17 +28,17 @@ const ADDRESS_SCOPES = [
 export const domainInspectionSchema = z.object({
   hostname: z.string(),
   checkedAt: z.string(),
-  /** La résolution du nom lui-même, vue du worker. */
+  /** The resolution of the name itself, seen from the worker. */
   dns: z.object({
     status: z.enum(['ok', 'not_found', 'error']),
     error: z.string().nullable(),
     cname: z.array(z.string()),
     a: z.array(z.string()),
     aaaa: z.array(z.string()),
-    /** Le plus petit TTL des A/AAAA : le temps qu'une correction met à se voir. */
+    /** The smallest TTL of the A/AAAA records: the time a fix takes to show. */
     ttl: z.number().nullable(),
   }),
-  /** La zone du domaine enregistré : ses serveurs de noms, son courrier, ses CAA. */
+  /** The registered domain's zone: its name servers, its mail, its CAA. */
   zone: z
     .object({
       name: z.string(),
@@ -53,20 +52,20 @@ export const domainInspectionSchema = z.object({
       address: z.string(),
       family: z.union([z.literal(4), z.literal(6)]),
       scope: z.enum(ADDRESS_SCOPES).nullable(),
-      /** Les noms inverses (PTR). */
+      /** Reverse names (PTR). */
       reverse: z.array(z.string()),
     }),
   ),
-  /** Le nom mène-t-il au proxy qui le sert ? */
+  /** Does the name lead to the proxy that serves it? */
   pointing: z.object({
     status: z.enum(['match', 'mismatch', 'unknown']),
-    /** Les adresses de la machine du proxy, telles que résolues. */
+    /** The addresses of the proxy's machine, as resolved. */
     expected: z.array(z.string()),
   }),
-  /** L'enregistrement du domaine, par RDAP (le « whois » structuré). */
+  /** The domain's registration, through RDAP (structured "whois"). */
   registration: z.object({
     status: z.enum(['ok', 'not_found', 'local', 'unsupported', 'error']),
-    /** Le domaine enregistré interrogé : `exemple.fr` pour `app.exemple.fr`. */
+    /** The registered domain queried: `example.com` for `app.example.com`. */
     domain: z.string().nullable(),
     server: z.string().nullable(),
     error: z.string().nullable(),
@@ -79,11 +78,11 @@ export const domainInspectionSchema = z.object({
     statuses: z.array(z.string()),
   }),
   certificate: z.object({
-    /** `http` : la route ne sert pas de TLS ; `blocked` : adresse que le worker ne joint pas. */
+    /** `http`: the route does not serve TLS; `blocked`: an address the worker does not reach. */
     status: z.enum(['ok', 'http', 'blocked', 'error']),
     error: z.string().nullable(),
     address: z.string().nullable(),
-    /** La chaîne est-elle reconnue par les autorités du worker ? */
+    /** Is the chain recognized by the worker's authorities? */
     authorized: z.boolean().nullable(),
     authorizationError: z.string().nullable(),
     subject: z.string().nullable(),
@@ -108,10 +107,9 @@ export const domainInspectJobDataSchema = z.object({
 export type DomainInspectJobData = z.infer<typeof domainInspectJobDataSchema>;
 
 /**
- * Les suffixes publics à deux étiquettes les plus courants : sous eux, le
- * domaine enregistré en compte trois (`exemple.co.uk`). Ce n'est pas la
- * liste publique des suffixes — 9 000 entrées pour trancher un cas rare —, et
- * le domaine interrogé est affiché : une erreur se voit.
+ * The most common two-label public suffixes: under them, the registered domain
+ * has three (`example.co.uk`). It is not the public suffix list — 9,000 entries
+ * to settle a rare case —, and the queried domain is shown: a mistake shows.
  */
 const TWO_LABEL_SUFFIXES: ReadonlySet<string> = new Set([
   'co.uk',
@@ -159,8 +157,8 @@ const TWO_LABEL_SUFFIXES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Les noms qu'aucun registre ne connaît : `localhost`, les TLD réservés aux
- * essais et aux réseaux privés (RFC 2606, 6761, 6762, 8375).
+ * The names no registry knows: `localhost`, the TLDs reserved for testing and
+ * private networks (RFC 2606, 6761, 6762, 8375).
  */
 const LOCAL_SUFFIXES = [
   'localhost',
@@ -181,7 +179,7 @@ export function isLocalHostname(hostname: string): boolean {
   return LOCAL_SUFFIXES.some((suffix) => name === suffix || name.endsWith(`.${suffix}`));
 }
 
-/** Le domaine enregistré d'un nom : `exemple.fr` pour `app.exemple.fr`. */
+/** A name's registered domain: `example.com` for `app.example.com`. */
 export function registrableDomainOf(hostname: string): string | null {
   const labels = hostname.toLowerCase().replace(/\.$/, '').split('.').filter(Boolean);
   if (labels.length < 2) return null;

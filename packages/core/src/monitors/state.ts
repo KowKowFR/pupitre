@@ -3,54 +3,53 @@ import { translator, type Translate, type Translated, type UiLanguage } from '..
 import { monitorTypeSchema, type MonitorType } from './catalog.js';
 
 /**
- * Ce qui est commun à **tous** les types de sonde : le verdict, la machine à
- * états, le taux de disponibilité, la charge utile d'alerte, la rétention.
+ * What is common to **every** probe type: the verdict, the state machine, the
+ * availability rate, the alert payload, retention.
  *
- * Rien ici ne connaît HTTP. Un type qui arrive plus tard — DNS, expiration de
- * domaine — hérite de tout ce fichier sans y ajouter une ligne.
+ * Nothing here knows HTTP. A type that comes later — DNS, domain expiry —
+ * inherits this whole file without adding a line to it.
  */
 
 /**
- * Verdict d'une mesure, quel que soit le type :
- *   healthy      ce qu'on attendait
- *   unhealthy    la cible a répondu, mais pas comme prévu
- *   unreachable  rien n'a répondu (DNS, TCP, TLS, délai dépassé)
+ * A measurement's verdict, whatever the type:
+ *   healthy      what was expected
+ *   unhealthy    the target answered, but not as planned
+ *   unreachable  nothing answered (DNS, TCP, TLS, timeout)
  *
- * Volontairement calqué sur `health_status` en base. Ce n'est pas de la
- * paresse : l'écran réutilise le voyant `HealthDot` du reste du panel, donc la
- * même convention de lecture.
+ * Deliberately modeled on `health_status` in the database. It is not laziness:
+ * the screen reuses the rest of the panel's `HealthDot` light, hence the same
+ * reading convention.
  */
 export const monitorOutcomeSchema = z.enum(['healthy', 'unhealthy', 'unreachable']);
 export type MonitorOutcome = z.infer<typeof monitorOutcomeSchema>;
 
-/** État **confirmé** d'une sonde. `unknown` tant qu'aucune mesure n'est passée. */
+/** A probe's **confirmed** state. `unknown` as long as no measurement has passed. */
 export const monitorStatusSchema = z.enum(['unknown', 'healthy', 'unhealthy', 'unreachable']);
 export type MonitorStatus = z.infer<typeof monitorStatusSchema>;
 
 /**
- * Les mesures d'un relevé. Un espace **ouvert et structuré**, parce qu'un
- * résultat n'a pas les mêmes mesures selon le type : une sonde HTTP rend une
- * latence et un code, une sonde TLS des jours restants et un émetteur. Le
- * catalogue dit à l'écran comment afficher chaque clé ; personne ne force ça
- * dans des colonnes HTTP.
+ * A reading's measurements. An **open and structured** space, because a result
+ * does not have the same measurements depending on the type: an HTTP probe
+ * returns a latency and a code, a TLS probe days left and an issuer. The catalog
+ * tells the screen how to show each key; nobody forces that into HTTP columns.
  */
 export const metricValueSchema = z.union([z.number(), z.string(), z.null()]);
 export type MetricValue = z.infer<typeof metricValueSchema>;
 export const checkMetricsSchema = z.record(z.string(), metricValueSchema);
 export type CheckMetrics = z.infer<typeof checkMetricsSchema>;
 
-/** Ce que toute sonde rend, quel que soit son type. */
+/** What every probe returns, whatever its type. */
 export const checkResultSchema = z.object({
   outcome: monitorOutcomeSchema,
-  /** Durée de la mesure, quand elle a un sens. `null` si rien n'a répondu. */
+  /** Duration of the measurement, when it makes sense. `null` if nothing answered. */
   latencyMs: z.number().int().nonnegative().nullable(),
-  /** Ce qui a été constaté, en une phrase. Toujours renseigné quand ça rate. */
+  /** What was observed, in one sentence. Always filled in when it fails. */
   detail: z.string().nullable(),
   metrics: checkMetricsSchema,
 });
 export type CheckResult = z.infer<typeof checkResultSchema>;
 
-// ─── bornes communes ──────────────────────────────────────────────────────────
+// ─── shared bounds ────────────────────────────────────────────────────────────
 
 export const MONITOR_THRESHOLD_MIN = 1;
 export const MONITOR_THRESHOLD_MAX = 10;
@@ -58,83 +57,78 @@ export const MONITOR_FAILURE_THRESHOLD_DEFAULT = 3;
 export const MONITOR_RECOVERY_THRESHOLD_DEFAULT = 2;
 
 /**
- * Rétention de `monitor_checks` : **30 jours**.
+ * Retention of `monitor_checks`: **30 days**.
  *
- * Une sonde à la minute produit 1 440 lignes par jour, 43 200 par mois, un peu
- * plus d'un demi-million par an. Trente jours couvrent les deux fenêtres que
- * l'écran affiche (24 h et 7 j), laissent la place à un regard « le mois
- * dernier » quand on enquête sur une panne, et plafonnent une instance de
- * cinquante sondes à ~2,2 millions de lignes — une taille que l'index
- * `(monitor_id, checked_at desc)` absorbe sans effort.
+ * A probe every minute produces 1,440 rows a day, 43,200 a month, a little more
+ * than half a million a year. Thirty days cover the two windows the screen shows
+ * (24 h and 7 d), leave room for a "last month" look when investigating an
+ * outage, and cap an instance with fifty probes at ~2.2 million rows — a size
+ * the `(monitor_id, checked_at desc)` index absorbs effortlessly.
  *
- * Au-delà, la mesure brute ne paie plus sa place : ce qu'on veut d'un
- * historique plus long, ce sont des agrégats journaliers, pas 500 000 lignes.
- * Les **incidents**, eux, ne sont jamais purgés : ils sont rares, et ce sont eux
- * qui racontent l'histoire.
+ * Beyond that, the raw measurement no longer pays its place: what one wants
+ * from a longer history are daily aggregates, not 500,000 rows. **Incidents**
+ * are never purged: they are rare, and they are what tells the story.
  */
 export const MONITOR_CHECK_RETENTION_DAYS = 30;
 
-/** Purge par lots : un `DELETE` de plusieurs millions de lignes tiendrait la table. */
+/** Purge in batches: a `DELETE` of several million rows would hold the table. */
 export const MONITOR_PRUNE_BATCH = 20_000;
 
 /**
- * Taille de réponse lue, au maximum. Un flux infini servi à une sonde qui passe
- * toutes les minutes épuise le worker en quelques heures.
+ * Maximum response size read. An infinite stream served to a probe that runs
+ * every minute exhausts the worker within hours.
  */
 export const MONITOR_MAX_RESPONSE_BYTES = 256 * 1024;
 
-/** Redirections suivies. Chacune est re-contrôlée par la politique SSRF. */
+/** Redirects followed. Each one is checked again by the SSRF policy. */
 export const MONITOR_MAX_REDIRECTS = 5;
 
 export const MONITOR_USER_AGENT = 'pupitre-monitor/1';
 
-/** Cadence du balayage. Fixe : c'est un détail d'exécution, pas un réglage. */
+/** Sweep interval. Fixed: it is an execution detail, not a setting. */
 export const MONITOR_SWEEP_EVERY_MS = 30_000;
 
 /**
- * Temps de travail d'un balayage. Bien sous la cadence : un balayage qui
- * déborde laisse simplement les sondes restantes au suivant, elles sont
- * toujours dues.
+ * A sweep's working time. Well under the interval: a sweep that overflows simply
+ * leaves the remaining probes to the next one, they are still due.
  */
 export const MONITOR_SWEEP_BUDGET_MS = 22_000;
 
-/** Sondes menées de front dans un balayage. */
+/** Probes run concurrently in a sweep. */
 export const MONITOR_SWEEP_CONCURRENCY = 10;
 
-/** Sondes réclamées au plus par balayage. */
+/** Probes claimed at most per sweep. */
 export const MONITOR_SWEEP_BATCH = 200;
 
-/** Mesures affichées dans la courbe compacte de la liste. */
+/** Measurements shown in the list's compact curve. */
 export const MONITOR_SPARKLINE_POINTS = 40;
 
-// ─── machine à états ──────────────────────────────────────────────────────────
+// ─── state machine ────────────────────────────────────────────────────────────
 
 /**
- * Un **incident est une transition**, pas une ligne de la série temporelle.
+ * An **incident is a transition**, not a row of the time series.
  *
- * Le rebond — une mesure qui rate puis repasse — ne doit rien déclencher :
- * c'est le cas le plus fréquent, et cinquante messages pour une panne de deux
- * minutes, personne ne les lit. D'où un seuil de confirmation, réglable par
- * sonde : `failureThreshold` échecs consécutifs pour ouvrir, `recoveryThreshold`
- * succès consécutifs pour refermer.
+ * A blip — a measurement that fails then passes again — must trigger nothing:
+ * it is the most frequent case, and fifty messages for a two-minute outage,
+ * nobody reads them. Hence a confirmation threshold, adjustable per probe:
+ * `failureThreshold` consecutive failures to open, `recoveryThreshold`
+ * consecutive successes to close.
  *
- * L'état **confirmé** (`status`) ne bouge donc qu'aux transitions. Le dernier
- * verdict brut est conservé à part (`lastOutcome`), ce qui permet à l'écran de
- * dire « 1 échec sur 3 — non confirmé » plutôt que de mentir dans un sens ou
- * dans l'autre.
+ * The **confirmed** state (`status`) therefore only moves at transitions. The
+ * last raw verdict is kept apart (`lastOutcome`), which lets the screen say "1
+ * failure out of 3 — not confirmed" rather than lie one way or the other.
  */
 export type MonitorState = {
   status: MonitorStatus;
   consecutiveFailures: number;
   consecutiveSuccesses: number;
   /**
-   * Un incident est-il ouvert ? D'ordinaire, c'est exactement « l'état
-   * confirmé est une panne ». Pas toujours : changer ce qu'une sonde observe
-   * remet son état à `unknown` — le verdict portait sur autre chose — sans
-   * refermer l'incident, qui a été annoncé. Sans ce champ, la machine croyait
-   * alors n'avoir « rien à refermer » : le retour à la normale passait sous
-   * silence, l'incident restait ouvert pour toujours, et l'index unique
-   * avalait chaque panne suivante.
+   * Is an incident open? Usually, it is exactly "the confirmed state is an
+   * outage". Not always: changing what a probe watches resets its state to
+   * `unknown` — the verdict was about something else — without closing the
+   * incident, which was announced. Without this field, the machine then believed
+   * it had "nothing to close": the return to normal went unannounced, the incident
+   * stayed open forever, and the unique index swallowed every following outage.
    */
   incidentOpen: boolean;
 };
@@ -158,16 +152,17 @@ export function nextMonitorState(
   const consecutiveFailures = healthy ? 0 : previous.consecutiveFailures + 1;
   const consecutiveSuccesses = healthy ? previous.consecutiveSuccesses + 1 : 0;
 
-  // En incident : la panne a été confirmée et annoncée. L'état le dit
-  // (`unhealthy`, `unreachable`), ou il a été remis à `unknown` par un
-  // changement de cible pendant la panne — l'incident, lui, court toujours.
+  // In an incident: the outage was confirmed and announced. The state says so
+  // (`unhealthy`, `unreachable`), or it was reset to `unknown` by a target change
+  // during the outage — the incident is still running.
   const inIncident =
     previous.incidentOpen || previous.status === 'unhealthy' || previous.status === 'unreachable';
 
   if (healthy) {
-    // Hors incident, une seule mesure saine suffit à afficher « sain » : il n'y
-    // a rien à refermer, donc rien à confirmer. En incident, le rétablissement
-    // demande son seuil — et il s'annonce, même si l'état affiché était `unknown`.
+    // Outside an incident, a single healthy measurement is enough to show
+    // "healthy": there is nothing to close, hence nothing to confirm. In an
+    // incident, recovery needs its threshold — and it is announced, even if the
+    // displayed state was `unknown`.
     const recovered = !inIncident || consecutiveSuccesses >= thresholds.recoveryThreshold;
     if (!recovered) {
       return {
@@ -188,7 +183,7 @@ export function nextMonitorState(
   }
 
   if (inIncident) {
-    // Déjà en panne : on met à jour la nature de l'échec sans rouvrir d'incident.
+    // Already down: we update the nature of the failure without reopening an incident.
     return {
       status: outcome,
       consecutiveFailures,
@@ -220,33 +215,33 @@ export function nextMonitorState(
 // ─── suspension ───────────────────────────────────────────────────────────────
 
 /**
- * Pourquoi une sonde a été suspendue — une **donnée**, pas une phrase.
+ * Why a probe was paused — **data**, not a sentence.
  *
- * ── Le piège qu'on évite ────────────────────────────────────────────────────
- * `monitors.paused_reason` est une colonne : ce qu'on y écrit reste écrit. Y
- * poser « application plus déployée — sonde suspendue automatiquement » figeait
- * la langue **au moment du balayage**, pour toujours, et pour tous les lecteurs
- * — y compris celui qui basculerait l'instance en anglais l'année suivante. Une
- * traduction à l'écriture n'est pas une traduction, c'est un enregistrement.
+ * ── The trap avoided ────────────────────────────────────────────────────────
+ * `monitors.paused_reason` is a column: what is written there stays written.
+ * Writing « application plus déployée — sonde suspendue automatiquement » froze
+ * the language **at sweep time**, forever, and for every reader — including the
+ * one who would switch the instance to English the following year. Translating
+ * at write time is not translating, it is recording.
  *
- * ── Pourquoi une clé, et non une énumération ────────────────────────────────
- * La colonne reste du texte libre, et c'est délibéré. Deux raisons :
- *   • les lignes **déjà en base** portent la vieille phrase française, et une
- *     énumération les rendrait illisibles ou obligerait à une migration qui
- *     réécrit un fait passé ;
- *   • rien n'interdit qu'un jour un humain y écrive son propre motif, et une
- *     énumération le lui refuserait.
+ * ── Why a key, and not an enumeration ───────────────────────────────────────
+ * The column stays free text, deliberately. Two reasons:
+ *   • rows **already in the database** carry the old French sentence, and an
+ *     enumeration would make them unreadable or require a migration that
+ *     rewrites a past fact;
+ *   • nothing forbids a human from writing their own reason there one day, and
+ *     an enumeration would refuse it.
  *
- * D'où le contrat : les motifs **automatiques** s'écrivent avec le préfixe
- * `auto:`, l'écran les reconnaît et les rend dans sa langue, et **retombe sur la
- * valeur brute** dès qu'il ne reconnaît pas. Une vieille ligne s'affiche donc
- * telle qu'elle a été écrite, sans rien casser.
+ * Hence the contract: **automatic** reasons are written with the `auto:` prefix,
+ * the screen recognizes them and renders them in its language, and **falls back
+ * on the raw value** as soon as it does not recognize one. An old row therefore
+ * shows as it was written, breaking nothing.
  */
 export const MONITOR_PAUSE_ORPHANED = 'auto:orphaned';
 
 const UNKNOWN_TYPE_PREFIX = 'auto:unknown-type:';
 
-/** Motif d'une sonde dont le type n'existe plus dans cette version du panel. */
+/** Reason for a probe whose type no longer exists in this version of the panel. */
 export function monitorPauseUnknownType(type: string): string {
   return `${UNKNOWN_TYPE_PREFIX}${type}`;
 }
@@ -254,7 +249,7 @@ export function monitorPauseUnknownType(type: string): string {
 export type MonitorPause =
   | { reason: 'orphaned' }
   | { reason: 'unknownType'; type: string }
-  /** Ce que l'écran ne reconnaît pas : une ligne d'avant, ou un motif libre. */
+  /** What the screen does not recognize: a row from before, or a free reason. */
   | { reason: 'free'; text: string };
 
 export function parseMonitorPause(raw: string): MonitorPause {
@@ -265,12 +260,12 @@ export function parseMonitorPause(raw: string): MonitorPause {
   return { reason: 'free', text: raw };
 }
 
-// ─── taux de disponibilité ────────────────────────────────────────────────────
+// ─── availability rate ────────────────────────────────────────────────────────
 
 /**
- * Un taux sans son dénominateur ne veut rien dire : « 100 % sur 3 mesures »
- * n'est pas « 100 % sur 1 440 ». L'écran affiche toujours les deux, et une
- * fenêtre sans aucune mesure rend `null` — pas 0 %.
+ * A rate without its denominator means nothing: "100% over 3 measurements" is
+ * not "100% over 1,440". The screen always shows both, and a window without any
+ * measurement returns `null` — not 0%.
  */
 export type UptimeWindow = {
   hours: number;
@@ -285,20 +280,20 @@ export function uptimeRatio(up: number, samples: number): number | null {
 }
 
 /**
- * Les mots des durées, des taux et des alertes — et rien que les mots.
+ * The words of durations, rates and alerts — and nothing but the words.
  *
- * Ces quatre formats s'affichent partout : sous chaque carte de sonde, dans le
- * bandeau du détail, dans la liste des tâches planifiées. Les laisser en dur
- * revenait à laisser une phrase française sur un écran anglais à chaque ligne.
- * Les entrées `alert.*`, elles, ne s'affichent pas : elles partent vers Slack,
- * Discord ou un récepteur maison. C'est le même besoin — personne n'est devant
- * l'écran, donc la langue est celle de l'instance, et le worker la passe.
+ * These four formats show everywhere: under each probe card, in the detail's
+ * banner, in the list of scheduled tasks. Leaving them hard-coded meant leaving
+ * a French sentence on an English screen at every line. The `alert.*` entries
+ * are not displayed: they go to Slack, Discord or a home-made receiver. It is
+ * the same need — nobody is in front of the screen, so the language is the
+ * instance's, and the worker passes it.
  *
- * Deux clés portent une divergence de langue que rien d'autre ne pouvait
- * absorber : `cadence.every.masculine` et `cadence.every.feminine`. Le français
- * accorde l'article avec ce qui suit — « toutes les minutes », « tous les
- * jours » — quand l'anglais dit *every* dans les deux cas. Le choix se fait
- * donc du côté du code, et l'anglais rend simplement la même phrase deux fois.
+ * Two keys carry a language divergence nothing else could absorb:
+ * `cadence.every.masculine` and `cadence.every.feminine`. French agrees the
+ * article with what follows — « toutes les minutes », « tous les jours » —
+ * where English says *every* in both cases. The choice is therefore made on the
+ * code's side, and English simply returns the same sentence twice.
  */
 const fr = {
   'uptime.none': 'aucune mesure',
@@ -373,9 +368,9 @@ export const monitorStateCopy = { fr, en };
 type StateTranslate = Translate<typeof fr>;
 
 /**
- * Le défaut reste le français, comme pour le catalogue : le worker et la base
- * appellent ces formats sans avoir de langue d'instance à offrir. Le panel, lui,
- * passe la sienne.
+ * The default stays French, as for the catalog: the worker and the database call
+ * these formats without an instance language to offer. The panel passes its
+ * own.
  */
 function copy(language: UiLanguage): StateTranslate {
   return translator(monitorStateCopy, language);
@@ -385,9 +380,9 @@ export function formatUptime(window: UptimeWindow, language: UiLanguage = 'fr'):
   const t = copy(language);
   if (window.ratio === null) return t('uptime.none');
   const percent = window.ratio * 100;
-  // Deux décimales sous 100 % : 99,93 % et 99,99 %, ce n'est pas la même panne.
-  // La virgule décimale du français et le point de l'anglais viennent d'`Intl`,
-  // pas d'un remplacement à la main.
+  // Two decimals under 100%: 99.93% and 99.99% are not the same outage. French's
+  // decimal comma and English's point come from `Intl`, not from a manual
+  // replacement.
   const text =
     percent === 100
       ? '100'
@@ -412,7 +407,7 @@ export function formatDuration(seconds: number, language: UiLanguage = 'fr'): st
   return t('duration.days', { value: Math.floor(seconds / 86_400) });
 }
 
-/** Une durée, en toutes lettres : « 30 secondes », « 6 heures », « 1 jour ». */
+/** A duration, spelled out: "30 seconds", "6 hours", "1 day". */
 export function formatInterval(seconds: number, language: UiLanguage = 'fr'): string {
   const t = copy(language);
   if (seconds < 60) return t('interval.seconds', { count: seconds });
@@ -422,11 +417,11 @@ export function formatInterval(seconds: number, language: UiLanguage = 'fr'): st
 }
 
 /**
- * La même durée, en cadence : « toutes les 30 secondes », « tous les jours ».
+ * The same duration, as a cadence: "every 30 seconds", "every day".
  *
- * Fonction à part parce que le français ne se laisse pas composer : « toutes
- * les » devant une minute, « tous les » devant un jour. Concaténer une durée
- * après un « toutes les » figé produisait « toutes les heure ».
+ * A separate function because French does not compose: « toutes les » before a
+ * minute, « tous les » before a day. Concatenating a duration after a frozen
+ * « toutes les » produced « toutes les heure ».
  */
 export function formatCadence(seconds: number, language: UiLanguage = 'fr'): string {
   const t = copy(language);
@@ -438,18 +433,17 @@ export function formatCadence(seconds: number, language: UiLanguage = 'fr'): str
   return t(masculine ? 'cadence.every.masculine' : 'cadence.every.feminine', { interval });
 }
 
-// ─── alerte ───────────────────────────────────────────────────────────────────
+// ─── alert ────────────────────────────────────────────────────────────────────
 
 /**
- * Un **webhook sortant**, et rien d'autre pour l'instant. Une requête POST avec
- * une charge utile JSON couvre Slack, Discord, Teams et n'importe quel
- * récepteur maison d'un seul mécanisme. Il n'y a pas de mailer dans ce projet,
- * et en ajouter un pour cette fonctionnalité serait commencer par le plus
- * coûteux.
+ * An **outgoing webhook**, and nothing else for now. A POST request with a JSON
+ * payload covers Slack, Discord, Teams and any home-made receiver with a single
+ * mechanism. There is no mailer in this project, and adding one for this
+ * feature would mean starting with the most expensive.
  *
- * La charge porte `text` **et** `content` en plus du corps structuré : c'est ce
- * que lisent respectivement Slack et Discord, de sorte qu'un webhook collé tel
- * quel affiche une phrase lisible sans transformation.
+ * The payload carries `text` **and** `content` on top of the structured body:
+ * that is what Slack and Discord respectively read, so that a webhook pasted as
+ * is shows a readable sentence without transformation.
  */
 export const monitorAlertSchema = z.object({
   event: z.enum(['monitor.down', 'monitor.up']),
@@ -460,7 +454,7 @@ export const monitorAlertSchema = z.object({
     id: z.string(),
     name: z.string(),
     type: monitorTypeSchema,
-    /** La cible, en une ligne — une URL pour HTTP, un hôte:port pour TLS. */
+    /** The target, in one line — a URL for HTTP, a host:port for TLS. */
     target: z.string(),
   }),
   incident: z.object({
@@ -478,12 +472,12 @@ export const monitorAlertSchema = z.object({
 export type MonitorAlert = z.infer<typeof monitorAlertSchema>;
 
 /**
- * La phrase de l'alerte se rend **ici**, dans la langue qu'on lui donne.
+ * The alert's sentence is rendered **here**, in the language it is given.
  *
- * Elle part vers des canaux, pas vers un écran : personne n'est devant, donc la
- * langue est celle de l'instance. Le worker la lit dans les paramètres et la
- * passe ; le défaut reste le français, comme partout dans ce fichier, pour les
- * appelants qui n'en ont pas — un test, un script.
+ * It goes to channels, not to a screen: nobody is in front, so the language is
+ * the instance's. The worker reads it from the settings and passes it; the
+ * default stays French, as everywhere in this file, for callers that have none
+ * — a test, a script.
  */
 export function buildMonitorAlert(
   input: {

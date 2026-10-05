@@ -2,20 +2,22 @@ import { z } from 'zod';
 import { invalid } from '../../validation.js';
 import type { ProxyDescriptor } from '../model.js';
 import type { ProbeSignatures } from '../probe.js';
+import { npmSay } from './messages.js';
 
 /**
- * Nginx Proxy Manager — sa connexion, et ce qu'il dit de lui-même. Rien n'est
- * exécuté ici : l'écran l'importe, comme le worker.
+ * Nginx Proxy Manager — its connection, and what it says about itself. Nothing
+ * runs here: the screen imports it, as does the worker.
  *
- * Un proxy **distant** : il tourne hors des cibles, souvent sur une machine à
- * part qui sert tout un réseau. Pupitre ne la pilote pas ; il parle à l'API de
- * NPM, avec un compte à lui. L'e-mail du compte se montre ; son mot de passe
- * est un secret, chiffré en base, qui ne sort que vers le worker.
+ * A **remote** proxy: it runs outside the targets, often on a separate machine
+ * that serves a whole network. Pupitre does not drive that machine; it talks to
+ * NPM's API, with an account of its own. The account's email is shown; its
+ * password is a secret, encrypted in the database, that only goes out toward
+ * the worker.
  */
 
 const port = z.number().int().min(1).max(65_535);
 
-/** `http://10.0.0.5:81/` ou `…/api` → `http://10.0.0.5:81` : l'adresse de l'interface. */
+/** `http://10.0.0.5:81/` or `…/api` → `http://10.0.0.5:81`: the interface's address. */
 function interfaceUrl(value: string): string {
   return value
     .trim()
@@ -24,7 +26,7 @@ function interfaceUrl(value: string): string {
 }
 
 export const npmConfigSchema = z.object({
-  /** L'adresse de son interface d'administration, qui porte aussi l'API : `http://10.0.0.5:81`. */
+  /** The address of its admin interface, which also carries the API: `http://10.0.0.5:81`. */
   url: z
     .string()
     .trim()
@@ -32,11 +34,11 @@ export const npmConfigSchema = z.object({
     .max(500)
     .refine((value) => /^https?:\/\//i.test(value), invalid('npm.url'))
     .transform(interfaceUrl),
-  /** Le compte que Pupitre emploie. */
+  /** The account Pupitre uses. */
   email: z.string().trim().email().max(254),
   /**
-   * Où NPM reçoit les visiteurs : c'est là que les domaines sont sondés, depuis
-   * le panel. Par défaut, la machine de son interface, ports 80 et 443.
+   * Where NPM receives visitors: that is where domains are probed, from the panel.
+   * By default, its interface's machine, ports 80 and 443.
    */
   entrypoint: z
     .object({
@@ -53,7 +55,7 @@ export const npmSecretsSchema = z.object({
   password: z.string().min(1).max(500),
 });
 
-/** Où sonder : l'entrée réglée, sinon la machine de l'interface. */
+/** Where to probe: the set entrance, otherwise the interface's machine. */
 export function npmEntrypoint(config: NpmConfig): {
   host: string;
   httpPort: number;
@@ -68,25 +70,26 @@ export const npmDescriptor: ProxyDescriptor<NpmConfig> = {
   parseConfig: (config) => npmConfigSchema.parse(config),
   parseSecrets: (secrets) => npmSecretsSchema.parse(secrets),
   entrypointHost: (config) => npmEntrypoint(config).host,
-  describe: (config) =>
-    `Nginx Proxy Manager · ${new URL(config.url).host} · compte ${config.email}`,
+  describe: (config, language) =>
+    `Nginx Proxy Manager · ${new URL(config.url).host} · ${npmSay(language)('describe.account', { email: config.email })}`,
   capabilities: () => ({
-    // NPM demande lui-même ses certificats à Let's Encrypt, au nom du compte.
+    // NPM requests its certificates from Let's Encrypt itself, in the account's
+    // name.
     autoTls: true,
     https: true,
     redirectHttps: true,
     waf: false,
     remoteUpstream: 'any',
   }),
-  // Son autorité est la sienne (Let's Encrypt, ou ce que son instance règle) :
-  // Pupitre ne la choisit pas, il ne la dit donc pas.
+  // Its authority is its own (Let's Encrypt, or what its instance sets): Pupitre
+  // does not choose it, so it does not name it.
   acme: () => null,
 };
 
 /**
- * Ce que NPM sert à un nom qu'il ne connaît pas : sa page « Congratulations »
- * en 200 — tant que son « site par défaut » n'a pas été changé. En HTTPS, il
- * refuse la poignée de main ; son certificat d'attente ne se voit plus.
+ * What NPM serves to a name it does not know: its "Congratulations" page as a
+ * 200 — as long as its "default site" was not changed. Over HTTPS, it refuses
+ * the handshake; its placeholder certificate is no longer seen.
  */
 export const NPM_PROBE: ProbeSignatures = {
   noRouteBody: 'successfully started the Nginx Proxy Manager',

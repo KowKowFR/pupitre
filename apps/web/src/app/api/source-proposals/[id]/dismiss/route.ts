@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 const paramsSchema = z.object({ id: z.string().uuid() });
 type Context = { params: Promise<{ id: string }> };
 
-/** Ignorer un commit en attente : il ne partira pas. Le suivant sera examiné. */
+/** Ignoring a pending commit: it will not go out. The next one will be examined. */
 export const POST = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'deployment:create');
   const { id } = paramsSchema.parse(await context.params);

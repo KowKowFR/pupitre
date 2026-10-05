@@ -24,19 +24,19 @@ import { backupApplication } from './application.js';
 import { BackupError, fetchPiece, openStore } from './shared.js';
 
 /**
- * Restaurer une sauvegarde d'application sur une cible où elle tourne.
+ * Restoring an application backup on a target where it runs.
  *
- *   1. une sauvegarde de sûreté de l'état actuel, si demandé (par défaut) :
- *      une restauration se défait comme elle s'est faite ;
- *   2. chaque morceau est téléchargé et **vérifié** — empreinte, puis
- *      authenticité du chiffrement — avant que quoi que ce soit change ;
- *   3. les volumes sont remplacés application arrêtée, puis elle redémarre ;
- *   4. les exports de bases sont rejoués une fois chaque base prête ;
- *   5. l'application redémarre une dernière fois, pour se reconnecter à des
- *      données qu'elle n'a pas vues changer.
+ *   1. a safety backup of the current state, if asked (by default): a restore
+ *      can be undone as it was done;
+ *   2. each piece is downloaded and **verified** — hash, then encryption
+ *      authenticity — before anything changes;
+ *   3. the volumes are replaced with the application stopped, then it restarts;
+ *   4. the database exports are replayed once each database is ready;
+ *   5. the application restarts one last time, to reconnect to data it did not
+ *      see change.
  *
- * Un morceau dont le service ou le volume n'existe plus dans l'AppSpec en
- * service est sauté, et dit : on ne recrée pas un volume que personne ne monte.
+ * A piece whose service or volume no longer exists in the AppSpec in service is
+ * skipped, and said: we do not recreate a volume nobody mounts.
  */
 
 const READY_TIMEOUT_MS = 180_000;
@@ -112,7 +112,7 @@ export async function restoreApplicationBackup(request: {
     if (!deployment) throw new BackupError(say('backup.notRunning'));
     if (deployment.stoppedAt) throw new BackupError(say('backup.stopped'));
 
-    // 1. Tout télécharger et vérifier, avant de toucher à quoi que ce soit.
+    // 1. Download and verify everything, before touching anything.
     opened = await openStore(backup.destinationId);
     workdir = await mkdtemp(join(env.BACKUP_TMP_DIR, 'pupitre-restore-'));
     const spec = parseAppSpec(deployment.appSpec);
@@ -143,8 +143,9 @@ export async function restoreApplicationBackup(request: {
       onLog(say('backup.pieceFetched', { file: piece.file }));
     }
 
-    // 2. L'état actuel, au plus près de son remplacement. Après le téléchargement :
-    //    la sauvegarde de sûreté ne doit rien pouvoir retirer de ce qu'on restaure.
+    // 2. The current state, as close as possible to its replacement. After the
+    //    download: the safety backup must not be able to remove anything of what is
+    //    being restored.
     if (request.safetyBackup) {
       onLog(say('backup.safety'));
       const policy = await getBackupPolicy(application.id);
@@ -176,7 +177,7 @@ export async function restoreApplicationBackup(request: {
         piece.kind === 'dump' && files.has(piece.file),
     );
 
-    // 3. Les volumes, application arrêtée.
+    // 3. The volumes, application stopped.
     if (volumes.length > 0) {
       onLog(say('backup.stoppingForVolumes'));
       await driver.stop(ctx, (line) => onLog(`  ${line}`));
@@ -196,7 +197,7 @@ export async function restoreApplicationBackup(request: {
       }
     }
 
-    // 4. Les bases, une fois prêtes.
+    // 4. The databases, once ready.
     for (const piece of dumps) {
       await waitForDatabase(driver, ctx, piece.service, readyCommand(piece.engine), say);
       await driver.importIntoService(

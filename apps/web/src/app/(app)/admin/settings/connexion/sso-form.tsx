@@ -19,11 +19,11 @@ type Mapping = SsoSettings['roleMappings'][number];
 type Check = { ok: true; issuer: string } | { ok: false; error: string } | null;
 
 /**
- * La connexion unique : le fournisseur, les comptes, les rôles.
+ * Single sign-on: the provider, the accounts, the roles.
  *
- * Le PATCH ne porte que `sso` — et le secret, seulement s'il a été saisi ou
- * effacé : laissé vide, il reste celui qui est enregistré, et ne revient
- * jamais du serveur.
+ * The PATCH only carries `sso` — and the secret, only if it was typed in or
+ * cleared: left empty, it stays the stored one, and never comes back from the
+ * server.
  */
 export function SsoForm({
   settings,
@@ -102,7 +102,7 @@ export function SsoForm({
       await navigator.clipboard.writeText(callbackUrl);
       toast({ title: t('sso.callback.copied'), tone: 'ok' });
     } catch {
-      /* l'URL reste à l'écran, sélectionnable */
+      /* the URL stays on screen, selectable */
     }
   }
 

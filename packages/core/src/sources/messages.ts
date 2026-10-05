@@ -1,9 +1,9 @@
 import { translator, type Translate, type Translated, type UiLanguage } from '../i18n.js';
 
 /**
- * Ce que disent les fournisseurs de code et la lecture de `pupitre.json` à
- * qui les lit : l'écran des intégrations, l'état d'un dépôt lié, le statut
- * d'un commit refusé. Dans la langue de l'instance.
+ * What the code providers and the reading of `pupitre.json` say to whoever reads
+ * them: the integrations screen, a linked repository's state, a refused commit's
+ * status. In the instance's language.
  */
 const fr = {
   'github.noInstallation':
@@ -14,6 +14,9 @@ const fr = {
   'gitlab.noApiScope':
     "jeton sans la portée « api » (il porte : {scopes}) — sans elle, Pupitre ne peut pas écrire l'état d'un déploiement sur un commit",
   'gitlab.noScope': 'aucune',
+  'forge.unreachable': 'forge injoignable : {detail}',
+  'gitlab.unreachable': 'GitLab injoignable : {detail}',
+  'commit.unreadableSha': 'empreinte de commit illisible : « {sha} »',
 
   'spec.unreadableJson': 'JSON illisible : {error}',
   'spec.wrongName': "name : « {actual} » au lieu de « {expected} », le nom de l'application liée",
@@ -29,6 +32,9 @@ const en: Translated<typeof fr> = {
   'gitlab.noApiScope':
     'token without the “api” scope (it has: {scopes}) — without it, Pupitre cannot write a deployment’s state on a commit',
   'gitlab.noScope': 'none',
+  'forge.unreachable': 'forge unreachable: {detail}',
+  'gitlab.unreachable': 'GitLab unreachable: {detail}',
+  'commit.unreadableSha': 'unreadable commit hash: “{sha}”',
 
   'spec.unreadableJson': 'unreadable JSON: {error}',
   'spec.wrongName': 'name: “{actual}” instead of “{expected}”, the name of the linked application',

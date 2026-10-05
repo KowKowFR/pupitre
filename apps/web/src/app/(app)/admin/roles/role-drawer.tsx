@@ -28,9 +28,9 @@ import type { PermissionGroup, RoleRow } from './roles-editor';
 type ApiError = { error?: { message?: string } };
 
 /**
- * Un rôle, dans son tiroir : le lire en entier, et — s'il n'est pas verrouillé
- * et qu'on a `role:manage` — le renommer, changer ses permissions, le
- * supprimer quand plus personne ne le porte.
+ * A role, in its drawer: read it entirely, and — if it is not locked and one has
+ * `role:manage` — rename it, change its permissions, delete it when nobody
+ * carries it any more.
  */
 export function RoleDrawer({
   role,
@@ -61,8 +61,8 @@ export function RoleDrawer({
     >
       {role ? (
         <RoleForm
-          // Un autre rôle, ou le même relu après l'enregistrement : on repart
-          // de ce que dit le serveur.
+          // Another role, or the same one read again after saving: we start again from
+          // what the server says.
           key={`${role.key}|${role.label}|${role.description ?? ''}|${role.permissions.join(',')}`}
           role={role}
           groups={groups}
@@ -108,8 +108,8 @@ function RoleForm({
   const inUse = role.userCount > 0;
   const twoFactor = requiresTwoFactor([...selected], twoFactorPolicy);
 
-  // Le décompte de ce qui change : chaque permission ajoutée ou retirée, plus
-  // le nom et la description. C'est ce que le pied du tiroir annonce.
+  // The count of what changes: each permission added or removed, plus the name
+  // and the description. It is what the drawer's footer announces.
   const changes =
     (label !== role.label ? 1 : 0) +
     (description !== (role.description ?? '') ? 1 : 0) +

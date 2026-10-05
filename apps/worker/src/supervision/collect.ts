@@ -7,23 +7,23 @@ import { instanceLanguage } from '../language.js';
 import { logger } from '../logger.js';
 
 /**
- * Relever une machine, et **garder** le relevé.
+ * Read a machine, and **keep** the reading.
  *
- * Un seul chemin d'écriture, deux déclencheurs : le balayage périodique et le
- * bouton « Relever » de l'écran. C'est le point du chantier : jusqu'ici le
- * relevé voyageait par la valeur de retour du job et mourait avec la réponse
- * HTTP. Une session SSH était ouverte sur une vraie machine, puis jetée.
+ * A single write path, two triggers: the periodic sweep and the screen's "Read
+ * now" button. It is the point of this work: until now the reading travelled
+ * through the job's return value and died with the HTTP response. An SSH session
+ * was opened on a real machine, then thrown away.
  *
- * Le relevé continue d'être rendu à l'appelant — l'écran l'affiche toujours à
- * la seconde près, et la route qui l'attend n'a pas changé. Il est simplement
- * écrit au passage.
+ * The reading is still returned to the caller — the screen still shows it to the
+ * second, and the route waiting for it did not change. It is simply written in
+ * passing.
  */
 export async function collectAndRecord(
   targetId: string,
   source: SampleSource,
 ): Promise<{ metrics: HostMetrics; recorded: boolean }> {
   const record = await getTargetSecret(targetId);
-  if (!record) throw new Error(`Cible « ${targetId} » introuvable`);
+  if (!record) throw new Error(`Target "${targetId}" not found`);
 
   const metrics = await collectHostMetrics(targetId, sshTargetOf(record), {
     rootPath: env.DRIVER_ROOT_PATH,
@@ -31,16 +31,16 @@ export async function collectAndRecord(
     logger,
   });
 
-  // L'écriture ne doit jamais faire perdre le relevé à celui qui l'attend :
-  // une base momentanément indisponible dégrade l'historique, elle ne casse pas
-  // l'écran. Même arbitrage que `logAudit()`, qui ne throw jamais non plus.
+  // The write must never make whoever waits for the reading lose it: a database
+  // momentarily unavailable degrades the history, it does not break the screen.
+  // The same trade-off as `logAudit()`, which never throws either.
   try {
     await recordTargetSample(metrics, source);
   } catch (error) {
-    logger.error({ err: error, targetId }, "relevé impossible à enregistrer — historique incomplet");
-    // `recorded: false` : l'appelant n'évaluera pas les seuils. Juger sans la
-    // mesure du jour, c'est rejuger celle d'avant et gonfler son épisode d'un
-    // relevé qui n'a jamais été écrit.
+    logger.error({ err: error, targetId }, 'reading could not be recorded — incomplete history');
+    // `recorded: false`: the caller will not evaluate thresholds. Judging without
+    // the day's measurement is judging the previous one again and inflating its
+    // episode with a reading that was never written.
     return { metrics, recorded: false };
   }
 

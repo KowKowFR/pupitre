@@ -11,17 +11,17 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Purge en masse de l'historique.
+ * Bulk purge of the history.
  *
- * Purger n'est pas détruire : rien n'est touché sur la machine cible, seule la
- * trace en base disparaît. Le garde-fou — un déploiement en service ne se purge
- * pas — vit dans `purgeDeployments()`, pas ici.
+ * Purging is not destroying: nothing is touched on the target machine, only the
+ * trace in the database disappears. The guardrail — a deployment in service is
+ * not purged — lives in `purgeDeployments()`, not here.
  *
- * Une seule route pour la prévisualisation et l'exécution, distinguées par
- * `dryRun`. Un `GET` avec les mêmes filtres aurait obligé à encoder un tableau
- * d'identifiants en query string, et surtout à maintenir deux chemins de
- * décision là où l'écran a besoin de la garantie inverse : le décompte annoncé
- * dans la confirmation est *exactement* celui qui sera appliqué.
+ * A single route for the preview and the execution, told apart by `dryRun`. A
+ * `GET` with the same filters would have required encoding an array of
+ * identifiers in the query string, and above all maintaining two decision paths
+ * where the screen needs the opposite guarantee: the count announced in the
+ * confirmation is *exactly* the one that will be applied.
  */
 const purgeRequestSchema = z.intersection(
   purgeFilterSchema,
@@ -32,10 +32,10 @@ export const POST = apiRoute(async (request) => {
   const auth = await requirePermission(request, 'deployment:purge');
   const { dryRun, ...filter } = await readJsonBody(request, purgeRequestSchema);
 
-  // Les refus sont montrés tels quels : dans la langue de qui les lit.
+  // The refusals are shown as is: in the language of whoever reads them.
   const report = await purgeDeployments(filter, { dryRun, language: await currentLanguage() });
 
-  // Une prévisualisation n'a rien changé : elle n'a rien à journaliser.
+  // A preview changed nothing: it has nothing to log.
   if (!dryRun && report.purgedCount > 0) {
     await logAudit({
       actorId: auth.userId,
@@ -48,11 +48,11 @@ export const POST = apiRoute(async (request) => {
 
     logger.info(
       { purged: report.purgedCount, refused: report.refusedCount, actorId: auth.userId },
-      'historique de déploiements purgé',
+      'deployments history purged',
     );
   }
 
-  // Le plafond fait partie du contrat : un client qui voit `truncated` sait
-  // qu'il lui reste des lignes et qu'il doit rappeler la route.
+  // The cap is part of the contract: a client that sees `truncated` knows it has
+  // rows left and that it must call the route again.
   return NextResponse.json({ ...report, limit: PURGE_MAX_ROWS });
 });

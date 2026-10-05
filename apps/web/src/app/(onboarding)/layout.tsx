@@ -5,26 +5,27 @@ import { currentAuth, redirectToLogin, TWO_FACTOR_ENROLL_PATH } from '@/lib/page
 export const dynamic = 'force-dynamic';
 
 /**
- * Coquille de l'assistant de démarrage — délibérément nue.
+ * The onboarding assistant's shell — deliberately bare.
  *
- * L'assistant vit hors du groupe `(app)` pour une raison de fond : il n'a pas
- * de barre de navigation. Proposer d'aller aux cibles, aux applications ou aux
- * rôles pendant qu'on explique comment déclarer sa première cible, c'est
- * offrir douze façons de se perdre dans un panel qu'on découvre. Le parcours
- * est linéaire, l'écran doit l'être aussi.
+ * The assistant lives outside the `(app)` group for a fundamental reason: it has
+ * no navigation bar. Offering to go to the targets, the applications or the roles
+ * while explaining how to declare one's first target is offering twelve ways to
+ * get lost in a panel one is discovering. The journey is linear, the screen must
+ * be too.
  *
- * Ce n'est pas seulement cosmétique. Tant que l'assistant était imbriqué dans
- * `(app)`, il en héritait le layout — donc le rail — et la redirection devait
- * composer avec un layout qui se réexécutait à l'arrivée. Le sortir du groupe
- * supprime les deux problèmes d'un coup.
+ * It is not only cosmetic. As long as the assistant was nested in `(app)`, it
+ * inherited its layout — hence the rail — and the redirect had to deal with a
+ * layout that ran again on arrival. Taking it out of the group removes both
+ * problems at once.
  *
- * Le prix : l'authentification est refaite ici. C'est peu, et c'est explicite.
- * L'en-tête, lui, est posé par la page : sa partie droite dépend de l'étape.
+ * The price: authentication is done again here. It is little, and it is
+ * explicit. The header, for its part, is set by the page: its right part depends
+ * on the step.
  */
 export default async function OnboardingLayout({ children }: { children: ReactNode }) {
-  // Pas de session valide : direction la connexion (par `/logout` si un cookie périmé traîne).
+  // No valid session: off to sign-in (through `/logout` if a stale cookie lingers).
   const auth = (await currentAuth()) ?? (await redirectToLogin());
-  // Le second facteur exigé d'abord : comme partout ailleurs (`(app)/layout.tsx`).
+  // The required second factor first: as everywhere else (`(app)/layout.tsx`).
   if (auth.twoFactor.mustEnroll) redirect(TWO_FACTOR_ENROLL_PATH);
 
   return <div className="min-h-dvh bg-bg">{children}</div>;

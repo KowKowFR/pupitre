@@ -23,9 +23,9 @@ import { logger } from '../logger.js';
 import { workerSay } from '../messages.js';
 
 /**
- * Les tâches de la file `backups` — et le test d'une destination, sur
- * `supervision`. Chacune délègue : la logique vit dans `../backup/`, où le
- * pipeline de déploiement la retrouve pour la sauvegarde préalable.
+ * The `backups` queue's jobs — and a destination's test, on `supervision`. Each
+ * delegates: the logic lives in `../backup/`, where the deployment pipeline
+ * finds it for the prior backup.
  */
 
 export async function handleBackupApplication(job: Job): Promise<BackupJobResult> {
@@ -73,7 +73,7 @@ export async function handleBackupRestore(job: Job): Promise<BackupJobResult> {
   return { backupId: data.backupId, status: result.status, bytes: 0, detail: result.error };
 }
 
-/** Effacer une sauvegarde : de la destination d'abord, de l'index ensuite. */
+/** Erasing a backup: from the destination first, from the index next. */
 export async function handleBackupDelete(job: Job): Promise<BackupJobResult> {
   const data = backupDeleteJobDataSchema.parse(job.data);
   const backup = await getBackup(data.backupId);
@@ -107,10 +107,10 @@ export async function handleBackupDelete(job: Job): Promise<BackupJobResult> {
     },
     ip: data.ip,
   });
-  return { backupId: backup.id, status: 'success', bytes: 0, detail: `${removed} fichier(s)` };
+  return { backupId: backup.id, status: 'success', bytes: 0, detail: `${removed} file(s)` };
 }
 
-/** Écrire, relire, effacer un fichier témoin — et retenir le verdict. */
+/** Write, read back, erase a witness file — and keep the verdict. */
 export async function handleBackupDestinationCheck(
   job: Job,
 ): Promise<{ ok: boolean; error: string | null }> {
@@ -130,7 +130,7 @@ export async function handleBackupDestinationCheck(
   await recordBackupDestinationCheck(data.destinationId, error);
   logger.info(
     { destinationId: data.destinationId, ok: error === null, error },
-    'destination de sauvegarde testée',
+    'backup destination tested',
   );
   return { ok: error === null, error };
 }

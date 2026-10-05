@@ -23,14 +23,14 @@ export async function generateMetadata(): Promise<Metadata> {
 export const dynamic = 'force-dynamic';
 
 /**
- * « Domaines » : tous les noms de l'instance sur un seul écran, avec le proxy
- * qui les sert, leur état et l'échéance de leur certificat. La fiche d'une
- * application en montre les siens ; cette page répond à la question de
- * l'exploitant — « qu'est-ce qui, quelque part, ne répond pas ou va expirer ? ».
+ * "Domains": all the instance's names on a single screen, with the proxy that
+ * serves them, their state and their certificate's expiry. An application's
+ * record shows its own; this page answers the operator's question — "what,
+ * somewhere, does not answer or is going to expire?".
  *
- * Rien ne s'y modifie : un domaine se règle sur la fiche de son application,
- * là où l'on voit aussi ce qu'il sert. Un clic sur un domaine ouvre son
- * tiroir : où mène le nom, à qui il appartient, quel certificat il présente.
+ * Nothing changes here: a domain is set on its application's record, where one
+ * also sees what it serves. A click on a domain opens its drawer: where the name
+ * leads, who it belongs to, which certificate it presents.
  */
 export default async function DomainsPage({
   searchParams,

@@ -11,9 +11,8 @@ const paramsSchema = z.object({ id: z.string().uuid(), sourceId: z.string().uuid
 type Context = { params: Promise<{ id: string; sourceId: string }> };
 
 /**
- * « Vérifier maintenant » : la même vérification que la minute suivante, tout
- * de suite, sans ETag. Elle ne déploie que ce que le mode de la liaison aurait
- * déployé de lui-même.
+ * "Check now": the same check as the next minute's, right away, without an
+ * ETag. It only deploys what the link's mode would have deployed by itself.
  */
 export const POST = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'application:read');

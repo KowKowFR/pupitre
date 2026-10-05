@@ -4,16 +4,15 @@ import { getApplication, getTarget, listChatMembers } from '@pupitre/db';
 import type { AuthContext } from './rbac';
 
 /**
- * Ce que la discussion lit autour d'elle : les mentions qu'un auteur peut
- * poser, et l'annuaire qu'un lecteur peut parcourir.
+ * What the chat reads around it: the mentions an author can set, and the
+ * directory a reader can browse.
  *
- * La règle est la même dans les deux sens : on ne mentionne, et on ne voit
- * proposer, que ce qu'on a le droit d'ouvrir. Une personne se mentionne
- * toujours ; une machine demande `target:read`, une application
- * `application:read`.
+ * The rule is the same both ways: one only mentions, and is only offered, what
+ * one is allowed to open. A person can always be mentioned; a machine requires
+ * `target:read`, an application `application:read`.
  */
 
-/** Les mentions d'un corps, vérifiées une à une, avec leur libellé du moment. */
+/** A body's mentions, checked one by one, with their current label. */
 export async function resolveMentions(body: string, auth: AuthContext): Promise<ChatMention[]> {
   const wanted = mentionedIn(body);
   if (wanted.length === 0) return [];
@@ -38,8 +37,8 @@ export async function resolveMentions(body: string, auth: AuthContext): Promise<
 export type DirectoryEntry = {
   kind: ChatMention['kind'];
   id: string;
-  /** Ce que la mention affiche : un nom, une machine, un slug. */
+  /** What the mention shows: a name, a machine, a slug. */
   label: string;
-  /** Ce qu'on tape aussi pour la retrouver : l'e-mail, l'hôte. */
+  /** What one also types to find it: the email, the host. */
   hint: string | null;
 };

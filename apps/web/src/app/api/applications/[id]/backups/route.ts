@@ -40,9 +40,9 @@ const paramsSchema = z.object({ id: z.string().uuid() });
 type Context = { params: Promise<{ id: string }> };
 
 /**
- * Tout ce que la carte « Sauvegardes » d'une application affiche : la
- * politique, ce qu'une sauvegarde contiendrait dans chaque mode, où elle irait,
- * quand elle tourne, et ce qui a déjà été fait.
+ * Everything an application's "Backups" card shows: the policy, what a backup
+ * would contain in each mode, where it would go, when it runs, and what has
+ * already been done.
  */
 export const GET = apiRoute<Context>(async (request, context) => {
   await requirePermission(request, 'backup:read');
@@ -75,7 +75,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
         name: targets.find((target) => target.id === couple.targetId)?.name ?? couple.targetId,
         stopped: couple.inService?.stoppedAt !== null,
       })),
-    // Le nom des cibles d'où viennent ses sauvegardes, même si elle n'y tourne plus.
+    // The names of the targets its backups come from, even if it no longer runs there.
     targetNames: Object.fromEntries(
       targets
         .filter((target) => rows.some((row) => row.targetId === target.id))
@@ -88,7 +88,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
 
 const postSchema = z.object({ targetId: z.string().uuid() });
 
-/** « Sauvegarder maintenant » : la ligne est créée ici, la tâche la remplit. */
+/** "Back up now": the row is created here, the job fills it. */
 export const POST = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'backup:manage');
   const { id } = paramsSchema.parse(await context.params);

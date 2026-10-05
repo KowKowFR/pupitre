@@ -19,19 +19,19 @@ type Context = { params: Promise<{ id: string }> };
 const HEARTBEAT_MS = 15_000;
 
 /**
- * Progression des actions sur les charges d'une cible, en SSE.
+ * The progress of the actions on a target's workloads, over SSE.
  *
- * Même dispositif que les logs de déploiement, mais sans historique à relire :
- * une suppression ou une mise à jour n'a pas de passé persisté, et il n'y a
- * donc rien à rejouer avant de passer en direct. Le flux reste ouvert d'une
- * action à l'autre — c'est un canal de cible, pas de tâche.
+ * The same arrangement as the deployment logs, but without a history to read
+ * again: a deletion or an update has no persisted past, so there is nothing to
+ * replay before going live. The stream stays open from one action to the next —
+ * it is a target channel, not a job one.
  */
 export const GET = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'workload:read');
   const { id } = paramsSchema.parse(await context.params);
 
-  // `?run=` : le flux d'une seule exécution (journal, commande), réservé à
-  // qui l'a ouverte. Sans lui, le flux de la cible — sans les sorties privées.
+  // `?run=`: the stream of a single run (log, command), reserved to whoever opened
+  // it. Without it, the target's stream — without the private outputs.
   const runParam = new URL(request.url).searchParams.get('run');
   const run = runParam ? z.string().uuid().parse(runParam) : null;
   if (run && !(await claimWorkloadRun(run, auth.userId))) {
@@ -43,7 +43,8 @@ export const GET = apiRoute<Context>(async (request, context) => {
 
   const channel = workloadChannel(id);
   const encoder = new TextEncoder();
-  // Connexion dédiée : abonnée, une connexion Redis n'accepte plus rien d'autre.
+  // A dedicated connection: once subscribed, a Redis connection accepts nothing
+  // else.
   const subscriber = new Redis(getEnv().REDIS_URL, { maxRetriesPerRequest: null });
 
   let heartbeat: NodeJS.Timeout | null = null;
@@ -56,7 +57,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
     try {
       await subscriber.unsubscribe(channel);
     } catch {
-      // La connexion peut déjà être tombée : rien à sauver.
+      // The connection may already have dropped: nothing to save.
     }
     subscriber.disconnect();
   };
@@ -81,20 +82,20 @@ export const GET = apiRoute<Context>(async (request, context) => {
         }
         const parsed = workloadMessageSchema.safeParse(payload);
         if (!parsed.success) return;
-        // Une sortie d'exécution ne va qu'au flux de cette exécution.
+        // A run's output only goes to that run's stream.
         const messageRun = parsed.data.payload.run ?? null;
         if (messageRun !== run) return;
         send(parsed.data.kind, parsed.data.payload);
       });
 
       subscriber.on('error', (error) => {
-        logger.warn({ err: error, channel }, 'connexion Redis du flux SSE en erreur');
+        logger.warn({ err: error, channel }, 'SSE stream Redis connection failed');
       });
 
       try {
         await subscriber.subscribe(channel);
       } catch (error) {
-        logger.error({ err: error, channel }, 'abonnement Redis impossible');
+        logger.error({ err: error, channel }, 'Redis subscription failed');
         send('error', { message: 'flux indisponible' });
         await cleanup();
         controller.close();
@@ -103,7 +104,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
 
       send('ready', { targetId: id, channel });
 
-      // Battement de cœur : un reverse proxy coupe une connexion muette.
+      // Heartbeat: a reverse proxy cuts a silent connection.
       heartbeat = setInterval(() => {
         if (closed) return;
         try {
@@ -118,7 +119,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
           try {
             controller.close();
           } catch {
-            // Déjà fermé.
+            // Already closed.
           }
         });
       });

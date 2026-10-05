@@ -17,13 +17,13 @@ import { useT } from '@/i18n/client';
 import { sources as messages } from '@/i18n/messages/sources';
 
 /**
- * Créer une application **depuis son dépôt** : le `pupitre.json` d'une branche
- * devient l'application, liée à cette branche, sans cible imposée. On la
- * déploie ensuite où l'on veut ; les commits suivants la mettent à jour, ou la
- * redéploient là où elle tourne — au choix.
+ * Creating an application **from its repository**: a branch's `pupitre.json`
+ * becomes the application, linked to that branch, without an imposed target. It
+ * is then deployed wherever one wants; the following commits update it, or
+ * redeploy it where it runs — as chosen.
  *
- * L'AppSpec ne s'édite pas ici : elle vit dans le dépôt, et c'est le dépôt qui
- * la fait évoluer.
+ * The AppSpec is not edited here: it lives in the repository, and it is the
+ * repository that makes it evolve.
  */
 
 type Repository = {
@@ -34,7 +34,7 @@ type Repository = {
   private: boolean;
 };
 
-/** Un dépôt se désigne par son fournisseur, son installation (GitHub) et son nom. */
+/** A repository is designated by its provider, its installation (GitHub) and its name. */
 const keyOf = (repo: Repository) =>
   `${repo.provider}:${repo.installationId ?? ''}:${repo.fullName}`;
 type Specs = { branch: string; sha: string; specs: string[] };
@@ -62,7 +62,7 @@ export function RepositoryImport({
   onSaved,
   onCancel,
 }: {
-  /** Les onglets de « Nouvelle application », gardés en tête. */
+  /** The "New application" tabs, kept at the top. */
   tabs: React.ReactNode;
   onSaved: (application: { id: string; name: string }) => void;
   onCancel: () => void;
@@ -83,7 +83,7 @@ export function RepositoryImport({
   const [saving, setSaving] = useState(false);
 
   const repo = repositories?.find((candidate) => keyOf(candidate) === repository) ?? null;
-  // Le fournisseur ne se lit à côté du nom que s'il y en a plusieurs.
+  // The provider only reads next to the name if there are several.
   const providers = new Set((repositories ?? []).map((candidate) => candidate.provider));
 
   useEffect(() => {
@@ -101,7 +101,7 @@ export function RepositoryImport({
           errors?: Array<{ provider: string; message: string }>;
         };
         setRepositories(body.items);
-        // Un fournisseur muet n'empêche pas de choisir chez les autres : on le dit.
+        // A silent provider does not prevent choosing from the others: we say so.
         if (body.errors?.length) {
           setError(body.errors.map((entry) => `${entry.provider} : ${entry.message}`).join(' · '));
         }
@@ -117,7 +117,8 @@ export function RepositoryImport({
     };
   }, [t]);
 
-  // Les pupitre.json de la branche : cherchés dès que dépôt et branche sont posés.
+  // The branch's pupitre.json files: looked for as soon as repository and branch
+  // are set.
   useEffect(() => {
     if (!repo || branch.trim() === '') return;
     let cancelled = false;
@@ -141,7 +142,7 @@ export function RepositoryImport({
           }
           const body = (await response.json()) as Specs;
           setSpecs(body);
-          // Rien de trouvé : pas d'aperçu tant qu'on n'a pas donné de chemin.
+          // Nothing found: no preview as long as no path was given.
           setSpecPath(body.specs[0] ?? '');
         })
         .catch(() => !cancelled && setError(t('import.searchFailed')))
@@ -153,7 +154,7 @@ export function RepositoryImport({
     };
   }, [repo, branch, t]);
 
-  // L'aperçu : le fichier lu au commit en tête, validé comme un commit le serait.
+  // The preview: the file read at the head commit, validated as a commit would be.
   useEffect(() => {
     if (!repo || !specs || specPath.trim() === '') return;
     let cancelled = false;

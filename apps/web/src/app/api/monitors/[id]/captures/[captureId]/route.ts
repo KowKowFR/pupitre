@@ -13,35 +13,33 @@ const paramsSchema = z.object({ id: z.string().uuid(), captureId: z.string().uui
 type Context = { params: Promise<{ id: string; captureId: string }> };
 
 /**
- * Sert l'image d'une capture.
+ * Serves a capture's image.
  *
- * ── Pourquoi une route et pas une URL de données dans la page ───────────────
- * Une capture pèse quelques centaines de kilo-octets ; l'écran d'une sonde en
- * affiche jusqu'à trois par incident. Les incorporer en `data:` dans le HTML
- * rendu par le serveur ferait des pages de plusieurs mégaoctets, non
- * cachables, retéléchargées à chaque navigation. Une route les rend cachables
- * par image et chargeables à la demande.
+ * ── Why a route and not a data URL in the page ──────────────────────────────
+ * A capture weighs a few hundred kilobytes; a probe's screen shows up to three per
+ * incident. Embedding them as `data:` in the HTML rendered by the server would
+ * make pages of several megabytes, not cacheable, downloaded again at each
+ * navigation. A route makes them cacheable per image and loadable on demand.
  *
- * ── Ce qu'elle protège ──────────────────────────────────────────────────────
- * `monitor:read`, comme le reste de la supervision, et **la permission est
- * vérifiée avant toute lecture d'octets**. Une capture montre la page telle
- * qu'un visiteur anonyme la voit — le navigateur ne porte aucune session — mais
- * une URL supervisée qui contient elle-même un jeton fera apparaître du contenu
- * privé sur l'image. Cette image ne doit donc jamais devenir publique : pas
- * d'accès par jeton d'URL, pas de cache partagé, pas de pièce jointe dans une
- * alerte.
+ * ── What it protects ────────────────────────────────────────────────────────
+ * `monitor:read`, like the rest of monitoring, and **the permission is checked
+ * before any byte is read**. A capture shows the page as an anonymous visitor
+ * sees it — the browser carries no session — but a monitored URL that itself
+ * contains a token will make private content appear in the image. This image
+ * must therefore never become public: no access through a URL token, no shared
+ * cache, no attachment in an alert.
  *
- * L'identifiant de la sonde est dans le chemin **et** vérifié contre la
- * capture : sans ce contrôle, la route serait une énumération d'images à
- * l'échelle de l'instance, avec un chemin qui prétend le contraire.
+ * The probe's identifier is in the path **and** checked against the capture:
+ * without this check, the route would be an instance-wide enumeration of images,
+ * with a path that claims the opposite.
  */
 export const GET = apiRoute<Context>(async (request, context) => {
   await requirePermission(request, 'monitor:read');
   const { id, captureId } = paramsSchema.parse(await context.params);
 
   const capture = await getCaptureBytes(captureId);
-  // Une capture purgée par la rétention rend `null` : elle n'a plus d'octets,
-  // et l'écran le dit déjà à partir des métadonnées. 404 est la bonne réponse.
+  // A capture purged by retention returns `null`: it has no bytes any more, and
+  // the screen already says so from the metadata. 404 is the right answer.
   if (!capture || capture.monitorId !== id) {
     throw new NotFoundError(msg(messages, 'error.captureNotFound', { id: captureId }));
   }
@@ -51,12 +49,11 @@ export const GET = apiRoute<Context>(async (request, context) => {
     headers: {
       'content-type': capture.format === 'png' ? 'image/png' : 'image/jpeg',
       'content-length': String(capture.image.byteLength),
-      // Une capture est **immuable** : ses octets ne changent jamais après
-      // l'écriture. Le cache peut donc être long — mais `private`, parce que
-      // l'image est protégée par une permission et n'a rien à faire dans un
-      // cache partagé.
+      // A capture is **immutable**: its bytes never change after writing. The cache
+      // can therefore be long — but `private`, because the image is protected by a
+      // permission and has no business in a shared cache.
       'cache-control': 'private, max-age=31536000, immutable',
-      // Rendue, jamais interprétée : une page capturée est du contenu tiers.
+      // Rendered, never interpreted: a captured page is third-party content.
       'x-content-type-options': 'nosniff',
       'content-security-policy': "default-src 'none'; sandbox",
       'content-disposition': `inline; filename="capture-${captureId}.${capture.format}"`,

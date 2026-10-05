@@ -8,9 +8,8 @@ import { EMOJI_GROUPS, recentEmojis, rememberEmoji, type EmojiGroupKey } from '@
 import { cn } from '@/lib/utils';
 
 /**
- * La grille d'emojis : les récents d'abord (s'il y en a), puis quatre
- * familles. Flèches pour se déplacer, Entrée pour choisir — la grille est un
- * vrai `grid` ARIA.
+ * The emoji grid: the recent ones first (if there are any), then four families.
+ * Arrows to move, Enter to choose — the grid is a real ARIA `grid`.
  */
 export function EmojiPicker({ onPick }: { onPick: (emoji: string) => void }) {
   const t = useT(messages);

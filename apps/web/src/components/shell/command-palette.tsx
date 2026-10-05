@@ -54,24 +54,24 @@ import { SECTION_ICON } from './section-icons';
 import type { PaletteScope, ShellSection } from './shell-provider';
 
 /**
- * Palette ⌘K — 640 px, à 96 px du haut, entrée `pp-cmdk`.
+ * The ⌘K palette — 640 px, 96 px from the top, `pp-cmdk` entrance.
  *
- * Ce qu'elle rend, dans l'ordre : les éléments récents (champ vide), les
- * actions, les suggestions, « Aller à », les objets, les préférences ; un
- * groupe vide est masqué. Le préfixe `›` ne garde que les commandes.
+ * What it renders, in order: the recent items (empty field), the actions, the
+ * suggestions, "Go to", the objects, the preferences; an empty group is hidden.
+ * The `›` prefix only keeps the commands.
  *
- * - **Les objets** viennent de `GET /api/search`, qui ne lit que ce que la
- *   session a le droit de voir, avec une correspondance tolérante (accents,
- *   lettres dans l'ordre, fautes de frappe).
- * - **Les actions** se demandent de deux façons : par un verbe tapé avec le
- *   nom (« redémarrer umami », « tester prod-1 »), ou par → sur un objet
- *   surligné, qui ouvre la liste de ce qu'on peut en faire. Une action qui
- *   interrompt un service demande une confirmation, dans la palette même.
- *   Une action interdite n'apparaît pas — ni grisée, ni expliquée.
+ * - **The objects** come from `GET /api/search`, which only reads what the
+ *   session is allowed to see, with a tolerant match (accents, letters in order,
+ *   typos).
+ * - **The actions** are asked for in two ways: through a verb typed with the name
+ *   ("restart umami", "test prod-1"), or through → on a highlighted object, which
+ *   opens the list of what can be done with it. An action that interrupts a
+ *   service asks for a confirmation, in the palette itself. A forbidden action
+ *   does not appear — neither greyed out nor explained.
  *
- * Le filtrage est fait ici plutôt que par cmdk : le préfixe `›`, les objets
- * déjà filtrés par le serveur et le masquage des groupes vides ne se disent
- * pas avec son filtre flou.
+ * The filtering is done here rather than by cmdk: the `›` prefix, the objects
+ * already filtered by the server and the hiding of empty groups cannot be
+ * expressed with its fuzzy filter.
  */
 
 type Group =
@@ -87,23 +87,23 @@ type Item = {
   words: string;
   isCommand: boolean;
   perform: () => void;
-  /** L'objet derrière la ligne : → ouvre ses actions. */
+  /** The object behind the row: → opens its actions. */
   hit?: SearchHit;
 };
 
-/** Une action sur un objet trouvé. */
+/** An action on a found object. */
 type Action = {
   key: string;
   verb: PaletteVerb | 'open';
   icon: LucideIcon;
   title: string;
   meta: string;
-  /** Une action qui interrompt un service passe par une confirmation. */
+  /** An action that interrupts a service goes through a confirmation. */
   confirm?: string;
   run: () => void | Promise<void>;
 };
 
-/** Un élément ouvert récemment, gardé dans ce navigateur seulement. */
+/** A recently opened item, kept in this browser only. */
 type Recent = { kind: SearchHit['kind']; id: string; title: string; meta: string; href: string };
 
 const RECENT_KEY = 'pupitre.palette.recent';
@@ -154,7 +154,7 @@ function rememberRecent(entry: Recent) {
     const next = [entry, ...readRecents().filter((item) => item.href !== entry.href)];
     window.localStorage.setItem(RECENT_KEY, JSON.stringify(next.slice(0, RECENT_LIMIT)));
   } catch {
-    // Stockage refusé (navigation privée) : la palette s'en passe.
+    // Storage refused (private browsing): the palette does without.
   }
 }
 
@@ -185,13 +185,13 @@ export function CommandPalette({
   });
   const [searching, setSearching] = React.useState(false);
   const [active, setActive] = React.useState('');
-  /** L'objet dont on liste les actions (→), ou `null`. */
+  /** The object whose actions are listed (→), or `null`. */
   const [focus, setFocus] = React.useState<SearchHit | null>(null);
-  /** L'action qui attend sa confirmation, ou `null`. */
+  /** The action waiting for its confirmation, or `null`. */
   const [confirming, setConfirming] = React.useState<Action | null>(null);
-  /** La saisie d'avant une sous-vue : on la retrouve en revenant. */
+  /** The input from before a sub-view: it is found again when coming back. */
   const [saved, setSaved] = React.useState('');
-  // Lus une fois par ouverture : la coquille remonte la palette à chaque fois.
+  // Read once per opening: the shell mounts the palette again each time.
   const [theme] = React.useState<ThemeChoice>(() => {
     if (typeof document === 'undefined') return 'system';
     const root = document.documentElement.classList;
@@ -204,8 +204,8 @@ export function CommandPalette({
   const can = (key: CommandKey) => commands.includes(key);
   const { query, commandsOnly } = parsePaletteQuery(raw);
   const { verbs, rest } = splitPaletteVerbs(query);
-  // Un verbe tapé qu'on n'a pas le droit d'exercer ne compte pas : la saisie
-  // reste une recherche ordinaire, et rien d'interdit n'apparaît.
+  // A typed verb one is not allowed to exercise does not count: the input stays an
+  // ordinary search, and nothing forbidden appears.
   const usableVerbs = verbs.filter((verb) => allowedVerb(verb, can));
   const verbKinds = [...new Set(usableVerbs.flatMap((verb) => PALETTE_VERBS[verb].kinds))];
 
@@ -221,10 +221,10 @@ export function CommandPalette({
     confirming !== null ||
     commandsOnly ||
     (scope === null && query === '' && usableVerbs.length === 0);
-  // Les résultats d'une saisie précédente ne s'affichent jamais sous la suivante.
+  // A previous input's results never show under the next one.
   const hits = !idle && found.key === searchKey ? found.items : [];
 
-  // Recherche d'objets, avec un léger délai pour ne pas interroger à chaque frappe.
+  // Object search, with a slight delay so as not to query at each keystroke.
   React.useEffect(() => {
     if (!open || idle) return;
     const controller = new AbortController();
@@ -239,7 +239,7 @@ export function CommandPalette({
           setFound({ key: searchKey, items });
         }
       } catch {
-        // Recherche abandonnée ou réseau coupé : la palette garde ses commandes.
+        // Search abandoned or network cut: the palette keeps its commands.
       } finally {
         if (!controller.signal.aborted) setSearching(false);
       }
@@ -274,7 +274,7 @@ export function CommandPalette({
     return false;
   }
 
-  /** Ce qu'on peut faire d'un objet, selon ses permissions. « Ouvrir » d'abord. */
+  /** What can be done with an object, according to its permissions. "Open" first. */
   function actionsOf(hit: SearchHit): Action[] {
     const list: Action[] = [
       {
@@ -357,7 +357,7 @@ export function CommandPalette({
             run: async () => {
               if (await call(`/api/apps/${hit.id}/restart`, { method: 'POST' })) {
                 toast({ title: t('palette.toast.restarted', { name: hit.title }), tone: 'accent' });
-                // Le redémarrage publie sa progression sur le flux de l'application.
+                // The restart publishes its progress on the application's stream.
                 go(`/apps?app=${hit.id}`);
               } else {
                 onOpenChange(false);
@@ -448,7 +448,7 @@ export function CommandPalette({
     setRaw('');
   }
 
-  /** Retour de la sous-vue à la liste, avec la saisie d'avant. */
+  /** Back from the sub-view to the list, with the previous input. */
   function leaveSubview() {
     setFocus(null);
     setConfirming(null);
@@ -488,7 +488,7 @@ export function CommandPalette({
   });
 
   if (confirming) {
-    // La confirmation, seule à l'écran : Entrée la donne, Échap ou « Annuler » la retire.
+    // The confirmation, alone on screen: Enter gives it, Escape or "Cancel" withdraws it.
     items.push(
       {
         id: 'confirm-yes',
@@ -540,7 +540,7 @@ export function CommandPalette({
       });
     }
   } else if (usableVerbs.length > 0 && !commandsOnly) {
-    // « redémarrer umami » : les actions de ce verbe sur les objets trouvés.
+    // "restart umami": this verb's actions on the found objects.
     for (const hit of hits) {
       for (const action of actionsOf(hit)) {
         if (action.verb !== 'open' && usableVerbs.includes(action.verb))
@@ -638,8 +638,8 @@ export function CommandPalette({
       });
     }
 
-    // Les onglets des paramètres, seulement quand on les cherche : au repos,
-    // dix lignes de plus noieraient « Aller à ».
+    // The settings' tabs, only when they are searched for: at rest, ten more rows
+    // would drown "Go to".
     if (can('settings') && query !== '') {
       for (const group of SETTINGS_GROUPS) {
         for (const settingsSection of groupSections(group)) {
@@ -659,11 +659,11 @@ export function CommandPalette({
     }
 
     for (const hit of hits) {
-      // → n'a de sens que pour un objet qui a autre chose à offrir qu'« Ouvrir ».
+      // → only makes sense for an object that has something other than "Open" to offer.
       items.push(objectItem(hit, t, () => open_(hit), actionsOf(hit).length > 1));
     }
 
-    // La recherche poursuivie là où elle a toute sa place.
+    // The search continued where it fully belongs.
     if (query !== '' && !commandsOnly) {
       if (can('searchRuns'))
         items.push({
@@ -744,7 +744,8 @@ export function CommandPalette({
 
   const visible = items.filter((item) => {
     if (commandsOnly && !item.isCommand) return false;
-    // Déjà filtrés : par le serveur (objets), par le verbe (actions), par leur nature (récents).
+    // Already filtered: by the server (objects), by the verb (actions), by their
+    // nature (recent ones).
     if (
       item.group === 'objects' ||
       item.group === 'actions' ||
@@ -762,8 +763,8 @@ export function CommandPalette({
     <Command.Dialog
       open={open}
       onOpenChange={(next) => {
-        // Échap dans une sous-vue (actions d'un objet, confirmation) revient
-        // à la liste au lieu de fermer la palette.
+        // Escape in a sub-view (an object's actions, confirmation) goes back to the list
+        // instead of closing the palette.
         if (!next && (focus || confirming)) {
           leaveSubview();
           return;
@@ -892,7 +893,7 @@ export function CommandPalette({
   );
 }
 
-/** Un verbe ne sert que si l'une de ses actions est permise ; « logs » et « versions » le sont toujours. */
+/** A verb only serves if one of its actions is allowed; "logs" and "versions" always are. */
 function allowedVerb(verb: PaletteVerb, can: (key: CommandKey) => boolean): boolean {
   switch (verb) {
     case 'test':

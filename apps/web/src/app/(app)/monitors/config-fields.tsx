@@ -10,15 +10,15 @@ import { useT } from '@/i18n/client';
 import { monitors as messages } from '@/i18n/messages/monitors';
 
 /**
- * Les champs de configuration d'une sonde, rendus **depuis le catalogue**.
+ * A probe's configuration fields, rendered **from the catalog**.
  *
- * C'est le test de l'abstraction côté écran : ce composant ne connaît ni `http`,
- * ni `tls`, ni aucun nom de champ. Il sait rendre cinq formes — URL, hôte,
- * texte, nombre, liste — et le catalogue lui dit lesquelles, dans quel ordre,
- * avec quelles bornes. Ajouter un type de surveillance n'amène pas ici.
+ * It is the abstraction's test on the screen side: this component knows neither
+ * `http`, nor `tls`, nor any field name. It knows how to render five shapes — URL,
+ * host, text, number, list — and the catalog tells it which ones, in which order,
+ * with which bounds. Adding a monitoring type does not lead here.
  *
- * Les champs marqués `advanced` sont repliés : un formulaire de création ne doit
- * demander que l'essentiel, et proposer le reste à qui le cherche.
+ * The fields marked `advanced` are folded: a creation form must only ask for the
+ * essentials, and offer the rest to whoever looks for it.
  */
 
 export type ConfigValues = Record<string, unknown>;
@@ -151,12 +151,12 @@ export function ConfigFields({
   );
 }
 
-/** Valeurs de départ d'un type, telles que le catalogue les donne. */
+/** A type's starting values, as the catalog gives them. */
 export function defaultsOf(defaults: unknown): ConfigValues {
   return defaults !== null && typeof defaults === 'object' ? { ...(defaults as ConfigValues) } : {};
 }
 
-/** Retire les champs vides avant l'envoi : Zod appliquera ses propres défauts. */
+/** Removes the empty fields before sending: Zod will apply its own defaults. */
 export function cleanConfig(values: ConfigValues): ConfigValues {
   const out: ConfigValues = {};
   for (const [key, value] of Object.entries(values)) {

@@ -7,17 +7,16 @@ import { ForbiddenError, TwoFactorRequiredError, UnauthenticatedError } from './
 import { requirePermission, requireSession, type AuthContext } from './rbac';
 
 /**
- * Adaptateur pour les Server Components : `requirePermission()` raisonne sur
- * une `Request`, les pages n'en ont pas. On en fabrique une à partir des
- * en-têtes entrants, de sorte que le même helper — et le même audit — serve
- * pour l'API et pour les pages.
+ * An adapter for Server Components: `requirePermission()` reasons on a `Request`,
+ * the pages do not have one. We make one from the incoming headers, so that the
+ * same helper — and the same audit — serves for the API and for the pages.
  */
 async function requestFromHeaders(pathname: string): Promise<Request> {
   const incoming = await headers();
   const host = incoming.get('host') ?? 'localhost';
   const protocol = incoming.get('x-forwarded-proto') ?? 'http';
-  // Une page ne se lit qu'avec une session de navigateur : un jeton d'API
-  // ouvre l'API, pas l'interface.
+  // A page is only read with a browser session: an API token opens the API, not the
+  // interface.
   const forwarded = new Headers(incoming);
   forwarded.delete('authorization');
   return new Request(`${protocol}://${host}${pathname}`, {
@@ -27,18 +26,17 @@ async function requestFromHeaders(pathname: string): Promise<Request> {
 }
 
 /**
- * Renvoie vers l'écran de connexion, en gardant la page demandée.
+ * Sends back to the sign-in screen, keeping the requested page.
  *
- * Quand le navigateur porte encore un cookie de session que le serveur ne
- * reconnaît plus — session fermée depuis « Mon compte », expirée, tombée avec
- * une réinitialisation du second facteur —, on passe d'abord par `/logout`,
- * qui efface le cookie. Sans ce détour, le proxy, qui ne voit que la
- * *présence* du cookie, renverrait `/login` vers `/`, puis `/` vers `/login`,
- * sans fin.
+ * When the browser still carries a session cookie the server no longer
+ * recognizes — a session closed from "My account", expired, dropped with a second
+ * factor reset —, we first go through `/logout`, which clears the cookie. Without
+ * this detour, the proxy, which only sees the cookie's *presence*, would send
+ * `/login` to `/`, then `/` to `/login`, endlessly.
  */
 export async function redirectToLogin(pathname?: string): Promise<never> {
   const incoming = await headers();
-  // Sans chemin explicite (un layout), celui que le proxy a transmis.
+  // Without an explicit path (a layout), the one the proxy passed on.
   const target = pathname ?? incoming.get('x-pupitre-path') ?? null;
   const query = target && target !== '/' ? `?next=${encodeURIComponent(target)}` : '';
   const stale = getSessionCookie(incoming) !== null;
@@ -46,14 +44,14 @@ export async function redirectToLogin(pathname?: string): Promise<never> {
 }
 
 /**
- * Où va un compte dont le rôle exige un second facteur qu'il n'a pas encore.
- * Hors du groupe `(app)`, comme l'assistant de démarrage : une redirection
- * posée par le layout `(app)` vers une page qu'il enveloppe ferait boucler le
- * routeur client — il croirait le layout déjà rendu et ne le redemanderait pas.
+ * Where an account goes whose role requires a second factor it does not have
+ * yet. Outside the `(app)` group, like the onboarding assistant: a redirect set by
+ * the `(app)` layout toward a page it wraps would make the client router loop — it
+ * would believe the layout already rendered and would not ask for it again.
  */
 export const TWO_FACTOR_ENROLL_PATH = '/two-factor-setup';
 
-/** Contexte courant, ou `null` si non authentifié. Ne redirige pas. */
+/** The current context, or `null` if not authenticated. Does not redirect. */
 export async function currentAuth(pathname = '/'): Promise<AuthContext | null> {
   try {
     return await requireSession(await requestFromHeaders(pathname));
@@ -62,7 +60,7 @@ export async function currentAuth(pathname = '/'): Promise<AuthContext | null> {
   }
 }
 
-/** Exige une session pour afficher la page ; redirige vers `/login` sinon. */
+/** Requires a session to show the page; redirects to `/login` otherwise. */
 export async function requirePageSession(pathname: string): Promise<AuthContext> {
   try {
     return await requireSession(await requestFromHeaders(pathname));
@@ -73,9 +71,9 @@ export async function requirePageSession(pathname: string): Promise<AuthContext>
 }
 
 /**
- * Exige l'une de ces permissions pour afficher la page : un écran qui sert deux
- * métiers montre à chacun sa part. Sans aucune, le refus est audité au nom de
- * la première, comme pour `requirePagePermission`.
+ * Requires one of these permissions to show the page: a screen that serves two
+ * trades shows each one its part. Without any, the refusal is audited under the
+ * first one's name, as for `requirePagePermission`.
  */
 export async function requirePageAnyPermission(
   pathname: string,
@@ -86,7 +84,7 @@ export async function requirePageAnyPermission(
   return requirePagePermission(pathname, permissions[0]);
 }
 
-/** Exige une permission pour afficher la page. Le refus est audité. */
+/** Requires a permission to show the page. The refusal is audited. */
 export async function requirePagePermission(
   pathname: string,
   permission: Permission,

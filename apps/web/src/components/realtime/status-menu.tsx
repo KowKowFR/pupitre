@@ -16,9 +16,9 @@ import { useOptionalRealtime } from './realtime-provider';
 type Option = { value: 'auto' | PresenceChoice; dot: PresenceStatus; help: string };
 
 /**
- * « Mon statut », en sous-menu du menu utilisateur : automatique (en ligne,
- * absent après inactivité), absent, ne pas déranger. Le choix vaut pour tous
- * les onglets et survit à leur fermeture.
+ * "My status", as a submenu of the user menu: automatic (online, away after
+ * inactivity), away, do not disturb. The choice holds for all the tabs and
+ * survives their closing.
  */
 export function StatusSubMenu() {
   const t = useT(messages);

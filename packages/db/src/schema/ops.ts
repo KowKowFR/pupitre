@@ -12,14 +12,14 @@ import { apiTokens } from './api-tokens.js';
 import { users } from './auth.js';
 
 /**
- * Journal d'audit. Alimenté **exclusivement** par `logAudit()`.
- * Aucun insert dispersé dans les handlers.
+ * Audit log. Fed **exclusively** by `logAudit()`.
+ * No scattered insert in the handlers.
  */
 export const auditLogs = pgTable(
   'audit_logs',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    /** `null` pour les actions système (worker, scheduler). */
+    /** `null` for system actions (worker, scheduler). */
     actorId: text('actor_id').references(() => users.id, { onDelete: 'set null' }),
     action: text('action').notNull(),
     resourceType: text('resource_type').notNull(),
@@ -28,14 +28,14 @@ export const auditLogs = pgTable(
     after: jsonb('after'),
     ip: text('ip'),
     /**
-     * Le navigateur ou le client qui a émis la requête, tel qu'il s'annonce.
-     * `null` pour une action du worker, qui n'a pas de requête derrière elle.
+     * The browser or the client that sent the request, as it announces itself.
+     * `null` for a worker action, which has no request behind it.
      */
     userAgent: text('user_agent'),
     /**
-     * Le jeton d'API par lequel l'acteur a agi, ou `null` pour une session de
-     * navigateur (et pour le worker). Renseigné par le contexte de la requête,
-     * comme le navigateur : aucun appel à `logAudit()` n'a à y penser.
+     * The API token through which the actor acted, or `null` for a browser session
+     * (and for the worker). Filled in by the request context, like the browser: no
+     * call to `logAudit()` has to think about it.
      */
     apiTokenId: uuid('api_token_id').references(() => apiTokens.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -48,21 +48,21 @@ export const auditLogs = pgTable(
 );
 
 /**
- * Miroir en base des repeatable jobs BullMQ.
- * Pas de cron Linux : BullMQ est la seule source d'ordonnancement.
+ * Database mirror of the BullMQ repeatable jobs.
+ * No Linux cron: BullMQ is the only scheduling source.
  */
 export const scheduledJobs = pgTable(
   'scheduled_jobs',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    /** Clé BullMQ du repeatable job. */
+    /** BullMQ key of the repeatable job. */
     key: text('key').notNull().unique(),
     type: scheduledJobTypeEnum('type').notNull(),
     cron: text('cron').notNull(),
     /**
-     * Fuseau IANA dans lequel le motif cron est interprété, passé à BullMQ en
-     * `{ pattern, tz }`. Le défaut de colonne vaut `UTC` — pas le fuseau
-     * d'instance : il n'existe que pour l'existant, cf. migration `0009`.
+     * IANA time zone in which the cron pattern is interpreted, passed to BullMQ as
+     * `{ pattern, tz }`. The column default is `UTC` — not the instance's time zone:
+     * it only exists for what already existed, see migration `0009`.
      */
     timezone: text('timezone').notNull().default('UTC'),
     payload: jsonb('payload').notNull().default({}),
@@ -75,14 +75,13 @@ export const scheduledJobs = pgTable(
 );
 
 /**
- * Historique des exécutions planifiées.
+ * History of scheduled runs.
  *
- * Table dédiée et non `audit_logs` : ce ne sont pas les mêmes questions. Le
- * journal d'audit répond à « qui a fait quoi », il est append-only et lu par un
- * humain qui enquête. Cette table-ci répond à « le scan de 4 h du matin
- * a-t-il tourné, combien de temps, et qu'a-t-il trouvé » — elle est cadrée par
- * une clé étrangère, purgée avec sa tâche, et affichée en regard du cron.
- * Les deux existent : chaque exécution passe aussi par `logAudit()`.
+ * A dedicated table and not `audit_logs`: they are not the same questions. The
+ * audit log answers "who did what", it is append-only and read by a human
+ * investigating. This table answers "did the 4 a.m. scan run, for how long, and
+ * what did it find" — it is framed by a foreign key, purged with its task, and
+ * shown next to the cron. Both exist: each run also goes through `logAudit()`.
  */
 export const scheduledJobRuns = pgTable(
   'scheduled_job_runs',
@@ -91,11 +90,11 @@ export const scheduledJobRuns = pgTable(
     scheduledJobId: uuid('scheduled_job_id')
       .notNull()
       .references(() => scheduledJobs.id, { onDelete: 'cascade' }),
-    /** Réutilise l'échelle des étapes de déploiement : mêmes états, même vocabulaire. */
+    /** Reuses the deployment steps' scale: same states, same vocabulary. */
     status: stepStatusEnum('status').notNull().default('running'),
-    /** Déclenché à la main depuis l'UI, ou par le scheduler BullMQ. */
+    /** Triggered by hand from the UI, or by the BullMQ scheduler. */
     manual: boolean('manual').notNull().default(false),
-    /** Ce que la tâche a fait, sous une forme propre à son type. */
+    /** What the task did, in a shape specific to its type. */
     summary: jsonb('summary'),
     error: text('error'),
     startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),

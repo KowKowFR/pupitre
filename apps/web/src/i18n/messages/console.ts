@@ -1,19 +1,18 @@
 import type { Translated } from '@pupitre/core';
 
 /**
- * La console d'une application en marche : l'en-tête et ses gestes
- * d'exploitation, l'inventaire des services, le terminal de logs et le contexte
- * tiré de la base (mise en ligne, machine, sonde de site). Les refus des routes
- * `/api/apps/{id}/…` vivent ici aussi : ce sont les mêmes gestes, dits par le
- * serveur.
+ * A running application's console: the header and its operating gestures, the
+ * services inventory, the log terminal and the context drawn from the database
+ * (release, machine, site probe). The refusals of the `/api/apps/{id}/…` routes
+ * live here too: they are the same gestures, said by the server.
  *
- * ── Ce qui reste littéral ───────────────────────────────────────────────────
- * `scan:read`, `target:read`, `monitor:read`, `GET`, `mCPU` : ce sont des noms
- * de permissions, une méthode HTTP et une unité. Les traduire enverrait le
- * lecteur chercher quelque chose qui n'existe pas.
+ * ── What stays literal ──────────────────────────────────────────────────────
+ * `scan:read`, `target:read`, `monitor:read`, `GET`, `mCPU`: they are permission
+ * names, an HTTP method and a unit. Translating them would send the reader
+ * looking for something that does not exist.
  */
 const fr = {
-  // ── En-tête ─────────────────────────────────────────────────────────────
+  // ── Header ──────────────────────────────────────────────────────────────
   'page.description':
     "Ce que la machine dit d'elle-même, relu en direct. La colonne de gauche vient de la base du panel : elle répond même quand la machine se tait.",
   'page.restored': 'version restaurée',
@@ -27,7 +26,7 @@ const fr = {
   'failedUpdate.step': ', étape {step}',
   'failedUpdate.link': 'Voir le déploiement échoué',
 
-  // ── Exploitation ────────────────────────────────────────────────────────
+  // ── Operations ──────────────────────────────────────────────────────────
   'ops.label': 'Exploitation',
   'ops.reading': "Lecture de l'état…",
   'ops.running': 'En marche sur {target}',
@@ -145,7 +144,7 @@ const fr = {
   'service.requested': '{cpu} mCPU · {memory} Mio',
   'service.probe': 'GET {path} toutes les {interval} s, {retries} essais',
 
-  // ── Mise en ligne ───────────────────────────────────────────────────────
+  // ── Release ─────────────────────────────────────────────────────────────
   'rollout.title': 'Mise en ligne',
   'rollout.trace': 'Voir la trace',
   'rollout.version': 'Version',
@@ -171,7 +170,7 @@ const fr = {
   'scan.high': { one: '{count} élevée', other: '{count} élevées' },
   'scan.when': '{scanners}, au moment de la mise en ligne',
 
-  // ── La machine ──────────────────────────────────────────────────────────
+  // ── The machine ─────────────────────────────────────────────────────────
   'machine.title': 'La machine',
   'machine.restricted': 'Lire les relevés machine demande la permission target:read.',
   'machine.empty': 'Aucun relevé sur {hours} h pour cette machine.',
@@ -182,7 +181,7 @@ const fr = {
   'gauge.memory': 'mém',
   'gauge.disk': 'dsk',
 
-  // ── Sonde de site ───────────────────────────────────────────────────────
+  // ── Site probe ──────────────────────────────────────────────────────────
   'monitor.title': 'Sonde de site',
   'monitor.restricted': 'Lire les sondes demande la permission monitor:read.',
   'monitor.none': "Aucune sonde ne surveille cette application depuis l'extérieur.",
@@ -253,7 +252,7 @@ const fr = {
     "Filtre : seules les lignes où figure un mot d'erreur ou d'avertissement.",
   'export.at': 'Exporté le {date}',
 
-  // ── Refus des routes ────────────────────────────────────────────────────
+  // ── Route refusals ──────────────────────────────────────────────────────
   'error.alreadyStopped': 'Cette application est déjà arrêtée depuis le {date}.',
   'error.notStopped': "Cette application n'est pas arrêtée : il n'y a rien à démarrer.",
   'error.notSupervisable.stop': "Un déploiement « {status} » n'a pas d'application à arrêter.",

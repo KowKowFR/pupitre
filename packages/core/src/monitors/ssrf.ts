@@ -2,125 +2,119 @@ import { z } from 'zod';
 import { renderMessage, type Translated, type UiLanguage, type Vars } from '../i18n.js';
 
 /**
- * ⚠ Politique SSRF de la supervision.
+ * ⚠ Monitoring's SSRF policy.
  *
- * Le risque, énoncé franchement : cette fonctionnalité fait qu'un serveur va
- * chercher une cible **fournie par un utilisateur**. C'est une SSRF par
- * construction. Quelqu'un qui peut créer une sonde pourrait faire émettre au
- * worker une requête vers `http://localhost:5432`, vers `10.0.0.0/8`, ou vers
- * `169.254.169.254` — le service de métadonnées d'un cloud, qui rend des
- * identifiants.
+ * The risk, stated frankly: this feature makes a server fetch a target
+ * **provided by a user**. It is an SSRF by construction. Someone who can create
+ * a probe could make the worker send a request to `http://localhost:5432`, to
+ * `10.0.0.0/8`, or to `169.254.169.254` — a cloud's metadata service, which
+ * returns credentials.
  *
- * ── La décision ──────────────────────────────────────────────────────────────
+ * ── The decision ─────────────────────────────────────────────────────────────
  *
- * 1. **Schéma** : `http` et `https` seulement. Pas de `file:`, `gopher:`,
- *    `ftp:`, ni d'URL portant des identifiants (`user:pass@`).
+ * 1. **Scheme**: `http` and `https` only. No `file:`, `gopher:`, `ftp:`, nor
+ *    URLs carrying credentials (`user:pass@`).
  *
- * 2. **Adresses** : tout est refusé sauf le public. Un blocage *total* des
- *    adresses privées serait absurde — ce panel supervise précisément des
- *    machines internes. L'ouverture se fait donc par une **liste
- *    d'autorisation de CIDR**, `MONITOR_ALLOWED_CIDRS`, lue dans
- *    l'environnement du panel et du worker.
+ * 2. **Addresses**: everything is refused except public ones. A *total* block of
+ *    private addresses would be absurd — this panel monitors precisely internal
+ *    machines. Opening up is therefore done through a **CIDR allow list**,
+ *    `MONITOR_ALLOWED_CIDRS`, read from the panel's and the worker's environment.
  *
- *    Pourquoi l'environnement, et non un réglage d'instance ni une permission ?
- *    Parce qu'une permission serait un leurre : `monitor:manage` est justement
- *    ce que porte quiconque crée une sonde ; lui donner en plus le droit de
- *    lever la garde revient à ne pas avoir de garde. « Quelles plages internes
- *    ce panel a-t-il le droit d'atteindre » est une décision de **déploiement**,
- *    prise par qui tient le `.env` — au même endroit que `MASTER_KEY` et que
- *    `DRIVER_PORT_RANGE`. Personne ne l'élargit depuis l'interface.
+ *    Why the environment, and not an instance setting or a permission? Because a
+ *    permission would be a decoy: `monitor:manage` is precisely what whoever
+ *    creates a probe carries; also giving it the right to lift the guard amounts
+ *    to having no guard. "Which internal ranges may this panel reach" is a
+ *    **deployment** decision, made by whoever holds the `.env` — in the same
+ *    place as `MASTER_KEY` and `DRIVER_PORT_RANGE`. Nobody widens it from the
+ *    interface.
  *
- * 3. **Jamais autorisables**, quelle que soit la liste : le lien-local
- *    (`169.254.0.0/16`, `fe80::/10`) qui porte les services de métadonnées, le
- *    multicast, le réservé, et l'adresse indéterminée. Un service de métadonnées
- *    n'est pas un site à superviser, c'est un distributeur de jetons.
+ * 3. **Never allowable**, whatever the list: link-local (`169.254.0.0/16`,
+ *    `fe80::/10`) which carries the metadata services, multicast, reserved, and
+ *    the unspecified address. A metadata service is not a site to monitor, it is
+ *    a token dispenser.
  *
- * 4. **Redirections** : contrôler l'adresse de départ ne suffit pas — une URL
- *    publique peut renvoyer un 302 vers `http://169.254.169.254`. Chaque saut
- *    est donc re-résolu et re-contrôlé, et il y en a cinq au plus.
+ * 4. **Redirects**: checking the starting address is not enough — a public URL
+ *    can return a 302 to `http://169.254.169.254`. Each hop is therefore
+ *    resolved and checked again, and there are five at most.
  *
- * 5. **Rebinding DNS** : la sonde résout le nom une fois, contrôle *toutes* les
- *    adresses rendues, puis se connecte à l'adresse retenue **en littéral**,
- *    avec l'en-tête `Host` et le SNI du nom d'origine. Il n'y a donc pas de
- *    seconde résolution entre le contrôle et la connexion : la fenêtre de
- *    TOCTOU est fermée.
+ * 5. **DNS rebinding**: the probe resolves the name once, checks *all* the
+ *    returned addresses, then connects to the chosen address **as a literal**,
+ *    with the original name's `Host` header and SNI. There is therefore no
+ *    second resolution between the check and the connection: the TOCTOU window
+ *    is closed.
  *
- * 6. **Taille de réponse** bornée, délai borné.
+ * 6. **Response size** capped, timeout capped.
  *
- * 7. **Les requêtes vers un tiers que l'opérateur n'a pas choisi n'héritent pas
- *    de la liste d'autorisation.** La sonde d'expiration de domaine ne joint pas
- *    la cible : elle joint le serveur RDAP d'un registre, désigné par la liste
- *    d'amorçage de l'IANA. Personne dans ce panel n'a décidé de cette adresse.
+ * 7. **Requests to a third party the operator did not choose do not inherit the
+ *    allow list.** The domain expiry probe does not reach the target: it reaches
+ *    a registry's RDAP server, designated by IANA's bootstrap list. Nobody in
+ *    this panel decided on that address.
  *
- *    Or `MONITOR_ALLOWED_CIDRS` répond à une question précise — « quelles plages
- *    internes ce panel a-t-il le droit d'atteindre *pour superviser le parc de
- *    l'opérateur* » — et pas à « quelles plages un tiers a le droit de nous faire
- *    joindre ». Faire hériter la requête RDAP de cette ouverture reviendrait à
- *    accepter qu'une entrée d'amorçage erronée, ou un DNS empoisonné, fasse
- *    entrer une requête sortante dans le 10.0.0.0/8 de l'opérateur — et il
- *    l'aurait autorisée sans jamais l'avoir voulu.
+ *    But `MONITOR_ALLOWED_CIDRS` answers a precise question — "which internal
+ *    ranges may this panel reach *to monitor the operator's fleet*" — and not
+ *    "which ranges may a third party make us reach". Letting the RDAP request
+ *    inherit that opening would amount to accepting that a wrong bootstrap
+ *    entry, or a poisoned DNS, brings an outgoing request into the operator's
+ *    10.0.0.0/8 — and they would have allowed it without ever wanting to.
  *
- *    Ces appels passent donc `PUBLIC_ONLY` (`probe/fetch.ts`) : adresses
- *    publiques seulement, quelle que soit la configuration. Un registre est sur
- *    l'internet public par définition ; s'il résout vers une adresse privée,
- *    c'est une anomalie à refuser, pas une exception à accommoder. La règle vaut
- *    aussi pour la liste d'amorçage elle-même, dont l'URL est en dur et jamais
- *    dérivée d'une saisie, et s'accompagne d'une exigence d'`https` : une
- *    réponse RDAP altérée en transit dirait n'importe quoi sur une date
- *    d'expiration.
+ *    These calls therefore go through `PUBLIC_ONLY` (`probe/fetch.ts`): public
+ *    addresses only, whatever the configuration. A registry is on the public
+ *    Internet by definition; if it resolves to a private address, it is an
+ *    anomaly to refuse, not an exception to accommodate. The rule also holds for
+ *    the bootstrap list itself, whose URL is hard-coded and never derived from
+ *    an input, and comes with an `https` requirement: an RDAP response altered
+ *    in transit would say anything about an expiry date.
  *
- * Cette politique vaut pour **tous** les types de sonde, présents et à venir —
- * HTTP, mot-clé, TLS, TCP, DNS, RDAP. Elle vit ici, à part du catalogue, pour
- * qu'aucune implémentation n'ait à la réécrire ni la possibilité de l'oublier ;
- * et la boucle de requête qui l'applique n'existe qu'en un exemplaire, dans
- * `probe/fetch.ts`, pour la même raison — une seconde copie diverge toujours.
+ * This policy holds for **all** probe types, present and future — HTTP,
+ * keyword, TLS, TCP, DNS, RDAP. It lives here, apart from the catalog, so that
+ * no implementation has to rewrite it or gets the chance to forget it; and the
+ * request loop that applies it exists in a single copy, in `probe/fetch.ts`, for
+ * the same reason — a second copy always diverges.
  *
- * ── Ce que la garde protège exactement : la socket, pas la cible ────────────
+ * ── What the guard protects exactly: the socket, not the target ─────────────
  *
- * Deux types récents obligent à énoncer la règle plus précisément que « on
- * contrôle la cible ».
+ * Two recent types force stating the rule more precisely than "we check the
+ * target".
  *
- * **TCP** est le cas dangereux, et il faut le dire franchement : une sonde qui
- * prend un hôte et un port *est* la primitive d'un scanner de réseau interne.
- * Elle rend, en clair, « ce port accepte / refuse / ne répond pas », c'est-à-dire
- * exactement ce que rend `nmap`. Elle est plus dangereuse que la sonde HTTP, qui
- * au moins parle un protocole et achoppe sur les services qui ne le parlent pas.
- * Elle passe donc par **le même** `resolveGuarded()`, sans exception et sans
- * chemin de contournement : rien dans `tcp.ts` n'ouvre une socket vers autre
- * chose que l'adresse littérale que la garde a validée.
+ * **TCP** is the dangerous case, and it must be said frankly: a probe that takes
+ * a host and a port *is* the primitive of an internal network scanner. It
+ * returns, in clear, "this port accepts / refuses / does not answer", that is
+ * exactly what `nmap` returns. It is more dangerous than the HTTP probe, which
+ * at least speaks a protocol and stumbles on services that do not speak it. It
+ * therefore goes through **the same** `resolveGuarded()`, without exception and
+ * without a bypass: nothing in `tcp.ts` opens a socket to anything other than
+ * the literal address the guard validated.
  *
- * **DNS** est le cas subtil : la sonde ne se connecte **pas** à ce qu'elle
- * surveille. Elle pose une question *à propos* d'un nom, à un résolveur. Les
- * adresses qu'elle obtient en réponse sont des **données** — on les compare,
- * on ne les joint jamais. Les contrôler n'aurait aucun sens : superviser
- * « le A de db.interne vaut bien 10.0.0.5 » est légitime et ne joint rien.
+ * **DNS** is the subtle case: the probe does **not** connect to what it
+ * monitors. It asks a question *about* a name, to a resolver. The addresses it
+ * gets in response are **data** — compared, never reached. Checking them would
+ * make no sense: monitoring "the A of db.internal is indeed 10.0.0.5" is
+ * legitimate and reaches nothing.
  *
- * D'où la formulation retenue, qui couvre les quatre types sans cas particulier :
+ * Hence the wording chosen, which covers the four types without a special case:
  *
- *     la garde s'applique à **tout endpoint vers lequel le worker ouvre une
- *     socket**, et à rien d'autre.
+ *     the guard applies to **every endpoint the worker opens a socket to**, and
+ *     to nothing else.
  *
- * Pour DNS, cet endpoint est le **résolveur** — et c'est bien lui qui est
- * contrôlé. Avec une exception explicite : le résolveur *du système*, celui de
- * `/etc/resolv.conf`, n'est pas une saisie d'utilisateur mais un fait de
- * déploiement — dans un conteneur c'est souvent `127.0.0.11`, que la garde
- * refuserait à tort. Un résolveur **déclaré dans la sonde**, lui, est bien une
- * saisie d'utilisateur : il est contrôlé comme n'importe quelle cible.
+ * For DNS, that endpoint is the **resolver** — and it is indeed what is checked.
+ * With one explicit exception: the *system's* resolver, the one in
+ * `/etc/resolv.conf`, is not a user input but a deployment fact — in a container
+ * it is often `127.0.0.11`, which the guard would wrongly refuse. A resolver
+ * **declared in the probe**, on the other hand, is a user input: it is checked
+ * like any target.
  *
- * Reste un risque résiduel, assumé et nommé : interroger `<données>.attaquant.fr`
- * fait émettre une requête au résolveur vers un serveur choisi par celui qui a
- * créé la sonde — un canal d'exfiltration lent. Il n'apporte rien à qui porte
- * déjà `monitor:manage`, qui peut faire émettre une requête HTTP vers n'importe
- * quel hôte public ; et le refuser demanderait une liste d'autorisation de noms,
- * qui n'existe pas.
+ * A residual risk remains, accepted and named: querying `<data>.attacker.com`
+ * makes the resolver send a request to a server chosen by whoever created the
+ * probe — a slow exfiltration channel. It brings nothing to someone who already
+ * carries `monitor:manage`, who can make an HTTP request go to any public host;
+ * and refusing it would require an allow list of names, which does not exist.
  *
- * ── Ce qui reste ouvert, et qui est assumé ───────────────────────────────────
- * Une plage autorisée l'est pour toutes les sondes : il n'y a pas de
- * granularité par utilisateur. Et une sonde autorisée sur une plage interne
- * peut servir de scanner de ports lent (le code de réponse et la latence
- * fuitent). C'est le prix de superviser un parc interne ; la liste
- * d'autorisation est là pour que ce prix soit payé sciemment, sur des plages
- * nommées.
+ * ── What stays open, and is accepted ────────────────────────────────────────
+ * An allowed range is allowed for every probe: there is no per-user
+ * granularity. And a probe allowed on an internal range can serve as a slow
+ * port scanner (the response code and the latency leak). It is the price of
+ * monitoring an internal fleet; the allow list is there so that this price is
+ * paid knowingly, on named ranges.
  */
 
 export type AddressCategory =
@@ -134,7 +128,7 @@ export type AddressCategory =
   | 'reserved'
   | 'unspecified';
 
-/** Catégories qu'aucune liste d'autorisation ne peut débloquer. */
+/** Categories no allow list can unlock. */
 const NEVER_ALLOWED: ReadonlySet<AddressCategory> = new Set<AddressCategory>([
   'link-local',
   'multicast',
@@ -143,24 +137,24 @@ const NEVER_ALLOWED: ReadonlySet<AddressCategory> = new Set<AddressCategory>([
 ]);
 
 /**
- * Les mots d'un refus — et rien que les mots.
+ * A refusal's words — and only the words.
  *
- * ── Pourquoi une **donnée** et pas une phrase ────────────────────────────────
- * Un refus SSRF ne s'arrête pas ici : il traverse `SsrfBlockedError`, remonte
- * en 422 dans le bandeau du formulaire de sonde, et se recopie en `detail` d'un
- * relevé. Le premier s'affiche dans la langue de l'instance, le second est une
- * trace d'un événement passé qui reste telle quelle. Une fonction ne peut pas
- * rendre les deux si elle ne rend qu'une chaîne.
+ * ── Why **data** and not a sentence ─────────────────────────────────────────
+ * An SSRF refusal does not stop here: it goes through `SsrfBlockedError`, comes
+ * up as a 422 in the probe form's banner, and is copied into a reading's
+ * `detail`. The first is shown in the instance's language, the second is a
+ * trace of a past event that stays as is. A function cannot render both if it
+ * only returns a string.
  *
- * Chaque refus est donc une `SsrfRefusal` — une clé et ses variables — que
- * l'appelant rend dans la langue qui convient à *son* usage. Les verdicts
- * portent en plus un `reason` déjà rendu en français : c'est la langue source
- * du projet, celle des logs et des relevés, et elle laisse intacts les
- * appelants qui n'ont pas de langue à offrir.
+ * Each refusal is therefore an `SsrfRefusal` — a key and its variables — that
+ * the caller renders in the language that suits *its* use. The verdicts also
+ * carry a `reason` already rendered in French: it is the project's source
+ * language, the one of logs and readings, and it leaves intact the callers that
+ * have no language to offer.
  *
- * Le français accroche la catégorie derrière « une adresse », l'anglais la
- * porte en entier dans la substitution. Les deux gabarits n'ont donc pas la
- * même forme, et c'est exactement ce qu'une traduction est censée faire.
+ * French hangs the category after "une adresse", English carries it whole in
+ * the substitution. The two templates therefore do not have the same shape, and
+ * that is exactly what a translation is supposed to do.
  */
 const fr = {
   'category.public': 'publique',
@@ -221,12 +215,12 @@ export const ssrfCopy = { fr, en };
 export type SsrfReasonKey = keyof typeof fr;
 
 /**
- * Un refus, désigné plutôt qu'écrit. La phrase se fabrique au moment de
- * l'afficher, dans la langue qui convient à cet affichage-là.
+ * A refusal, designated rather than written. The sentence is made at the time
+ * it is shown, in the language that suits that display.
  *
- * `category` est à part des `vars` parce que c'est la seule substitution qui
- * soit elle-même une phrase à traduire : la garder en donnée jusqu'au rendu est
- * ce qui empêche un refus de figer une langue au moment où il est levé.
+ * `category` is apart from `vars` because it is the only substitution that is
+ * itself a sentence to translate: keeping it as data until rendering is what
+ * prevents a refusal from freezing a language at the time it is raised.
  */
 export type SsrfRefusal = {
   readonly key: SsrfReasonKey;
@@ -234,7 +228,7 @@ export type SsrfRefusal = {
   readonly category?: AddressCategory;
 };
 
-/** Rend un refus. Le français par défaut : c'est la langue des logs et des relevés. */
+/** Renders a refusal. French by default: it is the language of logs and readings. */
 export function ssrfRefusalText(refusal: SsrfRefusal, language: UiLanguage = 'fr'): string {
   const category =
     refusal.category === undefined
@@ -244,7 +238,7 @@ export function ssrfRefusalText(refusal: SsrfRefusal, language: UiLanguage = 'fr
   return renderMessage(ssrfCopy, language, refusal.key, vars);
 }
 
-/** Une adresse, normalisée en octets. 4 pour IPv4, 16 pour IPv6. */
+/** An address, normalized to bytes. 4 for IPv4, 16 for IPv6. */
 export type IpAddress = { bytes: number[]; family: 4 | 6 };
 
 export function parseIpv4(value: string): IpAddress | null {
@@ -252,8 +246,8 @@ export function parseIpv4(value: string): IpAddress | null {
   if (parts.length !== 4) return null;
   const bytes: number[] = [];
   for (const part of parts) {
-    // `01` et `1e2` ne sont pas des octets : on n'accepte que la forme décimale
-    // canonique, sans quoi `0177.0.0.1` (octal) contournerait le contrôle.
+    // `01` and `1e2` are not octets: only the canonical decimal form is accepted,
+    // otherwise `0177.0.0.1` (octal) would bypass the check.
     if (!/^\d{1,3}$/.test(part)) return null;
     if (part.length > 1 && part.startsWith('0')) return null;
     const byte = Number(part);
@@ -264,7 +258,7 @@ export function parseIpv4(value: string): IpAddress | null {
 }
 
 export function parseIpv6(value: string): IpAddress | null {
-  // Le suffixe de zone (`fe80::1%eth0`) ne change pas l'adresse.
+  // The zone suffix (`fe80::1%eth0`) does not change the address.
   const raw = value.split('%')[0] ?? value;
   if (!raw.includes(':')) return null;
 
@@ -280,7 +274,7 @@ export function parseIpv6(value: string): IpAddress | null {
     const tokens = text.split(':');
     for (const [index, token] of tokens.entries()) {
       if (token.includes('.')) {
-        // Forme mixte `::ffff:127.0.0.1` — seulement en dernière position.
+        // Mixed form `::ffff:127.0.0.1` — only in last position.
         if (index !== tokens.length - 1) return null;
         const embedded = parseIpv4(token);
         if (!embedded) return null;
@@ -328,19 +322,19 @@ function inRange(bytes: number[], prefix: number[], bits: number): boolean {
 }
 
 /**
- * Une adresse IPv6 qui encapsule de l'IPv4 doit être jugée sur l'IPv4 qu'elle
- * transporte — sinon `::ffff:127.0.0.1` passerait pour une IPv6 quelconque.
+ * An IPv6 address that wraps IPv4 must be judged on the IPv4 it carries —
+ * otherwise `::ffff:127.0.0.1` would pass for any IPv6.
  */
 function unwrapIpv4(address: IpAddress): IpAddress {
   if (address.family !== 6) return address;
   const { bytes } = address;
   const v4 = { bytes: bytes.slice(12), family: 4 as const };
-  // `::ffff:a.b.c.d` — la forme mappée, de loin la plus courante.
+  // `::ffff:a.b.c.d` — the mapped form, by far the most common.
   if (inRange(bytes, [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff], 96)) return v4;
-  // `64:ff9b::/96` — traduction NAT64.
+  // `64:ff9b::/96` — NAT64 translation.
   if (inRange(bytes, [0x00, 0x64, 0xff, 0x9b, 0, 0, 0, 0, 0, 0, 0, 0], 96)) return v4;
-  // `::a.b.c.d` — IPv4-compatible, obsolète mais encore acceptée par les piles.
-  // `bytes[12] !== 0` écarte `::1`, qui est du vrai IPv6 de bouclage.
+  // `::a.b.c.d` — IPv4-compatible, obsolete but still accepted by stacks.
+  // `bytes[12] !== 0` rules out `::1`, which is real IPv6 loopback.
   if (bytes.slice(0, 12).every((byte) => byte === 0) && bytes[12] !== 0) return v4;
   return address;
 }
@@ -379,7 +373,7 @@ export function classifyAddress(value: string): AddressCategory | null {
   return 'public';
 }
 
-// ─── liste d'autorisation ─────────────────────────────────────────────────────
+// ─── allow list ───────────────────────────────────────────────────────────────
 
 export type Cidr = { address: IpAddress; bits: number; text: string };
 
@@ -401,7 +395,7 @@ export function parseCidr(value: string): Cidr | null {
   return { address, bits, text: trimmed };
 }
 
-/** `MONITOR_ALLOWED_CIDRS` : des CIDR séparés par des virgules. Vide = rien d'ouvert. */
+/** `MONITOR_ALLOWED_CIDRS`: comma-separated CIDRs. Empty = nothing open. */
 export function parseCidrList(value: string | undefined): Cidr[] {
   if (!value) return [];
   const out: Cidr[] = [];
@@ -416,17 +410,17 @@ export function cidrContains(cidr: Cidr, address: IpAddress): boolean {
   const target = unwrapIpv4(address);
   const base = unwrapIpv4(cidr.address);
   if (base.family !== target.family) return false;
-  // Un CIDR écrit en IPv6 mais qui encapsule de l'IPv4 garde ses bits de
-  // préfixe exprimés sur 128 : on les ramène à l'échelle de l'IPv4.
+  // A CIDR written in IPv6 but wrapping IPv4 keeps its prefix bits expressed over
+  // 128: we bring them back to the IPv4 scale.
   const bits =
     cidr.address.family === 6 && base.family === 4 ? Math.max(0, cidr.bits - 96) : cidr.bits;
   return inRange(target.bytes, base.bytes, bits);
 }
 
 /**
- * Un verdict de refus porte les deux : le refus en donnée (`refusal`) pour qui
- * doit l'afficher, et la phrase française déjà rendue (`reason`) pour qui
- * l'écrit dans un relevé ou dans un log. Aucun appelant existant n'a bougé.
+ * A refusal verdict carries both: the refusal as data (`refusal`) for whoever
+ * must show it, and the French sentence already rendered (`reason`) for whoever
+ * writes it into a reading or a log. No existing caller moved.
  */
 export type AddressVerdict =
   | { allowed: true; category: AddressCategory; via: string | null }
@@ -437,8 +431,8 @@ function refused(refusal: SsrfRefusal, category: AddressCategory | null = null) 
 }
 
 /**
- * Le verdict des contrôles qui jugent une **forme** — un nom d'hôte, une URL,
- * une adresse littérale — sans liste d'autorisation ni réseau.
+ * The verdict of the checks that judge a **shape** — a host name, a URL, a
+ * literal address — without an allow list or network.
  */
 export type ShapeVerdict = { allowed: boolean; refusal?: SsrfRefusal; reason?: string };
 
@@ -446,7 +440,7 @@ function refusedShape(refusal: SsrfRefusal): ShapeVerdict {
   return { allowed: false, refusal, reason: ssrfRefusalText(refusal) };
 }
 
-/** Le contrôle d'une adresse, une fois résolue. Point d'entrée unique. */
+/** The check of an address, once resolved. Single entry point. */
 export function checkAddress(value: string, allowlist: readonly Cidr[]): AddressVerdict {
   const parsed = parseIp(value);
   const category = parsed ? classifyAddress(value) : null;
@@ -466,18 +460,16 @@ export function checkAddress(value: string, allowlist: readonly Cidr[]): Address
 }
 
 /**
- * Ce qu'aucune liste ne débloquera jamais, jugé **sans résolution ni
- * environnement**.
+ * What no list will ever unlock, judged **without resolution or environment**.
  *
- * Utile parce que le refus le plus important — le service de métadonnées — doit
- * pouvoir tomber au plus tôt : dans le schéma Zod, à la création de la sonde,
- * là où on ne peut ni lire `MONITOR_ALLOWED_CIDRS` (le catalogue est importé par
- * des composants client) ni faire une requête DNS (une validation ne fait pas
- * de réseau). Une adresse littérale n'a pas besoin de l'un ni de l'autre : elle
- * se juge sur pièce.
+ * Useful because the most important refusal — the metadata service — must be
+ * able to fall as early as possible: in the Zod schema, when the probe is
+ * created, where one can neither read `MONITOR_ALLOWED_CIDRS` (the catalog is
+ * imported by client components) nor make a DNS request (a validation does no
+ * network). A literal address needs neither: it is judged on its face.
  *
- * Rend `{ allowed: true }` pour un nom : un nom ne se juge qu'une fois résolu,
- * et c'est `resolveGuarded()` qui s'en charge.
+ * Returns `{ allowed: true }` for a name: a name is only judged once resolved,
+ * and it is `resolveGuarded()` that handles it.
  */
 export function checkNeverAllowable(value: string): ShapeVerdict {
   const category = classifyAddress(value);
@@ -486,25 +478,24 @@ export function checkNeverAllowable(value: string): ShapeVerdict {
   return refusedShape({ key: 'reason.neverAllowed', vars: { value }, category });
 }
 
-/** Contrôle d'un nom d'hôte, avant toute résolution. */
+/** Check of a host name, before any resolution. */
 export function checkHostname(hostname: string): ShapeVerdict {
   const host = hostname.trim().toLowerCase().replace(/\.$/, '');
   if (host === '') return refusedShape({ key: 'reason.noHostname' });
-  // `localhost` ne résout pas toujours en 127.0.0.1 ; on le refuse par son nom
-  // en plus de son adresse, pour que le message soit clair.
+  // `localhost` does not always resolve to 127.0.0.1; we refuse it by its name on
+  // top of its address, so that the message is clear.
   if (host === 'localhost' || host.endsWith('.localhost')) {
     return refusedShape({ key: 'reason.localhost' });
   }
-  // Une cible écrite en adresse littérale se juge tout de suite, sans attendre
-  // la résolution : `169.254.169.254` n'a aucune raison d'être acceptée à la
-  // création pour n'être refusée qu'au premier balayage, une heure plus tard.
-  // Seules les catégories qu'aucune liste ne débloque tombent ici ; le
-  // bouclage et le privé dépendent de `MONITOR_ALLOWED_CIDRS`, qui n'est pas
-  // lisible d'ici.
+  // A target written as a literal address is judged right away, without waiting
+  // for resolution: `169.254.169.254` has no reason to be accepted at creation
+  // only to be refused at the first sweep, an hour later. Only the categories no
+  // list unlocks fall here; loopback and private depend on
+  // `MONITOR_ALLOWED_CIDRS`, which is not readable from here.
   return checkNeverAllowable(host);
 }
 
-/** Schéma, identifiants, nom d'hôte. La résolution DNS vient après, dans la sonde. */
+/** Scheme, credentials, host name. DNS resolution comes later, in the probe. */
 export function checkUrlShape(value: string): ShapeVerdict {
   let url: URL;
   try {
@@ -525,8 +516,8 @@ export function checkUrlShape(value: string): ShapeVerdict {
 }
 
 /**
- * Le reproche d'un refus : sa phrase française, et le refus en donnée — l'écran
- * le redit dans sa langue (`issueMessage()` de `validation.ts`).
+ * A refusal's complaint: its French sentence, and the refusal as data — the
+ * screen says it again in its language (`issueMessage()` in `validation.ts`).
  */
 function refusalIssue(verdict: ShapeVerdict, fallback: string) {
   return {
@@ -536,7 +527,7 @@ function refusalIssue(verdict: ShapeVerdict, fallback: string) {
   };
 }
 
-/** URL de sonde : la forme est validée ici, les adresses au moment de sonder. */
+/** Probe URL: the shape is validated here, the addresses at probe time. */
 export const monitorUrlSchema = z
   .string()
   .trim()
@@ -547,7 +538,7 @@ export const monitorUrlSchema = z
     if (!verdict.allowed) ctx.addIssue(refusalIssue(verdict, 'URL refusée'));
   });
 
-/** Nom d'hôte de sonde — pour les types qui ne parlent pas HTTP (TLS, demain DNS). */
+/** Probe host name — for the types that do not speak HTTP (TLS, tomorrow DNS). */
 export const monitorHostSchema = z
   .string()
   .trim()

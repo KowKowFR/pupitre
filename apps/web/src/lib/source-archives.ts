@@ -27,15 +27,15 @@ import { HttpError, msg } from './errors';
 import { getSupervisionQueue } from './supervision-queue';
 
 /**
- * Le code téléversé d'une application, côté panel : recevoir l'archive, dire
- * au worker de la lire, et choisir celle qu'un déploiement construit.
+ * An application's uploaded code, panel side: receiving the archive, telling the
+ * worker to read it, and choosing the one a deployment builds.
  *
- * Le panel ne juge pas l'archive — il ne fait que reconnaître son format aux
- * premiers octets et la ranger. La lecture, longue, est l'affaire du worker
- * (`source:archive-inspect`) : une route ne décompresse rien.
+ * The panel does not judge the archive — it only recognizes its format from the
+ * first bytes and stores it. The long reading is the worker's business
+ * (`source:archive-inspect`): a route decompresses nothing.
  */
 
-/** Une archive telle que les routes la rendent : jamais ses octets. */
+/** An archive as the routes return it: never its bytes. */
 export function archiveJson(archive: SourceArchive | SourceArchiveView) {
   return {
     id: archive.id,
@@ -63,7 +63,7 @@ const tooLarge = () =>
     msg(errors, 'payload_too_large', { max: SOURCE_UPLOAD_MAX_BYTES }),
   );
 
-/** Lit le flux jusqu'à `need` octets au moins (ou sa fin), pour en reconnaître le format. */
+/** Reads the stream up to at least `need` bytes (or its end), to recognize its format. */
 async function readHead(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   need: number,
@@ -80,10 +80,10 @@ async function readHead(
 }
 
 /**
- * Reçoit le corps de la requête — l'archive elle-même — et le range en base
- * au fil de l'envoi, par morceaux d'un mégaoctet, avec son SHA-256. Refuse dès
- * que la borne est franchie, sans attendre la fin du transfert. Un envoi qui
- * échoue ne laisse rien derrière lui.
+ * Receives the request's body — the archive itself — and stores it in the
+ * database as it is uploaded, in one-megabyte chunks, with its SHA-256. Refuses
+ * as soon as the bound is crossed, without waiting for the transfer's end. An
+ * upload that fails leaves nothing behind.
  */
 export async function receiveArchive(
   request: Request,
@@ -167,17 +167,17 @@ export async function enqueueArchiveInspect(
   return job.id;
 }
 
-/** L'application suit-elle un dépôt ? Alors son code vient de là, jamais d'une archive. */
+/** Does the application follow a repository? Then its code comes from there, not an archive. */
 export async function isLinkedToRepository(applicationId: string): Promise<boolean> {
   return (await listApplicationSources(applicationId)).length > 0;
 }
 
 /**
- * Le code qu'un déploiement construira, quand il vient d'une archive : la plus
- * récente de l'application. Rien si aucun service ne se construit, ou si
- * l'application suit un dépôt. Refuse — avant d'enfiler quoi que ce soit — un
- * service qui se construirait sans code, une archive en cours de lecture ou
- * refusée, un Dockerfile absent : mieux vaut le dire ici qu'à l'étape `build`.
+ * The code a deployment will build, when it comes from an archive: the
+ * application's most recent one. Nothing if no service builds, or if the
+ * application follows a repository. Refuses — before queuing anything — a service
+ * that would build without code, an archive being read or refused, a missing
+ * Dockerfile: better to say it here than at the `build` step.
  */
 export async function codeFromArchive(
   applicationId: string,

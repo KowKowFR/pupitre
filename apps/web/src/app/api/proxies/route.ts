@@ -15,15 +15,18 @@ import { apiRoute, readJsonBody } from '@/lib/http';
 import { remoteProxyViewForUi, waitForProxyCheck } from '@/lib/proxy';
 import { getOpsQueue } from '@/lib/queue';
 import { requirePermission } from '@/lib/rbac';
+import { currentLanguage } from '@/i18n/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** Les proxies distants — hors des cibles, joints par leur API. */
+/** The remote proxies — outside the targets, reached through their API. */
 export const GET = apiRoute(async (request) => {
   await requirePermission(request, 'target:read');
-  const proxies = await listRemoteProxies();
-  return NextResponse.json({ proxies: proxies.map(remoteProxyViewForUi) });
+  const [proxies, language] = await Promise.all([listRemoteProxies(), currentLanguage()]);
+  return NextResponse.json({
+    proxies: proxies.map((proxy) => remoteProxyViewForUi(proxy, language)),
+  });
 });
 
 const postSchema = z.object({
@@ -34,11 +37,13 @@ const postSchema = z.object({
 });
 
 /**
- * Connecter un proxy distant — Nginx Proxy Manager. Les identifiants sont
- * chiffrés dès l'enregistrement ; le test part aussitôt et la route attend son
- * issue : une connexion qui n'entre pas n'est pas gardée, la raison est dite.
+ * Connecting a remote proxy — Nginx Proxy Manager. The credentials are encrypted
+ * as soon as they are saved; the test goes out right away and the route waits
+ * for its outcome: a connection that does not get in is not kept, the reason is
+ * given.
  */
 export const POST = apiRoute(async (request) => {
+  const language = await currentLanguage();
   const auth = await requirePermission(request, 'target:update');
   const input = await readJsonBody(request, postSchema);
   if (proxyPlacement(input.kind) !== 'remote') {
@@ -49,7 +54,9 @@ export const POST = apiRoute(async (request) => {
 
   const created = await createRemoteProxy({
     kind: input.kind,
-    name: input.name ?? describeProxy(input.kind, config).split(' · ').slice(0, 2).join(' · '),
+    name:
+      input.name ??
+      describeProxy(input.kind, config, language).split(' · ').slice(0, 2).join(' · '),
     config,
     secrets,
     createdBy: auth.userId,
@@ -57,7 +64,7 @@ export const POST = apiRoute(async (request) => {
   const job = await getOpsQueue().add(PROXY_CHECK_JOB, { proxyId: created.id }, { attempts: 1 });
   const check = await waitForProxyCheck(job);
   if (check && !check.ok) {
-    // Rien à garder d'une connexion qui ne marche pas : on la retire, et on dit pourquoi.
+    // Nothing to keep from a connection that does not work: we remove it, and say why.
     await deleteProxy(created.id);
     throw new HttpError(
       422,
@@ -75,13 +82,13 @@ export const POST = apiRoute(async (request) => {
     action: 'proxy.connected',
     resourceType: 'proxy',
     resourceId: created.id,
-    // La configuration se montre ; les secrets n'entrent jamais au journal.
+    // The configuration shows; the secrets never enter the log.
     after: { kind: input.kind, name: created.name, config },
     ip: auth.ip,
   });
   const saved = await getProxy(created.id);
   return NextResponse.json(
-    { proxy: remoteProxyViewForUi(saved ?? created), checked: check !== null },
+    { proxy: remoteProxyViewForUi(saved ?? created, language), checked: check !== null },
     { status: 201 },
   );
 });

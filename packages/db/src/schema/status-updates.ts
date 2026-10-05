@@ -6,10 +6,10 @@ import { maintenanceWindows } from './maintenance.js';
 import { monitorIncidents } from './monitors.js';
 
 /**
- * Les annonces des pages de statut : « on enquête », « résolu ». Chacune est
- * rattachée à **un** sujet — un incident de sonde ou une fenêtre de
- * maintenance — et disparaît avec lui. Elle paraît sur toute page qui montre
- * une sonde touchée ; `created_by` ne sort jamais d'une page publique.
+ * Status page announcements: "we are investigating", "resolved". Each is attached
+ * to **one** subject — a probe incident or a maintenance window — and disappears
+ * with it. It appears on any page that shows an affected probe; `created_by`
+ * never leaves a public page.
  */
 export const statusUpdates = pgTable(
   'status_updates',
@@ -24,14 +24,14 @@ export const statusUpdates = pgTable(
     phase: statusUpdatePhaseEnum('phase').notNull(),
     message: text('message').notNull(),
     createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
-    /** L'heure de publication : celle que lit un visiteur. */
+    /** The publication time: the one a visitor reads. */
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     index('status_updates_incident_idx').on(t.monitorIncidentId, t.createdAt),
     index('status_updates_window_idx').on(t.maintenanceWindowId, t.createdAt),
-    // Un sujet, et un seul.
+    // One subject, and only one.
     check(
       'status_updates_one_subject',
       sql`(${t.monitorIncidentId} is null) <> (${t.maintenanceWindowId} is null)`,

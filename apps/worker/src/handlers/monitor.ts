@@ -10,44 +10,43 @@ import { runMonitorCapture } from '../monitors/capture.js';
 import { sweepMonitors } from '../monitors/sweep.js';
 
 /**
- * Enveloppe BullMQ du balayage de supervision.
+ * BullMQ envelope of the monitoring sweep.
  *
- * Sur la file `supervision` : sonder un site est une **lecture**. Elle ne doit
- * ni retarder un déploiement, ni être retardée par lui. C'est exactement la
- * raison d'être de cette file.
+ * On the `supervision` queue: probing a site is a **read**. It must neither
+ * delay a deployment nor be delayed by it. That is exactly this queue's reason
+ * for being.
  */
 export async function handleMonitorSweep(job: Job): Promise<MonitorSweepJobResult> {
   const data = monitorSweepJobDataSchema.parse(job.data ?? {});
   const summary = await sweepMonitors({ monitorId: data.monitorId, force: data.force });
 
   if (summary.probed > 0 || summary.suspended > 0 || summary.pruned > 0) {
-    logger.info({ jobId: job.id, ...summary }, 'balayage de supervision terminé');
+    logger.info({ jobId: job.id, ...summary }, 'monitoring sweep completed');
   }
   return summary;
 }
 
 /**
- * Enveloppe BullMQ des captures d'écran.
+ * BullMQ envelope of the screenshots.
  *
- * Sur la même file que le balayage — c'est un chargement de page vers
- * l'extérieur, donc une lecture — mais dans **sa propre tâche**, et c'est tout
- * l'intérêt : le balayage a déjà rendu son verdict et émis son alerte quand
- * celle-ci démarre. Une capture lente, ratée, ou impossible parce que le
- * navigateur est éteint ne retarde donc rien et ne casse rien.
+ * On the same queue as the sweep — it is a page load toward the outside, hence a
+ * read — but in **its own job**, and that is the whole point: the sweep has
+ * already given its verdict and sent its alert when this one starts. A slow,
+ * failed capture, or one impossible because the browser is off, therefore
+ * delays nothing and breaks nothing.
  *
- * La tâche ne rejette jamais pour une capture manquée : elle rend un
- * compte-rendu qui dit pourquoi. Un `attempts: 1` à l'enfilage complète la
- * règle — rejouer une capture trois minutes plus tard montrerait un autre
- * instant que celui qu'on voulait garder.
+ * The job never rejects for a missed capture: it returns a report saying why. An
+ * `attempts: 1` at queuing completes the rule — replaying a capture three
+ * minutes later would show another instant than the one we wanted to keep.
  */
 export async function handleMonitorCapture(job: Job): Promise<MonitorCaptureJobResult> {
   const data = monitorCaptureJobDataSchema.parse(job.data ?? {});
   const summary = await runMonitorCapture(data);
 
   if (summary.stored > 0) {
-    logger.info({ jobId: job.id, ...summary }, 'captures enregistrées');
+    logger.info({ jobId: job.id, ...summary }, 'captures recorded');
   } else if (summary.skipped.length > 0) {
-    logger.debug({ jobId: job.id, ...summary }, 'aucune capture enregistrée');
+    logger.debug({ jobId: job.id, ...summary }, 'no capture recorded');
   }
   return summary;
 }

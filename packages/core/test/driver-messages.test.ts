@@ -9,11 +9,11 @@ import { SshHostKeyError } from '../src/ssh/errors.js';
 import { sshCopy } from '../src/ssh/messages.js';
 
 /**
- * Ce que disent les drivers et la couche SSH suit la langue de l'instance : le
- * journal d'un déploiement, le preflight d'une cible, l'état d'une charge.
- * Le compilateur garantit déjà que les deux langues ont les mêmes clés ; ce
- * qu'il ne voit pas, ce sont les `{variables}` — une variable oubliée d'un
- * côté laisserait une phrase à trou dans une seule des deux langues.
+ * What the drivers and the SSH layer say follows the instance's language: a
+ * deployment's log, a target's preflight, a workload's state. The compiler
+ * already guarantees both languages have the same keys; what it does not see
+ * are the `{variables}` — a variable forgotten on one side would leave a
+ * sentence with a hole in only one of the two languages.
  */
 
 type Entry = string | Readonly<Record<string, string>>;
@@ -37,45 +37,45 @@ const bundles = {
   ssh: sshCopy,
 } as const;
 
-describe('Messages des drivers et de SSH — deux langues', () => {
+describe('Driver and SSH messages — two languages', () => {
   for (const [name, bundle] of Object.entries(bundles)) {
-    it(`${name} : les mêmes variables dans les deux langues`, () => {
+    it(`${name}: the same variables in both languages`, () => {
       const fr = bundle.fr as Record<string, Entry>;
       const en = bundle.en as Record<string, Entry>;
       for (const key of Object.keys(fr)) {
         const english = en[key];
-        assert.ok(english !== undefined, `${key} manque en anglais`);
+        assert.ok(english !== undefined, `${key} missing in English`);
         assert.deepEqual(placeholders(english), placeholders(fr[key] as Entry), key);
       }
     });
 
-    it(`${name} : l'anglais ne contient pas de français`, () => {
+    it(`${name}: the English contains no French`, () => {
       for (const [key, value] of Object.entries(bundle.en as Record<string, Entry>)) {
         for (const form of forms(value)) {
-          assert.doesNotMatch(form, /[éèêàçùœ«»]/, `${key} : « ${form} »`);
+          assert.doesNotMatch(form, /[éèêàçùœ«»]/, `${key}: “${form}”`);
         }
       }
     });
   }
 });
 
-describe('Messages des drivers et de SSH — rendus en anglais', () => {
-  it('un secret non résolu', () => {
+describe('Driver and SSH messages — rendered in English', () => {
+  it('an unresolved secret', () => {
     const error = new UnresolvedSecretError(['JWT_SECRET'], 'en');
     assert.match(error.message, /JWT_SECRET/);
     assert.doesNotMatch(error.message, /[éèàç]/);
-    // Sans langue, le français reste la valeur par défaut.
+    // Without a language, French stays the default value.
     assert.notEqual(new UnresolvedSecretError(['JWT_SECRET']).message, error.message);
   });
 
-  it('une clé d’hôte qui a changé', () => {
+  it('a host key that changed', () => {
     const error = new SshHostKeyError('prod-1', 'SHA256:aaa', 'SHA256:bbb', 'en');
     assert.match(error.message, /host key of prod-1 has changed/);
     assert.match(error.message, /SHA256:aaa/);
     assert.match(error.message, /SHA256:bbb/);
   });
 
-  it('l’état d’une charge K3s', () => {
+  it('a K3s workload’s state', () => {
     const json = JSON.stringify({
       items: [
         {

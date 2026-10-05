@@ -2,21 +2,21 @@ import * as React from 'react';
 import { cn } from '@/lib/utils';
 
 /**
- * Carte. Surface blanche, filet et ombre `xs`, rayon 12 : la hiérarchie se lit
- * au contraste des surfaces, pas à la profondeur.
+ * A card. A white surface, a rule and an `xs` shadow, radius 12: the hierarchy
+ * reads from the surfaces' contrast, not from depth.
  *
- * Anatomie du kit : un en-tête (`CardHeader`) séparé par un filet, un corps
- * (`CardContent`, 16 px), un pied (`CardFooter`) sur `surface-2`. Une liste
- * ou un tableau se pose directement dans la carte, sans corps, pour que ses
- * lignes touchent les bords.
+ * The kit's anatomy: a header (`CardHeader`) separated by a rule, a body
+ * (`CardContent`, 16 px), a footer (`CardFooter`) on `surface-2`. A list or a
+ * table sits directly in the card, without a body, so that its rows touch the
+ * edges.
  */
 function Card({ className, ...props }: React.ComponentProps<'section'>) {
   return <section data-slot="card" className={cn('card', className)} {...props} />;
 }
 
 /**
- * En-tête de carte : titre et sous-titre empilés à gauche, actions à droite
- * (`actions`), séparés du corps par un filet.
+ * A card header: title and subtitle stacked on the left, actions on the right
+ * (`actions`), separated from the body by a rule.
  */
 function CardHeader({
   className,
@@ -44,7 +44,7 @@ function CardContent({ className, ...props }: React.ComponentProps<'div'>) {
   return <div data-slot="card-content" className={cn('card-b', className)} {...props} />;
 }
 
-/** Pied de carte, sur `surface-2` — pagination, actions secondaires, note. */
+/** Card footer, on `surface-2` — pagination, secondary actions, note. */
 function CardFooter({ className, ...props }: React.ComponentProps<'div'>) {
   return <div data-slot="card-footer" className={cn('card-f', className)} {...props} />;
 }

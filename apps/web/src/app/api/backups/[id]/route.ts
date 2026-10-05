@@ -15,9 +15,9 @@ const paramsSchema = z.object({ id: z.string().uuid() });
 type Context = { params: Promise<{ id: string }> };
 
 /**
- * Effacer une sauvegarde : de la destination, puis de l'index. Par la file —
- * c'est le worker qui parle à la destination. Une sauvegarde du panel relève
- * des paramètres de l'instance.
+ * Erasing a backup: from the destination, then from the index. Through the queue
+ * — it is the worker that talks to the destination. A panel backup falls under
+ * the instance settings.
  */
 export const DELETE = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'backup:manage');

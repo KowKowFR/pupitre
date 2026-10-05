@@ -7,34 +7,33 @@ import type { UiLanguage } from '../i18n.js';
 import { scannerSay } from './messages.js';
 
 /**
- * Exécution d'un outil qui écrit un document JSON sur `stdout` et sa
- * progression sur `stderr`.
+ * Running a tool that writes a JSON document on `stdout` and its progress on
+ * `stderr`.
  *
- * Les trois scanners fonctionnent ainsi. On diffuse `stderr` ligne par ligne —
- * c'est ce que l'utilisateur voit défiler dans le flux SSE — et on garde
- * `stdout` intact pour l'analyser à la fin. Mélanger les deux flux rendrait le
- * JSON illisible.
+ * The three scanners work that way. We stream `stderr` line by line — it is what
+ * the user sees scrolling in the SSE stream — and keep `stdout` intact to parse
+ * it at the end. Mixing both streams would make the JSON unreadable.
  */
 
-/** Un scanner n'a pas le droit de bloquer le pipeline indéfiniment. */
+/** A scanner may not block the pipeline indefinitely. */
 export const SCAN_TIMEOUT_MS = 10 * 60_000;
 
 export type ToolRun = {
-  /** Sortie brute, non analysée. */
+  /** Raw output, not parsed. */
   stdout: string;
   code: number;
   durationMs: number;
-  /** La langue de la session : celle d'un échec à l'analyse. Français par défaut. */
+  /** The session's language: that of a parsing failure. French by default. */
   language?: UiLanguage;
 };
 
 /**
- * Une commande d'outil prête à partir : la ligne de shell, et s'il faut
- * l'élever. Construite par des fonctions pures, testables sans SSH.
+ * A tool command ready to go: the shell line, and whether it must be elevated.
+ * Built by pure functions, testable without SSH.
  */
 export type ToolCommand = { command: string; sudo: boolean };
 
-/** Les variables qui pointent un outil vers un containerd qui n'est pas celui par défaut. */
+/** The variables that point a tool at a containerd that is not the default one. */
 export function containerdEnv(store: Extract<ImageStore, { kind: 'containerd' }>): string {
   return (
     `CONTAINERD_ADDRESS=${shellQuote(store.address)} ` +
@@ -43,14 +42,14 @@ export function containerdEnv(store: Extract<ImageStore, { kind: 'containerd' }>
 }
 
 /**
- * `--platform linux/<arch>` pour Grype et Syft, d'après `uname -m`.
+ * `--platform linux/<arch>` for Grype and Syft, from `uname -m`.
  *
- * Sans elle, ils exportent l'index multi-plateforme de l'image depuis
- * containerd — qui n'en garde que les couches de la machine — et échouent sur
- * un « content digest … not found ». Trivy, lui, choisit seul.
+ * Without it, they export the image's multi-platform index from containerd —
+ * which only keeps the machine's layers — and fail on a "content digest … not
+ * found". Trivy chooses by itself.
  *
- * Les motifs du `case` portent leur parenthèse ouvrante (forme POSIX) : sans
- * elle, certains shells prennent le `)` d'un motif pour la fin du `$(…)`.
+ * The `case` patterns carry their opening parenthesis (POSIX form): without it,
+ * some shells take a pattern's `)` for the end of the `$(…)`.
  */
 export const MACHINE_PLATFORM_FLAG =
   '--platform "linux/$(case "$(uname -m)" in ' +
@@ -58,20 +57,20 @@ export const MACHINE_PLATFORM_FLAG =
   '(*) uname -m ;; esac)"';
 
 /**
- * Enrobe une commande d'outil pour qu'elle tourne sous `sudo` **sans quitter
- * le répertoire des outils de l'utilisateur**.
+ * Wraps a tool command so that it runs under `sudo` **without leaving the
+ * user's tools directory**.
  *
- * Sous `sudo`, `$HOME` devient celui de root : le binaire installé dans
- * `"$HOME"/.bootstrap-tp` ne serait plus trouvé, et sa base de vulnérabilités
- * (plusieurs centaines de Mo) serait retéléchargée ailleurs. On rétablit donc
- * le `HOME` de l'utilisateur d'origine (`SUDO_USER`), et on lui rend le cache
- * à la fin : sans cela, une base mise à jour par root deviendrait illisible à
- * un passage sans élévation. Le répertoire parent aussi — le premier passage
- * élevé le crée, en root et en 0700 — mais sans récursion : il porte les
- * caches des autres outils, qui sont déjà à l'utilisateur. Le code de sortie
- * de l'outil est préservé.
+ * Under `sudo`, `$HOME` becomes root's: the binary installed in
+ * `"$HOME"/.bootstrap-tp` would no longer be found, and its vulnerability
+ * database (several hundred MB) would be downloaded again elsewhere. We
+ * therefore restore the original user's `HOME` (`SUDO_USER`), and give them back
+ * the cache at the end: without that, a database updated by root would become
+ * unreadable on a pass without elevation. The parent directory too — the first
+ * elevated pass creates it, as root and 0700 — but without recursion: it carries
+ * the other tools' caches, which already belong to the user. The tool's exit
+ * code is preserved.
  *
- * Sans `SUDO_USER` (connexion directe en root), rien ne change.
+ * Without `SUDO_USER` (direct root connection), nothing changes.
  */
 export function asToolOwner(command: string, cacheDir: string): string {
   return [
@@ -90,7 +89,7 @@ export function asToolOwner(command: string, cacheDir: string): string {
   ].join('\n');
 }
 
-/** La commande telle quelle, ou élevée quand le stockage d'images l'exige. */
+/** The command as is, or elevated when the image storage requires it. */
 export function toolCommandFor(store: ImageStore, command: string, cacheDir: string): ToolCommand {
   return store.kind === 'containerd' && store.elevated
     ? { command: asToolOwner(command, cacheDir), sudo: true }
@@ -109,8 +108,8 @@ export async function runTool(
     session,
     command,
     (line, stream) => {
-      // `stdout` porte le rapport : on ne le journalise pas, il ferait des
-      // milliers de lignes illisibles dans le flux de déploiement.
+      // `stdout` carries the report: we do not log it, it would make thousands of
+      // unreadable lines in the deployment stream.
       if (stream === 'stderr' && line.trim().length > 0) onLog(line);
     },
     { timeout: timeoutMs, logOutput: false, sudo },
@@ -133,11 +132,11 @@ export async function runTool(
 }
 
 /**
- * Analyse la sortie JSON d'un outil.
+ * Parses a tool's JSON output.
  *
- * Un code de retour non nul n'est pas toujours un échec — certains scanners
- * sortent en erreur quand ils *trouvent* quelque chose. Le critère est donc la
- * présence d'un document exploitable, pas le code de retour.
+ * A non-zero exit code is not always a failure — some scanners exit with an
+ * error when they *find* something. The criterion is therefore the presence of
+ * a usable document, not the exit code.
  */
 export function parseJsonOutput<T>(
   scanner: ScannerKey,

@@ -12,16 +12,16 @@ export const dynamic = 'force-dynamic';
 
 const AVATAR_RULE: RateLimitRule = { name: 'account:avatar', limit: 10, windowSec: 60 };
 
-/** Une photo recadrée par le navigateur fait 256 px ; on laisse de la marge, pas plus. */
+/** A picture cropped by the browser is 256 px; we leave some margin, no more. */
 const AVATAR_MAX_EDGE = AVATAR_EDGE * 4;
 
 /**
- * Sa propre photo de profil : le corps de la requête **est** l'image
- * (`content-type: image/…`), déjà recadrée en carré et réencodée par le
- * navigateur. Le serveur ne croit que les octets : format et dimensions y sont
- * lus, et c'est ce format-là qui est resservi.
+ * One's own profile picture: the request body **is** the image
+ * (`content-type: image/…`), already cropped into a square and re-encoded by the
+ * browser. The server only believes the bytes: format and dimensions are read
+ * there, and it is that format which is served again.
  *
- * Une session suffit — c'est une action sur soi, comme le mot de passe.
+ * A session is enough — it is an action on oneself, like the password.
  */
 export const PUT = apiRoute(async (request) => {
   const auth = await requireSession(request);
@@ -54,8 +54,8 @@ export const PUT = apiRoute(async (request) => {
     },
     ip: auth.ip,
   });
-  // La ligne d'audit est aussi le signal temps réel (sujet `users`) : les
-  // écrans des autres se relisent et montrent le nouveau visage.
+  // The audit line is also the real-time signal (`users` topic): the others'
+  // screens read themselves again and show the new face.
   return NextResponse.json({ image });
 });
 

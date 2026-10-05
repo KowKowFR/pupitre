@@ -1,4 +1,4 @@
-/** Le message d'une erreur attrapée, quelle qu'en soit la forme. */
+/** The message of a caught error, whatever its shape. */
 export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }

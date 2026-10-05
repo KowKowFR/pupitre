@@ -12,16 +12,16 @@ import { useLanguage, useT } from '@/i18n/client';
 import { proxy as messages } from '@/i18n/messages/proxy';
 
 /**
- * Les domaines d'une application sur une cible : une ligne par nom, HTTPS ou
- * non. La redirection HTTP → HTTPS suit le HTTPS — le cas courant, sans réglage
- * de plus à comprendre.
+ * An application's domains on a target: one row per name, HTTPS or not. The HTTP
+ * → HTTPS redirect follows HTTPS — the common case, without one more setting to
+ * understand.
  *
- * Chaque nom est confronté au DNS, pour prévenir — jamais pour refuser :
- * derrière un CDN ou un NAT, il ne pointe pas vers l'adresse par laquelle le
- * panel joint la machine, et c'est normal.
+ * Each name is confronted with the DNS, to warn — never to refuse: behind a CDN
+ * or a NAT, it does not point to the address through which the panel reaches the
+ * machine, and that is normal.
  */
 
-/** `waf` : la protection, pour un proxy qui est aussi un WAF — « bloquer » par défaut. */
+/** `waf`: the protection, for a proxy that is also a WAF — "block" by default. */
 export type DomainDraft = { hostname: string; tls: boolean; waf?: WafMode };
 
 export function toRouteInputs(drafts: DomainDraft[]) {
@@ -51,7 +51,7 @@ function DnsHint({ targetId, hostname }: { targetId: string; hostname: string })
   useEffect(() => {
     if (!valid) return;
     let cancelled = false;
-    // Un nom qu'on tape change à chaque touche : on attend qu'il se pose.
+    // A name being typed changes at each key: we wait for it to settle.
     const timer = window.setTimeout(() => {
       void fetch(`/api/targets/${targetId}/dns?hostname=${encodeURIComponent(hostname)}`)
         .then(async (response) => {
@@ -119,8 +119,8 @@ export function DomainsField({
   targetId: string;
   targetName: string;
   /**
-   * `null` : la cible n'a pas de proxy — on le dit, et rien ne se saisit.
-   * `via` : la machine du proxy, quand c'est celui d'une autre.
+   * `null`: the target has no proxy — we say so, and nothing can be entered.
+   * `via`: the proxy's machine, when it is another's.
    */
   proxy: { description: string; capabilities: ProxyCapabilities; via?: string | null } | null;
   value: DomainDraft[];

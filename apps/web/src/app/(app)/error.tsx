@@ -11,17 +11,17 @@ import { auth as messages } from '@/i18n/messages/auth';
 import { common } from '@/i18n/messages/common';
 
 /**
- * Filet de rendu du panel.
+ * The panel's rendering safety net.
  *
- * Sans `error.tsx`, une exception jetée pendant le rendu d'une page remonte
- * jusqu'à la racine : en production Next sert une page générique en anglais,
- * sans navigation. Ici l'incident reste **dans** le panel — le rail de gauche
- * répond toujours, et les autres écrans sont à un clic.
+ * Without `error.tsx`, an exception thrown while rendering a page bubbles up to
+ * the root: in production Next serves a generic page in English, without
+ * navigation. Here the incident stays **inside** the panel — the left rail still
+ * answers, and the other screens are one click away.
  *
- * `digest` est affiché volontairement. En production le message d'origine est
- * masqué par Next pour ne pas fuiter d'interne ; le digest est le seul lien
- * entre ce qu'a vu l'utilisateur et la ligne correspondante dans les logs du
- * serveur. Sans lui, un rapport de bug se réduit à « ça a planté ».
+ * `digest` is shown on purpose. In production the original message is masked by
+ * Next so as not to leak internals; the digest is the only link between what the
+ * user saw and the corresponding line in the server's logs. Without it, a bug
+ * report boils down to "it crashed".
  */
 export default function AppError({
   error,
@@ -34,9 +34,9 @@ export default function AppError({
   const tc = useT(common);
 
   useEffect(() => {
-    // La console du navigateur garde la trace complète, y compris en
-    // développement où le message n'est pas masqué.
-    console.error('[panel] erreur de rendu', error);
+    // The browser's console keeps the complete trace, including in development
+    // where the message is not masked.
+    console.error('[panel] rendering error', error);
   }, [error]);
 
   return (
@@ -55,10 +55,10 @@ export default function AppError({
 
         <div className="flex items-center gap-2">
           {/*
-            `reset()` refait le rendu du segment sans recharger la page :
-            c'est le bon geste pour une panne passagère (base indisponible le
-            temps d'une requête) et il ne coûte rien si l'erreur persiste.
-          */}
+            `reset()` renders the segment again without reloading the page:
+            it is the right gesture for a passing outage (database unavailable
+            for one request) and it costs nothing if the error persists.
+                     */}
           <Button onClick={reset}>
             <RotateCcw aria-hidden />
             {tc('retry')}

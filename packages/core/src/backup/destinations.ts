@@ -2,22 +2,22 @@ import { z } from 'zod';
 import { invalid } from '../validation.js';
 
 /**
- * Où vont les sauvegardes. Hors de la machine du panel, par principe : une
- * sauvegarde rangée à côté de ce qu'elle protège disparaît avec lui.
+ * Where backups go. Off the panel's machine, on principle: a backup stored next
+ * to what it protects disappears with it.
  *
- *   - `s3`    tout stockage compatible S3 : AWS, Scaleway, Backblaze B2,
- *             Wasabi, un MinIO sur un NAS ;
- *   - `sftp`  un NAS (Synology, QNAP, TrueNAS) ou n'importe quel serveur SSH ;
- *   - `local` un dossier monté dans le conteneur du worker — un partage NFS
- *             ou SMB du NAS, monté sur l'hôte.
+ *   - `s3`    any S3-compatible storage: AWS, Scaleway, Backblaze B2, Wasabi, a
+ *             MinIO on a NAS;
+ *   - `sftp`  a NAS (Synology, QNAP, TrueNAS) or any SSH server;
+ *   - `local` a folder mounted in the worker's container — an NFS or SMB share of
+ *             the NAS, mounted on the host.
  *
- * Ce module ne décrit que les **réglages** : il sert au formulaire comme au
- * worker. Les classes qui parlent à chaque destination vivent sous
- * `@pupitre/core/backup`, et en ajouter une revient à ajouter une classe.
+ * This module only describes the **settings**: it serves the form as well as the
+ * worker. The classes that talk to each destination live under
+ * `@pupitre/core/backup`, and adding one amounts to adding a class.
  *
- * Les identifiants — clés d'accès, mot de passe, clé privée — sont séparés du
- * reste : ils sont chiffrés en base sous `MASTER_KEY` et ne sont jamais rendus
- * par l'API, comme les credentials SSH des cibles.
+ * The credentials — access keys, password, private key — are kept apart from
+ * the rest: they are encrypted in the database under `MASTER_KEY` and never
+ * returned by the API, like the targets' SSH credentials.
  */
 
 export const BACKUP_DESTINATION_KINDS = ['s3', 'sftp', 'local'] as const;
@@ -43,7 +43,7 @@ export const s3DestinationConfigSchema = z.object({
     .trim()
     .regex(/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/, 'nom de bucket S3'),
   prefix: relativePath.default(''),
-  /** `https://endpoint/bucket/clé` plutôt que `https://bucket.endpoint/clé` — MinIO, NAS. */
+  /** `https://endpoint/bucket/key` rather than `https://bucket.endpoint/key` — MinIO, NAS. */
   pathStyle: z.boolean().default(true),
 });
 export const s3DestinationSecretsSchema = z.object({
@@ -57,8 +57,8 @@ export const sftpDestinationConfigSchema = z.object({
   username: z.string().trim().min(1).max(100),
   path: relativePath.default('pupitre-backups'),
   /**
-   * Empreinte SHA-256 de la clé d'hôte, telle que `ssh-keygen -lf` l'écrit
-   * (`SHA256:…`). Renseignée, une machine qui en présente une autre est refusée.
+   * SHA-256 fingerprint of the host key, as `ssh-keygen -lf` writes it
+   * (`SHA256:…`). Filled in, a machine that presents another one is refused.
    */
   fingerprint: z
     .string()
@@ -75,7 +75,7 @@ export const sftpDestinationSecretsSchema = z
   .refine((value) => Boolean(value.password || value.privateKey), invalid('backup.sftpSecret'));
 
 export const localDestinationConfigSchema = z.object({
-  /** Chemin **dans le conteneur du worker** — un volume monté. */
+  /** Path **in the worker's container** — a mounted volume. */
   path: z
     .string()
     .trim()
@@ -96,13 +96,13 @@ export type SftpDestinationConfig = z.infer<typeof sftpDestinationConfigSchema>;
 export type SftpDestinationSecrets = z.infer<typeof sftpDestinationSecretsSchema>;
 export type LocalDestinationConfig = z.infer<typeof localDestinationConfigSchema>;
 
-/** Une destination entièrement résolue — secrets déchiffrés —, pour le worker seul. */
+/** A fully resolved destination — secrets decrypted —, for the worker alone. */
 export type ResolvedBackupDestination =
   | { kind: 's3'; config: S3DestinationConfig; secrets: S3DestinationSecrets }
   | { kind: 'sftp'; config: SftpDestinationConfig; secrets: SftpDestinationSecrets }
   | { kind: 'local'; config: LocalDestinationConfig; secrets: Record<string, never> };
 
-/** Valide réglages et secrets d'une destination, selon son genre. */
+/** Validates a destination's settings and secrets, according to its kind. */
 export function parseBackupDestination(
   kind: BackupDestinationKind,
   config: unknown,
@@ -126,7 +126,7 @@ export function parseBackupDestination(
   }
 }
 
-/** Ce qu'un écran peut montrer d'une destination : où, jamais avec quoi. */
+/** What a screen can show of a destination: where, never with what. */
 export function describeBackupDestination(destination: {
   kind: BackupDestinationKind;
   config: Record<string, unknown>;

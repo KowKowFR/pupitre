@@ -17,19 +17,19 @@ import { common } from '@/i18n/messages/common';
 import { cn } from '@/lib/utils';
 
 /**
- * Le kit des aides du panel : un tiroir large, et de quoi y expliquer.
+ * The panel's help kit: a wide drawer, and what it takes to explain in it.
  *
- * Une aide se lit à côté de ce qu'elle explique — le formulaire reste visible
- * derrière le tiroir, ce qu'une modale centrée ne permettait pas. Et la couleur
- * y porte un sens constant, le même dans toutes les aides :
+ * A help reads next to what it explains — the form stays visible behind the
+ * drawer, which a centered modal did not allow. And color carries a constant
+ * meaning there, the same in every help:
  *
- *   — `accent` : une idée à retenir, un conseil, une étape ;
- *   — `ok`     : ce qui est sûr, ce qui marche, ce que le panel garantit ;
- *   — `warn`   : un piège, ce qui se fait mal facilement ;
- *   — `danger` : une panne, un symptôme, ce qui casse.
+ *   — `accent`: an idea to remember, a tip, a step;
+ *   — `ok`:     what is safe, what works, what the panel guarantees;
+ *   — `warn`:   a trap, what is easily done wrong;
+ *   — `danger`: an outage, a symptom, what breaks.
  *
- * Chaque bloc porte aussi une icône et un texte : la couleur appuie, elle ne
- * dit jamais seule.
+ * Each block also carries an icon and a text: color supports, it never says
+ * alone.
  */
 
 export type HelpTone = 'accent' | 'ok' | 'warn' | 'danger' | 'neutral';
@@ -67,7 +67,7 @@ const TONE: Record<HelpTone, { box: string; icon: string; chip: string; Icon: Lu
   },
 };
 
-/** Le déclencheur et le tiroir. Le contenu n'est monté qu'à l'ouverture. */
+/** The trigger and the drawer. The content is only mounted on opening. */
 export function HelpDrawer({
   triggerLabel,
   title,
@@ -120,7 +120,7 @@ export function HelpDrawer({
   );
 }
 
-/** Une section : une pastille d'icône à la teinte du propos, un titre, un corps. */
+/** A section: an icon chip in the subject's tint, a title, a body. */
 export function HelpSection({
   icon: Icon,
   tone = 'accent',
@@ -151,7 +151,7 @@ export function HelpSection({
   );
 }
 
-/** Un encadré coloré : conseil, garantie, piège ou panne — l'icône le dit aussi. */
+/** A colored box: tip, guarantee, trap or outage — the icon says it too. */
 export function HelpCallout({
   tone,
   title,
@@ -173,7 +173,7 @@ export function HelpCallout({
   );
 }
 
-/** Des étapes numérotées, reliées par un filet : l'ordre compte, il se voit. */
+/** Numbered steps, linked by a rule: the order matters, it shows. */
 export function HelpSteps({
   steps,
   tone = 'accent',
@@ -208,7 +208,7 @@ export function HelpSteps({
   );
 }
 
-/** Une liste à puces teintées. */
+/** A list with tinted bullets. */
 export function HelpList({
   items,
   tone = 'accent',
@@ -238,9 +238,9 @@ export function HelpList({
 }
 
 /**
- * Un tableau d'aide. Il défile chez lui plutôt que d'élargir le tiroir. Une
- * colonne peut porter une teinte d'en-tête, pour opposer deux côtés (le panel
- * et la cible, Docker et K3s).
+ * A help table. It scrolls on its own rather than widening the drawer. A column
+ * can carry a header tint, to contrast two sides (the panel and the target,
+ * Docker and K3s).
  */
 export function HelpTable({
   columns,
@@ -300,7 +300,7 @@ export function HelpTable({
   );
 }
 
-/** Un bout de code en ligne. */
+/** A piece of inline code. */
 export function HelpCode({ children }: { children: React.ReactNode }) {
   return (
     <code className="mono rounded bg-surface-3 px-1 py-0.5 text-[0.85em] text-text">
@@ -309,7 +309,7 @@ export function HelpCode({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** Un bloc de commandes ou de JSON, à copier tel quel. */
+/** A block of commands or JSON, to copy as is. */
 export function HelpBlock({ children }: { children: string }) {
   return (
     <pre className="codeblock">
@@ -319,11 +319,11 @@ export function HelpBlock({ children }: { children: string }) {
 }
 
 /**
- * Le balisage en ligne des dictionnaires d'aide, rendu : `` `code` ``,
- * `**gras**`, `__gras de tête__`, `*italique*`. Une entrée de dictionnaire est
- * une chaîne ; ces quatre marques évitent de découper chaque phrase en
- * fragments que le traducteur devrait réassembler. Récursif, parce qu'un gras
- * contient parfois du code ; le contenu d'un `` `…` `` ne l'est pas.
+ * The help dictionaries' inline markup, rendered: `` `code` ``, `**bold**`,
+ * `__lead bold__`, `*italic*`. A dictionary entry is a string; these four marks
+ * avoid cutting each sentence into fragments the translator would have to
+ * reassemble. Recursive, because a bold sometimes contains code; the content of a
+ * `` `…` `` does not.
  */
 const INLINE = /(`[^`]+`|__[^_]+__|\*\*[^*]+\*\*|\*[^*]+\*)/;
 

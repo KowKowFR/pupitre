@@ -27,7 +27,7 @@ import { publishRealtime } from '@/lib/realtime';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** Assez pour une conversation vive, trop peu pour noyer le fil. */
+/** Enough for a lively conversation, too little to drown the thread. */
 const CHAT_POST_RULE: RateLimitRule = { name: 'chat:post', limit: 20, windowSec: 30 };
 
 const querySchema = z.object({
@@ -35,7 +35,7 @@ const querySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(CHAT_PAGE_SIZE),
 });
 
-/** Une page du fil, la plus récente d'abord demandée, rendue dans l'ordre de lecture. */
+/** A page of the thread, the most recent requested first, returned in reading order. */
 export const GET = apiRoute(async (request) => {
   await requireTeamMember(request);
   const query = querySchema.parse(Object.fromEntries(new URL(request.url).searchParams));
@@ -48,20 +48,20 @@ const bodySchema = z.object({
     .string()
     .max(CHAT_MESSAGE_MAX * 2)
     .default(''),
-  /** Le message auquel on répond. Il doit exister, dans ce salon, et ne pas être effacé. */
+  /** The message being replied to. It must exist, in this room, and not be deleted. */
   replyToId: z.string().uuid().nullable().default(null),
 });
 
-/** Le texte, plus les images — et un peu de marge pour l'enveloppe multipart. */
+/** The text, plus the images — and a little margin for the multipart envelope. */
 const MULTIPART_MAX_BYTES = CHAT_IMAGES_PER_MESSAGE * CHAT_IMAGE_MAX_BYTES + 64 * 1024;
 
 /**
- * Le message arrive en JSON, ou en `multipart/form-data` quand il porte des
- * images : champs `body` et `replyToId`, fichiers `image` (quatre au plus).
+ * The message arrives as JSON, or as `multipart/form-data` when it carries
+ * images: `body` and `replyToId` fields, `image` files (four at most).
  *
- * Chaque image est lue dans ses octets : format et dimensions viennent de là,
- * jamais du nom de fichier ni du type annoncé. Elle a déjà été redimensionnée
- * et réencodée par le navigateur — le serveur ne fait que vérifier et ranger.
+ * Each image is read in its bytes: format and dimensions come from there, never
+ * from the file name nor the announced type. It was already resized and
+ * re-encoded by the browser — the server only checks and stores.
  */
 async function readMessage(request: Request) {
   const type = request.headers.get('content-type') ?? '';
@@ -103,14 +103,14 @@ async function readMessage(request: Request) {
 }
 
 /**
- * Écrire à l'équipe. Les mentions sont revérifiées ici : un jeton vers ce que
- * l'auteur ne peut pas ouvrir redevient du texte. Le message est enregistré,
- * puis poussé en direct — la base d'abord, pour qu'un onglet qui se
- * reconnecte au même instant le relise.
+ * Writing to the team. The mentions are checked again here: a token pointing to
+ * what the author cannot open becomes text again. The message is saved, then
+ * pushed live — the database first, so that a tab reconnecting at the same
+ * instant reads it again.
  *
- * Pas de ligne d'audit : un message n'est pas une action sur le parc, et le
- * journal ne doit pas se noyer dans la conversation. L'effacement d'un
- * message d'autrui, lui, est tracé.
+ * No audit line: a message is not an action on the fleet, and the log must not
+ * drown in the conversation. Deleting someone else's message, on the other hand,
+ * is traced.
  */
 export const POST = apiRoute(async (request) => {
   const auth = await requireTeamMember(request);
@@ -118,7 +118,7 @@ export const POST = apiRoute(async (request) => {
   const input = await readMessage(request);
 
   const raw = input.body.replace(/\r\n?/g, '\n').trim();
-  // Une image seule est un message ; un message vide, non.
+  // An image alone is a message; an empty message is not.
   if (raw.length === 0 && input.attachments.length === 0) {
     throw new HttpError(422, 'empty_message', msg(messages, 'error.empty'));
   }

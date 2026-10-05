@@ -15,26 +15,26 @@ import { getRedis } from '@/lib/redis';
 import { getSupervisionQueue } from '@/lib/supervision-queue';
 
 /**
- * Inventaire des charges d'une cible, vu depuis le panel.
+ * A target's workloads inventory, seen from the panel.
  *
- * **Pourquoi une lecture passe quand même par la file.** Le panel Next n'ouvre
- * aucune session SSH, et n'en ouvrira jamais : `ssh2` est délibérément tenu
- * hors de son graphe de dépendances (voir `packages/core/src/index.ts`), et les
- * drivers ne sont importables que sous `@pupitre/core/drivers`, côté worker. La
- * question « qu'est-ce qui tourne sur cette machine ? » n'a donc pas de réponse
- * locale : elle se pose au worker, comme `target:preflight`.
+ * **Why a read still goes through the queue.** The Next panel opens no SSH
+ * session, and never will: `ssh2` is deliberately kept out of its dependency
+ * graph (see `packages/core/src/index.ts`), and the drivers are only importable
+ * under `@pupitre/core/drivers`, on the worker side. The question "what runs on
+ * this machine?" therefore has no local answer: it is asked of the worker, like
+ * `target:preflight`.
  *
- * **Pourquoi la route attend malgré tout.** La règle est que le *travail* long
- * n'a pas sa place dans une route HTTP — pas que la route doive rendre la main
- * avant de savoir. Ici la route n'exécute rien : elle enfile, puis attend une
- * réponse, exactement comme elle attend une requête SQL. `docker ps` est
- * l'affaire d'une seconde, et faire poster puis sonder un client pour afficher
- * une table serait payer en complexité un problème qu'on n'a pas. La garde de
- * 25 s est là pour le cas où la machine ne répond plus : au-delà, la route
- * rend un 504 plutôt que de tenir la connexion.
+ * **Why the route waits all the same.** The rule is that long-running *work* has
+ * no place in an HTTP route — not that the route must give control back before
+ * knowing. Here the route executes nothing: it queues, then waits for an answer,
+ * exactly as it waits for an SQL query. `docker ps` takes a second, and making a
+ * client post then poll to show a table would be paying in complexity for a
+ * problem we do not have. The 25 s guard is there for the case where the machine
+ * no longer answers: beyond it, the route returns a 504 rather than hold the
+ * connection.
  *
- * Le résultat ne transite par aucune table : un inventaire est vrai à la
- * seconde où il est pris. Il voyage par la valeur de retour BullMQ.
+ * The result goes through no table: an inventory is true at the second it is
+ * taken. It travels through the BullMQ return value.
  */
 
 const INVENTORY_TIMEOUT_MS = 25_000;
@@ -43,7 +43,7 @@ declare global {
   var __tpWorkloadQueueEvents: QueueEvents | undefined;
 }
 
-/** Écoute des fins de tâches de la file de supervision. Partagée, comme la queue. */
+/** Listening to the monitoring queue's job ends. Shared, like the queue. */
 function queueEvents(): QueueEvents {
   globalThis.__tpWorkloadQueueEvents ??= new QueueEvents(SUPERVISION_QUEUE, {
     connection: getRedis(),
@@ -58,8 +58,8 @@ export async function fetchWorkloads(
 ): Promise<WorkloadList> {
   const data = workloadListJobDataSchema.parse({ targetId, actorId, ip });
 
-  // Aucun identifiant de tâche personnalisé : BullMQ refuse un « Custom Id »
-  // contenant un `:`, et nos références en contiennent toutes.
+  // No custom job identifier: BullMQ refuses a "Custom Id" containing a `:`, and
+  // our references all contain one.
   const job = await getSupervisionQueue().add(WORKLOAD_LIST_JOB, data, { attempts: 1 });
 
   let raw: unknown;
@@ -67,9 +67,8 @@ export async function fetchWorkloads(
     raw = await job.waitUntilFinished(queueEvents(), INVENTORY_TIMEOUT_MS);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    // `waitUntilFinished` ne distingue pas l'échec de la tâche du dépassement
-    // du délai autrement que par son message : les deux méritent pourtant deux
-    // codes différents pour l'appelant.
+    // `waitUntilFinished` does not tell the job's failure from the timeout other than
+    // by its message: the two still deserve two different codes for the caller.
     if (/timed out/i.test(message)) {
       throw new HttpError(504, 'workload_list_timeout', msg(messages, 'error.inventoryTimeout'));
     }
@@ -88,7 +87,7 @@ export async function fetchWorkloads(
   return parsed.data;
 }
 
-/** Retrouve une charge par sa référence transportable. */
+/** Finds a workload by its transportable reference. */
 export function findWorkload(list: WorkloadList, encodedRef: string): Workload | null {
   return list.items.find((item) => encodeWorkloadRef(item) === encodedRef) ?? null;
 }

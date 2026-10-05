@@ -21,15 +21,15 @@ import type { ScanContext, ScanLogSink, Scanner } from './types.js';
 import { scannerSay } from './messages.js';
 
 /**
- * Trivy — vulnérabilités des paquets système et applicatifs.
+ * Trivy — vulnerabilities of system and application packages.
  *
- * Version relevée sur `api.github.com/repos/aquasecurity/trivy/releases/latest`
- * le 2026-09-10, et non de mémoire. Elle est épinglée : un scanner qui change
- * de version sous les pieds rendrait deux déploiements incomparables.
+ * Version taken from `api.github.com/repos/aquasecurity/trivy/releases/latest`
+ * on 2026-09-10, and not from memory. It is pinned: a scanner that changes
+ * version underfoot would make two deployments incomparable.
  */
 export const TRIVY_VERSION = '0.74.0';
 
-/** `uname -m` → suffixe d'archive Trivy. */
+/** `uname -m` → Trivy archive suffix. */
 const ARCH_SUFFIX: Record<string, string> = {
   x86_64: '64bit',
   amd64: '64bit',
@@ -108,17 +108,17 @@ export class TrivyScanner implements Scanner {
 }
 
 /**
- * La ligne de commande de Trivy pour une image et l'endroit où elle se trouve.
+ * Trivy's command line for an image and the place where it is.
  *
- * Docker : la détection par défaut de Trivy, inchangée. Containerd : ses
- * variables `CONTAINERD_*` et `--image-src containerd,remote` — l'image
- * construite d'abord dans le containerd déclaré, et une image publique encore
- * jamais tirée sur son registry. Le nom y est complet (`docker.io/…`) :
- * Trivy trouve l'image sous le nom court, puis échoue à l'exporter.
+ * Docker: Trivy's default detection, unchanged. Containerd: its `CONTAINERD_*`
+ * variables and `--image-src containerd,remote` — the image built first in the
+ * declared containerd, and a public image never pulled yet from its registry.
+ * The name is complete there (`docker.io/…`): Trivy finds the image under the
+ * short name, then fails to export it.
  */
 export function trivyCommand(image: string, store: ImageStore, timeoutMs: number): ToolCommand {
-  // Le délai interne de Trivy est légèrement plus court que le nôtre : mieux
-  // vaut un message de l'outil qu'une coupure sèche de la session SSH.
+  // Trivy's internal timeout is slightly shorter than ours: better a message from
+  // the tool than a hard cut of the SSH session.
   const internal = `${Math.max(1, Math.floor(timeoutMs / 60_000) - 1)}m`;
   const options = `--format json --scanners vuln --no-progress --timeout ${internal}`;
   const cache = `TRIVY_CACHE_DIR=${cachePath('trivy')}`;
@@ -140,10 +140,10 @@ export function trivyCommand(image: string, store: ImageStore, timeoutMs: number
 }
 
 /**
- * Rapport Trivy → findings normalisés.
+ * Trivy report → normalized findings.
  *
- * Exporté pour être testable sans SSH : c'est la traduction qui compte, pas le
- * transport.
+ * Exported to be testable without SSH: it is the translation that matters, not
+ * the transport.
  */
 export function normalizeTrivyReport(raw: TrivyOutput): Finding[] {
   const findings: Finding[] = [];
@@ -165,9 +165,9 @@ export function normalizeTrivyReport(raw: TrivyOutput): Finding[] {
 }
 
 /**
- * Trivy parle déjà l'échelle commune (`CRITICAL`…`UNKNOWN`), mais on ne lui
- * fait pas confiance sur parole : toute valeur inattendue devient `UNKNOWN`
- * plutôt que de traverser la frontière telle quelle.
+ * Trivy already speaks the common scale (`CRITICAL`…`UNKNOWN`), but we do not
+ * take its word for it: any unexpected value becomes `UNKNOWN` rather than
+ * crossing the boundary as is.
  */
 function normalizeSeverity(value: string | undefined): Severity {
   switch ((value ?? '').toUpperCase()) {

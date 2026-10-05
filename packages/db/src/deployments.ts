@@ -36,10 +36,10 @@ import { users } from './schema/auth.js';
 import { dbSay, type DbSay } from './messages.js';
 
 /**
- * Machine à états du déploiement.
+ * Deployment state machine.
  *
- * Les steps sont créées **au moment d'enfiler le job**, toutes en `pending` :
- * l'UI affiche le pipeline complet avant que le worker n'ait rien commencé.
+ * The steps are created **when the job is queued**, all `pending`: the UI shows
+ * the complete pipeline before the worker has started anything.
  */
 
 export type Deployment = typeof deployments.$inferSelect;
@@ -47,7 +47,7 @@ export type DeploymentStep = typeof deploymentSteps.$inferSelect;
 
 export type DeploymentSummary = {
   id: string;
-  /** Numéro de run, global à l'instance (`#129`). */
+  /** Run number, global to the instance (`#129`). */
   number: number;
   status: DeploymentStatus;
   runtime: 'docker' | 'k3s';
@@ -68,14 +68,14 @@ export type DeploymentSummary = {
   previousDeploymentId: string | null;
   scanConfig: ScanConfig | null;
   autoRollback: boolean;
-  /** Non nul : l'application a été volontairement arrêtée à cette date. */
+  /** Not null: the application was deliberately stopped at this date. */
   stoppedAt: Date | null;
-  /** Le dépôt, la branche et le commit exact, quand le run vient d'un dépôt lié. */
+  /** The repository, the branch and the exact commit, when the run comes from a linked repo. */
   sourceRepository: string | null;
   sourceRef: string | null;
   sourceSha: string | null;
   sourceUrl: string | null;
-  /** L'archive téléversée et son empreinte, quand le code venait de là. */
+  /** The uploaded archive and its hash, when the code came from there. */
   sourceArchiveName: string | null;
   sourceArchiveSha256: string | null;
 };
@@ -120,27 +120,26 @@ function summaryQuery(db: Database) {
     .leftJoin(users, eq(users.id, deployments.triggeredBy));
 }
 
-// ─── création ─────────────────────────────────────────────────────────────────
+// ─── creation ─────────────────────────────────────────────────────────────────
 
 export const createDeploymentSchema = z.object({
   applicationId: z.string().uuid(),
   targetId: z.string().uuid(),
   runtime: z.enum(['docker', 'k3s']),
   /**
-   * Scanners et seuil de blocage.
+   * Scanners and blocking threshold.
    *
-   * **Absent et vide ne sont pas la même chose**, d'où l'`optional()` plutôt
-   * qu'un défaut : absent veut dire « applique la politique de l'instance »,
-   * `{scanners: []}` veut dire « je ne veux aucun scan, en connaissance de
-   * cause ». Confondre les deux ferait qu'un client qui n'en parle pas
-   * désarmerait l'analyse sans le savoir.
+   * **Absent and empty are not the same thing**, hence `optional()` rather than a
+   * default: absent means "apply the instance's policy", `{scanners: []}` means "I
+   * want no scan, knowingly". Confusing the two would make a client that does not
+   * mention it disarm the analysis without knowing it.
    */
   scanConfig: scanConfigSchema.optional(),
   /**
-   * Retour automatique à la version précédente si le healthcheck échoue.
+   * Automatic return to the previous version if the healthcheck fails.
    *
-   * Coché par défaut, ici comme dans le formulaire : perdre une version qui
-   * marchait parce qu'on a oublié de cocher une case est le mauvais défaut.
+   * Ticked by default, here as in the form: losing a version that worked because
+   * one forgot to tick a box is the wrong default.
    */
   autoRollback: z.boolean().default(true),
 });
@@ -148,23 +147,23 @@ export const createDeploymentSchema = z.object({
 export type CreateDeploymentInput = z.infer<typeof createDeploymentSchema>;
 
 /**
- * Crée le déploiement **et toutes ses steps en `pending`**, dans une seule
- * transaction. Le numéro de version est incrémental par application.
+ * Creates the deployment **and all its steps as `pending`**, in a single
+ * transaction. The version number is incremental per application.
  */
 export async function createDeploymentWithSteps(
   input: CreateDeploymentInput & {
     appSpec: AppSpec;
     triggeredBy: string | null;
-    /** L'origine du code, quand le run vient d'un dépôt lié. */
+    /** The code's origin, when the run comes from a linked repository. */
     source?: {
       sourceId: string | null;
       repository: string;
       ref: string | null;
       sha: string;
-      /** L'adresse web du dépôt chez sa forge — d'où se déduit le lien du commit. */
+      /** The repository's web address at its forge — from which the commit's link is derived. */
       url: string | null;
     };
-    /** L'origine du code, quand c'est une archive téléversée. */
+    /** The code's origin, when it is an uploaded archive. */
     archive?: { id: string | null; name: string; sha256: string };
   },
   db: Database = getDb(),
@@ -177,7 +176,7 @@ export async function createDeploymentWithSteps(
 
     const version = (latest?.value ?? 0) + 1;
 
-    // Dernier déploiement réussi : cible d'un éventuel rollback.
+    // Last successful deployment: the target of a possible rollback.
     const [previous] = await tx
       .select({ id: deployments.id })
       .from(deployments)
@@ -223,7 +222,7 @@ export async function createDeploymentWithSteps(
       })
       .returning();
 
-    if (!deployment) throw new Error("createDeployment : l'insertion n'a rien retourné");
+    if (!deployment) throw new Error("createDeployment: the insert returned nothing");
 
     const steps = await tx
       .insert(deploymentSteps)
@@ -242,7 +241,7 @@ export async function createDeploymentWithSteps(
   });
 }
 
-// ─── lecture ──────────────────────────────────────────────────────────────────
+// ─── reading ──────────────────────────────────────────────────────────────────
 
 export const deploymentQuerySchema = z.object({
   applicationId: z.string().uuid().optional(),
@@ -250,14 +249,13 @@ export const deploymentQuerySchema = z.object({
   status: z.enum(['pending', 'running', 'success', 'failed', 'rolled_back', 'destroyed']).optional(),
   runtime: z.enum(['docker', 'k3s']).optional(),
   /**
-   * Recherche libre : un morceau du slug ou du nom de l'application, du nom de
-   * la cible, ou un numéro de run (`129`, `#129`).
+   * Free search: a piece of the application's slug or name, of the target's name,
+   * or a run number (`129`, `#129`).
    */
   q: z.string().trim().max(100).optional(),
   /**
-   * Runs arrêtés par un verdict bloquant. `scan` est la seule valeur pour
-   * l'instance : c'est une énumération pour qu'un autre garde-fou puisse
-   * s'y ajouter sans nouveau paramètre.
+   * Runs stopped by a blocking verdict. `scan` is the only value for now: it is an
+   * enumeration so that another safeguard can be added without a new parameter.
    */
   blocked: z.enum(['scan']).optional(),
   page: z.coerce.number().int().min(1).default(1),
@@ -266,19 +264,19 @@ export const deploymentQuerySchema = z.object({
 
 export type DeploymentQuery = z.infer<typeof deploymentQuerySchema>;
 
-/** Les filtres seuls, sans pagination : ce que l'export reprend de la liste. */
+/** The filters alone, without pagination: what the export takes from the list. */
 export type DeploymentFilter = Omit<DeploymentQuery, 'page' | 'pageSize'>;
 
-/** `%` et `_` sont des jokers pour `ILIKE` : une saisie les cherche au pied de la lettre. */
+/** `%` and `_` are `ILIKE` wildcards: an input searches for them literally. */
 function likePattern(term: string): string {
   return `%${term.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
 }
 
 /**
- * Les conditions d'une liste de déploiements.
+ * The conditions of a list of deployments.
  *
- * Elles portent sur `applications` et `targets` : toute requête qui les
- * utilise doit faire les mêmes jointures que `summaryQuery()`.
+ * They are about `applications` and `targets`: any query that uses them must do
+ * the same joins as `summaryQuery()`.
  */
 function deploymentWhere(filter: DeploymentFilter) {
   const term = filter.q?.trim() ?? '';
@@ -293,9 +291,9 @@ function deploymentWhere(filter: DeploymentFilter) {
           run ? eq(deployments.number, Number(run[1])) : undefined,
         );
 
-  // Bloqué par un scan : le pipeline s'est arrêté sur l'étape d'analyse ET un
-  // scanner a rendu un verdict bloquant. L'étape seule ne suffit pas — un
-  // scanner qui plante ne prononce aucun verdict, et ne bloque rien.
+  // Blocked by a scan: the pipeline stopped at the analysis step AND a scanner
+  // returned a blocking verdict. The step alone is not enough — a scanner that
+  // crashes gives no verdict, and blocks nothing.
   const blockedByScan =
     filter.blocked === 'scan'
       ? and(
@@ -348,7 +346,7 @@ export async function listDeployments(
   };
 }
 
-/** Nombre de runs qui répondent aux filtres. */
+/** Number of runs matching the filters. */
 export async function countDeployments(
   filter: DeploymentFilter,
   db: Database = getDb(),
@@ -363,12 +361,12 @@ export async function countDeployments(
 }
 
 /**
- * Tous les runs qui répondent aux filtres, par lots, du plus récent au plus
- * ancien : c'est la lecture de l'export.
+ * All the runs matching the filters, in batches, from newest to oldest: it is
+ * the export's read.
  *
- * Pagination par curseur (`number` décroissant) et non par décalage : un run
- * créé pendant l'export ne décale pas les pages, donc ne fait ni doublon ni
- * trou. `limit` borne le total, lots compris.
+ * Cursor pagination (`number` descending) and not offset: a run created during
+ * the export does not shift the pages, so it makes neither a duplicate nor a
+ * gap. `limit` caps the total, batches included.
  */
 export async function* iterateDeployments(
   filter: DeploymentFilter,
@@ -413,7 +411,7 @@ export async function listSteps(
     .orderBy(asc(deploymentSteps.order));
 }
 
-/** Tout ce dont le worker a besoin, en une requête. */
+/** Everything the worker needs, in one query. */
 export async function getDeploymentForRun(
   id: string,
   db: Database = getDb(),
@@ -486,7 +484,7 @@ export async function finishStep(
     .where(and(eq(deploymentSteps.deploymentId, deploymentId), eq(deploymentSteps.key, key)));
 }
 
-/** Après un échec : tout ce qui n'a pas tourné passe en `skipped`. */
+/** After a failure: everything that did not run goes to `skipped`. */
 export async function skipPendingSteps(
   deploymentId: string,
   db: Database = getDb(),
@@ -506,9 +504,8 @@ export async function skipPendingSteps(
 }
 
 /**
- * Remet en `pending` tout ce qui n'a pas abouti, pour une relance.
- * Les steps déjà `success` restent telles quelles : c'est ce qui rend le job
- * idempotent.
+ * Puts back to `pending` everything that did not succeed, for a retry. Steps
+ * already `success` stay as they are: that is what makes the job idempotent.
  */
 export async function resetUnsuccessfulSteps(
   deploymentId: string,
@@ -525,12 +522,11 @@ export async function resetUnsuccessfulSteps(
     );
 }
 
-// ─── journal ──────────────────────────────────────────────────────────────────
+// ─── log ──────────────────────────────────────────────────────────────────────
 
 /**
- * Ajoute un bloc de lignes au journal d'une étape.
- * L'append est fait par la base (`log || $chunk`) : deux écritures concurrentes
- * ne peuvent pas s'écraser.
+ * Appends a block of lines to a step's log. The append is done by the database
+ * (`log || $chunk`): two concurrent writes cannot overwrite each other.
  */
 export async function appendStepLog(
   deploymentId: string,
@@ -545,7 +541,7 @@ export async function appendStepLog(
     .where(and(eq(deploymentSteps.deploymentId, deploymentId), eq(deploymentSteps.key, key)));
 }
 
-/** Journal complet, dans l'ordre des étapes. Sert à la relecture SSE. */
+/** Complete log, in step order. Used for SSE replay. */
 export async function readDeploymentLog(
   deploymentId: string,
   db: Database = getDb(),
@@ -559,13 +555,13 @@ export async function readDeploymentLog(
   return rows.filter((row) => row.log.length > 0);
 }
 
-// ─── historique des versions ──────────────────────────────────────────────────
+// ─── version history ──────────────────────────────────────────────────────────
 
-/** Une version déployée, telle que la timeline de l'application la montre. */
+/** A deployed version, as the application's timeline shows it. */
 export type ApplicationVersion = {
   deploymentId: string;
   version: number;
-  /** Version applicative issue de l'AppSpec figée à ce déploiement. */
+  /** Application version from the AppSpec frozen at this deployment. */
   appVersion: string | null;
   imageTag: string | null;
   runtime: 'docker' | 'k3s';
@@ -579,21 +575,21 @@ export type ApplicationVersion = {
   sourceRef: string | null;
   sourceSha: string | null;
   sourceUrl: string | null;
-  /** L'archive téléversée que la version a construite, quand le code venait de là. */
+  /** The uploaded archive the version built, when the code came from there. */
   sourceArchiveName: string | null;
   sourceArchiveSha256: string | null;
   createdAt: Date;
   finishedAt: Date | null;
-  /** Une version sans AppSpec n'est pas redéployable : il n'y a rien à rejouer. */
+  /** A version without an AppSpec cannot be redeployed: there is nothing to replay. */
   redeployable: boolean;
 };
 
 /**
- * Historique complet d'une application, du plus récent au plus ancien.
+ * An application's complete history, from newest to oldest.
  *
- * On lit `deployments`, jamais une table d'historique séparée : le déploiement
- * *est* la version. Son `app_spec` figée est ce qui rend un redéploiement
- * possible des mois plus tard, même si l'application a changé depuis.
+ * We read `deployments`, never a separate history table: the deployment *is*
+ * the version. Its frozen `app_spec` is what makes a redeploy possible months
+ * later, even if the application has changed since.
  */
 export async function listApplicationVersions(
   applicationId: string,
@@ -637,105 +633,104 @@ export async function listApplicationVersions(
   });
 }
 
-// ─── « ce qui tourne » — définition unique ───────────────────────────────────
+// ─── "what runs" — single definition ─────────────────────────────────────────
 
 /**
- * ## La seule définition de « vivant »
+ * ## The only definition of "alive"
  *
- * Pour un couple (application, cible), on lit son historique **du plus récent au
- * plus ancien** et on s'arrête au premier verdict :
+ * For an (application, target) pair, we read its history **from newest to
+ * oldest** and stop at the first verdict:
  *
- * - `pending` / `running` : aucun verdict encore, on continue de descendre. Un
- *   déploiement en cours ne fait pas disparaître ce qui tourne pendant ce
- *   temps-là.
- * - `failed` : on **retient** le plus récent comme « dernière mise à jour
- *   échouée », mais on continue de descendre. Un échec ne remplace pas
- *   forcément ce qui tournait — voir `startedServices()`.
- * - `success` / `rolled_back` : c'est **le** déploiement en service. Un
- *   `rolled_back` compte autant qu'un `success` : après un rollback, c'est bien
- *   l'ancienne version qui sert.
+ * - `pending` / `running`: no verdict yet, we keep going down. A deployment in
+ *   progress does not make what runs meanwhile disappear.
+ * - `failed`: we **keep** the most recent as "last failed update", but keep going
+ *   down. A failure does not necessarily replace what was running — see
+ *   `startedServices()`.
+ * - `success` / `rolled_back`: it is **the** deployment in service. A
+ *   `rolled_back` counts as much as a `success`: after a rollback, it is indeed
+ *   the old version that serves.
  *
- * Si la descente n'a trouvé aucun déploiement en service mais que le dernier
- * échec est survenu **à partir de l'étape `deploy`**, le couple est quand même
- * considéré occupé : des conteneurs ont pu démarrer et rester là.
+ * If the descent found no deployment in service but the last failure happened
+ * **from the `deploy` step on**, the pair is still considered occupied:
+ * containers may have started and stayed there.
  *
- * Une destruction (`destroyed`) coupe cette descente, mais **par le temps et non
- * par le numéro de version** : `destroy` démonte le projet `app-{slug}` entier,
- * pas la seule version sur laquelle on l'a lancé. Tout déploiement terminé avant
- * la dernière destruction a donc disparu de la machine, y compris un numéro de
- * version supérieur. Détruire la v1 emporte la v2 avec elle.
+ * A destruction (`destroyed`) cuts this descent, but **by time and not by
+ * version number**: `destroy` takes down the whole `app-{slug}` project, not
+ * only the version it was started on. Every deployment finished before the last
+ * destruction has therefore disappeared from the machine, including a higher
+ * version number. Destroying v1 takes v2 with it.
  *
- * ### Pourquoi elle penche de ce côté
+ * ### Why it leans that way
  *
- * La base ne dit pas ce que la machine porte, elle dit ce que le panel croit.
- * Entre les deux erreurs possibles, le coût n'est pas le même :
+ * The database does not say what the machine carries, it says what the panel
+ * believes. Between the two possible errors, the cost is not the same:
  *
- * - se tromper en gardant un couple de trop → une ligne en surplus dans l'écran
- *   de supervision, et un déploiement qu'on doit détruire avant de le purger ;
- * - se tromper en l'oubliant → une application qui tourne toujours sur la
- *   machine mais que le panel ne sait plus nommer : plus de logs, plus de
- *   rollback, plus de destruction propre, et un port réservé pour un fantôme.
+ * - being wrong by keeping one pair too many → one extra line on the monitoring
+ *   screen, and a deployment that must be destroyed before purging it;
+ * - being wrong by forgetting it → an application still running on the machine
+ *   that the panel can no longer name: no more logs, no more rollback, no more
+ *   clean destruction, and a port reserved for a ghost.
  *
- * La seconde n'est pas rattrapable depuis le panel. **En cas de doute, on
- * considère donc que quelque chose tourne encore.** C'est pour la même raison
- * qu'un `failed_step` inconnu ou absent est traité comme « les services ont pu
- * démarrer ».
+ * The second cannot be recovered from the panel. **When in doubt, we therefore
+ * consider that something still runs.** It is for the same reason that an
+ * unknown or absent `failed_step` is treated as "the services may have
+ * started".
  *
- * L'inventaire réel de la cible (`listWorkloads` sur le `DeploymentDriver`) dirait
- * la vérité, lui. Il n'est délibérément pas appelé ici : cette fonction sert le
- * chemin de la purge, qui est une opération de base de données et ne doit pas
- * dépendre de la joignabilité d'une machine distante — une cible éteinte rendrait
- * l'historique impurgeable.
+ * The target's real inventory (`listWorkloads` on the `DeploymentDriver`) would
+ * tell the truth. It is deliberately not called here: this function serves the
+ * purge path, which is a database operation and must not depend on a remote
+ * machine's reachability — a target turned off would make the history
+ * unpurgeable.
  */
 
-/** L'index de `deploy` : la première étape qui démarre réellement des services. */
+/** The index of `deploy`: the first step that really starts services. */
 const DEPLOY_STEP_INDEX = DEPLOYMENT_STEPS.findIndex((step) => step.key === 'deploy');
 
 /**
- * Ce déploiement échoué a-t-il pu laisser des conteneurs derrière lui ?
+ * Could this failed deployment have left containers behind?
  *
- * Tout ce qui précède `deploy` — préflight, réservation, rendu, dépôt, build,
- * scan — peut échouer sans que rien ne tourne : la version précédente n'a jamais
- * cessé de servir. À partir de `deploy`, la cible a été touchée.
+ * Everything before `deploy` — preflight, reservation, render, upload, build,
+ * scan — can fail without anything running: the previous version never stopped
+ * serving. From `deploy` on, the target was touched.
  */
 function startedServices(failedStep: string | null): boolean {
-  // Pas d'étape nommée : on ne sait pas où ça s'est arrêté, donc on suppose le pire.
+  // No named step: we do not know where it stopped, so we assume the worst.
   if (failedStep === null) return true;
   const index = DEPLOYMENT_STEPS.findIndex((step) => step.key === failedStep);
   if (index === -1) return true;
   return index >= DEPLOY_STEP_INDEX;
 }
 
-/** Ce qu'un couple (application, cible) porte encore, selon la définition ci-dessus. */
+/** What an (application, target) pair still carries, per the definition above. */
 export type LiveDeployment = {
   applicationId: string;
   targetId: string;
   /**
-   * Le déploiement qui sert l'application. `null` quand seul un échec occupe la
-   * cible : rien n'a jamais abouti sur ce couple.
+   * The deployment serving the application. `null` when only a failure occupies
+   * the target: nothing ever succeeded on this pair.
    */
   inService: Deployment | null;
-  /** Le dernier déploiement du couple s'il a échoué, et qu'aucun ne lui a succédé. */
+  /** The pair's last deployment if it failed, and none succeeded it. */
   lastFailed: Deployment | null;
   /**
-   * Les déploiements dont la trace en base ne doit pas être effacée : ce sont
-   * les seules poignées qui restent pour retrouver, arrêter ou détruire ce qui
-   * tourne. Le `lastFailed` n'en fait partie que s'il est la seule poignée.
+   * The deployments whose database trace must not be erased: they are the only
+   * handles left to find, stop or destroy what runs. `lastFailed` is only part of
+   * it if it is the only handle.
    */
   pinnedIds: string[];
 };
 
-/** Applique la définition à l'historique d'un seul couple, du plus récent au plus ancien. */
+/** Applies the definition to a single pair's history, from newest to oldest. */
 function resolveLive(rows: Deployment[]): LiveDeployment | null {
-  // Date de la dernière destruction du couple : tout ce qui s'est terminé avant
-  // elle a été démonté avec le projet, quel que soit son numéro de version.
+  // Date of the pair's last destruction: everything that finished before it was
+  // taken down with the project, whatever its version number.
   let destroyedAt: Date | null = null;
   for (const row of rows) {
     if (row.status !== 'destroyed' || row.finishedAt === null) continue;
     if (destroyedAt === null || row.finishedAt > destroyedAt) destroyedAt = row.finishedAt;
   }
 
-  // `finishedAt` absent : on ne sait pas dater, donc on suppose que ça a survécu.
+  // `finishedAt` absent: we cannot date it, so we assume it survived.
   const survives = (row: Deployment): boolean =>
     destroyedAt === null || row.finishedAt === null || row.finishedAt > destroyedAt;
 
@@ -743,8 +738,8 @@ function resolveLive(rows: Deployment[]): LiveDeployment | null {
   let inService: Deployment | null = null;
 
   for (const row of rows) {
-    // `pending` / `running` : pas encore de verdict. `destroyed` : déjà pris en
-    // compte par `destroyedAt`.
+    // `pending` / `running`: no verdict yet. `destroyed`: already taken into account
+    // by `destroyedAt`.
     if (row.status === 'pending' || row.status === 'running' || row.status === 'destroyed') continue;
     if (!survives(row)) continue;
 
@@ -781,9 +776,9 @@ function resolveLive(rows: Deployment[]): LiveDeployment | null {
 }
 
 /**
- * Tous les couples (application, cible) sur lesquels quelque chose peut encore
- * tourner. **C'est l'unique définition** : supervision, purge et worker en
- * dérivent tous, aucun ne réécrit la règle.
+ * Every (application, target) pair on which something may still run. **It is
+ * the single definition**: monitoring, purge and worker all derive from it, none
+ * rewrites the rule.
  */
 export async function listLiveDeployments(
   filter: { applicationId?: string; targetId?: string } = {},
@@ -817,12 +812,12 @@ export async function listLiveDeployments(
 }
 
 /**
- * Reste-t-il quelque chose de vivant de cette application sur cette cible ?
+ * Is anything of this application still alive on this target?
  *
- * Sert au worker à décider s'il peut relâcher la réservation de port après un
- * échec. Le déploiement qui vient d'échouer **n'est pas exclu** de la question :
- * s'il a dépassé `deploy`, ce sont ses propres conteneurs qui occupent le port,
- * et le rendre le donnerait à une autre application.
+ * Used by the worker to decide whether it can release the port reservation
+ * after a failure. The deployment that just failed **is not excluded** from the
+ * question: if it went past `deploy`, it is its own containers that occupy the
+ * port, and giving it back would give it to another application.
  */
 export async function hasLiveDeploymentOnTarget(
   applicationId: string,
@@ -834,11 +829,11 @@ export async function hasLiveDeploymentOnTarget(
 }
 
 /**
- * Le déploiement **en service** de chaque couple — celui que les tâches
- * périodiques sondent et scannent.
+ * Each pair's deployment **in service** — the one the periodic tasks probe and
+ * scan.
  *
- * Dérivé de `listLiveDeployments()` : un couple seulement occupé par un échec
- * n'a rien à sonder, il n'apparaît pas ici.
+ * Derived from `listLiveDeployments()`: a pair only occupied by a failure has
+ * nothing to probe, it does not appear here.
  */
 export async function listCurrentDeployments(
   db: Database = getDb(),
@@ -850,16 +845,16 @@ export async function listCurrentDeployments(
 }
 
 /**
- * Marque une application comme volontairement arrêtée, ou la démarque.
+ * Marks an application as deliberately stopped, or unmarks it.
  *
- * Le `status` du déploiement n'est **pas** touché : il raconte l'issue de la
- * mise en ligne, pas ce que les conteneurs font en ce moment. Voir le
- * commentaire de la colonne `stopped_at` dans `schema/deployments.ts`.
+ * The deployment's `status` is **not** touched: it tells the outcome of going
+ * live, not what the containers are doing right now. See the comment of the
+ * `stopped_at` column in `schema/deployments.ts`.
  *
- * La santé retombe à `unknown` en même temps que l'arrêt : laisser `healthy`
- * sur une application dont plus rien ne tourne serait un mensonge affiché sur
- * le tableau de bord, et la sonde périodique ne repassera pas la corriger —
- * elle saute justement les applications arrêtées.
+ * Health drops to `unknown` along with the stop: leaving `healthy` on an
+ * application where nothing runs anymore would be a lie shown on the dashboard,
+ * and the periodic probe will not come by to correct it — it precisely skips
+ * stopped applications.
  */
 export async function setDeploymentStopped(
   id: string,
@@ -876,7 +871,7 @@ export async function setDeploymentStopped(
     .where(eq(deployments.id, id));
 }
 
-/** Statut de santé constaté par la sonde périodique. N'entraîne aucune action. */
+/** Health status observed by the periodic probe. Triggers no action. */
 export async function recordHealthStatus(
   id: string,
   status: 'unknown' | 'healthy' | 'unhealthy' | 'unreachable',
@@ -891,25 +886,25 @@ export async function recordHealthStatus(
 
 
 /**
- * La dernière mise à jour du couple, quand elle a échoué.
+ * The pair's last update, when it failed.
  *
- * Présente, elle dit que le déploiement en service **n'est plus le dernier
- * essai** : quelqu'un a tenté de le remplacer et s'est planté. L'écran doit le
- * dire franchement plutôt que de faire disparaître la ligne.
+ * Present, it says the deployment in service **is no longer the last attempt**:
+ * someone tried to replace it and failed. The screen must say so frankly rather
+ * than make the line disappear.
  */
 export type LastFailedUpdate = {
   deploymentId: string;
-  /** Numéro de run de la tentative ratée. */
+  /** Run number of the failed attempt. */
   number: number;
   version: number;
   failedStep: string | null;
   error: string | null;
   finishedAt: Date | null;
-  /** L'échec est survenu à partir de `deploy` : les conteneurs ont pu être remplacés. */
+  /** The failure happened from `deploy` on: the containers may have been replaced. */
   mayHaveReplacedServices: boolean;
 };
 
-/** Une application en marche, telle que l'écran de supervision la présente. */
+/** A running application, as the monitoring screen presents it. */
 export type SupervisedApp = DeploymentSummary & {
   healthStatus: 'unknown' | 'healthy' | 'unhealthy' | 'unreachable';
   lastHealthAt: Date | null;
@@ -919,14 +914,14 @@ export type SupervisedApp = DeploymentSummary & {
 };
 
 /**
- * Ce qui tourne *maintenant*, une ligne par couple (application, cible).
+ * What runs *now*, one line per (application, target) pair.
  *
- * Distinct de `listDeployments`, qui raconte l'historique. La règle de sélection
- * est celle de `listLiveDeployments()` — elle n'est pas réécrite ici. La ligne
- * porte l'identifiant du déploiement **en service** (`success` ou
- * `rolled_back`), seul état où les logs applicatifs et le redémarrage ont un
- * sens ; un échec plus récent apparaît dans `lastFailedUpdate` au lieu de faire
- * disparaître l'application.
+ * Distinct from `listDeployments`, which tells the history. The selection rule
+ * is `listLiveDeployments()`'s — it is not rewritten here. The line carries the
+ * identifier of the deployment **in service** (`success` or `rolled_back`), the
+ * only state where application logs and restart make sense; a more recent
+ * failure appears in `lastFailedUpdate` instead of making the application
+ * disappear.
  */
 export async function listSupervisedApps(db: Database = getDb()): Promise<SupervisedApp[]> {
   const live = await listLiveDeployments({}, db);
@@ -973,20 +968,20 @@ export async function listSupervisedApps(db: Database = getDb()): Promise<Superv
     .sort((a, b) => a.applicationSlug.localeCompare(b.applicationSlug));
 }
 
-// ─── purge de l'historique ────────────────────────────────────────────────────
+// ─── history purge ────────────────────────────────────────────────────────────
 
 /**
- * Purger n'est pas détruire.
+ * Purging is not destroying.
  *
- * `destroy` va sur la machine cible et démonte l'application. Purger efface la
- * **trace en base** d'un déploiement, sans toucher à la cible. D'où l'unique
- * garde-fou : on ne purge pas un déploiement qui supervise quelque chose de
- * vivant, sinon l'application continuerait de tourner sur la machine sans que
- * le panel sache encore la nommer — plus de logs, plus de rollback, plus de
- * destruction possible, et son port resterait réservé pour un fantôme.
+ * `destroy` goes to the target machine and takes the application down. Purging
+ * erases a deployment's **database trace**, without touching the target. Hence
+ * the single safeguard: we do not purge a deployment that monitors something
+ * alive, otherwise the application would keep running on the machine without
+ * the panel still knowing how to name it — no more logs, no more rollback, no
+ * more destruction possible, and its port would stay reserved for a ghost.
  */
 
-/** Pourquoi un déploiement a résisté à la purge. */
+/** Why a deployment resisted the purge. */
 export type PurgeRefusalReason = 'live' | 'in_progress';
 
 export type PurgeRefusal = {
@@ -1001,29 +996,29 @@ export type PurgeRefusal = {
 };
 
 /**
- * Plafond de lignes traitées par appel.
+ * Cap of rows handled per call.
  *
- * Choix assumé de la **route synchrone** plutôt que d'un job BullMQ : la purge
- * est un `DELETE ... WHERE id = ANY(...)` dans une transaction, avec des
- * cascades sur des clés étrangères indexées. À 500 lignes c'est une affaire de
- * dizaines de millisecondes, très loin d'une « opération longue » au sens de la
- * règle 2 — laquelle vise le travail distant (SSH, build, scan), pas une
- * écriture locale bornée. Passer par la queue coûterait un aller-retour et,
- * surtout, rendrait *asynchrone* la seule information qui compte ici : ce qui a
- * été refusé et pourquoi. On borne donc, et on le dit dans la réponse
- * (`truncated`) plutôt que de laisser la requête grossir sans limite.
+ * A deliberate choice of the **synchronous route** rather than a BullMQ job: the
+ * purge is a `DELETE ... WHERE id = ANY(...)` in a transaction, with cascades on
+ * indexed foreign keys. At 500 rows it is a matter of tens of milliseconds, very
+ * far from a "long-running operation" in the sense of rule 2 — which targets
+ * remote work (SSH, build, scan), not a bounded local write. Going through the
+ * queue would cost a round trip and, above all, would make *asynchronous* the
+ * only information that matters here: what was refused and why. We therefore
+ * cap, and say so in the response (`truncated`) rather than let the request
+ * grow without limit.
  */
 export const PURGE_MAX_ROWS = 500;
 
 export const purgeFilterSchema = z
   .object({
-    /** Sélection explicite — c'est ce que coche l'utilisateur dans le tableau. */
+    /** Explicit selection — it is what the user ticks in the table. */
     ids: z.array(z.string().uuid()).min(1).max(PURGE_MAX_ROWS).optional(),
     statuses: z
       .array(z.enum(['pending', 'running', 'success', 'failed', 'rolled_back', 'destroyed']))
       .min(1)
       .optional(),
-    /** « Plus vieux que N jours », calculé sur `created_at`. */
+    /** "Older than N days", computed on `created_at`. */
     olderThanDays: z.number().int().min(0).max(3650).optional(),
     applicationId: z.string().uuid().optional(),
     targetId: z.string().uuid().optional(),
@@ -1035,46 +1030,46 @@ export const purgeFilterSchema = z
       filter.olderThanDays !== undefined ||
       filter.applicationId !== undefined ||
       filter.targetId !== undefined,
-    // Un filtre vide viserait tout l'historique. Ce n'est pas une purge, c'est
-    // un accident : on exige au moins un critère.
+    // An empty filter would target the whole history. It is not a purge, it is an
+    // accident: we require at least one criterion.
     invalid('purge.criteria'),
   );
 
 export type PurgeFilter = z.infer<typeof purgeFilterSchema>;
 
 export type PurgeReport = {
-  /** Déploiements correspondant au filtre, plafond non appliqué. */
+  /** Deployments matching the filter, cap not applied. */
   matched: number;
-  /** Ce qui a été (ou serait) effacé. */
+  /** What was (or would be) erased. */
   purged: string[];
   purgedCount: number;
-  /** Décompte par statut de ce qui a été (ou serait) effacé. */
+  /** Count per status of what was (or would be) erased. */
   purgedByStatus: Record<string, number>;
   refused: PurgeRefusal[];
   refusedCount: number;
-  /** Réservations rendues à la plage de ports de leur cible. */
+  /** Reservations returned to their target's port range. */
   releasedPorts: Array<{ targetId: string; targetName: string; port: number }>;
   /**
-   * Déploiements vivants qui perdent leur cible de rollback : `previous_deployment_id`
-   * est en `ON DELETE SET NULL`, purger une version historique la coupe.
+   * Live deployments that lose their rollback target: `previous_deployment_id` is
+   * `ON DELETE SET NULL`, purging a historical version cuts it.
    */
   rollbackTargetsLost: number;
-  /** Le plafond a coupé la sélection : il reste des lignes à purger. */
+  /** The cap cut the selection: rows remain to be purged. */
   truncated: boolean;
   limit: number;
   dryRun: boolean;
 };
 
-/** Pourquoi un déploiement est la dernière poignée du panel sur quelque chose de vivant. */
+/** Why a deployment is the panel's last handle on something alive. */
 type PinnedKind = 'in_service' | 'only_handle';
 
 /**
- * Déploiements qu'on refuse de purger, et la raison.
+ * Deployments we refuse to purge, and the reason.
  *
- * Délègue à `listLiveDeployments()` — l'unique définition de « vivant ». Le
- * réécrire ici, c'est se condamner à ce que les deux divergent un jour ; c'est
- * exactement ce qui était arrivé, et qui rendait purgeable la version en service
- * d'une application dont la dernière mise à jour avait échoué.
+ * Delegates to `listLiveDeployments()` — the single definition of "alive".
+ * Rewriting it here would doom the two to diverge one day; it is exactly what
+ * had happened, and what made purgeable the version in service of an
+ * application whose last update had failed.
  */
 export async function listPinnedDeployments(
   db: Database = getDb(),
@@ -1090,26 +1085,25 @@ export async function listPinnedDeployments(
   return pinned;
 }
 
-/** Les mêmes, sans la raison — l'écran des déploiements grise la case avec. */
+/** The same, without the reason — the deployments screen greys out the box with it. */
 export async function listLiveDeploymentIds(db: Database = getDb()): Promise<Set<string>> {
   return new Set((await listPinnedDeployments(db)).keys());
 }
 
 /**
- * Ce qui **bloque réellement** la suppression d'une application.
+ * What **really blocks** deleting an application.
  *
- * La question « peut-on supprimer cette application ? » n'est pas « porte-t-elle
- * des déploiements ? » mais « en reste-t-il un que le panel ne doit pas perdre
- * de vue ? ». Un déploiement `destroyed` est un enregistrement d'historique :
- * il ne bloque rien.
+ * The question "can this application be deleted?" is not "does it carry
+ * deployments?" but "is there one left the panel must not lose sight of?". A
+ * `destroyed` deployment is a history record: it blocks nothing.
  *
- * Le verdict et son vocabulaire sont ceux de la purge — `refuse()`, et derrière
- * lui `listLiveDeployments()`. Un troisième jeu de règles ici aurait garanti
- * qu'un jour les deux divergent, et c'est exactement l'erreur que corrigeait
- * déjà `listPinnedDeployments()`.
+ * The verdict and its vocabulary are the purge's — `refuse()`, and behind it
+ * `listLiveDeployments()`. A third set of rules here would have guaranteed that
+ * the two diverge one day, and it is exactly the error
+ * `listPinnedDeployments()` already corrected.
  *
- * Les champs en plus de `PurgeRefusal` ne servent pas au refus mais à ce qui
- * vient après : ils nomment, cible par cible, ce qu'un forçage abandonnerait.
+ * The fields beyond `PurgeRefusal` do not serve the refusal but what comes
+ * after: they name, target by target, what a forced action would abandon.
  */
 export type ApplicationDeletionBlocker = PurgeRefusal & {
   applicationId: string;
@@ -1121,7 +1115,7 @@ export type ApplicationDeletionBlocker = PurgeRefusal & {
 
 export async function listApplicationDeletionBlockers(
   applicationId: string,
-  /** `language` : celle des messages, que l'écran montre tels quels. */
+  /** `language`: that of the messages, which the screen shows as is. */
   options: { language?: UiLanguage } = {},
   db: Database = getDb(),
 ): Promise<ApplicationDeletionBlocker[]> {
@@ -1192,15 +1186,14 @@ function purgeWhere(filter: PurgeFilter) {
 }
 
 /**
- * Prévisualise puis exécute la purge.
+ * Previews then runs the purge.
  *
- * `dryRun` emprunte exactement le même chemin de décision : le décompte annoncé
- * à l'utilisateur est celui qui sera appliqué, pas une estimation calculée
- * ailleurs.
+ * `dryRun` takes exactly the same decision path: the count announced to the user
+ * is the one that will be applied, not an estimate computed elsewhere.
  */
 export async function purgeDeployments(
   filter: PurgeFilter,
-  /** `language` : celle des refus, que l'écran montre tels quels. */
+  /** `language`: that of the refusals, which the screen shows as is. */
   options: { dryRun?: boolean; language?: UiLanguage } = {},
   db: Database = getDb(),
 ): Promise<PurgeReport> {
@@ -1224,8 +1217,8 @@ export async function purgeDeployments(
       .innerJoin(applications, eq(applications.id, deployments.applicationId))
       .innerJoin(targets, eq(targets.id, deployments.targetId))
       .where(where)
-      // Le plus ancien d'abord : si le plafond coupe, il coupe la queue récente,
-      // et deux appels successifs finissent le travail.
+      // Oldest first: if the cap cuts, it cuts the recent tail, and two successive
+      // calls finish the work.
       .orderBy(asc(deployments.createdAt))
       .limit(PURGE_MAX_ROWS),
     db.select({ value: count() }).from(deployments).where(where),
@@ -1273,17 +1266,17 @@ export async function purgeDeployments(
   const releasedPorts = await db.transaction(async (tx) => {
     await tx.delete(deployments).where(inArray(deployments.id, ids));
 
-    // `deployment_steps`, `scan_runs` et leurs `findings` partent en cascade
-    // (clé étrangère `ON DELETE CASCADE`). `audit_logs` non : sa colonne
-    // `resource_id` est un `text` sans clé étrangère — le journal survit à ce
-    // qu'il décrit, et c'est voulu.
+    // `deployment_steps`, `scan_runs` and their `findings` go by cascade (foreign
+    // key `ON DELETE CASCADE`). `audit_logs` does not: its `resource_id` column is a
+    // `text` without a foreign key — the log outlives what it describes, and that
+    // is intended.
     return releaseOrphanAllocations(purgeable, tx);
   });
 
   return { ...base, releasedPorts, rollbackTargetsLost };
 }
 
-/** Le seul verdict qui compte : ce déploiement supervise-t-il quelque chose ? */
+/** The only verdict that counts: does this deployment monitor something? */
 function refuse(
   candidate: PurgeCandidate,
   pinned: ReadonlyMap<string, PinnedKind>,
@@ -1334,7 +1327,7 @@ function refusalIdentity(candidate: PurgeCandidate): Omit<PurgeRefusal, 'reason'
   };
 }
 
-/** Déploiements survivants dont la cible de rollback est sur le point de disparaître. */
+/** Surviving deployments whose rollback target is about to disappear. */
 async function countRollbackTargetsLost(ids: string[], db: Database): Promise<number> {
   const [row] = await db
     .select({ value: count() })
@@ -1342,7 +1335,7 @@ async function countRollbackTargetsLost(ids: string[], db: Database): Promise<nu
     .where(
       and(
         inArray(deployments.previousDeploymentId, ids),
-        // Un déploiement lui-même purgé ne « perd » rien.
+        // A deployment itself purged "loses" nothing.
         notInArray(deployments.id, ids),
       ),
     );
@@ -1350,13 +1343,13 @@ async function countRollbackTargetsLost(ids: string[], db: Database): Promise<nu
 }
 
 /**
- * Rend à la plage de ports les réservations que la purge vient d'orpheliner.
+ * Returns to the port range the reservations the purge just orphaned.
  *
- * `port_allocations` est indexée par (cible, application) et non par
- * déploiement : la réservation ne se libère donc que s'il ne reste **plus aucun**
- * déploiement de ce couple. Tant qu'il en reste un, quelque chose peut encore
- * occuper ce port sur la machine, et le rendre reviendrait à le promettre à une
- * autre application.
+ * `port_allocations` is indexed by (target, application) and not by deployment:
+ * the reservation is therefore only released if **no** deployment of that pair
+ * remains. As long as one remains, something may still occupy that port on the
+ * machine, and giving it back would amount to promising it to another
+ * application.
  */
 async function releaseOrphanAllocations(
   purged: PurgeCandidate[],
@@ -1405,14 +1398,14 @@ async function releaseOrphanAllocations(
   return released;
 }
 
-// ─── déploiements figés ───────────────────────────────────────────────────────
+// ─── stuck deployments ────────────────────────────────────────────────────────
 
 /**
- * Un déploiement que la base croit encore en cours.
+ * A deployment the database still believes in progress.
  *
- * Tout ce qu'il faut pour poser le verdict (identifiants pour interroger la
- * file) **et** pour rédiger le message d'après-coup : ce qui a pu rester sur la
- * machine ne se retrouve pas ailleurs une fois le déploiement conclu.
+ * Everything needed to give the verdict (identifiers to query the queue) **and**
+ * to write the after-the-fact message: what may have stayed on the machine is
+ * not found elsewhere once the deployment is concluded.
  */
 export type UnfinishedDeployment = {
   id: string;
@@ -1425,20 +1418,21 @@ export type UnfinishedDeployment = {
   targetName: string;
   targetHost: string;
   publishedPort: number | null;
-  /** Réservation encore inscrite dans `port_allocations`, même sans port publié. */
+  /** Reservation still recorded in `port_allocations`, even without a published port. */
   allocatedPort: number | null;
   createdAt: Date;
   startedAt: Date | null;
-  /** L'étape en cours au moment de l'arrêt — la seule chose qui dise où ça s'est figé. */
+  /** The step in progress when it stopped — the only thing that says where it froze. */
   currentStep: { key: string; label: string } | null;
 };
 
 /**
- * Tout ce que la base croit en cours, sans exception ni tri par ancienneté.
+ * Everything the database believes in progress, without exception or sorting by
+ * age.
  *
- * Le filtrage par âge n'est pas fait ici : c'est une règle de décision
- * (`STUCK_DEPLOYMENT_GRACE_MS`), elle appartient à l'appelant qui pose le
- * verdict, pas à la lecture.
+ * Filtering by age is not done here: it is a decision rule
+ * (`STUCK_DEPLOYMENT_GRACE_MS`), it belongs to the caller that gives the
+ * verdict, not to the read.
  */
 export async function listUnfinishedDeployments(
   db: Database = getDb(),
@@ -1503,32 +1497,32 @@ export async function listUnfinishedDeployments(
   });
 }
 
-/** Ce qu'a fait le déblocage — de quoi rédiger l'entrée du journal d'activité. */
+/** What the unblocking did — enough to write the activity log entry. */
 export type AbandonReport = {
   id: string;
   applicationSlug: string;
   targetName: string;
-  /** L'étape sur laquelle le déploiement est arrêté. `null` s'il n'avait rien commencé. */
+  /** The step the deployment stopped on. `null` if it had started nothing. */
   failedStep: string | null;
-  /** Les services ont pu démarrer : la cible porte peut-être encore quelque chose. */
+  /** The services may have started: the target may still carry something. */
   mayHaveStartedServices: boolean;
-  /** Le message écrit sur le déploiement, mot pour mot. */
+  /** The message written on the deployment, word for word. */
   error: string;
 };
 
 /**
- * Compose le message enregistré sur un déploiement abandonné.
+ * Composes the message recorded on an abandoned deployment.
  *
- * Il est rédigé **ici**, à l'endroit unique où l'abandon est écrit, et pas dans
- * la route ni dans le worker : les deux chemins de déblocage — le geste manuel
- * et la reprise automatique quand BullMQ met une tâche en échec sans l'avoir
- * exécutée — doivent laisser exactement la même trace, sinon le journal raconte
- * deux histoires pour un même incident.
+ * It is written **here**, at the single place where abandonment is written, and
+ * not in the route or the worker: both unblocking paths — the manual gesture
+ * and the automatic recovery when BullMQ fails a job without having run it —
+ * must leave exactly the same trace, otherwise the log tells two stories for one
+ * incident.
  *
- * Il ne dit pas « interrompu ». Il dit **ce qui s'est passé**, **pourquoi c'est
- * définitif** et surtout **ce qui reste à vérifier sur la machine** : le panel
- * ne le sait pas et ne peut pas le savoir sans y aller, c'est donc la seule
- * information qui vaille d'être conservée.
+ * It does not say "interrupted". It says **what happened**, **why it is final**
+ * and above all **what remains to check on the machine**: the panel does not
+ * know and cannot know without going there, so it is the only information worth
+ * keeping.
  */
 function abandonMessage(
   row: UnfinishedDeployment,
@@ -1550,15 +1544,15 @@ function abandonMessage(
       ? say('abandon.neverStarted')
       : say('abandon.stoppedNoStep');
 
-  // Trois situations, trois choses différentes à aller vérifier. La distinction
-  // entre les deux dernières est celle du reste du produit — l'étape `deploy`
-  // est la première qui touche réellement la machine.
+  // Three situations, three different things to go and check. The distinction
+  // between the last two is the rest of the product's — the `deploy` step is the
+  // first that really touches the machine.
   let remains: string;
   if (row.status === 'pending') {
     remains = say('abandon.pending', { workspace, where });
   } else if (startedServices(row.currentStep?.key ?? null)) {
-    // Aucun mot de runtime ici (règle n° 1) : « services » vaut pour les
-    // conteneurs d'un projet Compose comme pour les pods d'un namespace.
+    // No runtime word here (rule no. 1): "services" covers the containers of a
+    // Compose project as well as the pods of a namespace.
     remains = say('abandon.started', {
       where,
       workspace,
@@ -1576,34 +1570,33 @@ function abandonMessage(
 }
 
 /**
- * Arrête un déploiement figé sur un verdict d'échec.
+ * Stops a stuck deployment on a failure verdict.
  *
- * **Marquer en échec, jamais reprendre.** Rejouer un pipeline dont on ignore où
- * il s'est arrêté redéploierait par-dessus quelque chose : la version qui
- * tourne peut avoir été à moitié remplacée, les conteneurs peuvent être debout,
- * le port peut être pris. Dire la vérité sur un état incertain et laisser
- * l'humain lever l'incertitude — par une destruction, ou en allant voir — est
- * la seule conduite honnête.
+ * **Mark as failed, never resume.** Replaying a pipeline without knowing where
+ * it stopped would redeploy on top of something: the running version may have
+ * been half replaced, the containers may be up, the port may be taken. Telling
+ * the truth about an uncertain state and letting the human lift the uncertainty
+ * — by a destruction, or by going to look — is the only honest course.
  *
- * Le `WHERE status IN ('pending','running')` n'est pas décoratif : entre le
- * verdict et l'écriture, un worker peut très bien avoir conclu le déploiement.
- * La base tranche, pas nous — un `null` en retour veut dire « il s'est terminé
- * tout seul entre-temps », et l'appelant doit le dire plutôt que d'écraser.
+ * The `WHERE status IN ('pending','running')` is not decorative: between the
+ * verdict and the write, a worker may very well have concluded the deployment.
+ * The database decides, not us — a `null` return means "it finished by itself
+ * in the meantime", and the caller must say so rather than overwrite.
  *
- * L'étape en cours passe en `failed` et non en `skipped` : c'est elle qui dit
- * où ça s'est arrêté, et l'écran du déploiement la montre.
+ * The step in progress goes to `failed` and not `skipped`: it is the one that
+ * says where it stopped, and the deployment's screen shows it.
  */
 export async function abandonDeployment(
   id: string,
-  /** `language` : celle du verdict écrit dans l'erreur du déploiement. */
+  /** `language`: that of the verdict written in the deployment's error. */
   options: { cause: string; observedAt?: Date; language?: UiLanguage },
   db: Database = getDb(),
 ): Promise<AbandonReport | null> {
   const observedAt = options.observedAt ?? new Date();
 
-  // On repasse par la lecture commune plutôt que d'écrire une requête d'appoint :
-  // le message doit être composé à partir des mêmes champs, quelle que soit
-  // l'origine du déblocage. Il n'y a jamais beaucoup de déploiements en cours.
+  // We go through the shared read rather than write an ad hoc query: the message
+  // must be composed from the same fields, whatever the origin of the unblocking.
+  // There are never many deployments in progress.
   const row = (await listUnfinishedDeployments(db)).find((candidate) => candidate.id === id);
   if (!row) return null;
 

@@ -11,20 +11,20 @@ import {
 import { parseAppSpec, type AppSpec } from '../src/spec/index.js';
 
 /**
- * L'import d'un docker-compose.yml : ce qui passe, ce qui est approché, ce
- * qui bloque — et le fait que rien ne passe sous silence.
+ * Importing a docker-compose.yml: what passes, what is approximated, what
+ * blocks — and the fact that nothing goes unsaid.
  */
 
 const codes = (result: ComposeImport, level?: string) =>
   result.issues.filter((issue) => !level || issue.level === level).map((issue) => issue.code);
 
 function spec(result: ComposeImport): AppSpec {
-  assert.ok(result.spec, 'une AppSpec est proposée');
+  assert.ok(result.spec, 'an AppSpec is proposed');
   return parseAppSpec(result.spec);
 }
 
 describe('import docker-compose', () => {
-  it('traduit le compose officiel de WordPress, secrets reliés par alias', () => {
+  it('translates WordPress’s official compose file, secrets linked by alias', () => {
     const result = importCompose(
       `
 services:
@@ -69,8 +69,8 @@ volumes:
     assert.equal(db?.port, 3306);
     assert.deepEqual(db?.volumes, [{ name: 'db-data', mountPath: '/var/lib/mysql' }]);
 
-    // Les mots de passe ne sont jamais repris en clair, et deux noms pour une
-    // même valeur deviennent un secret et un alias.
+    // Passwords are never carried over in clear, and two names for the same value
+    // become a secret and an alias.
     assert.deepEqual(db?.secrets, ['MYSQL_ROOT_PASSWORD', 'MYSQL_PASSWORD']);
     assert.deepEqual(wordpress?.secrets, [
       { name: 'WORDPRESS_DB_PASSWORD', from: 'MYSQL_PASSWORD' },
@@ -86,7 +86,7 @@ volumes:
     );
   });
 
-  it('bloque ce qui sort de l’isolation, sans le traduire « au mieux »', () => {
+  it('blocks what leaves isolation, without translating it “as best it can”', () => {
     const result = importCompose(`
 services:
   app:
@@ -116,7 +116,7 @@ services:
       context: './app',
       dockerfile: 'docker/Dockerfile',
     });
-    // Le dossier de l'hôte devient un volume nommé, le socket et le fichier ne passent pas.
+    // The host folder becomes a named volume, the socket and the file do not pass.
     assert.deepEqual(service?.volumes, [
       { name: 'uploads', mountPath: '/srv/uploads' },
       { name: 'data', mountPath: '/data' },
@@ -125,7 +125,7 @@ services:
     assert.ok(codes(result, 'warning').includes('build.args'));
   });
 
-  it('reprend le domaine et le port des labels Traefik', () => {
+  it('takes the domain and the port from the Traefik labels', () => {
     const result = importCompose(`
 services:
   whoami:
@@ -146,7 +146,7 @@ services:
     assert.ok(codes(result).includes('ingress.traefik'));
   });
 
-  it('lit la sonde de santé, ses délais et ses ressources', () => {
+  it('reads the health probe, its delays and its resources', () => {
     const result = importCompose(`
 services:
   api:
@@ -175,12 +175,12 @@ services:
     assert.equal(api?.healthcheck.timeoutSec, 5);
     assert.equal(api?.healthcheck.retries, 5);
     assert.deepEqual(api?.resources, { cpuMilli: 500, memoryMi: 768 });
-    // Une sonde non HTTP sur un service interne : il est sondé en TCP, simple info.
+    // A non-HTTP probe on an internal service: it is probed over TCP, a mere info.
     const unparsed = result.issues.find((issue) => issue.code === 'healthcheck.unparsed');
     assert.equal(unparsed?.level, 'info');
   });
 
-  it('résout les variables du shell et sait ce qui n’est pas un secret', () => {
+  it('resolves the shell variables and knows what is not a secret', () => {
     const result = importCompose(`
 services:
   web:
@@ -205,13 +205,13 @@ services:
     assert.equal(web?.env.PASSWORD_MIN_LENGTH, '12');
     assert.equal(web?.env.PRICE, '$5');
     assert.deepEqual(web?.secrets, ['API_KEY']);
-    // Même variable du shell, deux noms : un secret, un alias.
+    // Same shell variable, two names: a secret, an alias.
     assert.deepEqual(cron?.secrets, [{ name: 'MAILER_API_KEY', from: 'API_KEY' }]);
     assert.ok(codes(result, 'warning').includes('env.invalidName'));
     assert.equal(result.issues.filter((issue) => issue.code === 'env.interpolated').length, 2);
   });
 
-  it('choisit un seul service exposé, et dit lequel', () => {
+  it('chooses a single exposed service, and says which', () => {
     const published = importCompose(`
 services:
   admin:
@@ -238,7 +238,7 @@ services:
     assert.ok(codes(guessed, 'warning').includes('exposed.guessed'));
   });
 
-  it('renomme les services au format de l’AppSpec, dépendances comprises', () => {
+  it('renames the services to the AppSpec’s format, dependencies included', () => {
     const result = importCompose(`
 x-common: &common
   restart: unless-stopped
@@ -265,12 +265,12 @@ services:
     assert.equal(result.valid, true);
   });
 
-  it('refuse proprement un fichier illisible, vide ou piégé', () => {
+  it('cleanly refuses an unreadable, empty or booby-trapped file', () => {
     assert.deepEqual(codes(importCompose('services: [unclosed')), ['yaml.invalid']);
-    assert.deepEqual(codes(importCompose('name: rien')), ['yaml.notCompose']);
+    assert.deepEqual(codes(importCompose('name: nothing')), ['yaml.notCompose']);
     assert.equal(importCompose('services: [unclosed').spec, null);
 
-    // Un « milliard de rires » : l'expansion des alias est bornée.
+    // A "billion laughs": alias expansion is bounded.
     const bomb = [
       'a: &a ["lol","lol","lol","lol","lol","lol","lol","lol","lol"]',
       ...Array.from({ length: 8 }, (_, index) => {
@@ -283,7 +283,7 @@ services:
     assert.deepEqual(codes(importCompose(bomb)), ['yaml.invalid']);
   });
 
-  it('rend chaque message dans les deux langues, motifs compris', () => {
+  it('renders each message in both languages, reasons included', () => {
     const result = importCompose(`
 services:
   web:
@@ -314,8 +314,8 @@ services:
   });
 });
 
-describe('lectures de valeurs Compose', () => {
-  it('lit les durées, les mémoires et les noms', () => {
+describe('reading Compose values', () => {
+  it('reads durations, memory amounts and names', () => {
     assert.equal(parseDuration('1m30s'), 90);
     assert.equal(parseDuration('500ms'), 1);
     assert.equal(parseDuration('n/a'), null);

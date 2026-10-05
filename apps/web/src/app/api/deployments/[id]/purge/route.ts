@@ -15,13 +15,13 @@ const paramsSchema = z.object({ id: z.string().uuid() });
 type Context = { params: Promise<{ id: string }> };
 
 /**
- * Purge unitaire — efface la trace en base d'un déploiement.
+ * A single purge — erases a deployment's trace in the database.
  *
- * Route distincte de `DELETE /api/deployments/:id`, qui porte déjà la
- * **destruction** : celle-ci va sur la machine cible démonter l'application,
- * celle-là n'y touche pas. Les deux gestes coexistent, avec deux permissions
- * (`deployment:destroy` et `deployment:purge`) — écraser l'un par l'autre aurait
- * rendu la destruction inatteignable.
+ * A route distinct from `DELETE /api/deployments/:id`, which already carries the
+ * **destruction**: that one goes onto the target machine to dismantle the
+ * application, this one does not touch it. The two gestures coexist, with two
+ * permissions (`deployment:destroy` and `deployment:purge`) — overwriting one
+ * with the other would have made destruction unreachable.
  */
 export const DELETE = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'deployment:purge');

@@ -1,9 +1,8 @@
 import { formatDateTimeWith, type FormatSettings } from '@/lib/format';
 
 /**
- * Une date de fenêtre de maintenance : jour court et heure, dans le fuseau de
- * l'instance — le même partout, sur l'écran des maintenances, la vue
- * d'ensemble et les fiches.
+ * A maintenance window's date: short day and time, in the instance's time zone —
+ * the same everywhere, on the maintenance screen, the overview and the records.
  */
 export function maintenanceWhen(value: string | Date, format: FormatSettings): string {
   return formatDateTimeWith(value, format, {

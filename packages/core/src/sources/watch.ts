@@ -1,15 +1,15 @@
 /**
- * Un commit concerne-t-il cette application ?
+ * Does a commit concern this application?
  *
- * Dans un monorepo, chaque application surveille ses chemins : son dossier,
- * plus ce qu'elle partage (`packages/shared/**`). Sans ce filtre, corriger la
- * documentation redéploierait tout le dépôt. Le fichier de spec est toujours
- * surveillé : le modifier, c'est modifier l'application.
+ * In a monorepo, each application watches its paths: its folder, plus what it
+ * shares (`packages/shared/**`). Without this filter, fixing the documentation
+ * would redeploy the whole repository. The spec file is always watched:
+ * modifying it is modifying the application.
  *
- * Trois formes de motif, les seules dont on a besoin :
- *   — `**` : tout le dépôt ;
- *   — `dossier/**`, ou `dossier` tout court : ce dossier et tout ce qu'il contient ;
- *   — un motif avec `*` (un segment) ou `**` (plusieurs) : `apps/*\/Dockerfile`.
+ * Three pattern shapes, the only ones we need:
+ *   — `**`: the whole repository;
+ *   — `folder/**`, or plain `folder`: that folder and everything it contains;
+ *   — a pattern with `*` (one segment) or `**` (several): `apps/*\/Dockerfile`.
  */
 
 function escapeRegExp(value: string): string {
@@ -20,7 +20,7 @@ function normalize(path: string): string {
   return path.trim().replace(/^\.?\/+/, '').replace(/\/+$/, '');
 }
 
-/** Un motif en expression régulière, ancrée aux deux bouts. */
+/** A pattern as a regular expression, anchored at both ends. */
 function patternToRegExp(pattern: string): RegExp {
   const source = normalize(pattern)
     .split('**')
@@ -37,7 +37,7 @@ export function matchesWatchPath(file: string, pattern: string): boolean {
   return patternToRegExp(motif).test(path);
 }
 
-/** Vrai dès qu'un fichier modifié tombe sous un chemin surveillé — ou est la spec. */
+/** True as soon as a modified file falls under a watched path — or is the spec. */
 export function touchesWatchPaths(
   files: readonly string[],
   watchPaths: readonly string[],
@@ -51,8 +51,8 @@ export function touchesWatchPaths(
 }
 
 /**
- * Les chemins surveillés par défaut : le dossier de la spec, ou tout le dépôt
- * quand la spec est à la racine.
+ * The paths watched by default: the spec's folder, or the whole repository when
+ * the spec is at the root.
  */
 export function defaultWatchPaths(specPath: string): string[] {
   const spec = normalize(specPath);

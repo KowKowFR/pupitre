@@ -4,34 +4,35 @@ import { invalid } from '../validation.js';
 import { proxySay } from './messages.js';
 
 /**
- * Les reverse proxies — le vocabulaire, sans rien exécuter.
+ * Reverse proxies — the vocabulary, without executing anything.
  *
- * Ce module est importé par l'écran comme par le worker : il ne touche ni à SSH
- * ni au réseau. Ce qui parle à une machine vit sous `@pupitre/core/proxy`.
+ * This module is imported by the screen as by the worker: it touches neither
+ * SSH nor the network. What talks to a machine lives under `@pupitre/core/proxy`.
  *
- * ── Trois notions, et pas une de plus ───────────────────────────────────────
- *   la connexion   un proxy que le panel sait piloter : son genre, où il est,
- *                  comment le joindre. Rangée en base, une par machine pour un
- *                  proxy « sur la cible ».
- *   la route       un nom de domaine qui mène à une application sur une cible.
- *                  Rangée en base, unique par nom : deux applications ne
- *                  peuvent pas réclamer le même domaine, et c'est une
- *                  contrainte, pas un `if`.
- *   l'amont        ce par quoi le proxy joint l'application. C'est le driver
- *                  qui le dit — un port publié, un Service Kubernetes — parce
- *                  que lui seul sait comment il expose.
+ * ── Three notions, and not one more ─────────────────────────────────────────
+ *   the connection  a proxy the panel can drive: its kind, where it is, how to
+ *                   reach it. Stored in the database, one per machine for a
+ *                   proxy "on the target".
+ *   the route       a domain name that leads to an application on a target.
+ *                   Stored in the database, unique per name: two applications
+ *                   cannot claim the same domain, and it is a constraint, not
+ *                   an `if`.
+ *   the upstream    how the proxy reaches the application. It is the driver
+ *                   that says it — a published port, a Kubernetes Service —
+ *                   because only it knows how it exposes.
  */
 
-/** Les genres connus de la base. Chacun déclare sa configuration dans `catalog.ts`. */
+/** The kinds the database knows. Each one declares its configuration in `catalog.ts`. */
 export const PROXY_KINDS = ['traefik', 'bunkerweb', 'npm'] as const;
 export const proxyKindSchema = z.enum(PROXY_KINDS);
 export type ProxyKind = z.infer<typeof proxyKindSchema>;
 
 /**
- * `target` : le proxy tourne sur une machine que Pupitre pilote en SSH — celle
- * qu'il sert, ou une autre par une liaison (le proxy central).
- * `remote` : il est ailleurs, hors des cibles, et Pupitre ne le joint que par
- * son API — Nginx Proxy Manager. Il sert des machines par liaison, toujours.
+ * `target`: the proxy runs on a machine Pupitre drives over SSH — the one it
+ * serves, or another through a link (the central proxy).
+ * `remote`: it is elsewhere, outside the targets, and Pupitre only reaches it
+ * through its API — Nginx Proxy Manager. It serves machines through links,
+ * always.
  */
 export const PROXY_PLACEMENTS = ['target', 'remote'] as const;
 export const proxyPlacementSchema = z.enum(PROXY_PLACEMENTS);
@@ -43,14 +44,14 @@ export type ProxyStatus = (typeof PROXY_STATUSES)[number];
 export const ROUTE_STATUSES = ['pending', 'active', 'failed'] as const;
 export type RouteStatus = (typeof ROUTE_STATUSES)[number];
 
-// ─── les noms de domaine ─────────────────────────────────────────────────────
+// ─── domain names ────────────────────────────────────────────────────────────
 
 const LABEL = /^(?!-)[a-z0-9-]{1,63}(?<!-)$/;
 
 /**
- * Un nom d'hôte tel qu'un proxy le route : en minuscules, sans point final,
- * au moins deux libellés, pas d'adresse IP, pas de joker. Le joker viendra
- * avec les certificats DNS-01 ; une adresse IP n'a pas de certificat public.
+ * A host name as a proxy routes it: lowercase, without a trailing dot, at least
+ * two labels, no IP address, no wildcard. Wildcards will come with DNS-01
+ * certificates; an IP address has no public certificate.
  */
 export function normalizeHostname(value: string): string {
   return value.trim().toLowerCase().replace(/\.$/, '');
@@ -58,7 +59,7 @@ export function normalizeHostname(value: string): string {
 
 export type HostnameProblem = 'empty' | 'tooLong' | 'wildcard' | 'ip' | 'noDot' | 'invalid';
 
-/** Ce qui ne va pas dans un nom, en donnée ; `null` s'il est bon. */
+/** What is wrong with a name, as data; `null` if it is fine. */
 export function hostnameProblemOf(value: string): HostnameProblem | null {
   const host = normalizeHostname(value);
   if (host.length === 0) return 'empty';
@@ -86,30 +87,30 @@ export const hostnameSchema = z
   });
 
 /**
- * La protection d'un domaine par un proxy qui est aussi un pare-feu applicatif
- * (WAF). Sans objet pour un proxy qui n'en est pas un — il l'ignore.
- *   block   les attaques reconnues sont bloquées, les abus limités ;
- *   detect  tout est inspecté et journalisé, rien n'est bloqué — pour
- *           s'assurer qu'une application n'en souffre pas avant de bloquer ;
- *   off     le proxy relaie, sans inspecter.
+ * A domain's protection by a proxy that is also a web application firewall
+ * (WAF). Not applicable to a proxy that is not one — it ignores it.
+ *   block   recognized attacks are blocked, abuses limited;
+ *   detect  everything is inspected and logged, nothing is blocked — to make
+ *           sure an application does not suffer from it before blocking;
+ *   off     the proxy relays, without inspecting.
  */
 export const WAF_MODES = ['block', 'detect', 'off'] as const;
 export const wafModeSchema = z.enum(WAF_MODES);
 export type WafMode = z.infer<typeof wafModeSchema>;
 
-/** Ce qu'on demande pour un domaine : le reste se déduit du proxy. */
+/** What is asked for a domain: the rest is derived from the proxy. */
 export const routeInputSchema = z.object({
   hostname: hostnameSchema,
-  /** Servi en HTTPS, certificat obtenu par le proxy. */
+  /** Served over HTTPS, certificate obtained by the proxy. */
   tls: z.boolean().default(true),
-  /** HTTP renvoie vers HTTPS. Sans objet sans `tls`. */
+  /** HTTP redirects to HTTPS. Not applicable without `tls`. */
   redirectHttps: z.boolean().default(true),
-  /** La protection du domaine, pour un proxy qui est aussi un WAF. */
+  /** The domain's protection, for a proxy that is also a WAF. */
   waf: wafModeSchema.default('block'),
 });
 export type RouteInput = z.infer<typeof routeInputSchema>;
 
-/** Les domaines d'une application sur une cible : la liste entière, sans doublon. */
+/** An application's domains on a target: the whole list, without duplicates. */
 export const routeListSchema = z
   .array(routeInputSchema)
   .max(20)
@@ -126,16 +127,16 @@ export const routeListSchema = z
     }
   });
 
-// ─── le certificat servi ─────────────────────────────────────────────────────
+// ─── the served certificate ──────────────────────────────────────────────────
 
 /**
- * Ce que le proxy présente pour un domaine, lu depuis la machine du proxy.
- *   none     la route n'est pas en HTTPS ;
- *   pending  le proxy sert son certificat par défaut — l'émission n'a pas
- *            encore abouti (DNS pas encore propagé, port 80 fermé…) ;
- *   valid    un vrai certificat, pour ce nom, pas expiré ;
- *   invalid  un certificat, mais expiré ou pour un autre nom ;
- *   unknown  la lecture a échoué : ni outil, ni réponse.
+ * What the proxy presents for a domain, read from the proxy's machine.
+ *   none     the route is not HTTPS;
+ *   pending  the proxy serves its default certificate — issuance has not
+ *            succeeded yet (DNS not propagated yet, port 80 closed…);
+ *   valid    a real certificate, for this name, not expired;
+ *   invalid  a certificate, but expired or for another name;
+ *   unknown  the reading failed: no tool, no answer.
  */
 export const CERTIFICATE_STATUSES = ['none', 'pending', 'valid', 'invalid', 'unknown'] as const;
 export type CertificateStatus = (typeof CERTIFICATE_STATUSES)[number];
@@ -148,24 +149,24 @@ export const routeCertificateSchema = z.object({
 });
 export type RouteCertificate = z.infer<typeof routeCertificateSchema>;
 
-// ─── l'amont ─────────────────────────────────────────────────────────────────
+// ─── the upstream ────────────────────────────────────────────────────────────
 
 /**
- * Par où le proxy joint l'application. Fourni par le driver : c'est lui qui
- * sait si son runtime publie un port sur la machine ou un Service dans un
- * cluster. Le proxy dit lequel il sait atteindre ; le pipeline n'a pas à
- * savoir sur quel runtime il tourne.
+ * How the proxy reaches the application. Provided by the driver: it knows
+ * whether its runtime publishes a port on the machine or a Service in a
+ * cluster. The proxy says which one it can reach; the pipeline does not have to
+ * know which runtime it runs on.
  */
 export type ProxyUpstream =
   /**
-   * Un port publié sur une machine. Sans `host`, celle du proxy — il la joint
-   * à son adresse locale. Avec `host`, une **autre** machine, que le proxy
-   * joint par cette adresse : c'est le proxy central.
+   * A port published on a machine. Without `host`, the proxy's — it reaches it at
+   * its local address. With `host`, **another** machine, which the proxy reaches
+   * through this address: that is the central proxy.
    */
   | { kind: 'port'; port: number; host?: string }
   | { kind: 'kubernetes'; namespace: string; service: string; port: number };
 
-/** Une adresse privée (RFC 1918, ULA, boucle locale) : le trafic en clair y reste. */
+/** A private address (RFC 1918, ULA, loopback): clear-text traffic stays there. */
 export function isPrivateAddress(address: string): boolean {
   if (/^10\.|^192\.168\.|^127\.|^169\.254\./.test(address)) return true;
   const match = /^172\.(\d+)\./.exec(address);
@@ -178,21 +179,21 @@ export function isIPv4(address: string): boolean {
   return /^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/.test(address);
 }
 
-// ─── les certificats ─────────────────────────────────────────────────────────
+// ─── certificates ────────────────────────────────────────────────────────────
 
 /**
- * L'autorité de certification qu'un proxy installé par Pupitre interroge.
- * Tous ne les acceptent pas toutes : chaque option d'installation dit
- * lesquelles (`ProxyInstallOption.acmeServers`).
+ * The certificate authority a proxy installed by Pupitre queries. Not all of
+ * them accept every one: each installation option says which ones
+ * (`ProxyInstallOption.acmeServers`).
  */
 export const ACME_SERVERS = ['production', 'staging', 'zerossl', 'custom'] as const;
 export type AcmeServer = (typeof ACME_SERVERS)[number];
 export const acmeSettingsSchema = z.object({
   email: z.string().email().max(254),
   server: z.enum(ACME_SERVERS).default('production'),
-  /** Avec `custom` : un ACME interne (step-ca, Smallstep…), ou Pebble en test. */
+  /** With `custom`: an internal ACME (step-ca, Smallstep…), or Pebble in tests. */
   customUrl: z.string().url().max(500).nullable().default(null),
-  /** L'autorité qui signe l'URL ACME elle-même, quand elle n'est pas publique (PEM). */
+  /** The authority that signs the ACME URL itself, when it is not public (PEM). */
   caCertificate: z.string().max(20_000).nullable().default(null),
 });
 export type AcmeSettings = z.infer<typeof acmeSettingsSchema>;
@@ -205,59 +206,59 @@ export const ACME_DIRECTORIES: Record<Exclude<AcmeServer, 'custom'>, string> = {
 
 export function acmeDirectory(acme: AcmeSettings): string {
   if (acme.server === 'custom') {
-    if (!acme.customUrl) throw new Error('serveur ACME personnalisé sans URL');
+    if (!acme.customUrl) throw new Error('custom ACME server without a URL');
     return acme.customUrl;
   }
   return ACME_DIRECTORIES[acme.server];
 }
 
-// ─── ce qu'un proxy sait faire ───────────────────────────────────────────────
+// ─── what a proxy can do ─────────────────────────────────────────────────────
 
 /**
- * Ce qu'un proxy sait faire, pour que l'écran ne propose que cela et que l'API
- * refuse le reste. On demande au proxy ce qu'il sait faire, pas lequel il
- * est — même règle que pour le pare-feu des drivers.
+ * What a proxy can do, so that the screen only offers that and the API refuses
+ * the rest. We ask the proxy what it can do, not which one it is — the same rule
+ * as for the drivers' firewall.
  */
 export type ProxyCapabilities = {
-  /** Il obtient lui-même les certificats (ACME). */
+  /** It obtains certificates itself (ACME). */
   autoTls: boolean;
-  /** Il sait servir en HTTPS, même avec un certificat par défaut. */
+  /** It can serve HTTPS, even with a default certificate. */
   https: boolean;
-  /** Il sait renvoyer HTTP vers HTTPS. */
+  /** It can redirect HTTP to HTTPS. */
   redirectHttps: boolean;
-  /** Il est aussi un pare-feu applicatif : chaque domaine a sa protection (`WafMode`). */
+  /** It is also a web application firewall: each domain has its protection (`WafMode`). */
   waf: boolean;
   /**
-   * Comment il joint une autre machine — le proxy central : par toute adresse,
-   * par une IPv4 seulement, ou pas du tout.
+   * How it reaches another machine — the central proxy: through any address,
+   * through IPv4 only, or not at all.
    */
   remoteUpstream: 'any' | 'ipv4' | 'none';
 };
 
 /**
- * Ce qu'un genre de proxy déclare de lui-même, sans rien exécuter : lire sa
- * configuration, se décrire, dire ce qu'il sait faire. L'écran et l'API s'en
- * servent ; ajouter un proxy, c'est en écrire un (`catalog.ts`).
+ * What a kind of proxy declares about itself, without executing anything:
+ * reading its configuration, describing itself, saying what it can do. The
+ * screen and the API use it; adding a proxy means writing one (`catalog.ts`).
  */
 export type ProxyDescriptor<C = unknown> = {
-  /** Le nom du genre, pour l'écran : « Traefik », « BunkerWeb ». */
+  /** The kind's name, for the screen: "Traefik", "BunkerWeb". */
   label: string;
-  /** Où il tourne : sur une machine pilotée en SSH, ou ailleurs, joint par son API. */
+  /** Where it runs: on a machine driven over SSH, or elsewhere, reached through its API. */
   placement: ProxyPlacement;
   parseConfig(config: unknown): C;
   /**
-   * Pour un proxy `remote` : ses secrets (identifiants d'API), validés. Ils sont
-   * chiffrés en base et ne ressortent que vers le worker.
+   * For a `remote` proxy: its secrets (API credentials), validated. They are
+   * encrypted in the database and only come out toward the worker.
    */
   parseSecrets?(secrets: unknown): Record<string, string>;
   /**
-   * Pour un proxy `remote` : la machine où il reçoit les visiteurs — celle vers
-   * qui le DNS d'un domaine doit pointer.
+   * For a `remote` proxy: the machine where it receives visitors — the one a
+   * domain's DNS must point to.
    */
   entrypointHost?(config: C): string;
-  /** Une ligne pour l'écran : de quoi reconnaître la connexion. */
-  describe(config: C): string;
+  /** A line for the screen, in its language: enough to recognize the connection. */
+  describe(config: C, language: UiLanguage): string;
   capabilities(config: C): ProxyCapabilities;
-  /** L'autorité de certification réglée par Pupitre, pour la dire ; `null` sinon. */
+  /** The certificate authority set by Pupitre, to name it; `null` otherwise. */
   acme(config: C): Pick<AcmeSettings, 'email' | 'server'> | null;
 };

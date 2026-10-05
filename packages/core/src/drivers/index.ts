@@ -14,20 +14,19 @@ export * from './docker/driver.js';
 export * from './docker/render.js';
 export * from './docker/compose-model.js';
 
-// Les deux rendus exposent volontairement les mêmes noms (`renderFiles`,
-// `projectName`/`namespaceName`…) : ils répondent aux mêmes questions dans deux
-// langages. On les publie sous un espace de noms plutôt qu'à plat, pour qu'un
-// appelant ne puisse pas importer « le » renderer sans dire lequel.
+// Both renders deliberately expose the same names (`renderFiles`,
+// `projectName`/`namespaceName`…): they answer the same questions in two
+// languages. We publish them under a namespace rather than flat, so that a
+// caller cannot import "the" renderer without saying which.
 export { K3sDriver } from './k3s/driver.js';
 export * as k3sRender from './k3s/render.js';
 export * as k3sManifests from './k3s/manifest-model.js';
 
 /**
- * Fabrique de drivers.
+ * Driver factory.
  *
- * Ajouter un runtime = ajouter une classe et une entrée ici. Aucune autre
- * ligne du projet ne doit avoir à changer — c'est le critère de qualité posé
- * par CLAUDE.md.
+ * Adding a runtime = adding a class and an entry here. No other line of the
+ * project must have to change — it is the quality bar set by CLAUDE.md.
  */
 const registry: Record<RuntimeKind, () => DeploymentDriver> = {
   docker: () => new DockerComposeDriver(),

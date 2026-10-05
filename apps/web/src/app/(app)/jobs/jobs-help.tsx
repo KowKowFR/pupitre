@@ -25,30 +25,30 @@ import { useLanguage, useT } from '@/i18n/client';
 import { jobs as messages } from '@/i18n/messages/jobs';
 
 /**
- * Aide sur les tâches planifiées — contenu statique, aucune donnée serveur.
+ * Help on scheduled tasks — static content, no server data.
  *
- * Un tiroir du kit d'aide (`components/help-drawer.tsx`) ; tout ce qui parle
- * d'ordonnancement vit ici. Chaque phrase suit
- * `apps/worker/src/schedule/runners.ts` et `apps/worker/src/handlers/scheduled.ts`
- * — ce qui est décrit est ce que le code fait, pas ce qu'on aimerait qu'il fasse.
+ * A help kit drawer (`components/help-drawer.tsx`); everything that talks about
+ * scheduling lives here. Each sentence follows
+ * `apps/worker/src/schedule/runners.ts` and `apps/worker/src/handlers/scheduled.ts`
+ * — what is described is what the code does, not what one would like it to do.
  */
 
 type Props = {
   label?: string;
   className?: string;
-  /** Fuseau des paramètres d'instance : le pré-réglage d'une tâche neuve. */
+  /** The instance settings' time zone: a new task's preset. */
   defaultTimeZone: string;
 };
 
 type Translate = CoreTranslate<(typeof messages)['fr']>;
 
 /**
- * Ce que fait *réellement* chaque type, lu dans les runners du worker.
- * Le catalogue de `@pupitre/core/schedule` fournit le nom BullMQ, le libellé et
- * la garantie négative ; cette table ajoute le déroulé et le paramétrage.
+ * What each type *really* does, read from the worker's runners. The
+ * `@pupitre/core/schedule` catalog provides the BullMQ name, the label and the
+ * negative guarantee; this table adds the sequence and the parameters.
  *
- * Une fonction et non une constante : les phrases traversent des `<Code>`, donc
- * elles se composent de fragments traduits, et un fragment se lit au rendu.
+ * A function and not a constant: the sentences go through `<Code>`, so they are
+ * composed of translated fragments, and a fragment is read at render time.
  */
 function whatTheyDo(
   t: Translate,

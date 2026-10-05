@@ -12,31 +12,31 @@ import { formatDateTimeWith, type FormatSettings } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 /**
- * Le passé d'un serveur, sous ses relevés.
+ * A server's past, under its readings.
  *
- * ── Pourquoi un chiffre seul ne dit rien ────────────────────────────────────
- * « Disque : 89 % » ne se lit pas. 89 % après six mois à 88 %, c'est un serveur
- * bien dimensionné ; 89 % après une semaine à 11 %, c'est une fuite qui remplira
- * la partition avant vendredi. Le même chiffre, deux situations opposées. Trois
- * choses lèvent l'ambiguïté, et elles sont toutes les trois affichées :
+ * ── Why a figure alone says nothing ─────────────────────────────────────────
+ * "Disk: 89%" does not read. 89% after six months at 88% is a well-sized server;
+ * 89% after a week at 11% is a leak that will fill the partition before Friday.
+ * The same figure, two opposite situations. Three things lift the ambiguity, and
+ * all three are shown:
  *
- *   1. **la forme** — la frise, qui montre d'où ça vient ;
- *   2. **le pire relevé de la fenêtre** — la question qu'on se pose vraiment
- *      quand on arrive le lundi matin : « est-ce que ça a tapé le plafond
- *      pendant le week-end ? ». La dernière valeur ne peut pas y répondre ;
- *   3. **la tendance** — le sens et l'ampleur, en points de pourcentage.
+ *   1. **the shape** — the strip, which shows where it comes from;
+ *   2. **the window's worst reading** — the question one really asks when
+ *      arriving on Monday morning: "did it hit the ceiling over the weekend?".
+ *      The last value cannot answer it;
+ *   3. **the trend** — the direction and the extent, in percentage points.
  *
- * ── Pourquoi le seuil est *dessiné*, pas seulement écrit ────────────────────
- * Un trait en pointillé en travers de la frise transforme « 89 % contre un
- * seuil à 90 » en une image : les barres qui dépassent le trait sont le
- * problème, on les compte d'un coup d'œil. Les barres sont neutres, seul un
- * dépassement prend la couleur du danger — et il reste lisible en niveaux de
- * gris, par la position de la barre sur le trait et par le chiffre écrit à côté.
+ * ── Why the threshold is *drawn*, not only written ──────────────────────────
+ * A dashed line across the strip turns "89% against a threshold at 90" into an
+ * image: the bars that go past the line are the problem, they are counted at a
+ * glance. The bars are neutral, only a breach takes the danger color — and it
+ * stays readable in grayscale, through the bar's position on the line and the
+ * figure written beside it.
  *
- * ── Pourquoi l'historique s'affiche même machine éteinte ────────────────────
- * Il vient de la base, pas de la machine. C'est écrit dans la route
- * `metrics/history` : au moment précis où le relevé instantané n'a rien à dire,
- * la courbe des dernières 24 h est ce qu'on est venu chercher.
+ * ── Why the history shows even with the machine off ─────────────────────────
+ * It comes from the database, not from the machine. It is written in the
+ * `metrics/history` route: at the precise moment the instant reading has nothing
+ * to say, the curve of the last 24 h is what one came looking for.
  */
 
 export type HistoryMetric = 'disk' | 'memory' | 'load';
@@ -90,7 +90,7 @@ const METRIC_KEY: Record<HistoryMetric, keyof typeof servers.fr> = {
   load: 'metric.load',
 };
 
-/** Le nom d'une métrique inconnue du catalogue reste brut : c'est un identifiant. */
+/** The name of a metric unknown to the catalog stays raw: it is an identifier. */
 function metricLabel(metric: string, t: T): string {
   const key = METRIC_KEY[metric as HistoryMetric] as keyof typeof servers.fr | undefined;
   return key === undefined ? metric : t(key);
@@ -105,18 +105,18 @@ const METRIC_FIELD: Record<HistoryMetric, keyof HistoryPointView> = {
 const METRICS: readonly HistoryMetric[] = ['disk', 'memory', 'load'];
 
 /**
- * La teinte d'une valeur, **rapportée à son seuil**.
+ * A value's tint, **relative to its threshold**.
  *
- * Le seuil réglable est devenu le seul nombre de référence : la couleur rouge
- * de l'écran et la ligne d'audit qui réveille quelqu'un parlent maintenant du
- * même chiffre. Avant, l'écran rougissait à 90 % en dur pendant qu'une alerte
- * aurait pu être réglée ailleurs — deux vocabulaires pour une seule question.
+ * The adjustable threshold became the only reference number: the screen's red
+ * and the audit line that wakes someone up now speak of the same figure. Before,
+ * the screen turned red at a hard-coded 90% while an alert could have been set
+ * elsewhere — two vocabularies for a single question.
  */
 export function toneFor(value: number | null, limit: number, enabled: boolean): Tone {
   if (value === null) return 'idle';
   if (!enabled) return 'idle';
   if (value > limit) return 'danger';
-  // 85 % du seuil : assez tôt pour agir, assez tard pour ne pas crier au loup.
+  // 85% of the threshold: early enough to act, late enough not to cry wolf.
   if (value > limit * 0.85) return 'warn';
   return 'ok';
 }
@@ -126,7 +126,7 @@ function formatPercent(value: number | null, t: T): string {
   return t('percent', { value: value.toFixed(value < 10 ? 1 : 0) });
 }
 
-/** La charge se lit mieux « par cœur » qu'en pourcentage de capacité. */
+/** The load reads better "per core" than as a percentage of capacity. */
 function formatValue(metric: HistoryMetric, value: number | null, t: T): string {
   if (value === null) return '—';
   if (metric === 'load') return `${(value / 100).toFixed(2)}`;
@@ -134,12 +134,12 @@ function formatValue(metric: HistoryMetric, value: number | null, t: T): string 
 }
 
 /**
- * L'instant d'un intervalle, dans l'infobulle d'une barre.
+ * An interval's instant, in a bar's tooltip.
  *
- * Les composantes sont imposées par la place — `13/09 00:33` tient dans un
- * `title`, une date longue non. La locale, elle, vient des paramètres
- * d'instance et descend par props : ce composant est client, et
- * `13/09 00:33` sur un panel anglais se lit à l'envers un jour sur deux.
+ * The components are imposed by the room — `13/09 00:33` fits in a `title`, a
+ * long date does not. The locale, for its part, comes from the instance settings
+ * and comes down through props: this component is a client one, and `13/09
+ * 00:33` on an English panel reads backwards every other day.
  */
 function formatClock(iso: string, format: FormatSettings): string {
   return formatDateTimeWith(iso, format, {
@@ -160,25 +160,25 @@ function sinceLabel(iso: string, t: T): string {
 }
 
 /**
- * La tendance sur la fenêtre, en points de pourcentage : « stable », « +6 pt ».
+ * The trend over the window, in percentage points: "stable", "+6 pt".
  *
- * Sous un point, il n'y a pas de tendance : il y a du bruit. Annoncer
- * « +0,3 pt » ferait croire à un mouvement.
+ * Under one point, there is no trend: there is noise. Announcing "+0.3 pt" would
+ * suggest a movement.
  */
 export function trendText(trend: number | null, t: T): string {
   if (trend === null || Math.abs(trend) < 1) return t('trend.stable');
   return `${trend > 0 ? '+' : '−'}${t('trend.points', { value: Math.abs(trend).toFixed(0) })}`;
 }
 
-/** Hachures d'un intervalle sans mesure — le même motif que les autres frises. */
+/** Hatching for an interval without a measurement — the same pattern as the other strips. */
 const HATCH = 'repeating-linear-gradient(45deg, var(--surface-3) 0 3px, transparent 3px 6px)';
 
 /**
- * La frise d'une métrique : une barre par intervalle, le **pire relevé** de
- * l'intervalle, et le seuil en travers.
+ * A metric's strip: one bar per interval, the interval's **worst reading**, and
+ * the threshold across.
  *
- * Le pire et non la moyenne : on regarde une saturation. Une moyenne sur trente
- * minutes noie exactement le pic qu'on cherche.
+ * The worst and not the average: we look at a saturation. A thirty-minute
+ * average drowns exactly the peak we are looking for.
  */
 function Spark({
   metric,
@@ -201,8 +201,8 @@ function Spark({
   const measured = values.filter((value): value is number => value !== null);
   if (measured.length === 0) return <div className="flex-1" style={{ height }} />;
 
-  // L'échelle monte au-delà de 100 quand la charge dépasse la capacité, et
-  // laisse toujours le seuil visible dans le cadre.
+  // The scale rises above 100 when the load exceeds the capacity, and always keeps
+  // the threshold visible in the frame.
   const ceiling = Math.max(100, limit * 1.1, ...measured);
   const limitY = height - (limit / ceiling) * height;
 
@@ -220,8 +220,8 @@ function Spark({
         {points.map((point, index) => {
           const value = values[index] ?? null;
           if (value === null) {
-            // Aucun relevé exploitable dans cet intervalle : des hachures, pas
-            // une barre à zéro. Zéro voudrait dire « disque vide ».
+            // No usable reading in this interval: hatching, not a bar at zero. Zero would
+            // mean "empty disk".
             return (
               <i
                 key={point.at}
@@ -277,7 +277,7 @@ function MetricLine({
   const summary = data.summary[metric];
   const threshold = data.thresholds[metric];
   const tone = toneFor(summary.worst, threshold.limitPercent, threshold.enabled);
-  // La charge se lit « par cœur » ; sa tendance aussi, pas en points.
+  // The load reads "per core"; so does its trend, not in points.
   const trend =
     metric === 'load' && summary.trend !== null && Math.abs(summary.trend) >= 1
       ? `${summary.trend > 0 ? '+' : '−'}${(Math.abs(summary.trend) / 100).toFixed(2)}`
@@ -329,8 +329,8 @@ function MetricLine({
 }
 
 /**
- * Les dépassements en cours, sous la bande de relevés. Un encadré par
- * dépassement : la métrique, depuis quand, la valeur et le pire.
+ * The ongoing breaches, under the readings band. One box per breach: the metric,
+ * since when, the value and the worst.
  */
 export function OpenBreaches({ breaches }: { breaches: readonly BreachView[] }) {
   const t = useT(servers);
@@ -354,13 +354,13 @@ export function OpenBreaches({ breaches }: { breaches: readonly BreachView[] }) 
 }
 
 /**
- * L'historique se replie sous la bande de relevés : la bande répond à « comment
- * va-t-elle », la frise à « depuis quand ». Il s'ouvre de lui-même quand la
- * seconde question est celle qu'on se pose — machine injoignable, seuil franchi.
+ * The history folds under the readings band: the band answers "how is it
+ * doing", the strip "since when". It opens on its own when the second question
+ * is the one being asked — unreachable machine, threshold crossed.
  *
- * Un `<details>` natif et non un dépliant à `aria-expanded` : il ne coûte aucun
- * état, et le contrat de l'écran réserve `aria-expanded` à la liste des
- * applications d'un serveur.
+ * A native `<details>` and not an `aria-expanded` disclosure: it costs no state,
+ * and the screen's contract reserves `aria-expanded` for a server's list of
+ * applications.
  */
 export function HostHistory({
   targetId,
@@ -370,7 +370,7 @@ export function HostHistory({
 }: {
   targetId: string;
   initial: HostHistoryData;
-  /** Le formatage descend par props : la frise est cliente, la locale non. */
+  /** Formatting comes down through props: the strip is a client one, the locale is not. */
   format: FormatSettings;
   defaultOpen?: boolean;
 }) {
@@ -379,10 +379,10 @@ export function HostHistory({
   const [loading, setLoading] = useState(false);
 
   /**
-   * Le changement de fenêtre est la **seule** requête que cet écran déclenche
-   * pour l'historique : les 24 h sont rendues avec la page, côté serveur. Un
-   * `useEffect` qui irait chercher les 24 h au montage aurait fait deux allers
-   * pour la même donnée, et affiché un vide entre les deux.
+   * Changing window is the **only** request this screen triggers for the history:
+   * the 24 h are rendered with the page, on the server side. A `useEffect` fetching
+   * the 24 h on mount would have made two round trips for the same data, and shown
+   * a gap between the two.
    */
   const select = useCallback(
     async (hours: number) => {
