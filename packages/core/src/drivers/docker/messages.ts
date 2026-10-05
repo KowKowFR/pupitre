@@ -24,6 +24,8 @@ const fr = {
 
   'upload.release': 'projet {project}, release {release}',
 
+  'deploy.unhealthy':
+    'la nouvelle version a pris la place de l’ancienne sans devenir saine — {services}',
   'deploy.started': 'services démarrés',
   'deploy.startedAt': 'services démarrés — {url}',
 
@@ -87,6 +89,7 @@ const en: Translated<typeof fr> = {
 
   'upload.release': 'project {project}, release {release}',
 
+  'deploy.unhealthy': 'the new version replaced the old one without becoming healthy — {services}',
   'deploy.started': 'services started',
   'deploy.startedAt': 'services started — {url}',
 

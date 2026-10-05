@@ -10,6 +10,7 @@ import {
 } from '@pupitre/core';
 import {
   getDriver,
+  UnhealthyReleaseError,
   type DeployResult,
   type DriverContext,
   type RenderedArtifacts,
@@ -498,6 +499,8 @@ export async function runDeploymentPipeline(
 
   let failedStep: DeploymentStepKey | null = null;
   let failure: string | null = null;
+  /** La version en échec a pris la place de la précédente : on y revient. */
+  let unhealthyRelease = false;
   let finalStatus: PipelineOutcome['status'] = 'failed';
   let rolledBackTo: string | null = null;
 
@@ -525,7 +528,14 @@ export async function runDeploymentPipeline(
         stream.event({ type: 'step', key, status, detail: null });
         log.info({ step: key, status }, 'étape terminée');
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        let message = error instanceof Error ? error.message : String(error);
+        // Une version mise en place mais restée malsaine se lit comme un
+        // healthcheck en échec : même diagnostic, diffusé avant le rollback
+        // qui effacerait la scène, et joint à l'erreur de l'étape.
+        if (error instanceof UnhealthyReleaseError && error.diagnostics) {
+          for (const line of error.diagnostics.split('\n')) stream.line(key, line, 'stderr');
+          message = `${message}\n\n${error.diagnostics}`;
+        }
         await finishStep(deploymentId, key, 'failed', message);
         stream.line(key, message, 'stderr');
         stream.event({ type: 'step', key, status: 'failed', detail: message });
@@ -533,6 +543,7 @@ export async function runDeploymentPipeline(
 
         failedStep = key;
         failure = message;
+        unhealthyRelease = key === 'healthcheck' || error instanceof UnhealthyReleaseError;
         break;
       }
     }
@@ -540,15 +551,19 @@ export async function runDeploymentPipeline(
     /**
      * Rollback automatique.
      *
-     * Trois conditions, toutes des données : l'échec porte sur `healthcheck`,
-     * la politique du déploiement l'autorise, et il existe une version
-     * antérieure vers laquelle revenir. Aucune n'est un réglage global.
+     * Trois conditions, toutes des données : la nouvelle version a pris la
+     * place de la précédente sans devenir saine, la politique du déploiement
+     * l'autorise, et il existe une version antérieure vers laquelle revenir.
+     * Aucune n'est un réglage global.
      *
-     * Un échec ailleurs — un scan bloquant, un `deploy` qui n'a jamais démarré —
+     * « Sans devenir saine », c'est un `healthcheck` en échec — ou un `deploy`
+     * dont le driver dit qu'il a remplacé les services avant d'attendre leur
+     * santé (`UnhealthyReleaseError`) : Compose comme Kubernetes le font.
+     * Un échec ailleurs — un scan bloquant, un `deploy` qui n'a rien remplacé —
      * ne déclenche rien : il n'y a rien à défaire, la version précédente n'a
      * jamais cessé de tourner.
      */
-    if (failedStep === 'healthcheck' && deployment.autoRollback && ctx.previousDeployment) {
+    if (unhealthyRelease && deployment.autoRollback && ctx.previousDeployment) {
       const restored = ctx.previousDeployment;
       await startStep(deploymentId, 'rollback');
       stream.event({ type: 'step', key: 'rollback', status: 'running', detail: null });

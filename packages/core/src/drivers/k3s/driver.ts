@@ -19,6 +19,7 @@ import {
   type RenderedFile,
   type TargetContext,
   type BuilderPruneResult,
+  UnhealthyReleaseError,
 } from '../types.js';
 import { digestOf, parseImageReference } from '../../images/reference.js';
 import { checkableImages, type RunningImage } from '../../images/updates.js';
@@ -848,13 +849,29 @@ export class K3sDriver implements DeploymentDriver {
 
     for (const service of topologicalOrder(ctx.spec)) {
       onLog(`kubectl rollout status deployment/${service.name}`);
-      await this.stream(
-        ctx,
-        this.kube(ctx, `rollout status deployment/${service.name} --timeout=${ROLLOUT_TIMEOUT}`),
-        onLog,
-        'rollout',
-        APPLY_TIMEOUT_MS,
-      );
+      try {
+        await this.stream(
+          ctx,
+          this.kube(ctx, `rollout status deployment/${service.name} --timeout=${ROLLOUT_TIMEOUT}`),
+          onLog,
+          'rollout',
+          APPLY_TIMEOUT_MS,
+        );
+      } catch (error) {
+        // `apply` est passé : le cluster porte déjà la nouvelle version, et
+        // c'est elle qui ne devient pas prête. Les pods de l'ancienne tiennent
+        // encore la place — mais le Deployment ne décrit plus qu'elle, et le
+        // premier de ces pods qui tomberait renaîtrait dans la nouvelle.
+        // Revenir en arrière est la seule issue qui laisse un état connu.
+        if (!(error instanceof DriverError)) throw error;
+        throw new UnhealthyReleaseError(
+          this.say(ctx)('deploy.unhealthy', { service: service.name, detail: error.message }),
+          this.runtime,
+          'rollout',
+          await this.diagnose(ctx, await this.unreadyPods(ctx)),
+          error,
+        );
+      }
     }
 
     await this.refreshStaleImages(ctx, pulled, onLog);
@@ -1067,6 +1084,32 @@ export class K3sDriver implements DeploymentDriver {
     }
 
     return sections.length > 0 ? sections.join('\n\n') : null;
+  }
+
+  /**
+   * Les pods qui ne sont pas prêts — `Running` compris, quand une sonde de
+   * disponibilité les refuse : c'est le cas d'une version qui démarre mais ne
+   * répond pas comme il faut.
+   */
+  private async unreadyPods(ctx: DriverContext): Promise<string[]> {
+    const result = await exec(
+      ctx.sshSession,
+      this.kube(
+        ctx,
+        "get pods -o jsonpath='{range .items[*]}{.metadata.name} {.status.phase} " +
+          '{.status.containerStatuses[*].ready}{"\\n"}{end}\'',
+      ),
+      { timeout: SHORT_TIMEOUT_MS },
+    );
+
+    return result.stdout
+      .split('\n')
+      .map((line) => line.trim().split(/\s+/))
+      .filter(
+        (columns) =>
+          columns.length >= 2 && (columns[1] !== 'Running' || columns.slice(2).includes('false')),
+      )
+      .map((columns) => columns[0] as string);
   }
 
   private async notRunningPods(ctx: DriverContext): Promise<string[]> {

@@ -22,6 +22,7 @@ import {
   type RenderedArtifacts,
   type RenderedFile,
   type TargetContext,
+  UnhealthyReleaseError,
 } from '../types.js';
 import type { Readable, Writable } from 'node:stream';
 import { digestOf } from '../../images/reference.js';
@@ -512,13 +513,17 @@ export class DockerComposeDriver implements DeploymentDriver {
     );
 
     onLog('docker compose up -d --remove-orphans');
-    await this.stream(
-      ctx,
-      this.compose(ctx, 'up -d --remove-orphans --wait --wait-timeout 300'),
-      onLog,
-      'up',
-      UP_TIMEOUT_MS,
-    );
+    try {
+      await this.stream(
+        ctx,
+        this.compose(ctx, 'up -d --remove-orphans --wait --wait-timeout 300'),
+        onLog,
+        'up',
+        UP_TIMEOUT_MS,
+      );
+    } catch (error) {
+      throw await this.upFailure(ctx, error);
+    }
 
     // Marque la release courante : `rollback()` et `destroy()` s'en servent.
     await this.run(
@@ -541,6 +546,57 @@ export class DockerComposeDriver implements DeploymentDriver {
     onLog(url ? this.say(ctx)('deploy.startedAt', { url }) : this.say(ctx)('deploy.started'));
 
     return { ok: true, url, publishedPort, releasePath: release, images };
+  }
+
+  /**
+   * Ce que dit vraiment un `up --wait` en échec.
+   *
+   * Compose remplace les conteneurs **puis** attend leur santé : quand
+   * l'attente échoue, l'ancienne version ne tourne déjà plus. Un conteneur qui
+   * porte le répertoire de cette release — l'étiquette `working_dir` que
+   * Compose pose sur chacun — en est la preuve : l'échec est alors celui d'une
+   * version malsaine, et le pipeline revient à la précédente. Sans un tel
+   * conteneur, `up` s'est arrêté avant de rien remplacer : l'erreur reste la
+   * sienne.
+   */
+  private async upFailure(ctx: DriverContext, error: unknown): Promise<unknown> {
+    if (!(error instanceof DriverError)) return error;
+
+    const filters = [
+      `label=com.docker.compose.project=${this.project(ctx)}`,
+      `label=com.docker.compose.project.working_dir=${this.releasePath(ctx)}`,
+    ];
+    const placed = await exec(
+      ctx.sshSession,
+      `docker ps -aq ${filters.map((filter) => `--filter ${shellQuote(filter)}`).join(' ')}`,
+      { timeout: SHORT_TIMEOUT_MS },
+    );
+    if (placed.code !== 0 || placed.stdout.trim().length === 0) return error;
+
+    const ps = await exec(ctx.sshSession, this.compose(ctx, 'ps -a --format json'), {
+      timeout: SHORT_TIMEOUT_MS,
+    });
+    const failing = parseComposePs(ps.stdout)
+      .filter(
+        (service) =>
+          service.state !== 'running' ||
+          service.health === 'unhealthy' ||
+          service.health === 'starting',
+      )
+      .map(
+        (service) =>
+          `${service.name} (${service.state === 'running' ? service.health : service.state})`,
+      );
+
+    return new UnhealthyReleaseError(
+      this.say(ctx)('deploy.unhealthy', {
+        services: failing.length > 0 ? failing.join(', ') : error.message,
+      }),
+      this.runtime,
+      'up',
+      await this.diagnose(ctx),
+      error,
+    );
   }
 
   /** URL par laquelle l'application doit répondre. */

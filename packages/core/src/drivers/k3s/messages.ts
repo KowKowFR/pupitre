@@ -46,6 +46,8 @@ const fr = {
   'pull.failed': '   tirage impossible ({detail}) — l’image locale servira',
   'pull.stale': '« {service} » tourne sur une image antérieure — redémarrage sur {digest}…',
 
+  'deploy.unhealthy':
+    'la nouvelle version est appliquée mais « {service} » n’est pas devenu prêt — {detail}',
   'deploy.applied': 'déploiement appliqué',
   'deploy.appliedAt': 'déploiement appliqué — {url}',
 
@@ -143,6 +145,7 @@ const en: Translated<typeof fr> = {
   'pull.failed': '   pull failed ({detail}) — the local image will be used',
   'pull.stale': '“{service}” runs an older image — restarting on {digest}…',
 
+  'deploy.unhealthy': 'the new version is applied but “{service}” did not become ready — {detail}',
   'deploy.applied': 'deployment applied',
   'deploy.appliedAt': 'deployment applied — {url}',
 
