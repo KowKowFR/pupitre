@@ -737,10 +737,10 @@ every existing target. Ten minutes maximum per scanner. **The first scan on a
 new target downloads the vulnerability databases: count a few minutes, once.**
 
 **A scan never fills the target's disk.** The databases weigh gigabytes —
-Grype's about 3 GB, Trivy's 1.4 GB, plus 1.4 GB the first time it meets Java —
+Grype's about 3 GiB, Trivy's 1.4 GiB, plus 1.4 GiB the first time it meets Java —
 and they are downloaded next to the applications. Before scanning, the worker
 reads the free space (`df`) and the size of each cache (`du`), and keeps 15 % of
-the disk free, never less than 2 GB: past that line, a K3s node evicts its pods.
+the disk free, never less than 2 GiB: past that line, a K3s node evicts its pods.
 Each scanner declares what it may download (`Scanner.diskNeed`); when it does not
 fit, the caches of the scanners this scan does not use are removed first, and a
 scanner that still does not fit is not run — its run is recorded as failed, with

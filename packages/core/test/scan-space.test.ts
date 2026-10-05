@@ -16,7 +16,10 @@ const NEEDS = Object.fromEntries(
   SCANNER_KEYS.map((key) => [key, getScanner(key).diskNeed]),
 ) as Record<ScannerKey, ScannerDiskNeed>;
 
-const probe = (freeGib: number, cacheGib: Partial<Record<ScannerKey, number>> = {}): ScanSpaceProbe => ({
+const probe = (
+  freeGib: number,
+  cacheGib: Partial<Record<ScannerKey, number>> = {},
+): ScanSpaceProbe => ({
   totalBytes: 60 * GIB,
   freeBytes: freeGib * GIB,
   cacheBytes: Object.fromEntries(

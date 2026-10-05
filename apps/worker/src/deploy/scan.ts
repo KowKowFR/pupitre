@@ -135,18 +135,20 @@ export async function runSecurityScan(input: ScanStepInput): Promise<ScanStepRes
   // Installation first, in parallel across distinct tools: two runs of the same
   // scanner on two images would otherwise fight over the same file.
   await Promise.allSettled(
-    config.scanners.filter((key) => !skipped.has(key)).map(async (key) => {
-      const prefix = `[${key}]`;
-      try {
-        const version = await getScanner(key).ensureInstalled(ctx.sshSession, (line) =>
-          onLog(`${prefix} ${line}`),
-        );
-        logger.info({ scanner: key, version }, 'scanner available on the target');
-      } catch (error) {
-        // The failure is reproduced — and recorded — at `run` time.
-        onLog(say('scan.installFailed', { prefix, error: errorMessage(error) }));
-      }
-    }),
+    config.scanners
+      .filter((key) => !skipped.has(key))
+      .map(async (key) => {
+        const prefix = `[${key}]`;
+        try {
+          const version = await getScanner(key).ensureInstalled(ctx.sshSession, (line) =>
+            onLog(`${prefix} ${line}`),
+          );
+          logger.info({ scanner: key, version }, 'scanner available on the target');
+        } catch (error) {
+          // The failure is reproduced — and recorded — at `run` time.
+          onLog(say('scan.installFailed', { prefix, error: errorMessage(error) }));
+        }
+      }),
   );
 
   const tasks: ScanTask[] = [];
