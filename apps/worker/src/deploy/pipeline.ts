@@ -34,7 +34,9 @@ import {
 import type { Redis } from 'ioredis';
 import { env } from '../env.js';
 import { carriesSourceCode, prepareSourceArchive } from '../sources/archive.js';
+import { instanceLanguage } from '../language.js';
 import { logger } from '../logger.js';
+import { workerSay } from '../messages.js';
 import { secretResolverFor } from './context.js';
 import { DeployLogStream } from './log-stream.js';
 import { runSecurityScan } from './scan.js';
@@ -75,8 +77,12 @@ export async function runDeploymentPipeline(
   publisher: Redis,
   actor: { actorId: string | null; ip: string | null } = { actorId: null, ip: null },
 ): Promise<PipelineOutcome> {
+  // La langue de tout ce que ce déploiement écrira : son journal, ses erreurs.
+  const language = await instanceLanguage();
+  const say = workerSay(language);
+
   const record = await getDeploymentForRun(deploymentId);
-  if (!record) throw new Error(`Déploiement « ${deploymentId} » introuvable`);
+  if (!record) throw new Error(say('notFound.deployment', { id: deploymentId }));
 
   const { deployment } = record;
   const log = logger.child({ deploymentId, runtime: deployment.runtime });
@@ -92,17 +98,14 @@ export async function runDeploymentPipeline(
     steps.filter((step) => step.status === 'success').map((step) => step.key),
   );
   if (completed.size > 0) {
-    stream.line(
-      'preflight',
-      `Reprise : ${completed.size} étape(s) déjà réussie(s) ne seront pas rejouées.`,
-    );
+    stream.line('preflight', say('pipeline.resume', { count: completed.size }));
   }
 
   const spec = parseAppSpec(deployment.appSpec);
   const secret = await getTargetSecret(deployment.targetId);
-  if (!secret) throw new Error(`Cible « ${deployment.targetId} » introuvable`);
+  if (!secret) throw new Error(say('notFound.target', { id: deployment.targetId }));
 
-  const session = await connect(sshTargetOf(secret), { logger: log });
+  const session = await connect(sshTargetOf(secret), { logger: log, language });
 
   const previous = record.deployment.previousDeploymentId
     ? await getDeploymentForRun(record.deployment.previousDeploymentId)
@@ -125,9 +128,12 @@ export async function runDeploymentPipeline(
   const portRange = narrowed ?? targetRange;
   const portRangeWarning =
     narrowed === null
-      ? `⚠ la plage de la cible (${targetRange.min}-${targetRange.max}) et celle du worker ` +
-        `(${env.DRIVER_PORT_RANGE?.min}-${env.DRIVER_PORT_RANGE?.max}) ne se recouvrent pas — ` +
-        'la plage de la cible est retenue'
+      ? say('pipeline.portRangesDisjoint', {
+          targetMin: targetRange.min,
+          targetMax: targetRange.max,
+          workerMin: env.DRIVER_PORT_RANGE?.min ?? '?',
+          workerMax: env.DRIVER_PORT_RANGE?.max ?? '?',
+        })
       : null;
 
   const ctx: DriverContext = {
@@ -144,6 +150,7 @@ export async function runDeploymentPipeline(
       sequence: deployment.version,
     },
     sshSession: session,
+    language,
     appSlug: spec.name,
     applicationId: deployment.applicationId,
     ...(previous
@@ -200,7 +207,7 @@ export async function runDeploymentPipeline(
       for (const check of report.checks) {
         stream.line('preflight', `${check.ok ? '✓' : '✗'} ${check.label} — ${check.detail ?? ''}`);
       }
-      if (!report.ok) throw new Error("la cible ne peut pas accueillir ce déploiement");
+      if (!report.ok) throw new Error(say('pipeline.preflightRefused'));
 
       // Servie par le proxy d'une autre machine : la connexion de l'une à
       // l'autre est éprouvée avant de rien construire, sur la plage où le port
@@ -224,12 +231,12 @@ export async function runDeploymentPipeline(
 
       state.port = await driver.allocatePort(ctx, (line) => stream.line('allocate_port', line));
       if (state.port === null) {
-        stream.line('allocate_port', "le runtime n'expose pas par port — étape sans objet");
+        stream.line('allocate_port', say('pipeline.port.notByPort'));
         return 'skipped';
       }
       stream.line(
         'allocate_port',
-        `port ${state.port} réservé dans ${portRange.min}-${portRange.max}`,
+        say('pipeline.port.reserved', { port: state.port, min: portRange.min, max: portRange.max }),
       );
 
       // Ouverture du pare-feu. Le worker ne demande pas quel runtime il pilote :
@@ -238,7 +245,7 @@ export async function runDeploymentPipeline(
       if (driver.openFirewall) {
         await driver.openFirewall(ctx, state.port, (line) => stream.line('allocate_port', line));
       } else {
-        stream.line('allocate_port', 'ce runtime ne gère pas de pare-feu — rien à ouvrir');
+        stream.line('allocate_port', say('pipeline.firewall.none'));
       }
 
       return 'success';
@@ -250,17 +257,23 @@ export async function runDeploymentPipeline(
       // effectif vient alors du rendu, qui l'a relu.
       state.port ??= state.artifacts.publishedPort;
       for (const file of state.artifacts.files) {
-        stream.line('render', `${file.path} — ${file.content.length} octets`);
+        stream.line(
+          'render',
+          say('pipeline.render.file', { path: file.path, bytes: file.content.length }),
+        );
       }
       return 'success';
     },
 
     upload: async () => {
-      if (!state.artifacts) throw new Error('rien à déposer : le rendu a échoué');
+      if (!state.artifacts) throw new Error(say('pipeline.upload.nothing'));
       // Un run venu d'un dépôt lié apporte le code de son commit : l'archive
       // est téléchargée ici, passée au driver, puis effacée du worker.
-      const source = await prepareSourceArchive(deployment, spec, (line) =>
-        stream.line('upload', line),
+      const source = await prepareSourceArchive(
+        deployment,
+        spec,
+        (line) => stream.line('upload', line),
+        language,
       );
       try {
         await driver.upload(
@@ -277,7 +290,7 @@ export async function runDeploymentPipeline(
     build: async () => {
       const images = await driver.build(ctx, (line) => stream.line('build', line));
       if (images === null) {
-        stream.line('build', 'aucune image à construire — étape sans objet');
+        stream.line('build', say('pipeline.build.none'));
         return 'skipped';
       }
       state.images = images;
@@ -293,8 +306,8 @@ export async function runDeploymentPipeline(
         stream.line(
           'scan',
           config.disabledBy === 'settings'
-            ? "analyse de sécurité désactivée dans les paramètres de l'instance — étape sans objet"
-            : 'aucun scanner sélectionné — étape sans objet',
+            ? say('pipeline.scan.disabled')
+            : say('pipeline.scan.none'),
         );
         return 'skipped';
       }
@@ -338,10 +351,18 @@ export async function runDeploymentPipeline(
       const total = totalFindings(result.counts);
       stream.line(
         'scan',
-        `${result.runs.length} exécution(s), ${total} finding(s) — ` +
-          result.runs
-            .map((run) => `${scannerLabel(run.scanner)} : ${run.verdict}`)
+        say('pipeline.scan.summary', {
+          runs: result.runs.length,
+          findings: total,
+          verdicts: result.runs
+            .map((run) =>
+              say('pipeline.scan.verdict', {
+                scanner: scannerLabel(run.scanner),
+                verdict: run.verdict,
+              }),
+            )
             .join(' · '),
+        }),
       );
 
       if (result.blocked) {
@@ -350,8 +371,11 @@ export async function runDeploymentPipeline(
           .map((finding) => `${finding.cveId} (${finding.severity}, ${finding.package})`)
           .join(', ');
         throw new Error(
-          `${result.blocking.length} vulnérabilité(s) au niveau ${config.failOn} ou au-dessus — ` +
-            `déploiement bloqué : ${worst}${result.blocking.length > 5 ? '…' : ''}`,
+          say('pipeline.scan.blocked', {
+            count: result.blocking.length,
+            failOn: config.failOn,
+            worst: `${worst}${result.blocking.length > 5 ? '…' : ''}`,
+          }),
         );
       }
 
@@ -370,7 +394,7 @@ export async function runDeploymentPipeline(
     backup: async () => {
       const policy = await getBackupPolicy(deployment.applicationId);
       if (!policy.beforeDeploy) {
-        stream.line('backup', 'sauvegarde avant déploiement non demandée — étape sans objet');
+        stream.line('backup', say('pipeline.backup.notRequested'));
         return 'skipped';
       }
       const [live] = await listLiveDeployments({
@@ -378,7 +402,7 @@ export async function runDeploymentPipeline(
         targetId: deployment.targetId,
       });
       if (!live?.inService || live.inService.id === deployment.id) {
-        stream.line('backup', 'premier déploiement sur cette cible : rien à sauvegarder encore');
+        stream.line('backup', say('pipeline.backup.firstDeploy'));
         return 'skipped';
       }
       const result = await backupApplication({
@@ -391,12 +415,10 @@ export async function runDeploymentPipeline(
         onLog: (line) => stream.line('backup', line),
       });
       if (result.status === 'failed') {
-        throw new Error(
-          `sauvegarde préalable impossible — déploiement interrompu : ${result.error}`,
-        );
+        throw new Error(say('pipeline.backup.failed', { error: result.error }));
       }
       if (result.status === 'skipped') {
-        stream.line('backup', `${result.reason} — étape sans objet`);
+        stream.line('backup', say('pipeline.backup.skipped', { reason: result.reason }));
         return 'skipped';
       }
       return 'success';
@@ -415,9 +437,12 @@ export async function runDeploymentPipeline(
       stream.line(
         'healthcheck',
         health.healthy
-          ? `sain après ${health.attempts} tentative(s) — ${health.detail ?? ''}`
-          : `${OUTCOME_LABEL[health.outcome]} après ${health.attempts} tentative(s) — ` +
-            `${health.detail ?? 'sans détail'}`,
+          ? say('pipeline.health.ok', { count: health.attempts, detail: health.detail ?? '' })
+          : say('pipeline.health.failed', {
+              outcome: say(`outcome.${health.outcome}`),
+              count: health.attempts,
+              detail: health.detail ?? say('noDetail'),
+            }),
       );
       if (health.healthy) return 'success';
 
@@ -431,10 +456,11 @@ export async function runDeploymentPipeline(
         }
       }
 
-      const summary = `${OUTCOME_LABEL[health.outcome]} : ${health.detail ?? 'le service ne répond pas'}`;
-      throw new Error(
-        health.diagnostics ? `${summary}\n\n${health.diagnostics}` : summary,
-      );
+      const summary = say('pipeline.health.summary', {
+        outcome: say(`outcome.${health.outcome}`),
+        detail: health.detail ?? say('pipeline.health.noAnswer'),
+      });
+      throw new Error(health.diagnostics ? `${summary}\n\n${health.diagnostics}` : summary);
     },
 
     /**
@@ -444,7 +470,7 @@ export async function runDeploymentPipeline(
      * l'échec d'une autre.
      */
     rollback: async () => {
-      stream.line('rollback', 'le déploiement est sain — aucun retour arrière');
+      stream.line('rollback', say('pipeline.rollback.notNeeded'));
       return 'skipped';
     },
 
@@ -480,7 +506,12 @@ export async function runDeploymentPipeline(
       const key = definition.key;
 
       if (completed.has(key)) {
-        stream.event({ type: 'step', key, status: 'success', detail: 'déjà réussie' });
+        stream.event({
+          type: 'step',
+          key,
+          status: 'success',
+          detail: say('pipeline.step.alreadyDone'),
+        });
         continue;
       }
 
@@ -525,9 +556,12 @@ export async function runDeploymentPipeline(
       try {
         stream.line(
           'rollback',
-          `healthcheck en échec — retour automatique de la version ${spec.version} ` +
-            `(déploiement #${deployment.version}) à la version ${restored.version} ` +
-            `(déploiement #${restored.sequence})`,
+          say('pipeline.rollback.auto', {
+            from: spec.version,
+            fromSequence: deployment.version,
+            to: restored.version,
+            toSequence: restored.sequence,
+          }),
         );
 
         await driver.rollback(ctx, (line) => stream.line('rollback', line));
@@ -554,8 +588,12 @@ export async function runDeploymentPipeline(
         stream.line(
           'rollback',
           health.healthy
-            ? `version ${restored.version} saine après ${health.attempts} tentative(s) — ${health.detail ?? ''}`
-            : `la version restaurée ne répond pas : ${health.detail ?? 'sans détail'}`,
+            ? say('pipeline.rollback.healthy', {
+                version: restored.version,
+                count: health.attempts,
+                detail: health.detail ?? '',
+              })
+            : say('pipeline.rollback.restoredDown', { detail: health.detail ?? say('noDetail') }),
         );
         if (!health.healthy) {
           if (health.diagnostics) {
@@ -564,8 +602,10 @@ export async function runDeploymentPipeline(
             }
           }
           throw new Error(
-            `la version ${restored.version} a été restaurée mais ne répond pas : ` +
-              `${health.detail ?? 'sans détail'}`,
+            say('pipeline.rollback.restoredButDown', {
+              version: restored.version,
+              detail: health.detail ?? say('noDetail'),
+            }),
           );
         }
 
@@ -574,7 +614,7 @@ export async function runDeploymentPipeline(
           type: 'step',
           key: 'rollback',
           status: 'success',
-          detail: `version ${restored.version}`,
+          detail: say('version', { version: restored.version }),
         });
 
         finalStatus = 'rolled_back';
@@ -613,7 +653,10 @@ export async function runDeploymentPipeline(
         stream.line('rollback', message, 'stderr');
         stream.event({ type: 'step', key: 'rollback', status: 'failed', detail: message });
 
-        failure = `${failure ?? 'healthcheck en échec'} — le rollback automatique a échoué : ${message}`;
+        failure = say('pipeline.rollback.failed', {
+          failure: failure ?? say('pipeline.healthcheckFailed'),
+          error: message,
+        });
         log.error({ err: error }, 'rollback automatique en échec');
 
         await logAudit({
@@ -635,7 +678,12 @@ export async function runDeploymentPipeline(
     if (failedStep) {
       const skipped = await skipPendingSteps(deploymentId);
       for (const key of skipped) {
-        stream.event({ type: 'step', key, status: 'skipped', detail: 'étape non atteinte' });
+        stream.event({
+          type: 'step',
+          key,
+          status: 'skipped',
+          detail: say('pipeline.step.notReached'),
+        });
       }
     }
 
@@ -652,7 +700,10 @@ export async function runDeploymentPipeline(
       type: 'deployment',
       key: deploymentId,
       status: finalStatus,
-      detail: finalStatus === 'rolled_back' ? `version ${rolledBackTo}` : state.url,
+      detail:
+        finalStatus === 'rolled_back'
+          ? say('version', { version: rolledBackTo ?? '?' })
+          : state.url,
     });
 
     return {
@@ -717,7 +768,7 @@ async function releaseOrphanPort(input: {
       deployment.targetId,
     );
     if (live) {
-      stream.line('allocate_port', `port ${port} conservé : une version tourne encore sur la cible`);
+      stream.line('allocate_port', workerSay(ctx.language)('pipeline.port.kept', { port }));
       return;
     }
 
@@ -725,17 +776,10 @@ async function releaseOrphanPort(input: {
       await driver.closeFirewall(ctx, port, (line) => stream.line('allocate_port', line));
     }
     await ctx.portAllocator.release(key);
-    stream.line('allocate_port', `port ${port} libéré : le déploiement n'a rien laissé derrière lui`);
+    stream.line('allocate_port', workerSay(ctx.language)('pipeline.port.released', { port }));
     log.info({ port }, 'port libéré après échec');
   } catch (error) {
     // Le ménage ne doit jamais masquer la cause réelle de l'échec.
     log.error({ err: error }, 'libération du port impossible');
   }
 }
-
-/** Libellés des trois issues d'une sonde de santé. */
-const OUTCOME_LABEL: Record<'healthy' | 'unhealthy' | 'unreachable', string> = {
-  healthy: 'sain',
-  unhealthy: 'répond mais en erreur',
-  unreachable: 'injoignable',
-};

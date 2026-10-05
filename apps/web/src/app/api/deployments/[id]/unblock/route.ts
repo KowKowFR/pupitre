@@ -1,7 +1,9 @@
+import { renderMessage } from '@pupitre/core';
 import { abandonDeployment, getDeploymentSummary, logAudit } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { deployments as messages } from '@/i18n/messages/deployments';
+import { currentLanguage } from '@/i18n/server';
 import { ConflictError, HttpError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute } from '@/lib/http';
 import { logger } from '@/lib/logger';
@@ -59,12 +61,12 @@ export const POST = apiRoute<Context>(async (request, context) => {
     });
   }
 
+  // Le verdict est écrit une fois dans l'erreur du déploiement et y reste,
+  // comme le journal du déploiement : dans la langue de l'instance ce jour-là.
+  const language = await currentLanguage();
   const report = await abandonDeployment(id, {
-    // i18n-ignore — cette cause est écrite une fois dans l'erreur du
-    // déploiement et y reste : c'est la trace d'un événement passé, de la même
-    // classe qu'une ligne de log du worker. La traduire à l'écriture figerait
-    // la langue de l'instance au moment du déblocage.
-    cause: 'file interrogée à la demande depuis le panel',
+    cause: renderMessage(messages, language, 'unblock.cause'),
+    language,
   });
   if (!report) {
     throw new ConflictError(msg(messages, 'error.settledWhileUnblocking'));

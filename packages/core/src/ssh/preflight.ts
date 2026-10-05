@@ -19,6 +19,8 @@ import { SshAuthError } from './errors.js';
 import type { SshLogger, SshTarget } from './types.js';
 import type { SshSession } from './client.js';
 import { firstLine } from '../shell.js';
+import type { UiLanguage } from '../i18n.js';
+import { sshSay } from './messages.js';
 
 /**
  * Preflight d'une machine cible.
@@ -230,28 +232,32 @@ function deriveStatus(runtimes: RuntimesAvailable, checks: PreflightCheck[]): Ta
 
 export async function runPreflight(
   target: SshTarget,
+  language: UiLanguage,
   logger?: SshLogger,
 ): Promise<PreflightReport> {
+  const say = sshSay(language);
   const checks: PreflightCheck[] = [];
   const checkedAt = new Date().toISOString();
 
   let session: SshSession;
   const connectStartedAt = Date.now();
   try {
-    session = await connect(target, logger ? { logger } : {});
+    session = await connect(target, { language, ...(logger ? { logger } : {}) });
     checks.push({
       key: 'ssh',
-      label: 'Connexion SSH',
+      label: say('check.ssh'),
       status: 'success',
       durationMs: Date.now() - connectStartedAt,
-      detail: `${session.latencyMs} ms${session.hostKey ? ` · clé ${session.hostKey}` : ''}`,
+      detail: session.hostKey
+        ? say('check.ssh.key', { latency: session.latencyMs, key: session.hostKey })
+        : say('check.ssh.detail', { latency: session.latencyMs }),
       error: null,
     });
   } catch (error) {
     // Seul échec fatal : sans session, aucun autre contrôle n'a de sens.
     const message =
       error instanceof SshAuthError
-        ? "Authentification refusée (clé, mot de passe ou passphrase invalide)"
+        ? say('auth.refused.short')
         : error instanceof Error
           ? error.message
           : String(error);
@@ -271,7 +277,7 @@ export async function runPreflight(
       checks: [
         {
           key: 'ssh',
-          label: 'Connexion SSH',
+          label: say('check.ssh'),
           status: 'failed',
           durationMs: Date.now() - connectStartedAt,
           detail: null,
@@ -286,7 +292,7 @@ export async function runPreflight(
     const os = await runCheck<OsInfo>(
       checks,
       'os',
-      "Système d'exploitation",
+      say('check.os'),
       async () => {
         const [uname, release] = await Promise.all([
           exec(session, 'uname -a', { timeout: CHECK_TIMEOUT_MS }),
@@ -304,7 +310,7 @@ export async function runPreflight(
     const sudo = await runCheck<SudoInfo>(
       checks,
       'sudo',
-      'Élévation de privilèges',
+      say('check.sudo'),
       async () => {
         const nopasswd = await exec(session, 'sudo -n true', { timeout: CHECK_TIMEOUT_MS });
         const available = await exec(session, 'command -v sudo >/dev/null 2>&1', {
@@ -314,10 +320,10 @@ export async function runPreflight(
         return {
           value: info,
           detail: info.nopasswd
-            ? 'sudo sans mot de passe'
+            ? say('check.sudo.nopasswd')
             : info.available
-              ? 'sudo présent, mot de passe requis'
-              : 'sudo absent',
+              ? say('check.sudo.password')
+              : say('check.sudo.absent'),
         };
       },
       { available: false, nopasswd: false },
@@ -326,13 +332,16 @@ export async function runPreflight(
     const tools = await runCheck<Tools>(
       checks,
       'tools',
-      'Outils présents',
+      say('check.tools'),
       async () => {
         const found = await probeTools(session);
         const present = Object.entries(found)
           .filter(([, ok]) => ok)
           .map(([name]) => name);
-        return { value: found, detail: present.length > 0 ? present.join(', ') : 'aucun' };
+        return {
+          value: found,
+          detail: present.length > 0 ? present.join(', ') : say('check.tools.none'),
+        };
       },
       { ufw: false, curl: false, git: false, docker: false, kubectl: false },
     );
@@ -340,16 +349,16 @@ export async function runPreflight(
     const firewall = await runCheck<FirewallInfo>(
       checks,
       'firewall',
-      'Pare-feu',
+      say('check.firewall'),
       async () => {
         const value = await probeFirewall(session, tools.ufw);
         return {
           value,
           detail: !value.installed
-            ? 'ufw absent'
+            ? say('check.firewall.absent')
             : value.active
-              ? `ufw actif — ${value.managedRules.length} règle(s) du panel`
-              : 'ufw installé mais inactif',
+              ? say('check.firewall.active', { count: value.managedRules.length })
+              : say('check.firewall.inactive'),
         };
       },
       { installed: tools.ufw, active: false, managedRules: [] },
@@ -363,7 +372,7 @@ export async function runPreflight(
         if (!tools.docker) {
           return {
             value: { available: false, version: null, composeVersion: null },
-            detail: 'binaire absent',
+            detail: say('check.docker.noBinary'),
           };
         }
         const [info, compose] = await Promise.all([
@@ -378,7 +387,9 @@ export async function runPreflight(
           value: { available: version !== null, version, composeVersion },
           detail:
             version === null
-              ? `daemon injoignable : ${firstLine(info.stderr) ?? `code ${info.code}`}`
+              ? say('check.docker.daemon', {
+                  detail: firstLine(info.stderr) ?? `code ${info.code}`,
+                })
               : `Docker ${version}${composeVersion ? `, Compose ${composeVersion}` : ''}`,
         };
       },
@@ -399,7 +410,7 @@ export async function runPreflight(
               readyNodes: null,
               clusterReady: false,
             },
-            detail: 'kubectl absent',
+            detail: say('check.k3s.noKubectl'),
           };
         }
         const nodes = await exec(session, 'kubectl get nodes -o json 2>/dev/null', {
@@ -415,7 +426,7 @@ export async function runPreflight(
               readyNodes: null,
               clusterReady: false,
             },
-            detail: 'kubectl présent mais aucun cluster joignable',
+            detail: say('check.k3s.noCluster'),
           };
         }
         return {
@@ -426,7 +437,11 @@ export async function runPreflight(
             readyNodes: parsed.readyNodes,
             clusterReady: parsed.readyNodes > 0,
           },
-          detail: `${parsed.readyNodes}/${parsed.nodes} node(s) prêt(s)${parsed.version ? ` — ${parsed.version}` : ''}`,
+          detail: say('check.k3s.nodes', {
+            ready: parsed.readyNodes,
+            total: parsed.nodes,
+            version: parsed.version ? ` — ${parsed.version}` : '',
+          }),
         };
       },
       { available: false, version: null, nodes: null, readyNodes: null, clusterReady: false },
@@ -435,15 +450,18 @@ export async function runPreflight(
     const disk = await runCheck<DiskInfo | null>(
       checks,
       'disk',
-      'Espace disque',
+      say('check.disk'),
       async () => {
         const result = await exec(session, 'df -Pk /', { timeout: CHECK_TIMEOUT_MS });
         const parsed = parseDf(result.stdout);
         return {
           value: parsed,
           detail: parsed
-            ? `${Math.round(parsed.availableKb / 1024 / 1024)} Gio libres (${parsed.usePercent} % utilisés)`
-            : 'sortie de df illisible',
+            ? say('check.disk.free', {
+                gib: Math.round(parsed.availableKb / 1024 / 1024),
+                percent: parsed.usePercent,
+              })
+            : say('check.disk.unreadable'),
         };
       },
       null,
@@ -452,7 +470,7 @@ export async function runPreflight(
     const memory = await runCheck<MemoryInfo | null>(
       checks,
       'memory',
-      'Mémoire',
+      say('check.memory'),
       async () => {
         const result = await exec(session, 'free -m 2>/dev/null || true', {
           timeout: CHECK_TIMEOUT_MS,
@@ -460,7 +478,12 @@ export async function runPreflight(
         const parsed = parseFree(result.stdout);
         return {
           value: parsed,
-          detail: parsed ? `${parsed.availableMb} Mio disponibles sur ${parsed.totalMb}` : 'free indisponible',
+          detail: parsed
+            ? say('check.memory.available', {
+                available: parsed.availableMb,
+                total: parsed.totalMb,
+              })
+            : say('check.memory.unavailable'),
         };
       },
       null,

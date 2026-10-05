@@ -1,7 +1,9 @@
 import {
   DEPLOYMENT_STEPS,
+  deploymentStepLabel,
   scanConfigSchema,
   workspaceNameFor,
+  type UiLanguage,
   type AppSpec,
   type DeploymentStatus,
   type DeploymentStepKey,
@@ -29,6 +31,7 @@ import { deploymentSteps, deployments, portAllocations } from './schema/deployme
 import { applications, targets } from './schema/infra.js';
 import { scanRuns } from './schema/security.js';
 import { users } from './schema/auth.js';
+import { dbSay, type DbSay } from './messages.js';
 
 /**
  * Machine à états du déploiement.
@@ -1118,8 +1121,11 @@ export type ApplicationDeletionBlocker = PurgeRefusal & {
 
 export async function listApplicationDeletionBlockers(
   applicationId: string,
+  /** `language` : celle des messages, que l'écran montre tels quels. */
+  options: { language?: UiLanguage } = {},
   db: Database = getDb(),
 ): Promise<ApplicationDeletionBlocker[]> {
+  const say = dbSay(options.language ?? 'fr');
   const [rows, pinned] = await Promise.all([
     db
       .select({
@@ -1145,7 +1151,7 @@ export async function listApplicationDeletionBlockers(
 
   const blockers: ApplicationDeletionBlocker[] = [];
   for (const row of rows) {
-    const refusal = refuse(row, pinned);
+    const refusal = refuse(row, pinned, say);
     if (!refusal) continue;
     blockers.push({
       ...refusal,
@@ -1194,10 +1200,12 @@ function purgeWhere(filter: PurgeFilter) {
  */
 export async function purgeDeployments(
   filter: PurgeFilter,
-  options: { dryRun?: boolean } = {},
+  /** `language` : celle des refus, que l'écran montre tels quels. */
+  options: { dryRun?: boolean; language?: UiLanguage } = {},
   db: Database = getDb(),
 ): Promise<PurgeReport> {
   const dryRun = options.dryRun ?? false;
+  const say = dbSay(options.language ?? 'fr');
   const where = purgeWhere(filter);
 
   const [candidates, [totalRow], pinned] = await Promise.all([
@@ -1230,7 +1238,7 @@ export async function purgeDeployments(
   const refused: PurgeRefusal[] = [];
 
   for (const candidate of candidates) {
-    const refusal = refuse(candidate, pinned);
+    const refusal = refuse(candidate, pinned, say);
     if (refusal) refused.push(refusal);
     else purgeable.push(candidate);
   }
@@ -1279,14 +1287,19 @@ export async function purgeDeployments(
 function refuse(
   candidate: PurgeCandidate,
   pinned: ReadonlyMap<string, PinnedKind>,
+  say: DbSay,
 ): PurgeRefusal | null {
-  const identity = `${candidate.applicationSlug} v${candidate.version} sur ${candidate.targetName}`;
+  const identity = say('purge.identity', {
+    slug: candidate.applicationSlug,
+    version: candidate.version,
+    target: candidate.targetName,
+  });
 
   if (candidate.status === 'pending' || candidate.status === 'running') {
     return {
       ...refusalIdentity(candidate),
       reason: 'in_progress',
-      message: `${identity} est en cours d'exécution. Attendez qu'il se termine avant de le purger.`,
+      message: say('purge.inProgress', { identity }),
     };
   }
 
@@ -1295,9 +1308,7 @@ function refuse(
     return {
       ...refusalIdentity(candidate),
       reason: 'live',
-      message:
-        `${identity} est la version en service sur cette cible : la purger ferait ` +
-        `disparaître du panel une application qui tourne toujours. Détruisez-la d'abord.`,
+      message: say('purge.inService', { identity }),
     };
   }
 
@@ -1305,10 +1316,7 @@ function refuse(
     return {
       ...refusalIdentity(candidate),
       reason: 'live',
-      message:
-        `${identity} a échoué après avoir démarré les services : des conteneurs peuvent ` +
-        `tourner encore sur cette cible, et c'est la seule trace qui permette de les ` +
-        `retrouver. Détruisez-le d'abord.`,
+      message: say('purge.onlyHandle', { identity }),
     };
   }
 
@@ -1526,52 +1534,45 @@ function abandonMessage(
   row: UnfinishedDeployment,
   cause: string,
   observedAt: Date,
+  language: UiLanguage,
 ): string {
+  const say = dbSay(language);
   const workspace = workspaceNameFor(row.applicationSlug);
   const port = row.publishedPort ?? row.allocatedPort;
   const where = `${row.targetName} (${row.targetHost})`;
   const stamp = observedAt.toISOString();
 
   const opening = row.currentStep
-    ? `Le déploiement s'est arrêté à l'étape « ${row.currentStep.label} ».`
+    ? say('abandon.stoppedAt', {
+        step: deploymentStepLabel(row.currentStep.key, language, row.currentStep.label),
+      })
     : row.status === 'pending'
-      ? "Le déploiement n'avait encore commencé aucune étape."
-      : "Le déploiement s'est arrêté sans qu'aucune étape ne soit en cours.";
+      ? say('abandon.neverStarted')
+      : say('abandon.stoppedNoStep');
 
   // Trois situations, trois choses différentes à aller vérifier. La distinction
   // entre les deux dernières est celle du reste du produit — l'étape `deploy`
   // est la première qui touche réellement la machine.
   let remains: string;
   if (row.status === 'pending') {
-    remains =
-      `Aucune étape n'ayant commencé, rien ne devrait avoir été déposé ni démarré ` +
-      `sous « ${workspace} » sur ${where}. Le panel garde néanmoins la trace de ce ` +
-      `déploiement tant qu'il n'est pas détruit ou purgé : c'est sa seule poignée ` +
-      `si quelque chose avait malgré tout été fait.`;
+    remains = say('abandon.pending', { workspace, where });
   } else if (startedServices(row.currentStep?.key ?? null)) {
-    remains =
-      // Aucun mot de runtime ici (règle n° 1) : « services » vaut pour les
-      // conteneurs d'un projet Compose comme pour les pods d'un namespace.
-      `À vérifier sur ${where}, le panel ne peut pas le savoir d'ici : ` +
-      `« ${workspace} » peut porter des services démarrés, les fichiers déposés ` +
-      `peuvent être en place` +
-      (port !== null ? `, et le port ${port} reste réservé à cette application` : '') +
-      `. Détruisez ce déploiement pour que le panel remette la cible à plat, ou ` +
-      `allez constater sur la machine avant de purger.`;
+    // Aucun mot de runtime ici (règle n° 1) : « services » vaut pour les
+    // conteneurs d'un projet Compose comme pour les pods d'un namespace.
+    remains = say('abandon.started', {
+      where,
+      workspace,
+      port: port !== null ? say('abandon.started.port', { port }) : '',
+    });
   } else {
-    remains =
-      `L'arrêt est survenu avant le démarrage des services : rien ne devrait tourner ` +
-      `sous « ${workspace} » sur ${where}. Restent à vérifier les fichiers déposés sur ` +
-      `la cible` +
-      (port !== null ? ` et le port ${port}, encore réservé à cette application` : '') +
-      `. Détruisez ce déploiement pour que le panel les reprenne à son compte.`;
+    remains = say('abandon.beforeServices', {
+      workspace,
+      where,
+      port: port !== null ? say('abandon.beforeServices.port', { port }) : '',
+    });
   }
 
-  return (
-    `${opening} La tâche qui le portait n'existe plus dans aucun état exécutable ` +
-    `de la file « ops » — ${cause}, constaté le ${stamp}. Plus rien ne la reprendra : ` +
-    `le statut « en cours » était devenu faux, il est arrêté à « échoué ». ${remains}`
-  );
+  return say('abandon.message', { opening, cause, stamp, remains });
 }
 
 /**
@@ -1594,7 +1595,8 @@ function abandonMessage(
  */
 export async function abandonDeployment(
   id: string,
-  options: { cause: string; observedAt?: Date },
+  /** `language` : celle du verdict écrit dans l'erreur du déploiement. */
+  options: { cause: string; observedAt?: Date; language?: UiLanguage },
   db: Database = getDb(),
 ): Promise<AbandonReport | null> {
   const observedAt = options.observedAt ?? new Date();
@@ -1605,7 +1607,7 @@ export async function abandonDeployment(
   const row = (await listUnfinishedDeployments(db)).find((candidate) => candidate.id === id);
   if (!row) return null;
 
-  const error = abandonMessage(row, options.cause, observedAt);
+  const error = abandonMessage(row, options.cause, observedAt, options.language ?? 'fr');
   const failedStep = row.currentStep?.key ?? null;
 
   return db.transaction(async (tx) => {

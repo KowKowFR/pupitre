@@ -12,6 +12,8 @@ import { SshAuthError } from './errors.js';
 import type { SshLogger, SshTarget } from './types.js';
 import type { SshSession } from './client.js';
 import { shellQuote } from '../shell.js';
+import type { UiLanguage } from '../i18n.js';
+import { sshSay, type SshSay } from './messages.js';
 
 /**
  * Relevé des métriques d'une machine cible.
@@ -174,9 +176,6 @@ function parseOsRelease(content: string): Omit<HostOs, 'kernel'> {
 }
 
 /** Kibioctets → Gio, une décimale. Pour les seules lignes de détail. */
-function gib(kb: number): string {
-  return `${(kb / 1024 / 1024).toFixed(1)} Gio`;
-}
 
 /**
  * `df` sur la racine des déploiements — ou, si elle n'existe pas encore, sur
@@ -187,7 +186,11 @@ function gib(kb: number): string {
  * déploiements, elle, est parfaitement mesurable. Le chemin réellement mesuré
  * repart dans le relevé, donc rien n'est déguisé.
  */
-async function probeDisk(session: SshSession, rootPath: string): Promise<HostDisk | null> {
+async function probeDisk(
+  session: SshSession,
+  rootPath: string,
+  say: SshSay,
+): Promise<HostDisk | null> {
   const script =
     `p=${shellQuote(rootPath)}; ` +
     'while [ ! -d "$p" ] && [ "$p" != "/" ]; do p=$(dirname "$p"); done; ' +
@@ -197,7 +200,10 @@ async function probeDisk(session: SshSession, rootPath: string): Promise<HostDis
   const [measured, ...rest] = result.stdout.split('\n');
   if (result.code !== 0 || !measured) {
     throw new Error(
-      `df indisponible : ${result.stderr.trim().split('\n')[0] ?? `code ${result.code}`}`,
+      say('metrics.unavailable', {
+        tool: 'df',
+        detail: result.stderr.trim().split('\n')[0] ?? `code ${result.code}`,
+      }),
     );
   }
   return parseDf(rest.join('\n'), measured.trim());
@@ -206,6 +212,8 @@ async function probeDisk(session: SshSession, rootPath: string): Promise<HostDis
 export type HostMetricsOptions = {
   /** Racine des déploiements, pour choisir la partition à mesurer. */
   rootPath: string;
+  /** La langue des libellés et des erreurs du relevé : celle de l'instance. */
+  language: UiLanguage;
   logger?: SshLogger;
 };
 
@@ -222,7 +230,9 @@ export async function collectHostMetrics(
   options: HostMetricsOptions,
 ): Promise<HostMetrics> {
   const checkedAt = new Date().toISOString();
-  const { rootPath, logger } = options;
+  const { rootPath, logger, language } = options;
+  const say = sshSay(language);
+  const gib = (kb: number) => say('gib', { value: (kb / 1024 / 1024).toFixed(1) });
 
   let session: SshSession;
   const connectStartedAt = Date.now();
@@ -230,12 +240,13 @@ export async function collectHostMetrics(
     session = await connect(target, {
       retries: CONNECT_RETRIES,
       readyTimeout: CONNECT_TIMEOUT_MS,
+      language,
       ...(logger ? { logger } : {}),
     });
   } catch (error) {
     const message =
       error instanceof SshAuthError
-        ? 'Authentification refusée (clé, mot de passe ou passphrase invalide)'
+        ? say('auth.refused.short')
         : error instanceof Error
           ? error.message
           : String(error);
@@ -243,7 +254,7 @@ export async function collectHostMetrics(
     return unreachableHostMetrics(targetId, message, checkedAt, [
       {
         key: 'ssh',
-        label: 'Connexion SSH',
+        label: say('check.ssh'),
         status: 'failed',
         durationMs: Date.now() - connectStartedAt,
         detail: null,
@@ -254,61 +265,80 @@ export async function collectHostMetrics(
 
   try {
     const [loadAvg, cores, memory, disk, uptime, os] = await Promise.all([
-      probe('load', 'Charge moyenne', async () => {
+      probe('load', say('metrics.load'), async () => {
         const result = await exec(session, 'cat /proc/loadavg', { timeout: PROBE_TIMEOUT_MS });
-        if (result.code !== 0) throw new Error('/proc/loadavg illisible');
+        if (result.code !== 0)
+          throw new Error(say('metrics.unreadableFile', { file: '/proc/loadavg' }));
         const parsed = parseLoadAvg(result.stdout);
         return {
           value: parsed,
-          detail: parsed ? `${parsed.one} ${parsed.five} ${parsed.fifteen}` : 'sortie illisible',
+          detail: parsed ? `${parsed.one} ${parsed.five} ${parsed.fifteen}` : say('unreadable'),
         };
       }),
 
-      probe('cpu', 'Cœurs', async () => {
+      probe('cpu', say('metrics.cores'), async () => {
         const result = await exec(session, 'nproc', { timeout: PROBE_TIMEOUT_MS });
         if (result.code !== 0) {
           throw new Error(
-            `nproc indisponible : ${result.stderr.trim().split('\n')[0] ?? `code ${result.code}`}`,
+            say('metrics.unavailable', {
+              tool: 'nproc',
+              detail: result.stderr.trim().split('\n')[0] ?? `code ${result.code}`,
+            }),
           );
         }
         const parsed = Number.parseInt(result.stdout.trim(), 10);
         const value = Number.isNaN(parsed) || parsed <= 0 ? null : parsed;
-        return { value, detail: value === null ? 'sortie illisible' : `${value} cœur(s)` };
+        return {
+          value,
+          detail: value === null ? say('unreadable') : say('metrics.cores.count', { count: value }),
+        };
       }),
 
-      probe('memory', 'Mémoire', async () => {
+      probe('memory', say('check.memory'), async () => {
         const result = await exec(session, 'cat /proc/meminfo', { timeout: PROBE_TIMEOUT_MS });
-        if (result.code !== 0) throw new Error('/proc/meminfo illisible');
+        if (result.code !== 0)
+          throw new Error(say('metrics.unreadableFile', { file: '/proc/meminfo' }));
         const parsed = parseMemInfo(result.stdout);
         return {
           value: parsed,
           detail: parsed
-            ? `${gib(parsed.availableKb)} disponibles sur ${gib(parsed.totalKb)}`
-            : 'MemTotal ou MemAvailable absent',
+            ? say('metrics.memory.available', {
+                available: gib(parsed.availableKb),
+                total: gib(parsed.totalKb),
+              })
+            : say('metrics.memory.missing'),
         };
       }),
 
-      probe('disk', 'Espace disque', async () => {
-        const parsed = await probeDisk(session, rootPath);
+      probe('disk', say('check.disk'), async () => {
+        const parsed = await probeDisk(session, rootPath, say);
         return {
           value: parsed,
           detail: parsed
-            ? `${parsed.path} — ${gib(parsed.availableKb)} libres (${parsed.usePercent} % utilisés)`
-            : 'sortie de df illisible',
+            ? say('metrics.disk.free', {
+                path: parsed.path,
+                available: gib(parsed.availableKb),
+                percent: parsed.usePercent,
+              })
+            : say('check.disk.unreadable'),
         };
       }),
 
       probe('uptime', 'Uptime', async () => {
         const result = await exec(session, 'cat /proc/uptime', { timeout: PROBE_TIMEOUT_MS });
-        if (result.code !== 0) throw new Error('/proc/uptime illisible');
+        if (result.code !== 0)
+          throw new Error(say('metrics.unreadableFile', { file: '/proc/uptime' }));
         const parsed = parseUptime(result.stdout);
         return {
           value: parsed,
-          detail: parsed === null ? 'sortie illisible' : `${Math.floor(parsed / 86400)} jour(s)`,
+          detail:
+            parsed === null
+              ? say('unreadable')
+              : say('metrics.uptime.days', { count: Math.floor(parsed / 86400) }),
         };
       }),
 
-      probe<HostOs>('os', 'Système', async () => {
+      probe<HostOs>('os', say('metrics.os'), async () => {
         const [kernel, release] = await Promise.all([
           exec(session, 'uname -r', { timeout: PROBE_TIMEOUT_MS }),
           exec(session, 'cat /etc/os-release 2>/dev/null || true', { timeout: PROBE_TIMEOUT_MS }),
@@ -347,10 +377,10 @@ export async function collectHostMetrics(
       probes: [
         {
           key: 'ssh',
-          label: 'Connexion SSH',
+          label: say('check.ssh'),
           status: 'success',
           durationMs: Date.now() - connectStartedAt,
-          detail: `${session.latencyMs} ms`,
+          detail: say('check.ssh.detail', { latency: session.latencyMs }),
           error: null,
         },
         loadAvg.probe,

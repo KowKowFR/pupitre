@@ -72,6 +72,8 @@ import {
 } from './builder.js';
 import type { ImageStore } from '../../scan.js';
 import { firstLine, shellQuote } from '../../shell.js';
+import type { UiLanguage } from '../../i18n.js';
+import { k3sSay, type K3sSay } from './messages.js';
 
 /**
  * Driver K3s.
@@ -170,6 +172,11 @@ export class K3sDriver implements DeploymentDriver {
     return namespaceName(ctx.appSlug);
   }
 
+  /** Ce que le driver dit, dans la langue de l'instance. */
+  private say(ctx: TargetContext): K3sSay {
+    return k3sSay(ctx.language);
+  }
+
   /** Script shell précédé de la résolution du kubeconfig. */
   private script(lines: string[]): string {
     return [KUBECONFIG_SETUP, ...lines].join('\n');
@@ -187,6 +194,7 @@ export class K3sDriver implements DeploymentDriver {
   // ─── preflight ──────────────────────────────────────────────────────────────
 
   async preflight(ctx: DriverContext): Promise<PreflightResult> {
+    const say = this.say(ctx);
     const checks: PreflightResult['checks'] = [];
 
     const nodes = await exec(ctx.sshSession, this.kubectl('get nodes -o json'), {
@@ -196,14 +204,16 @@ export class K3sDriver implements DeploymentDriver {
     const runtimeVersion = cluster?.version ?? null;
     checks.push({
       key: 'cluster',
-      label: 'Cluster Kubernetes',
+      label: say('preflight.cluster'),
       ok: cluster !== null && cluster.readyNodes > 0,
       detail:
         cluster === null
-          ? (firstLine(nodes.stderr) ?? `kubectl injoignable (code ${nodes.code})`)
-          : `${cluster.readyNodes}/${cluster.nodes} node(s) prêt(s)${
-              cluster.version ? ` — ${cluster.version}` : ''
-            }`,
+          ? (firstLine(nodes.stderr) ?? say('preflight.cluster.unreachable', { code: nodes.code }))
+          : say('preflight.cluster.nodes', {
+              ready: cluster.readyNodes,
+              total: cluster.nodes,
+              version: cluster.version ? ` — ${cluster.version}` : '',
+            }),
     });
 
     // Les droits se vérifient avant de rendre quoi que ce soit : un `apply` qui
@@ -221,12 +231,12 @@ export class K3sDriver implements DeploymentDriver {
     // reverse proxy de la cible, et c'est sa connexion qui dit s'il est là.
     checks.push({
       key: 'ingress_controller',
-      label: "Contrôleur d'ingress",
+      label: say('preflight.ingress'),
       ok: true,
       detail:
         classes.length > 0
-          ? `IngressClass : ${classes.split(/\s+/).join(', ')}`
-          : 'aucune IngressClass — sans reverse proxy, l’application ne sera joignable que dans le cluster',
+          ? say('preflight.ingress.classes', { classes: classes.split(/\s+/).join(', ') })
+          : say('preflight.ingress.none'),
     });
 
     const disk = await exec(
@@ -237,18 +247,18 @@ export class K3sDriver implements DeploymentDriver {
     const availableDiskMi = parseAvailableMi(disk.stdout);
     checks.push({
       key: 'disk',
-      label: 'Espace disque',
+      label: say('preflight.disk'),
       ok: availableDiskMi !== null && availableDiskMi >= 1024,
       detail:
         availableDiskMi === null
-          ? 'sortie de df illisible'
-          : `${Math.round(availableDiskMi / 1024)} Gio disponibles`,
+          ? say('preflight.disk.unreadable')
+          : say('preflight.disk.available', { gib: Math.round(availableDiskMi / 1024) }),
     });
 
     const workdir = await this.ensureWorkdir(ctx);
     checks.push({
       key: 'workdir',
-      label: 'Répertoire de travail',
+      label: say('preflight.workdir'),
       ok: workdir.ok,
       detail: workdir.detail,
     });
@@ -265,15 +275,16 @@ export class K3sDriver implements DeploymentDriver {
 
   /** `kubectl auth can-i` — la seule réponse qui fasse autorité sur les droits. */
   private async checkRights(ctx: DriverContext): Promise<PreflightResult['checks']> {
+    const say = this.say(ctx);
     const verbs: Array<{ key: string; label: string; args: string }> = [
       {
         key: 'can_create_namespace',
-        label: 'Droit de créer un namespace',
+        label: say('preflight.canCreateNamespace'),
         args: 'auth can-i create namespaces',
       },
       {
         key: 'can_create_deployment',
-        label: 'Droit de créer un déploiement',
+        label: say('preflight.canCreateDeployment'),
         args: `auth can-i create deployments -n ${this.namespace(ctx)}`,
       },
     ];
@@ -288,7 +299,9 @@ export class K3sDriver implements DeploymentDriver {
         key: verb.key,
         label: verb.label,
         ok: allowed,
-        detail: allowed ? 'oui' : (firstLine(result.stdout) ?? firstLine(result.stderr) ?? 'non'),
+        detail: allowed
+          ? say('preflight.yes')
+          : (firstLine(result.stdout) ?? firstLine(result.stderr) ?? say('preflight.no')),
       });
     }
     return checks;
@@ -313,18 +326,19 @@ export class K3sDriver implements DeploymentDriver {
   private async checkBuildCapability(
     ctx: DriverContext,
   ): Promise<PreflightResult['checks'][number]> {
-    const label = "Construction d'images";
+    const say = this.say(ctx);
+    const label = say('preflight.build');
     const buildable = buildableServices(ctx.spec);
     if (buildable.length === 0) {
       return {
         key: 'image_build',
         label,
         ok: true,
-        detail: 'aucun service ne se construit depuis un Dockerfile',
+        detail: say('preflight.build.none'),
       };
     }
 
-    const names = buildable.map((service) => `« ${service.name} »`).join(', ');
+    const names = buildable.map((service) => say('quoted', { name: service.name })).join(', ');
 
     // Le namespace est créé pour de bon, pas en dry-run : un `--dry-run=server`
     // sur un Deployment dont le namespace n'existe pas répond « namespaces not
@@ -341,9 +355,11 @@ export class K3sDriver implements DeploymentDriver {
         key: 'image_build',
         label,
         ok: false,
-        detail:
-          `${names} à construire, et le namespace ${BUILDER_NAMESPACE} du constructeur ` +
-          `est refusé : ${firstLine(namespace.stderr) ?? `code ${namespace.code}`}`,
+        detail: say('preflight.build.namespaceRefused', {
+          names,
+          namespace: BUILDER_NAMESPACE,
+          detail: firstLine(namespace.stderr) ?? `code ${namespace.code}`,
+        }),
       };
     }
 
@@ -368,10 +384,16 @@ export class K3sDriver implements DeploymentDriver {
       ok: admission.code === 0,
       detail:
         admission.code === 0
-          ? `${names} — constructeur ${BUILDKIT_IMAGE} accepté dans ${BUILDER_NAMESPACE}`
-          : `${names} à construire, et le cluster refuse le constructeur ` +
-            `(${BUILDKIT_IMAGE}, pod privilégié) : ` +
-            `${firstLine(admission.stderr) ?? `code ${admission.code}`}`,
+          ? say('preflight.build.accepted', {
+              names,
+              image: BUILDKIT_IMAGE,
+              namespace: BUILDER_NAMESPACE,
+            })
+          : say('preflight.build.refused', {
+              names,
+              image: BUILDKIT_IMAGE,
+              detail: firstLine(admission.stderr) ?? `code ${admission.code}`,
+            }),
     };
   }
 
@@ -399,7 +421,7 @@ export class K3sDriver implements DeploymentDriver {
       .split('\n')
       .map((value) => value.trim());
     if (identity.code !== 0 || !uid || !gid) {
-      return { ok: false, detail: "impossible de résoudre l'identité du compte de déploiement" };
+      return { ok: false, detail: this.say(ctx)('workdir.identity') };
     }
 
     const elevated = await exec(
@@ -413,7 +435,7 @@ export class K3sDriver implements DeploymentDriver {
         detail:
           firstLine(elevated.stderr) ??
           firstLine(direct.stderr) ??
-          `${ctx.target.rootPath} n'est pas écrivable et sudo a échoué`,
+          this.say(ctx)('workdir.sudoFailed', { root: ctx.target.rootPath }),
       };
     }
 
@@ -421,8 +443,8 @@ export class K3sDriver implements DeploymentDriver {
       timeout: SHORT_TIMEOUT_MS,
     });
     return confirmed.code === 0
-      ? { ok: true, detail: `${appPath} (provisionné via sudo)` }
-      : { ok: false, detail: `${appPath} reste non écrivable après élévation` };
+      ? { ok: true, detail: this.say(ctx)('workdir.provisioned', { path: appPath }) }
+      : { ok: false, detail: this.say(ctx)('workdir.stillReadOnly', { path: appPath }) };
   }
 
   // ─── allocatePort ───────────────────────────────────────────────────────────
@@ -441,7 +463,7 @@ export class K3sDriver implements DeploymentDriver {
   async allocatePort(ctx: DriverContext, onLog?: LogSink): Promise<number | null> {
     if (!ctx.exposure?.byPort) return null;
     if (!ctx.portAllocator) {
-      throw new DriverError('allocatePort exige un `portAllocator`', this.runtime, 'allocate_port');
+      throw new DriverError(this.say(ctx)('port.allocatorMissing'), this.runtime, 'allocate_port');
     }
     const key = { targetId: ctx.target.id, applicationId: ctx.applicationId };
     const existing = await ctx.portAllocator.current(key);
@@ -452,13 +474,13 @@ export class K3sDriver implements DeploymentDriver {
     };
     if (range.min > range.max) {
       throw new DriverError(
-        `la plage de ports de la cible n'a rien en commun avec celle des NodePort (${NODE_PORT_MIN}-${NODE_PORT_MAX})`,
+        this.say(ctx)('port.nodePortRange', { min: NODE_PORT_MIN, max: NODE_PORT_MAX }),
         this.runtime,
         'allocate_port',
       );
     }
     const port = await ctx.portAllocator.allocate({ ...key, ...range });
-    onLog?.(`NodePort ${port} : le proxy distant joindra l'application par là`);
+    onLog?.(this.say(ctx)('port.nodePort', { port }));
     return port;
   }
 
@@ -493,6 +515,7 @@ export class K3sDriver implements DeploymentDriver {
       publishedPort,
       allowFrom: ctx.exposure?.allowFrom ?? null,
       imageTag: releaseName(ctx.deployment),
+      language: ctx.language,
     });
 
     return { projectName: this.namespace(ctx), files, publishedPort };
@@ -501,13 +524,14 @@ export class K3sDriver implements DeploymentDriver {
   // ─── upload ─────────────────────────────────────────────────────────────────
 
   async upload(ctx: DriverContext, artifacts: RenderedArtifacts, onLog: LogSink): Promise<void> {
+    const say = this.say(ctx);
     const release = this.releasePath(ctx);
-    onLog(`namespace ${artifacts.projectName}, release ${release}`);
+    onLog(say('upload.release', { namespace: artifacts.projectName, release }));
 
     const workdir = await this.ensureWorkdir(ctx);
     if (!workdir.ok) {
       throw new DriverError(
-        `Racine de déploiement inutilisable : ${workdir.detail ?? 'raison inconnue'}`,
+        say('upload.workdirUnusable', { detail: workdir.detail ?? say('upload.unknownReason') }),
         this.runtime,
         'upload',
       );
@@ -524,7 +548,14 @@ export class K3sDriver implements DeploymentDriver {
 
     // Le code d'un dépôt lié va dans `source/`, à part des manifestes.
     if (ctx.sourceArchive) {
-      await extractSourceArchive(ctx.sshSession, release, ctx.sourceArchive, onLog, this.runtime);
+      await extractSourceArchive(
+        ctx.sshSession,
+        release,
+        ctx.sourceArchive,
+        onLog,
+        this.runtime,
+        ctx.language,
+      );
     }
 
     const files: RenderedFile[] = [...(ctx.additionalFiles ?? []), ...artifacts.files];
@@ -556,7 +587,7 @@ export class K3sDriver implements DeploymentDriver {
       );
     }
     // Le contenu n'est jamais journalisé : le manifest Secret porte des valeurs.
-    onLog(`  déposé ${file.path} (${file.content.length} octets)`);
+    onLog(this.say(ctx)('upload.deposited', { path: file.path, bytes: file.content.length }));
   }
 
   /**
@@ -577,11 +608,17 @@ export class K3sDriver implements DeploymentDriver {
         timeout: SHORT_TIMEOUT_MS,
       });
       if (check.code !== 0) {
-        onLog(`✗ contexte de build absent pour « ${service.name} » : ${dockerfile}`);
+        const say = this.say(ctx);
+        onLog(say('build.contextMissing.log', { service: service.name, dockerfile }));
         throw new DriverError(
-          `Le service « ${service.name} » se construit depuis ${service.source.dockerfile}, ` +
-            `mais le fichier est absent de ${release}/${context}. ` +
-            'Le contexte de build doit être fourni via `additionalFiles`.',
+          say('build.contextMissing', {
+            service: service.name,
+            dockerfile: service.source.dockerfile,
+            dir: `${release}/${context}`,
+            hint: ctx.sourceInRelease
+              ? say('build.contextMissing.fromRepo')
+              : say('build.contextMissing.additionalFiles'),
+          }),
           this.runtime,
           'build_context',
         );
@@ -616,7 +653,7 @@ export class K3sDriver implements DeploymentDriver {
       const tag = this.imageTag(ctx, service.name);
       const context = `${release}/${buildContextPath(source.context, ctx.sourceInRelease)}`;
 
-      onLog(`→ envoi du contexte de « ${service.name} » au constructeur`);
+      onLog(this.say(ctx)('build.sendingContext', { service: service.name }));
       await this.stream(
         ctx,
         this.script([pushContextCommand(context)]),
@@ -676,7 +713,14 @@ export class K3sDriver implements DeploymentDriver {
    * (`pruneIdleBuilder`) qui le retire, après 24 heures sans build.
    */
   private async ensureBuilder(ctx: DriverContext, onLog: LogSink): Promise<void> {
-    onLog(`→ constructeur ${BUILDER_DEPLOYMENT} (${BUILDKIT_IMAGE}) dans ${BUILDER_NAMESPACE}`);
+    const say = this.say(ctx);
+    onLog(
+      say('builder.ensuring', {
+        name: BUILDER_DEPLOYMENT,
+        image: BUILDKIT_IMAGE,
+        namespace: BUILDER_NAMESPACE,
+      }),
+    );
     await this.stream(
       ctx,
       this.script([
@@ -696,10 +740,7 @@ export class K3sDriver implements DeploymentDriver {
       APPLY_TIMEOUT_MS,
     );
 
-    onLog(
-      `   il reste en place pour garder son cache, et sera retiré après ` +
-        `${BUILDER_IDLE_TTL_MS / 3_600_000} h sans build`,
-    );
+    onLog(say('builder.stays', { hours: BUILDER_IDLE_TTL_MS / 3_600_000 }));
   }
 
   /**
@@ -717,13 +758,14 @@ export class K3sDriver implements DeploymentDriver {
     onLog: LogSink,
     now: Date = new Date(),
   ): Promise<BuilderPruneResult> {
+    const say = this.say(ctx);
     const read = await exec(ctx.sshSession, this.script([builderStateCommand()]), {
       timeout: SHORT_TIMEOUT_MS,
       logOutput: false,
     });
     if (read.code !== 0) {
       throw new DriverError(
-        `Constructeur illisible : ${firstLine(read.stderr) ?? `code ${read.code}`}`,
+        say('builder.unreadable', { detail: firstLine(read.stderr) ?? `code ${read.code}` }),
         this.runtime,
         'builder.prune',
       );
@@ -743,19 +785,22 @@ export class K3sDriver implements DeploymentDriver {
     );
     if (removed.code === 0) {
       onLog(
-        `✓ constructeur ${BUILDER_DEPLOYMENT} retiré de ${BUILDER_NAMESPACE} — ` +
-          `dernier build le ${lastUsedAt}`,
+        say('builder.removed', {
+          name: BUILDER_DEPLOYMENT,
+          namespace: BUILDER_NAMESPACE,
+          date: lastUsedAt,
+        }),
       );
       return { outcome: 'removed', lastUsedAt };
     }
     // Un build l'a daté entre la lecture et la suppression : il sert, il reste.
     if (/Conflict/.test(removed.stderr)) {
-      onLog(`constructeur ${BUILDER_DEPLOYMENT} réclamé par un build à l'instant : il reste`);
+      onLog(say('builder.claimed', { name: BUILDER_DEPLOYMENT }));
       return { outcome: 'kept', lastUsedAt };
     }
     if (/NotFound|not found/.test(removed.stderr)) return { outcome: 'absent', lastUsedAt: null };
     throw new DriverError(
-      `Constructeur non retiré : ${firstLine(removed.stderr) ?? `code ${removed.code}`}`,
+      say('builder.notRemoved', { detail: firstLine(removed.stderr) ?? `code ${removed.code}` }),
       this.runtime,
       'builder.prune',
     );
@@ -828,7 +873,7 @@ export class K3sDriver implements DeploymentDriver {
     await this.removeBuiltImages(ctx, pruned, onLog);
 
     const url = this.buildUrl(ctx);
-    onLog(`déploiement appliqué${url ? ` — ${url}` : ''}`);
+    onLog(url ? this.say(ctx)('deploy.appliedAt', { url }) : this.say(ctx)('deploy.applied'));
 
     return {
       ok: true,
@@ -879,6 +924,7 @@ export class K3sDriver implements DeploymentDriver {
   // ─── healthcheck ────────────────────────────────────────────────────────────
 
   async healthcheck(ctx: DriverContext): Promise<HealthResult> {
+    const say = this.say(ctx);
     const service = entrypointService(ctx.spec);
     const { retries, intervalSec, timeoutSec } = service.healthcheck;
 
@@ -891,7 +937,7 @@ export class K3sDriver implements DeploymentDriver {
         outcome: 'unreachable',
         attempts: 0,
         statusCode: null,
-        detail: `aucun pod dans ${this.namespace(ctx)}`,
+        detail: say('health.noPod', { namespace: this.namespace(ctx) }),
       });
     }
     if (readiness.ready < readiness.total) {
@@ -901,9 +947,11 @@ export class K3sDriver implements DeploymentDriver {
           outcome: 'unreachable',
           attempts: 0,
           statusCode: null,
-          detail: `${readiness.ready}/${readiness.total} pod(s) prêt(s)${
-            readiness.pending.length > 0 ? ` — en attente : ${readiness.pending.join(', ')}` : ''
-          }`,
+          detail:
+            say('health.podsReady', { ready: readiness.ready, total: readiness.total }) +
+            (readiness.pending.length > 0
+              ? say('health.waiting', { pods: readiness.pending.join(', ') })
+              : ''),
         },
         readiness.pending,
       );
@@ -924,9 +972,12 @@ export class K3sDriver implements DeploymentDriver {
       lastOutcome = lastStatus === null ? 'unreachable' : 'unhealthy';
       lastDetail =
         lastStatus !== null
-          ? `HTTP ${lastStatus} sur ${probe.label}`
-          : `${probe.label} injoignable ` +
-            `(code ${result.code}${firstLine(result.stderr) ? ` : ${firstLine(result.stderr)}` : ''})`;
+          ? say('health.http', { status: lastStatus, url: probe.label })
+          : say('health.unreachable', {
+              label: probe.label,
+              code: result.code,
+              detail: firstLine(result.stderr) ? ` : ${firstLine(result.stderr)}` : '',
+            });
 
       if (lastStatus !== null && lastStatus >= 200 && lastStatus < 400) {
         return {
@@ -934,7 +985,10 @@ export class K3sDriver implements DeploymentDriver {
           outcome: 'healthy',
           attempts: attempt,
           statusCode: lastStatus,
-          detail: `${probe.label} — ${readiness.ready}/${readiness.total} pod(s) prêt(s)`,
+          detail: `${probe.label} — ${say('health.podsReady', {
+            ready: readiness.ready,
+            total: readiness.total,
+          })}`,
           diagnostics: null,
         };
       }
@@ -1008,7 +1062,7 @@ export class K3sDriver implements DeploymentDriver {
       const output = `${logs.stdout}\n${logs.stderr}`.trim();
       sections.push(
         `$ kubectl -n ${namespace} logs ${name} --tail ${DIAGNOSTIC_LINES}\n` +
-          (output.length > 0 ? output : '(aucune sortie)'),
+          (output.length > 0 ? output : this.say(ctx)('diagnose.noOutput')),
       );
     }
 
@@ -1091,6 +1145,7 @@ export class K3sDriver implements DeploymentDriver {
    * driver Docker, qui relance la release précédente.
    */
   async rollback(ctx: DriverContext, onLog: LogSink): Promise<void> {
+    const say = this.say(ctx);
     const services = topologicalOrder(ctx.spec);
     const failed: string[] = [];
 
@@ -1109,8 +1164,7 @@ export class K3sDriver implements DeploymentDriver {
       const previous = ctx.previousDeployment;
       if (!previous) {
         throw new DriverError(
-          `Aucune révision antérieure pour ${failed.join(', ')} et aucun ` +
-            '`previousDeployment` dans le contexte : rien vers quoi revenir.',
+          say('rollback.noRevision', { services: failed.join(', ') }),
           this.runtime,
           'rollback',
         );
@@ -1135,14 +1189,14 @@ export class K3sDriver implements DeploymentDriver {
       }
       if (!previousRelease) {
         throw new DriverError(
-          `La version précédente ${releaseName(previous)} n'est plus sur la cible (${this.appPath(ctx)})`,
+          say('rollback.releaseGone', { release: releaseName(previous), path: this.appPath(ctx) }),
           this.runtime,
           'rollback',
         );
       }
       const manifests = `${previousRelease}/${MANIFEST_DIR}`;
 
-      onLog(`→ réapplication des manifests de la release ${releaseName(previous)}`);
+      onLog(say('rollback.reapplying', { release: releaseName(previous) }));
       await this.stream(
         ctx,
         this.kubectl(`apply -f ${shellQuote(manifests)} -n ${this.namespace(ctx)}`),
@@ -1169,7 +1223,7 @@ export class K3sDriver implements DeploymentDriver {
       );
     }
 
-    onLog('✓ rollback confirmé');
+    onLog(say('rollback.confirmed'));
   }
 
   /**
@@ -1192,7 +1246,7 @@ export class K3sDriver implements DeploymentDriver {
       this.script([`k3s crictl rmi ${tags.map(shellQuote).join(' ')} >/dev/null 2>&1; true`]),
       { timeout: SHORT_TIMEOUT_MS, sudo: true },
     );
-    onLog(`images des releases effacées retirées : ${tags.length}`);
+    onLog(this.say(ctx)('images.removed', { count: tags.length }));
   }
 
   // ─── destroy ────────────────────────────────────────────────────────────────
@@ -1203,6 +1257,7 @@ export class K3sDriver implements DeploymentDriver {
   }
 
   async destroy(ctx: DriverContext, onLog: LogSink): Promise<void> {
+    const say = this.say(ctx);
     const namespace = this.namespace(ctx);
     const appPath = this.appPath(ctx);
 
@@ -1223,7 +1278,7 @@ export class K3sDriver implements DeploymentDriver {
     // Les images construites pour l'application, importées dans containerd :
     // le namespace parti, plus rien ne s'en sert, et elles s'accumuleraient sur
     // le nœud. Le socket de containerd n'est ouvert qu'à root, comme pour l'import.
-    onLog(`→ retrait des images ${namespace}/* de containerd`);
+    onLog(say('destroy.images', { namespace }));
     await exec(
       ctx.sshSession,
       this.script([
@@ -1233,7 +1288,7 @@ export class K3sDriver implements DeploymentDriver {
       { timeout: SHORT_TIMEOUT_MS, sudo: true },
     );
 
-    onLog(`→ suppression de ${appPath}`);
+    onLog(say('destroy.removing', { path: appPath }));
     await this.run(ctx, `rm -rf ${shellQuote(appPath)}`, onLog, 'destroy');
 
     // Un NodePort a pu être réservé pour un proxy distant : il part avec le namespace.
@@ -1241,11 +1296,11 @@ export class K3sDriver implements DeploymentDriver {
       const key = { targetId: ctx.target.id, applicationId: ctx.applicationId };
       if ((await ctx.portAllocator.current(key)) !== null) {
         await ctx.portAllocator.release(key);
-        onLog('→ NodePort libéré');
+        onLog(say('destroy.nodePortReleased'));
       }
     }
 
-    onLog('✓ déploiement détruit');
+    onLog(say('destroy.done'));
   }
 
   // ─── logs ───────────────────────────────────────────────────────────────────
@@ -1266,7 +1321,7 @@ export class K3sDriver implements DeploymentDriver {
 
     if (result.code !== 0) return { services: [], checkedAt };
 
-    return { services: parsePods(result.stdout), checkedAt };
+    return { services: parsePods(result.stdout, ctx.language), checkedAt };
   }
 
   /**
@@ -1295,7 +1350,7 @@ export class K3sDriver implements DeploymentDriver {
       );
     }
 
-    onLog('pods recréés');
+    onLog(this.say(ctx)('restart.done'));
   }
 
   /**
@@ -1321,6 +1376,7 @@ export class K3sDriver implements DeploymentDriver {
    * déjà vide (il sort en erreur sur « no matching resources found »).
    */
   async stop(ctx: DriverContext, onLog: LogSink): Promise<void> {
+    const say = this.say(ctx);
     const namespace = this.namespace(ctx);
     onLog(`kubectl scale --replicas=0 -n ${namespace}`);
 
@@ -1338,11 +1394,11 @@ export class K3sDriver implements DeploymentDriver {
         `for attempt in $(seq 1 ${DRAIN_ATTEMPTS}); do`,
         `  remaining=$(kubectl -n ${namespace} get pods -l '${MANAGED_SELECTOR}' ` +
           `--no-headers 2>/dev/null | wc -l | tr -d ' ')`,
-        '  if [ "$remaining" = "0" ]; then echo "pods retirés"; exit 0; fi',
-        '  echo "  $remaining pod(s) en cours de terminaison"',
+        `  if [ "$remaining" = "0" ]; then echo ${shellQuote(say('stop.drained'))}; exit 0; fi`,
+        `  printf '  %s %s\\n' "$remaining" ${shellQuote(say('stop.draining'))}`,
         `  sleep ${DRAIN_INTERVAL_SECONDS}`,
         'done',
-        'echo "des pods terminent encore après le délai imparti" >&2',
+        `echo ${shellQuote(say('stop.drainTimeout'))} >&2`,
         'exit 1',
       ]),
       onLog,
@@ -1350,7 +1406,7 @@ export class K3sDriver implements DeploymentDriver {
       APPLY_TIMEOUT_MS,
     );
 
-    onLog('répliques à zéro — PVC, Service et Ingress conservés');
+    onLog(say('stop.done'));
   }
 
   /**
@@ -1392,7 +1448,7 @@ export class K3sDriver implements DeploymentDriver {
       );
     }
 
-    onLog('pods prêts');
+    onLog(this.say(ctx)('start.done'));
   }
 
   async logs(ctx: DriverContext, onLine: LogSink): Promise<void> {
@@ -1433,13 +1489,15 @@ export class K3sDriver implements DeploymentDriver {
 
     if (result.code !== 0) {
       throw new DriverError(
-        `Inventaire impossible : ${firstLine(result.stderr) ?? `code ${result.code}`}`,
+        this.say(ctx)('workload.inventoryFailed', {
+          detail: firstLine(result.stderr) ?? `code ${result.code}`,
+        }),
         this.runtime,
         'workload.list',
       );
     }
 
-    return parseWorkloads(result.stdout);
+    return parseWorkloads(result.stdout, ctx.language);
   }
 
   /**
@@ -1453,7 +1511,11 @@ export class K3sDriver implements DeploymentDriver {
     const { workload, resource } = await this.findWorkload(ctx, ref, 'workload.remove');
 
     if (workload.managed) {
-      throw new DriverError(managedWorkloadRefusal(workload), this.runtime, 'workload.remove');
+      throw new DriverError(
+        managedWorkloadRefusal(workload, ctx.language),
+        this.runtime,
+        'workload.remove',
+      );
     }
 
     // Garde propre au runtime : le panel n'a rien à faire dans les namespaces
@@ -1461,8 +1523,10 @@ export class K3sDriver implements DeploymentDriver {
     // panel », et pourtant les effacer casserait la machine.
     if (SYSTEM_NAMESPACES.has(resource.namespace)) {
       throw new DriverError(
-        `« ${workload.name} » vit dans le namespace système « ${resource.namespace} » : ` +
-          'le panel ne supprime pas ce qui fait tourner le cluster.',
+        this.say(ctx)('workload.system.remove', {
+          name: workload.name,
+          namespace: resource.namespace,
+        }),
         this.runtime,
         'workload.remove',
       );
@@ -1479,7 +1543,7 @@ export class K3sDriver implements DeploymentDriver {
       'workload.remove',
       APPLY_TIMEOUT_MS,
     );
-    onLog('✓ charge supprimée — les PVC du namespace sont conservés');
+    onLog(this.say(ctx)('workload.removed'));
   }
 
   /**
@@ -1502,12 +1566,12 @@ export class K3sDriver implements DeploymentDriver {
    * Un pod sans contrôleur n'est pas mis à jour : rien ne le recréerait.
    */
   async updateWorkload(ctx: TargetContext, ref: WorkloadRef, onLog: LogSink): Promise<void> {
+    const say = this.say(ctx);
     const { workload, resource } = await this.findWorkload(ctx, ref, 'workload.update');
 
     if (workload.managed) {
       throw new DriverError(
-        `« ${workload.name} » est déployée par le panel : sa mise à jour est un ` +
-          'redéploiement, pas une recréation à la main. Passez par un nouveau déploiement.',
+        say('workload.update.managed', { name: workload.name }),
         this.runtime,
         'workload.update',
       );
@@ -1515,8 +1579,7 @@ export class K3sDriver implements DeploymentDriver {
 
     if (resource.kind === 'pod') {
       throw new DriverError(
-        `« ${workload.name} » est un pod sans contrôleur : personne ne le recréerait ` +
-          'après sa suppression. Le panel ne le met pas à jour.',
+        say('workload.update.pod', { name: workload.name }),
         this.runtime,
         'workload.update',
       );
@@ -1540,7 +1603,7 @@ export class K3sDriver implements DeploymentDriver {
       'workload.update',
       APPLY_TIMEOUT_MS,
     );
-    onLog('✓ pods recréés sur le manifeste courant');
+    onLog(say('workload.update.done'));
   }
 
   async runningImages(ctx: DriverContext): Promise<RunningImage[]> {
@@ -1559,16 +1622,20 @@ export class K3sDriver implements DeploymentDriver {
     step: string,
     streams: { stdout?: Writable; stdin?: Readable },
   ): Promise<void> {
+    const say = this.say(ctx);
     const result = await execPipe(ctx.sshSession, this.script([command]), streams);
-    if (result.timedOut)
-      throw new DriverError(`« ${step} » a dépassé son délai`, this.runtime, step);
+    if (result.timedOut) throw new DriverError(say('step.timeout', { step }), this.runtime, step);
     if (result.code !== 0) {
       const lines = result.stderr
         .split('\n')
         .map((line) => line.trim())
         .filter(Boolean);
       throw new DriverError(
-        `Échec de « ${step} » (code ${result.code}) : ${lines.at(-1) ?? 'sans détail'}`,
+        say('step.failed', {
+          step,
+          code: result.code,
+          detail: lines.at(-1) ?? say('step.noDetail'),
+        }),
         this.runtime,
         step,
       );
@@ -1733,8 +1800,9 @@ export class K3sDriver implements DeploymentDriver {
         onLog(`   ${image} → ${digest.slice(0, 19)}…`);
       } else {
         onLog(
-          `   tirage impossible (${firstLine(result.stderr) ?? `code ${result.code}`}) — ` +
-            "l'image locale servira",
+          this.say(ctx)('pull.failed', {
+            detail: firstLine(result.stderr) ?? `code ${result.code}`,
+          }),
         );
       }
     }
@@ -1756,9 +1824,7 @@ export class K3sDriver implements DeploymentDriver {
     for (const { service, digests } of running) {
       const latest = pulled.get(service);
       if (!latest || digests.length === 0 || digests.every((digest) => digest === latest)) continue;
-      onLog(
-        `« ${service} » tourne sur une image antérieure — redémarrage sur ${latest.slice(0, 19)}…`,
-      );
+      onLog(this.say(ctx)('pull.stale', { service, digest: latest.slice(0, 19) }));
       await this.stream(
         ctx,
         this.kube(ctx, `rollout restart deployment/${service}`),
@@ -1797,15 +1863,19 @@ export class K3sDriver implements DeploymentDriver {
     action: WorkloadControlAction,
     onLog: LogSink,
   ): Promise<void> {
+    const say = this.say(ctx);
     const step = `workload.${action}`;
     const { workload, resource } = await this.findWorkload(ctx, ref, step);
     if (workload.managed && action !== 'restart') {
-      throw new DriverError(managedWorkloadControlRefusal(workload), this.runtime, step);
+      throw new DriverError(
+        managedWorkloadControlRefusal(workload, ctx.language),
+        this.runtime,
+        step,
+      );
     }
     if (SYSTEM_NAMESPACES.has(resource.namespace)) {
       throw new DriverError(
-        `« ${workload.name} » vit dans le namespace système « ${resource.namespace} » : ` +
-          'le panel ne pilote pas ce qui fait tourner le cluster.',
+        say('workload.system.control', { name: workload.name, namespace: resource.namespace }),
         this.runtime,
         step,
       );
@@ -1816,7 +1886,7 @@ export class K3sDriver implements DeploymentDriver {
     if (action === 'restart') {
       if (resource.kind === 'pod') {
         throw new DriverError(
-          `« ${workload.name} » est un pod sans contrôleur : rien ne le recréerait.`,
+          say('workload.control.podRestart', { name: workload.name }),
           this.runtime,
           step,
         );
@@ -1836,15 +1906,15 @@ export class K3sDriver implements DeploymentDriver {
         step,
         APPLY_TIMEOUT_MS,
       );
-      onLog('✓ pods remplacés');
+      onLog(say('workload.control.replaced'));
       return;
     }
 
     if (resource.kind !== 'deployment' && resource.kind !== 'statefulset') {
       throw new DriverError(
         resource.kind === 'daemonset'
-          ? `« ${workload.name} » est un DaemonSet : il tourne sur chaque nœud et ne s'arrête pas sans être supprimé.`
-          : `« ${workload.name} » est un pod sans contrôleur : l'arrêter le supprimerait pour de bon.`,
+          ? say('workload.control.daemonset', { name: workload.name })
+          : say('workload.control.podStop', { name: workload.name }),
         this.runtime,
         step,
       );
@@ -1862,10 +1932,10 @@ export class K3sDriver implements DeploymentDriver {
 
     if (action === 'stop') {
       if (current === 0) {
-        onLog('déjà arrêtée — zéro réplique');
+        onLog(say('workload.control.alreadyStopped'));
         return;
       }
-      onLog(`→ kubectl ${ns} scale ${path} --replicas=0 (${current} avant)`);
+      onLog(say('workload.control.scalingDown', { ns, path, count: current }));
       await this.stream(
         ctx,
         this.kubectl(
@@ -1882,12 +1952,12 @@ export class K3sDriver implements DeploymentDriver {
         step,
         SHORT_TIMEOUT_MS,
       );
-      onLog('✓ arrêtée — ses volumes et son service restent en place');
+      onLog(say('workload.control.stopped'));
       return;
     }
 
     if (current > 0) {
-      onLog(`déjà en marche — ${current} réplique(s)`);
+      onLog(say('workload.control.alreadyRunning', { count: current }));
       return;
     }
     const replicas = Math.max(1, Number.parseInt(savedRaw, 10) || 1);
@@ -1914,7 +1984,7 @@ export class K3sDriver implements DeploymentDriver {
       step,
       APPLY_TIMEOUT_MS,
     );
-    onLog('✓ démarrée');
+    onLog(say('workload.control.started'));
   }
 
   /**
@@ -1943,7 +2013,7 @@ export class K3sDriver implements DeploymentDriver {
       const selector = labelSelector(read.stdout);
       if (!selector) {
         throw new DriverError(
-          `« ${resource.name} » n'a pas de sélecteur lisible : impossible de trouver ses pods.`,
+          this.say(ctx)('workload.logs.noSelector', { name: resource.name }),
           this.runtime,
           'workload.logs',
         );
@@ -1978,15 +2048,17 @@ export class K3sDriver implements DeploymentDriver {
     const { workload, resource } = await this.findWorkload(ctx, ref, 'workload.exec');
     if (SYSTEM_NAMESPACES.has(resource.namespace)) {
       throw new DriverError(
-        `« ${workload.name} » vit dans le namespace système « ${resource.namespace} » : ` +
-          'le panel n’y exécute rien.',
+        this.say(ctx)('workload.system.exec', {
+          name: workload.name,
+          namespace: resource.namespace,
+        }),
         this.runtime,
         'workload.exec',
       );
     }
     if (!workload.exec) {
       throw new DriverError(
-        `« ${workload.name} » n'a aucun pod prêt : une commande ne s'exécute que dans une charge en marche.`,
+        this.say(ctx)('workload.exec.noReadyPod', { name: workload.name }),
         this.runtime,
         'workload.exec',
       );
@@ -2007,9 +2079,10 @@ export class K3sDriver implements DeploymentDriver {
     ref: WorkloadRef,
     step: string,
   ): Promise<{ workload: Workload; resource: K3sResourceRef }> {
+    const say = this.say(ctx);
     const resource = parseResourceRef(ref.id);
     if (!resource) {
-      throw new DriverError(`Référence de charge illisible : « ${ref.id} »`, this.runtime, step);
+      throw new DriverError(say('workload.badRef', { id: ref.id }), this.runtime, step);
     }
 
     const result = await exec(
@@ -2020,16 +2093,18 @@ export class K3sDriver implements DeploymentDriver {
 
     if (result.code !== 0) {
       throw new DriverError(
-        `Aucune charge « ${ref.id} » sur cette cible : ` +
-          `${firstLine(result.stderr) ?? `code ${result.code}`}`,
+        say('workload.notFound', {
+          id: ref.id,
+          detail: firstLine(result.stderr) ?? `code ${result.code}`,
+        }),
         this.runtime,
         step,
       );
     }
 
-    const workload = parseSingleWorkload(result.stdout, resource);
+    const workload = parseSingleWorkload(result.stdout, resource, ctx.language);
     if (!workload) {
-      throw new DriverError(`Charge « ${ref.id} » illisible`, this.runtime, step);
+      throw new DriverError(say('workload.unreadable', { id: ref.id }), this.runtime, step);
     }
 
     return { workload, resource };
@@ -2047,7 +2122,11 @@ export class K3sDriver implements DeploymentDriver {
     if (result.code !== 0) {
       const detail = firstLine(result.stderr) ?? `code ${result.code}`;
       onLog(`✗ ${detail}`);
-      throw new DriverError(`Échec de « ${command} » : ${detail}`, this.runtime, step);
+      throw new DriverError(
+        this.say(ctx)('command.failed', { command, detail }),
+        this.runtime,
+        step,
+      );
     }
   }
 
@@ -2066,12 +2145,17 @@ export class K3sDriver implements DeploymentDriver {
       sudo,
     });
 
+    const say = this.say(ctx);
     if (result.timedOut) {
-      throw new DriverError(`« ${step} » a dépassé son délai`, this.runtime, step);
+      throw new DriverError(say('step.timeout', { step }), this.runtime, step);
     }
     if (failOnError && result.code !== 0) {
       throw new DriverError(
-        `Échec de « ${step} » (code ${result.code}) : ${firstLine(result.stderr) ?? 'sans détail'}`,
+        say('step.failed', {
+          step,
+          code: result.code,
+          detail: firstLine(result.stderr) ?? say('step.noDetail'),
+        }),
         this.runtime,
         step,
       );
@@ -2222,7 +2306,8 @@ function toServiceState(phase: string, ready: boolean): ServiceState {
   }
 }
 
-function parsePods(json: string): ServiceStatus[] {
+function parsePods(json: string, language: UiLanguage = 'fr'): ServiceStatus[] {
+  const say = k3sSay(language);
   let parsed: unknown;
   try {
     parsed = JSON.parse(json);
@@ -2243,11 +2328,11 @@ function parsePods(json: string): ServiceStatus[] {
       name:
         pod.metadata?.labels?.['app.kubernetes.io/name'] ??
         pod.metadata?.name ??
-        'inconnu',
+        say('name.unknown'),
       state: toServiceState(phase, ready),
       health: ready ? ('healthy' as const) : phase === 'Running' ? ('starting' as const) : ('none' as const),
       since: pod.status?.startTime
-        ? `${phase}${restarts > 0 ? ` · ${restarts} redémarrage(s)` : ''}`
+        ? `${phase}${restarts > 0 ? say('since.restarts', { count: restarts }) : ''}`
         : phase,
       image: containers[0]?.image ?? null,
       ports: [],
@@ -2373,7 +2458,7 @@ function managedApp(meta: KubeMeta | undefined): string | null {
 }
 
 /** Un contrôleur est « en marche » quand toutes ses répliques attendues le sont. */
-function controllerState(item: KubeItem): { state: ServiceState; since: string } {
+function controllerState(item: KubeItem, say: K3sSay): { state: ServiceState; since: string } {
   const status = item.status ?? {};
   const desired =
     item.kind === 'DaemonSet'
@@ -2381,22 +2466,22 @@ function controllerState(item: KubeItem): { state: ServiceState; since: string }
       : (item.spec?.replicas ?? status.replicas ?? 0);
   const ready = item.kind === 'DaemonSet' ? (status.numberReady ?? 0) : (status.readyReplicas ?? 0);
 
-  const since = `${ready}/${desired} prêt${desired > 1 ? 's' : ''}`;
+  const since = say('since.ready', { ready, count: desired });
 
   // Zéro réplique voulue n'est pas une panne : c'est une charge délibérément
   // mise à l'arrêt, l'équivalent d'un conteneur `exited`.
-  if (desired === 0) return { state: 'exited', since: 'mis à l’échelle zéro' };
+  if (desired === 0) return { state: 'exited', since: say('since.scaledToZero') };
   if (ready >= desired) return { state: 'running', since };
   if (ready === 0) return { state: 'created', since };
   return { state: 'restarting', since };
 }
 
-function toControllerWorkload(item: KubeItem, kind: string): Workload | null {
+function toControllerWorkload(item: KubeItem, kind: string, say: K3sSay): Workload | null {
   const meta = item.metadata;
   if (!meta?.name || !meta.namespace) return null;
 
   const containers = item.spec?.template?.spec?.containers ?? null;
-  const { state, since } = controllerState(item);
+  const { state, since } = controllerState(item, say);
   const ready = state === 'running';
   const managed = isManaged(meta);
   const system = SYSTEM_NAMESPACES.has(meta.namespace);
@@ -2437,7 +2522,7 @@ function controllerControls(
   return state === 'exited' ? ['start'] : ['stop', 'restart'];
 }
 
-function toPodWorkload(item: KubeItem): Workload | null {
+function toPodWorkload(item: KubeItem, say: K3sSay): Workload | null {
   const meta = item.metadata;
   if (!meta?.name || !meta.namespace) return null;
 
@@ -2456,7 +2541,7 @@ function toPodWorkload(item: KubeItem): Workload | null {
     state: toServiceState(phase, ready),
     health: ready ? 'healthy' : phase === 'Running' ? 'starting' : 'none',
     createdAt: meta.creationTimestamp ?? null,
-    since: `${phase}${restarts > 0 ? ` · ${restarts} redémarrage(s)` : ''}`,
+    since: `${phase}${restarts > 0 ? say('since.restarts', { count: restarts }) : ''}`,
     ports: hostPorts(item.spec?.containers ?? null),
     managed: isManaged(meta),
     managedApp: managedApp(meta),
@@ -2471,13 +2556,14 @@ function toPodWorkload(item: KubeItem): Workload | null {
  * `kubectl get deployments,statefulsets,daemonsets,pods -A -o json` → charges.
  * Les pods pilotés par un contrôleur sont écartés : leur ligne serait un leurre.
  */
-export function parseWorkloads(json: string): Workload[] {
+export function parseWorkloads(json: string, language: UiLanguage = 'fr'): Workload[] {
+  const say = k3sSay(language);
   const workloads: Workload[] = [];
 
   for (const item of kubeItems(json)) {
     const controllerKind = CONTROLLER_KINDS[item.kind ?? ''];
     if (controllerKind) {
-      const workload = toControllerWorkload(item, controllerKind);
+      const workload = toControllerWorkload(item, controllerKind, say);
       if (workload) workloads.push(workload);
       continue;
     }
@@ -2485,7 +2571,7 @@ export function parseWorkloads(json: string): Workload[] {
     if (item.kind !== 'Pod') continue;
     if ((item.metadata?.ownerReferences ?? []).length > 0) continue;
 
-    const workload = toPodWorkload(item);
+    const workload = toPodWorkload(item, say);
     if (workload) workloads.push(workload);
   }
 
@@ -2493,7 +2579,12 @@ export function parseWorkloads(json: string): Workload[] {
 }
 
 /** `kubectl get <kind> <name> -o json` → une charge, ou rien. */
-function parseSingleWorkload(json: string, resource: K3sResourceRef): Workload | null {
+function parseSingleWorkload(
+  json: string,
+  resource: K3sResourceRef,
+  language: UiLanguage,
+): Workload | null {
+  const say = k3sSay(language);
   let item: KubeItem;
   try {
     item = JSON.parse(json) as KubeItem;
@@ -2501,7 +2592,9 @@ function parseSingleWorkload(json: string, resource: K3sResourceRef): Workload |
     return null;
   }
 
-  return resource.kind === 'pod' ? toPodWorkload(item) : toControllerWorkload(item, resource.kind);
+  return resource.kind === 'pod'
+    ? toPodWorkload(item, say)
+    : toControllerWorkload(item, resource.kind, say);
 }
 
 /**

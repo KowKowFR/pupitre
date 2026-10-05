@@ -1,10 +1,11 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { SOURCE_ARCHIVES_KEPT, type AppSpec } from '@pupitre/core';
+import { SOURCE_ARCHIVES_KEPT, type AppSpec, type UiLanguage } from '@pupitre/core';
 import type { SourceArchive } from '@pupitre/core/drivers';
 import { SOURCE_ARCHIVE_MAX_BYTES } from '@pupitre/core/sources';
 import { getApplicationSource, getSourceArchive, type Deployment } from '@pupitre/db';
+import { workerSay, type WorkerSay } from '../messages.js';
 import { providerForConnection } from './provider.js';
 import { exportArchiveChunks } from './stored-archive.js';
 
@@ -36,16 +37,14 @@ export function carriesSourceCode(deployment: Deployment, spec: AppSpec): boolea
 async function storedArchive(
   deployment: Deployment,
   onLog: (line: string) => void,
+  say: WorkerSay,
 ): Promise<{ archive: SourceArchive; cleanup: () => Promise<void> }> {
   const name = deployment.sourceArchiveName ?? 'archive';
   const stored = deployment.sourceArchiveId
     ? await getSourceArchive(deployment.sourceArchiveId)
     : null;
   if (!stored || stored.status !== 'ready' || stored.sha256 !== deployment.sourceArchiveSha256) {
-    throw new Error(
-      `l'archive « ${name} » de ce déploiement n'est plus conservée — Pupitre garde ` +
-        `les ${SOURCE_ARCHIVES_KEPT} dernières de chaque application : téléversez-la de nouveau`,
-    );
+    throw new Error(say('source.archiveGone', { name, kept: SOURCE_ARCHIVES_KEPT }));
   }
 
   const directory = await mkdtemp(join(tmpdir(), 'pupitre-source-'));
@@ -54,8 +53,11 @@ async function storedArchive(
   try {
     const bytes = await exportArchiveChunks(stored.id, 'tree', localPath);
     onLog(
-      `archive « ${name} » (sha256 ${stored.sha256?.slice(0, 12)}…) relue depuis le panel — ` +
-        `${(bytes / 1024 / 1024).toFixed(1)} Mio`,
+      say('source.archiveRead', {
+        name,
+        sha: stored.sha256?.slice(0, 12) ?? '?',
+        size: (bytes / 1024 / 1024).toFixed(1),
+      }),
     );
   } catch (error) {
     await cleanup();
@@ -68,30 +70,31 @@ export async function prepareSourceArchive(
   deployment: Deployment,
   spec: AppSpec,
   onLog: (line: string) => void,
+  language: UiLanguage,
 ): Promise<{ archive: SourceArchive; cleanup: () => Promise<void> } | null> {
+  const say = workerSay(language);
   if (!carriesSourceCode(deployment, spec)) return null;
-  if (deployment.sourceArchiveSha256) return storedArchive(deployment, onLog);
+  if (deployment.sourceArchiveSha256) return storedArchive(deployment, onLog, say);
   if (!deployment.sourceSha || !deployment.sourceRepository) return null;
 
   const source = deployment.sourceId ? await getApplicationSource(deployment.sourceId) : null;
   if (!source) {
-    throw new Error(
-      `la liaison au dépôt ${deployment.sourceRepository} a été supprimée : ` +
-        'impossible de récupérer le code du commit à construire',
-    );
+    throw new Error(say('source.linkGone', { repository: deployment.sourceRepository }));
   }
   const access = await providerForConnection(source.connectionId);
   if (!access) {
-    throw new Error(
-      `la connexion au fournisseur de ${source.repository} a été retirée : ` +
-        'impossible de récupérer le code du commit',
-    );
+    throw new Error(say('source.connectionGone', { repository: source.repository }));
   }
 
   const directory = await mkdtemp(join(tmpdir(), 'pupitre-source-'));
   const cleanup = () => rm(directory, { recursive: true, force: true });
   const localPath = join(directory, 'source.tar.gz');
-  onLog(`téléchargement de ${source.repository}@${deployment.sourceSha.slice(0, 7)}`);
+  onLog(
+    say('source.downloading', {
+      repository: source.repository,
+      sha: deployment.sourceSha.slice(0, 7),
+    }),
+  );
   try {
     const { bytes } = await access.provider.downloadArchive(
       { fullName: source.repository, installationId: source.installationId },
@@ -99,7 +102,7 @@ export async function prepareSourceArchive(
       localPath,
       SOURCE_ARCHIVE_MAX_BYTES,
     );
-    onLog(`archive reçue (${(bytes / 1024 / 1024).toFixed(1)} Mio)`);
+    onLog(say('source.received', { size: (bytes / 1024 / 1024).toFixed(1) }));
   } catch (error) {
     await cleanup();
     throw error;

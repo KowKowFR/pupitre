@@ -5,7 +5,9 @@ import {
   deployChannel,
 } from '@pupitre/core';
 import { abandonDeployment, logAudit } from '@pupitre/db';
+import { instanceLanguage } from '../language.js';
 import { logger } from '../logger.js';
+import { workerSay } from '../messages.js';
 import { getPublisher } from '../redis.js';
 
 /**
@@ -76,10 +78,11 @@ export async function reconcileFailedDeploymentJob(
   const deploymentId = deploymentIdOf(job.data);
   if (!deploymentId) return;
 
-  const cause =
-    `BullMQ a terminé la tâche « ${job.name} » en échec sans l'exécuter : « ${reason} »`;
+  const language = await instanceLanguage();
+  const say = workerSay(language);
+  const cause = say('abandoned.cause', { job: job.name, reason });
 
-  const report = await abandonDeployment(deploymentId, { cause }).catch(
+  const report = await abandonDeployment(deploymentId, { cause, language }).catch(
     (error: unknown) => {
       logger.error({ err: error, deploymentId }, 'réconciliation impossible');
       return null;
@@ -124,7 +127,7 @@ export async function reconcileFailedDeploymentJob(
       applicationSlug: report.applicationSlug,
       targetName: report.targetName,
       error: report.error,
-      detectedBy: `tâche « ${job.name} » terminée en échec sans avoir été exécutée`,
+      detectedBy: say('abandoned.detectedBy', { job: job.name }),
     },
     ip,
   }).catch((error: unknown) => {

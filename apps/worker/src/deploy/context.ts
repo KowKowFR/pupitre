@@ -10,7 +10,9 @@ import {
   type Deployment,
 } from '@pupitre/db';
 import { env } from '../env.js';
+import { instanceLanguage } from '../language.js';
 import { logger } from '../logger.js';
+import { workerSay } from '../messages.js';
 import { sshTargetOf } from './ssh-target.js';
 
 /**
@@ -67,16 +69,19 @@ export async function openDeploymentContext(
   deploymentId: string,
   options: OpenContextOptions = {},
 ): Promise<OpenedContext> {
+  const language = await instanceLanguage();
+  const say = workerSay(language);
+
   const record = await getDeploymentForRun(deploymentId);
-  if (!record) throw new Error(`Déploiement « ${deploymentId} » introuvable`);
+  if (!record) throw new Error(say('notFound.deployment', { id: deploymentId }));
 
   const { deployment } = record;
   const spec = parseAppSpec(deployment.appSpec);
 
   const secret = await getTargetSecret(deployment.targetId);
-  if (!secret) throw new Error(`Cible « ${deployment.targetId} » introuvable`);
+  if (!secret) throw new Error(say('notFound.target', { id: deployment.targetId }));
 
-  const session = await connect(sshTargetOf(secret), { logger, ...options.connect });
+  const session = await connect(sshTargetOf(secret), { logger, language, ...options.connect });
 
   const previous = deployment.previousDeploymentId
     ? await getDeploymentForRun(deployment.previousDeploymentId)
@@ -107,6 +112,7 @@ export async function openDeploymentContext(
         sequence: deployment.version,
       },
       sshSession: session,
+      language,
       appSlug: spec.name,
       applicationId: deployment.applicationId,
       ...(previous

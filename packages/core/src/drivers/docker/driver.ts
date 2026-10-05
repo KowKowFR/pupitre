@@ -48,6 +48,8 @@ import {
   volumeName,
 } from './render.js';
 import { firstLine, shellQuote } from '../../shell.js';
+import { driverSay } from '../messages.js';
+import { dockerSay } from './messages.js';
 
 /**
  * Driver Docker Compose.
@@ -98,6 +100,11 @@ export class DockerComposeDriver implements DeploymentDriver {
     ];
   }
 
+  /** Ce que le driver dit, dans la langue de l'instance. */
+  private say(ctx: TargetContext) {
+    return dockerSay(ctx.language);
+  }
+
   /** `/opt/bootstrap/apps/{slug}` */
   private appPath(ctx: DriverContext): string {
     return `${ctx.target.rootPath}/apps/${ctx.appSlug}`;
@@ -142,6 +149,7 @@ export class DockerComposeDriver implements DeploymentDriver {
   // ─── preflight ──────────────────────────────────────────────────────────────
 
   async preflight(ctx: DriverContext): Promise<PreflightResult> {
+    const say = this.say(ctx);
     const checks: PreflightResult['checks'] = [];
 
     const info = await exec(ctx.sshSession, "docker info --format '{{.ServerVersion}}'", {
@@ -150,7 +158,7 @@ export class DockerComposeDriver implements DeploymentDriver {
     const runtimeVersion = info.code === 0 ? firstLine(info.stdout) : null;
     checks.push({
       key: 'docker_info',
-      label: 'Daemon Docker',
+      label: say('preflight.daemon'),
       ok: runtimeVersion !== null,
       detail: runtimeVersion ?? firstLine(info.stderr) ?? `code ${info.code}`,
     });
@@ -177,18 +185,18 @@ export class DockerComposeDriver implements DeploymentDriver {
     const enoughDisk = availableDiskMi !== null && availableDiskMi >= 1024;
     checks.push({
       key: 'disk',
-      label: 'Espace disque',
+      label: say('preflight.disk'),
       ok: enoughDisk,
       detail:
         availableDiskMi === null
-          ? 'sortie de df illisible'
-          : `${Math.round(availableDiskMi / 1024)} Gio disponibles`,
+          ? say('preflight.disk.unreadable')
+          : say('preflight.disk.available', { gib: Math.round(availableDiskMi / 1024) }),
     });
 
     const workdir = await this.ensureWorkdir(ctx);
     checks.push({
       key: 'workdir',
-      label: 'Répertoire de travail',
+      label: say('preflight.workdir'),
       ok: workdir.ok,
       detail: workdir.detail,
     });
@@ -227,7 +235,7 @@ export class DockerComposeDriver implements DeploymentDriver {
     });
     const [uid, gid] = identity.stdout.trim().split('\n').map((value) => value.trim());
     if (identity.code !== 0 || !uid || !gid) {
-      return { ok: false, detail: "impossible de résoudre l'identité du compte de déploiement" };
+      return { ok: false, detail: this.say(ctx)('workdir.identity') };
     }
 
     const elevated = await exec(
@@ -241,7 +249,7 @@ export class DockerComposeDriver implements DeploymentDriver {
         detail:
           firstLine(elevated.stderr) ??
           firstLine(direct.stderr) ??
-          `${ctx.target.rootPath} n'est pas écrivable et sudo a échoué`,
+          this.say(ctx)('workdir.sudoFailed', { root: ctx.target.rootPath }),
       };
     }
 
@@ -251,8 +259,8 @@ export class DockerComposeDriver implements DeploymentDriver {
       timeout: SHORT_TIMEOUT_MS,
     });
     return confirmed.code === 0
-      ? { ok: true, detail: `${appPath} (provisionné via sudo)` }
-      : { ok: false, detail: `${appPath} reste non écrivable après élévation` };
+      ? { ok: true, detail: this.say(ctx)('workdir.provisioned', { path: appPath }) }
+      : { ok: false, detail: this.say(ctx)('workdir.stillReadOnly', { path: appPath }) };
   }
 
   // ─── allocatePort ───────────────────────────────────────────────────────────
@@ -269,12 +277,9 @@ export class DockerComposeDriver implements DeploymentDriver {
    * cause : le port est occupé, oui, mais par nous.
    */
   async allocatePort(ctx: DriverContext, onLog?: LogSink): Promise<number | null> {
+    const say = this.say(ctx);
     if (!ctx.portAllocator) {
-      throw new DriverError(
-        'allocatePort exige un `portAllocator` dans le contexte',
-        this.runtime,
-        'allocate_port',
-      );
+      throw new DriverError(say('port.allocatorMissing'), this.runtime, 'allocate_port');
     }
 
     const allocator = ctx.portAllocator;
@@ -293,7 +298,7 @@ export class DockerComposeDriver implements DeploymentDriver {
     // change pas pendant les quelques millisecondes d'un retry.
     const inUse = await listeningPorts(ctx);
     if (inUse === null) {
-      log('⚠ ni ss ni netstat sur la cible — impossible de vérifier les ports déjà en écoute');
+      log(say('port.noProbe'));
     }
 
     const dead: number[] = [];
@@ -303,7 +308,7 @@ export class DockerComposeDriver implements DeploymentDriver {
 
       if (inUse === null || !inUse.has(port)) {
         if (dead.length > 0) {
-          log(`port ${port} réservé après ${dead.length} port(s) écarté(s)`);
+          log(say('port.reservedAfter', { port, count: dead.length }));
         }
         return port;
       }
@@ -311,14 +316,19 @@ export class DockerComposeDriver implements DeploymentDriver {
       // Réservation morte : la base nous l'a accordée, la cible dit le
       // contraire. On la relâche pour ne pas immobiliser un port dont nous ne
       // ferons rien, et on l'écarte du prochain tirage.
-      log(`⚠ port ${port} déjà en écoute sur ${ctx.target.name} — réservation abandonnée`);
+      log(say('port.busy', { port, target: ctx.target.name }));
       await allocator.release(key);
       dead.push(port);
     }
 
     throw new DriverError(
-      `Aucun port libre entre ${range.min} et ${range.max} sur « ${ctx.target.name} » : ` +
-        `${dead.length} port(s) réservés en base se sont révélés occupés (${dead.join(', ')}).`,
+      say('port.exhausted', {
+        min: range.min,
+        max: range.max,
+        target: ctx.target.name,
+        count: dead.length,
+        ports: dead.join(', '),
+      }),
       this.runtime,
       'allocate_port',
     );
@@ -345,7 +355,7 @@ export class DockerComposeDriver implements DeploymentDriver {
       // Publié pour le proxy de la machine seulement — sur la boucle locale, ou
       // sur la passerelle Docker qu'un proxy en conteneur joint : personne
       // d'autre n'y arrive, rien à ouvrir.
-      onLog?.(`port ${port} publié sur ${exposure.bindAddress} seulement — rien à ouvrir`);
+      onLog?.(this.say(ctx)('firewall.localOnly', { port, address: exposure.bindAddress }));
       return;
     }
     if (exposure?.allowFrom) {
@@ -382,6 +392,7 @@ export class DockerComposeDriver implements DeploymentDriver {
       ...(ctx.sourceInRelease ? { sourceInRelease: true } : {}),
       imageTag: releaseName(ctx.deployment),
       secretValues,
+      language: ctx.language,
     });
 
     return { projectName: this.project(ctx), files, publishedPort };
@@ -413,13 +424,14 @@ export class DockerComposeDriver implements DeploymentDriver {
     artifacts: RenderedArtifacts,
     onLog: LogSink,
   ): Promise<void> {
+    const say = this.say(ctx);
     const release = this.releasePath(ctx);
-    onLog(`projet ${artifacts.projectName}, release ${release}`);
+    onLog(say('upload.release', { project: artifacts.projectName, release }));
 
     const workdir = await this.ensureWorkdir(ctx);
     if (!workdir.ok) {
       throw new DriverError(
-        `Racine de déploiement inutilisable : ${workdir.detail ?? 'raison inconnue'}`,
+        say('upload.workdirUnusable', { detail: workdir.detail ?? say('upload.unknownReason') }),
         this.runtime,
         'upload',
       );
@@ -430,7 +442,14 @@ export class DockerComposeDriver implements DeploymentDriver {
     // déploiement précédent de la même version ne doit pas survivre à un rendu
     // qui n'en a plus : il est réécrit s'il y a lieu.
     if (ctx.sourceArchive) {
-      await extractSourceArchive(ctx.sshSession, release, ctx.sourceArchive, onLog, this.runtime);
+      await extractSourceArchive(
+        ctx.sshSession,
+        release,
+        ctx.sourceArchive,
+        onLog,
+        this.runtime,
+        ctx.language,
+      );
     }
     await this.run(ctx, `rm -f ${shellQuote(`${release}/.env`)}`, onLog, 'upload');
 
@@ -519,7 +538,7 @@ export class DockerComposeDriver implements DeploymentDriver {
     const images = await this.listImages(ctx);
     const url = this.buildUrl(ctx, publishedPort);
 
-    onLog(`services démarrés${url ? ` — ${url}` : ''}`);
+    onLog(url ? this.say(ctx)('deploy.startedAt', { url }) : this.say(ctx)('deploy.started'));
 
     return { ok: true, url, publishedPort, releasePath: release, images };
   }
@@ -552,13 +571,17 @@ export class DockerComposeDriver implements DeploymentDriver {
         timeout: SHORT_TIMEOUT_MS,
       });
       if (check.code !== 0) {
-        onLog(`✗ contexte de build absent pour « ${service.name} » : ${dockerfile}`);
+        const say = this.say(ctx);
+        onLog(say('build.contextMissing.log', { service: service.name, dockerfile }));
         throw new DriverError(
-          `Le service « ${service.name} » se construit depuis ${service.source.dockerfile}, ` +
-            `mais le fichier est absent de ${release}/${context}. ` +
-            (ctx.sourceInRelease
-              ? 'Le contexte est relatif à la racine du dépôt.'
-              : 'Le contexte de build doit être fourni via `additionalFiles`.'),
+          say('build.contextMissing', {
+            service: service.name,
+            dockerfile: service.source.dockerfile,
+            dir: `${release}/${context}`,
+            hint: ctx.sourceInRelease
+              ? say('build.contextMissing.fromRepo')
+              : say('build.contextMissing.additionalFiles'),
+          }),
           this.runtime,
           'build_context',
         );
@@ -587,7 +610,7 @@ export class DockerComposeDriver implements DeploymentDriver {
       );
     }
     // Le contenu n'est jamais journalisé : `.env` porte les secrets.
-    onLog(`  déposé ${file.path} (${file.content.length} octets)`);
+    onLog(this.say(ctx)('upload.deposited', { path: file.path, bytes: file.content.length }));
   }
 
   private async listImages(ctx: DriverContext): Promise<string[]> {
@@ -605,6 +628,7 @@ export class DockerComposeDriver implements DeploymentDriver {
   // ─── healthcheck ────────────────────────────────────────────────────────────
 
   async healthcheck(ctx: DriverContext): Promise<HealthResult> {
+    const say = this.say(ctx);
     const service = exposedService(ctx.spec);
     const { retries, intervalSec, timeoutSec, path } = service.healthcheck;
 
@@ -617,7 +641,7 @@ export class DockerComposeDriver implements DeploymentDriver {
         outcome: 'unreachable',
         attempts: 0,
         statusCode: null,
-        detail: 'aucun conteneur en cours d’exécution',
+        detail: say('health.noContainer'),
       });
     }
 
@@ -631,7 +655,7 @@ export class DockerComposeDriver implements DeploymentDriver {
         { timeout: SHORT_TIMEOUT_MS },
       );
       const bad = Number.parseInt(firstLine(unhealthy.stdout) ?? '0', 10);
-      const detail = `aucun port publié — ${running} conteneur(s), ${bad} en défaut`;
+      const detail = say('health.noPort', { running, bad });
 
       return bad === 0
         ? { healthy: true, outcome: 'healthy', attempts: 1, statusCode: null, detail, diagnostics: null }
@@ -671,9 +695,12 @@ export class DockerComposeDriver implements DeploymentDriver {
       lastOutcome = lastStatus === null ? 'unreachable' : 'unhealthy';
       lastDetail =
         lastStatus !== null
-          ? `HTTP ${lastStatus} sur ${url}`
-          : `${url} injoignable depuis la cible ` +
-            `(curl code ${probe.code}${firstLine(probe.stderr) ? ` : ${firstLine(probe.stderr)}` : ''})`;
+          ? say('health.http', { status: lastStatus, url })
+          : say('health.unreachable', {
+              url,
+              code: probe.code,
+              detail: firstLine(probe.stderr) ? ` : ${firstLine(probe.stderr)}` : '',
+            });
 
       if (lastStatus !== null && lastStatus >= 200 && lastStatus < 400) {
         return {
@@ -735,7 +762,7 @@ export class DockerComposeDriver implements DeploymentDriver {
       const output = `${logs.stdout}\n${logs.stderr}`.trim();
       sections.push(
         `$ docker compose logs --tail ${DIAGNOSTIC_LINES} ${service.name}\n` +
-          (output.length > 0 ? output : '(aucune sortie)'),
+          (output.length > 0 ? output : this.say(ctx)('diagnose.noOutput')),
       );
     }
 
@@ -763,19 +790,16 @@ export class DockerComposeDriver implements DeploymentDriver {
       `docker image rm ${tags.map(shellQuote).join(' ')} >/dev/null 2>&1; true`,
       { timeout: SHORT_TIMEOUT_MS },
     );
-    onLog(`images des releases effacées retirées : ${tags.length}`);
+    onLog(this.say(ctx)('images.removed', { count: tags.length }));
   }
 
   // ─── rollback ───────────────────────────────────────────────────────────────
 
   async rollback(ctx: DriverContext, onLog: LogSink): Promise<void> {
+    const say = this.say(ctx);
     const previous = ctx.previousDeployment;
     if (!previous) {
-      throw new DriverError(
-        'rollback exige un `previousDeployment` dans le contexte',
-        this.runtime,
-        'rollback',
-      );
+      throw new DriverError(say('rollback.previousMissing'), this.runtime, 'rollback');
     }
 
     // La release précédente, par son nom ; à défaut, sous le nom d'avant
@@ -795,13 +819,13 @@ export class DockerComposeDriver implements DeploymentDriver {
     }
     if (!target) {
       throw new DriverError(
-        `La version précédente ${releaseName(previous)} n'est plus sur la cible (${this.appPath(ctx)})`,
+        say('rollback.releaseGone', { release: releaseName(previous), path: this.appPath(ctx) }),
         this.runtime,
         'rollback',
       );
     }
 
-    onLog(`→ retour à la release ${releaseName(previous)}`);
+    onLog(say('rollback.to', { release: releaseName(previous) }));
     await this.stream(
       ctx,
       this.compose(ctx, 'up -d --remove-orphans --wait --wait-timeout 300', target),
@@ -816,7 +840,7 @@ export class DockerComposeDriver implements DeploymentDriver {
       onLog,
       'link',
     );
-    onLog(`✓ revenu à la release ${releaseName(previous)}`);
+    onLog(say('rollback.done', { release: releaseName(previous) }));
   }
 
   // ─── destroy ────────────────────────────────────────────────────────────────
@@ -827,6 +851,7 @@ export class DockerComposeDriver implements DeploymentDriver {
   }
 
   async destroy(ctx: DriverContext, onLog: LogSink): Promise<void> {
+    const say = this.say(ctx);
     const appPath = this.appPath(ctx);
     const key = { targetId: ctx.target.id, applicationId: ctx.applicationId };
 
@@ -851,7 +876,7 @@ export class DockerComposeDriver implements DeploymentDriver {
     // même image peut porter plusieurs étiquettes de release — d'où `-f`, sans
     // risque : le motif ne désigne que les images de cette application.
     const images = `${this.project(ctx)}/*`;
-    onLog(`→ retrait des images ${images}`);
+    onLog(say('destroy.images', { images }));
     await this.run(
       ctx,
       `ids=$(docker image ls -q --filter reference=${shellQuote(images)} | sort -u); ` +
@@ -860,20 +885,20 @@ export class DockerComposeDriver implements DeploymentDriver {
       'destroy',
     );
 
-    onLog(`→ suppression de ${appPath}`);
+    onLog(say('destroy.removing', { path: appPath }));
     await this.run(ctx, `rm -rf ${shellQuote(appPath)}`, onLog, 'destroy');
 
     if (port !== null) {
-      onLog(`→ fermeture du port ${port} sur le pare-feu`);
+      onLog(say('destroy.closingPort', { port }));
       await this.closeFirewall(ctx, port, onLog);
     }
 
     if (ctx.portAllocator) {
       await ctx.portAllocator.release(key);
-      onLog('→ allocation de port libérée');
+      onLog(say('destroy.portReleased'));
     }
 
-    onLog('✓ déploiement détruit');
+    onLog(say('destroy.done'));
   }
 
   // ─── logs ───────────────────────────────────────────────────────────────────
@@ -910,7 +935,7 @@ export class DockerComposeDriver implements DeploymentDriver {
   async restart(ctx: DriverContext, onLog: LogSink): Promise<void> {
     onLog('docker compose restart');
     await this.stream(ctx, this.compose(ctx, 'restart'), onLog, 'restart', UP_TIMEOUT_MS);
-    onLog('services redémarrés');
+    onLog(this.say(ctx)('restart.done'));
   }
 
   /**
@@ -937,7 +962,7 @@ export class DockerComposeDriver implements DeploymentDriver {
       'stop',
       UP_TIMEOUT_MS,
     );
-    onLog('conteneurs arrêtés — volumes, réseau et réservation de port conservés');
+    onLog(this.say(ctx)('stop.done'));
   }
 
   /**
@@ -964,7 +989,7 @@ export class DockerComposeDriver implements DeploymentDriver {
 
     if (started.code !== 0) {
       onLog(`  ${firstLine(started.stderr) ?? `code ${started.code}`}`);
-      onLog('→ aucun conteneur à relancer : remontage depuis le compose.yml déposé');
+      onLog(this.say(ctx)('start.recreating'));
       await this.stream(
         ctx,
         this.compose(ctx, 'up -d --remove-orphans --wait --wait-timeout 300'),
@@ -972,7 +997,7 @@ export class DockerComposeDriver implements DeploymentDriver {
         'start',
         UP_TIMEOUT_MS,
       );
-      onLog('services recréés et démarrés');
+      onLog(this.say(ctx)('start.recreated'));
       return;
     }
 
@@ -987,7 +1012,7 @@ export class DockerComposeDriver implements DeploymentDriver {
       'start',
       UP_TIMEOUT_MS,
     );
-    onLog('services démarrés');
+    onLog(this.say(ctx)('start.done'));
   }
 
   // ─── charges de la cible ────────────────────────────────────────────────────
@@ -1021,7 +1046,9 @@ export class DockerComposeDriver implements DeploymentDriver {
 
     if (result.code !== 0) {
       throw new DriverError(
-        `Inventaire impossible : ${firstLine(result.stderr) ?? `code ${result.code}`}`,
+        this.say(ctx)('workload.inventoryFailed', {
+          detail: firstLine(result.stderr) ?? `code ${result.code}`,
+        }),
         this.runtime,
         'workload.list',
       );
@@ -1048,10 +1075,16 @@ export class DockerComposeDriver implements DeploymentDriver {
     // Second verrou, après celui de la route : un driver ne fait pas confiance
     // à son appelant pour une opération irréversible.
     if (workload.managed) {
-      throw new DriverError(managedWorkloadRefusal(workload), this.runtime, 'workload.remove');
+      throw new DriverError(
+        managedWorkloadRefusal(workload, ctx.language),
+        this.runtime,
+        'workload.remove',
+      );
     }
 
-    onLog(`→ suppression du conteneur « ${workload.name} » (${shortId(raw.Id ?? ref.id)})`);
+    onLog(
+      this.say(ctx)('workload.removing', { name: workload.name, id: shortId(raw.Id ?? ref.id) }),
+    );
     await this.stream(
       ctx,
       `docker rm -f ${shellQuote(ref.id)}`,
@@ -1059,7 +1092,7 @@ export class DockerComposeDriver implements DeploymentDriver {
       'workload.remove',
       REMOVE_TIMEOUT_MS,
     );
-    onLog('✓ conteneur supprimé — ses volumes nommés, eux, sont conservés');
+    onLog(this.say(ctx)('workload.removed'));
   }
 
   /**
@@ -1081,12 +1114,12 @@ export class DockerComposeDriver implements DeploymentDriver {
    * à jour ratée ne doit pas laisser la machine avec un service en moins.
    */
   async updateWorkload(ctx: TargetContext, ref: WorkloadRef, onLog: LogSink): Promise<void> {
+    const say = this.say(ctx);
     const { raw, workload } = await this.findWorkload(ctx, ref, 'workload.update');
 
     if (workload.managed) {
       throw new DriverError(
-        `« ${workload.name} » est déployée par le panel : sa mise à jour est un ` +
-          'redéploiement, pas une recréation à la main. Passez par un nouveau déploiement.',
+        say('workload.update.managed', { name: workload.name }),
         this.runtime,
         'workload.update',
       );
@@ -1095,7 +1128,7 @@ export class DockerComposeDriver implements DeploymentDriver {
     const image = raw.Config?.Image;
     if (!image) {
       throw new DriverError(
-        `Impossible de lire l'image de « ${workload.name} »`,
+        say('workload.update.noImage', { name: workload.name }),
         this.runtime,
         'workload.update',
       );
@@ -1106,11 +1139,13 @@ export class DockerComposeDriver implements DeploymentDriver {
     const previousImageId = raw.Image ?? image;
     const defaults = await this.imageDefaults(ctx, previousImageId);
 
-    const unsupported = unreproducibleOptions(raw, defaults);
+    const unsupported = unreproducibleOptions(raw, defaults, say('workload.update.execEntrypoint'));
     if (unsupported.length > 0) {
       throw new DriverError(
-        `« ${workload.name} » utilise des options que le panel ne sait pas reproduire ` +
-          `(${unsupported.join(', ')}). La recréer les perdrait : mettez-la à jour à la main.`,
+        say('workload.update.unsupported', {
+          name: workload.name,
+          options: unsupported.join(', '),
+        }),
         this.runtime,
         'workload.update',
       );
@@ -1134,8 +1169,11 @@ export class DockerComposeDriver implements DeploymentDriver {
     const newImageId = firstLine(pulled.stdout);
     onLog(
       newImageId && newImageId === previousImageId
-        ? "l'image était déjà à jour — la charge est tout de même recréée"
-        : `image mise à jour : ${shortId(previousImageId)} → ${shortId(newImageId ?? '?')}`,
+        ? say('workload.update.upToDate')
+        : say('workload.update.updated', {
+            from: shortId(previousImageId),
+            to: shortId(newImageId ?? '?'),
+          }),
     );
 
     const wasRunning = workload.state === 'running' || workload.state === 'restarting';
@@ -1143,8 +1181,13 @@ export class DockerComposeDriver implements DeploymentDriver {
     const createArgs = renderCreateArgs(raw, defaults, name);
     const extraNetworks = extraNetworkNames(raw);
 
-    onLog(`→ mise de côté de l'ancien conteneur sous « ${backup} »`);
-    await this.run(ctx, `docker rename ${shellQuote(ref.id)} ${shellQuote(backup)}`, onLog, 'workload.update');
+    onLog(say('workload.update.setAside', { backup }));
+    await this.run(
+      ctx,
+      `docker rename ${shellQuote(ref.id)} ${shellQuote(backup)}`,
+      onLog,
+      'workload.update',
+    );
     await this.run(ctx, `docker stop -t 20 ${shellQuote(backup)}`, onLog, 'workload.update');
 
     try {
@@ -1158,7 +1201,7 @@ export class DockerComposeDriver implements DeploymentDriver {
       );
 
       for (const network of extraNetworks) {
-        onLog(`→ rattachement au réseau ${network}`);
+        onLog(say('workload.update.network', { network }));
         await this.run(
           ctx,
           `docker network connect ${shellQuote(network)} ${shellQuote(name)}`,
@@ -1169,14 +1212,14 @@ export class DockerComposeDriver implements DeploymentDriver {
 
       if (wasRunning) {
         await this.run(ctx, `docker start ${shellQuote(name)}`, onLog, 'workload.update');
-        onLog('✓ conteneur recréé et redémarré');
+        onLog(say('workload.update.restarted'));
       } else {
         // Une charge arrêtée le reste : la mise à jour ne décide pas à la place
         // de celui qui l'avait arrêtée.
-        onLog('✓ conteneur recréé, laissé à l’arrêt comme il l’était');
+        onLog(say('workload.update.leftStopped'));
       }
     } catch (error) {
-      onLog('✗ recréation impossible — remise en place de l’ancien conteneur');
+      onLog(say('workload.update.rollingBack'));
       // Le nettoyage ne doit pas masquer l'échec d'origine : il est tenté au
       // mieux, et c'est l'erreur initiale qui remonte.
       await this.tryQuietly(ctx, `docker rm -f ${shellQuote(name)}`);
@@ -1186,7 +1229,7 @@ export class DockerComposeDriver implements DeploymentDriver {
     }
 
     await this.tryQuietly(ctx, `docker rm -f ${shellQuote(backup)}`);
-    onLog('✓ ancien conteneur retiré');
+    onLog(say('workload.update.oldRemoved'));
   }
 
   /** Relit une charge sur la machine, et refuse d'agir à l'aveugle. */
@@ -1242,7 +1285,7 @@ export class DockerComposeDriver implements DeploymentDriver {
     const name = result.stdout.trim().split('\n')[0]?.trim();
     if (result.code !== 0 || !name) {
       throw new DriverError(
-        `Volume « ${volume} » du service « ${service} » introuvable sur la cible`,
+        this.say(ctx)('backup.volumeMissing', { volume, service }),
         this.runtime,
         'backup',
       );
@@ -1260,7 +1303,11 @@ export class DockerComposeDriver implements DeploymentDriver {
     );
     const id = result.stdout.trim().split('\n')[0]?.trim();
     if (result.code !== 0 || !id) {
-      throw new DriverError(`Le service « ${service} » ne tourne pas`, this.runtime, 'backup');
+      throw new DriverError(
+        this.say(ctx)('backup.serviceDown', { service }),
+        this.runtime,
+        'backup',
+      );
     }
     return id;
   }
@@ -1271,12 +1318,16 @@ export class DockerComposeDriver implements DeploymentDriver {
     step: string,
     streams: { stdout?: Writable; stdin?: Readable },
   ): Promise<void> {
+    const say = driverSay(ctx.language);
     const result = await execPipe(ctx.sshSession, command, streams);
-    if (result.timedOut)
-      throw new DriverError(`« ${step} » a dépassé son délai`, this.runtime, step);
+    if (result.timedOut) throw new DriverError(say('step.timeout', { step }), this.runtime, step);
     if (result.code !== 0) {
       throw new DriverError(
-        `Échec de « ${step} » (code ${result.code}) : ${lastLine(result.stderr) ?? 'sans détail'}`,
+        say('step.failed', {
+          step,
+          code: result.code,
+          detail: lastLine(result.stderr) ?? say('step.noDetail'),
+        }),
         this.runtime,
         step,
       );
@@ -1366,11 +1417,19 @@ export class DockerComposeDriver implements DeploymentDriver {
     const step = `workload.${action}`;
     const { workload } = await this.findWorkload(ctx, ref, step);
     if (workload.managed && action !== 'restart') {
-      throw new DriverError(managedWorkloadControlRefusal(workload), this.runtime, step);
+      throw new DriverError(
+        managedWorkloadControlRefusal(workload, ctx.language),
+        this.runtime,
+        step,
+      );
     }
     if (!workload.controls.includes(action)) {
       throw new DriverError(
-        `« ${workload.name} » est « ${workload.state} » : « ${action} » n'a pas de sens dans cet état.`,
+        this.say(ctx)('workload.control.invalid', {
+          name: workload.name,
+          state: workload.state,
+          action,
+        }),
         this.runtime,
         step,
       );
@@ -1382,7 +1441,7 @@ export class DockerComposeDriver implements DeploymentDriver {
     }[action];
     onLog(`→ ${command.replace(shellQuote(ref.id), workload.name)}`);
     await this.stream(ctx, command, onLog, step, REMOVE_TIMEOUT_MS);
-    onLog(`✓ « ${workload.name} » : ${action}`);
+    onLog(this.say(ctx)('workload.control.done', { name: workload.name, action }));
   }
 
   async workloadLogs(
@@ -1413,7 +1472,7 @@ export class DockerComposeDriver implements DeploymentDriver {
     const { workload } = await this.findWorkload(ctx, ref, 'workload.exec');
     if (!workload.exec) {
       throw new DriverError(
-        `« ${workload.name} » n'est pas en marche : une commande ne s'exécute que dans un conteneur démarré.`,
+        this.say(ctx)('workload.exec.notRunning', { name: workload.name }),
         this.runtime,
         'workload.exec',
       );
@@ -1438,11 +1497,7 @@ export class DockerComposeDriver implements DeploymentDriver {
 
     const [raw] = result.code === 0 ? parseInspect(result.stdout) : [];
     if (!raw) {
-      throw new DriverError(
-        `Aucun conteneur « ${ref.id} » sur cette cible`,
-        this.runtime,
-        step,
-      );
+      throw new DriverError(this.say(ctx)('workload.notFound', { id: ref.id }), this.runtime, step);
     }
 
     return { raw, workload: toWorkload(raw, new Map()) };
@@ -1478,7 +1533,11 @@ export class DockerComposeDriver implements DeploymentDriver {
     if (result.code !== 0) {
       const detail = firstLine(result.stderr) ?? `code ${result.code}`;
       onLog(`✗ ${detail}`);
-      throw new DriverError(`Échec de « ${command} » : ${detail}`, this.runtime, step);
+      throw new DriverError(
+        driverSay(ctx.language)('command.failed', { command, detail }),
+        this.runtime,
+        step,
+      );
     }
   }
 
@@ -1495,12 +1554,17 @@ export class DockerComposeDriver implements DeploymentDriver {
       logOutput: false,
     });
 
+    const say = driverSay(ctx.language);
     if (result.timedOut) {
-      throw new DriverError(`« ${step} » a dépassé son délai`, this.runtime, step);
+      throw new DriverError(say('step.timeout', { step }), this.runtime, step);
     }
     if (failOnError && result.code !== 0) {
       throw new DriverError(
-        `Échec de « ${step} » (code ${result.code}) : ${firstLine(result.stderr) ?? 'sans détail'}`,
+        say('step.failed', {
+          step,
+          code: result.code,
+          detail: firstLine(result.stderr) ?? say('step.noDetail'),
+        }),
         this.runtime,
         step,
       );
@@ -1869,7 +1933,11 @@ export function containerControls(state: ServiceState, managed: boolean): Worklo
  * fidèlement. Les détecter et refuser vaut mieux que recréer une charge
  * silencieusement diminuée.
  */
-function unreproducibleOptions(raw: DockerInspect, defaults: ImageDefaults): string[] {
+function unreproducibleOptions(
+  raw: DockerInspect,
+  defaults: ImageDefaults,
+  execEntrypoint: string,
+): string[] {
   const host = raw.HostConfig ?? {};
   const out: string[] = [];
 
@@ -1892,7 +1960,7 @@ function unreproducibleOptions(raw: DockerInspect, defaults: ImageDefaults): str
   // `--entrypoint` ne prend qu'un seul mot : une forme exec à plusieurs
   // éléments n'a pas d'équivalent en ligne de commande.
   if (entrypoint && entrypoint.length > 1 && !sameList(entrypoint, defaults.entrypoint)) {
-    out.push('--entrypoint (forme exec)');
+    out.push(execEntrypoint);
   }
 
   return out;

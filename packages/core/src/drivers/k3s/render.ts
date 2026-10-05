@@ -1,4 +1,5 @@
 import { stringify } from 'yaml';
+import type { UiLanguage } from '../../i18n.js';
 import { WORKSPACE_PREFIX } from '../../naming.js';
 import {
   exposedService,
@@ -147,6 +148,8 @@ export function standardLabels(
 export type RenderInput = {
   spec: AppSpec;
   appSlug: string;
+  /** La langue d'une erreur de rendu (un secret sans valeur). Défaut : le français. */
+  language?: UiLanguage;
   /**
    * Valeurs des secrets déclarés. Une valeur manquante fait **échouer** le
    * rendu, comme côté Docker : voir `completeSecretValues()`.
@@ -527,7 +530,11 @@ export function renderManifests(rawInput: RenderInput): KubeManifest[] {
   // Un secret déclaré sans valeur résolue fait échouer le rendu, en le nommant.
   const input: RenderInput = {
     ...rawInput,
-    secretValues: completeSecretValues(rawInput.spec, rawInput.secretValues ?? {}),
+    secretValues: completeSecretValues(
+      rawInput.spec,
+      rawInput.secretValues ?? {},
+      rawInput.language,
+    ),
   };
 
   const manifests: KubeManifest[] = [renderNamespace(input)];

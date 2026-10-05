@@ -1,3 +1,6 @@
+import type { UiLanguage } from '../i18n.js';
+import { sshSay } from './messages.js';
+
 /** Erreurs de la couche SSH. Aucune ne porte de credential dans son message. */
 
 export class SshError extends Error {
@@ -33,13 +36,9 @@ export class SshHostKeyError extends SshError {
     host: string,
     readonly expected: string,
     readonly presented: string,
+    language: UiLanguage = 'fr',
   ) {
-    super(
-      `La clé d'hôte de ${host} a changé : attendue ${expected}, présentée ${presented}. ` +
-        'Si la machine a été réinstallée, acceptez la nouvelle clé sur la page de la cible ; ' +
-        'sinon, une autre machine se fait peut-être passer pour elle — connexion refusée.',
-      host,
-    );
+    super(sshSay(language)('hostKey.changed', { host, expected, presented }), host);
   }
 }
 

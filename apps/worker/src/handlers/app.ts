@@ -27,7 +27,9 @@ import {
 } from '@pupitre/db';
 import type { Job } from 'bullmq';
 import { openDeploymentContext } from '../deploy/context.js';
+import { instanceLanguage } from '../language.js';
 import { logger } from '../logger.js';
+import { workerSay } from '../messages.js';
 import { getPublisher, getRedis } from '../redis.js';
 
 /**
@@ -86,7 +88,11 @@ export async function handleAppLogs(job: Job<unknown>): Promise<{ lines: number 
   const log = logger.child({ jobId: job.id, deploymentId: data.deploymentId });
 
   const summary = await getDeploymentSummary(data.deploymentId);
-  if (!summary) throw new Error(`Déploiement « ${data.deploymentId} » introuvable`);
+  if (!summary) {
+    throw new Error(
+      workerSay(await instanceLanguage())('notFound.deployment', { id: data.deploymentId }),
+    );
+  }
   if (!isSupervisable(summary.status)) {
     log.info({ status: summary.status }, 'déploiement non supervisable, flux non ouvert');
     return { lines: 0 };
@@ -250,9 +256,15 @@ export async function handleAppRestart(job: Job<unknown>): Promise<{ healthy: bo
   const log = logger.child({ jobId: job.id, deploymentId: data.deploymentId });
 
   const summary = await getDeploymentSummary(data.deploymentId);
-  if (!summary) throw new Error(`Déploiement « ${data.deploymentId} » introuvable`);
+  if (!summary) {
+    throw new Error(
+      workerSay(await instanceLanguage())('notFound.deployment', { id: data.deploymentId }),
+    );
+  }
   if (!isSupervisable(summary.status)) {
-    throw new Error(`Un déploiement « ${summary.status} » ne se redémarre pas`);
+    throw new Error(
+      workerSay(await instanceLanguage())('lifecycle.notRestartable', { status: summary.status }),
+    );
   }
 
   const channel = appLogChannel(data.deploymentId);
@@ -267,9 +279,14 @@ export async function handleAppRestart(job: Job<unknown>): Promise<{ healthy: bo
   const driver = getDriver(deployment.runtime);
 
   try {
+    const say = workerSay(ctx.language);
     emit({
       kind: 'lifecycle',
-      payload: { ts: new Date().toISOString(), action: 'restart', detail: 'démarré' },
+      payload: {
+        ts: new Date().toISOString(),
+        action: 'restart',
+        detail: say('lifecycle.started'),
+      },
     });
 
     await driver.restart(ctx, (line) => {
@@ -283,7 +300,9 @@ export async function handleAppRestart(job: Job<unknown>): Promise<{ healthy: bo
       payload: {
         ts: new Date().toISOString(),
         action: 'restart',
-        detail: health.healthy ? 'terminé, service sain' : `terminé, ${health.outcome}`,
+        detail: health.healthy
+          ? say('lifecycle.healthy')
+          : say('lifecycle.outcome', { outcome: say(`outcome.${health.outcome}`) }),
       },
     });
 
@@ -330,7 +349,7 @@ export async function handleAppRestart(job: Job<unknown>): Promise<{ healthy: bo
 type LifecycleAction = {
   /** Nom de l'action dans le flux applicatif et dans le journal d'activité. */
   key: 'stop' | 'start';
-  /** Employé tel quel dans les messages : « l'arrêt a échoué ». */
+  /** Employé tel quel dans le journal du worker : « application : arrêt effectué ». */
   noun: string;
   apply: (driver: DeploymentDriver, ctx: DriverContext, onLog: LogSink) => Promise<void>;
   auditAction: string;
@@ -358,9 +377,17 @@ async function runLifecycle(
   const log = logger.child({ jobId: job.id, deploymentId: data.deploymentId });
 
   const summary = await getDeploymentSummary(data.deploymentId);
-  if (!summary) throw new Error(`Déploiement « ${data.deploymentId} » introuvable`);
+  if (!summary) {
+    throw new Error(
+      workerSay(await instanceLanguage())('notFound.deployment', { id: data.deploymentId }),
+    );
+  }
   if (!isSupervisable(summary.status)) {
-    throw new Error(`Un déploiement « ${summary.status} » n'admet pas d'${action.noun}`);
+    throw new Error(
+      workerSay(await instanceLanguage())(`lifecycle.refused.${action.key}`, {
+        status: summary.status,
+      }),
+    );
   }
 
   const channel = appLogChannel(data.deploymentId);
@@ -375,9 +402,14 @@ async function runLifecycle(
   const driver = getDriver(deployment.runtime);
 
   try {
+    const say = workerSay(ctx.language);
     emit({
       kind: 'lifecycle',
-      payload: { ts: new Date().toISOString(), action: action.key, detail: 'démarré' },
+      payload: {
+        ts: new Date().toISOString(),
+        action: action.key,
+        detail: say('lifecycle.started'),
+      },
     });
 
     await action.apply(driver, ctx, (line) => {
@@ -419,10 +451,10 @@ async function runLifecycle(
         action: action.key,
         detail:
           healthy === null
-            ? 'terminé'
+            ? say('lifecycle.done')
             : healthy
-              ? 'terminé, service sain'
-              : 'terminé, service en défaut',
+              ? say('lifecycle.healthy')
+              : say('lifecycle.unhealthy'),
       },
     });
 

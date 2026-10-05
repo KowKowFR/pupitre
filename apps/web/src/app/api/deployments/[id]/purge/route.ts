@@ -2,6 +2,7 @@ import { getDeploymentSummary, logAudit, purgeDeployments } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { deployments as messages } from '@/i18n/messages/deployments';
+import { currentLanguage } from '@/i18n/server';
 import { ConflictError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
@@ -29,7 +30,7 @@ export const DELETE = apiRoute<Context>(async (request, context) => {
   const deployment = await getDeploymentSummary(id);
   if (!deployment) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
-  const report = await purgeDeployments({ ids: [id] });
+  const report = await purgeDeployments({ ids: [id] }, { language: await currentLanguage() });
 
   const [refusal] = report.refused;
   if (refusal) throw new ConflictError(refusal.message);

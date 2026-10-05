@@ -7,7 +7,9 @@ import { runPreflight } from '@pupitre/core/ssh';
 import { getTargetSecret, logAudit, savePreflightResult } from '@pupitre/db';
 import type { Job } from 'bullmq';
 import { sshTargetOf } from '../deploy/ssh-target.js';
+import { instanceLanguage } from '../language.js';
 import { logger } from '../logger.js';
+import { workerSay } from '../messages.js';
 
 /**
  * Preflight d'une machine cible.
@@ -21,15 +23,16 @@ export async function handleTargetPreflight(
   const data = targetPreflightJobDataSchema.parse(job.data);
   const log = logger.child({ jobId: job.id, jobName: job.name, targetId: data.targetId });
 
+  const language = await instanceLanguage();
   const record = await getTargetSecret(data.targetId);
   if (!record) {
-    throw new Error(`Cible « ${data.targetId} » introuvable`);
+    throw new Error(workerSay(language)('notFound.target', { id: data.targetId }));
   }
 
   const { target, encryptedCredential } = record;
   log.info({ host: target.host, port: target.port }, 'preflight démarré');
 
-  const report = await runPreflight(sshTargetOf({ target, encryptedCredential }), log);
+  const report = await runPreflight(sshTargetOf({ target, encryptedCredential }), language, log);
   await savePreflightResult(data.targetId, report);
 
   const runtimes = usableRuntimes(report.runtimes);

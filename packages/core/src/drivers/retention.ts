@@ -1,6 +1,7 @@
 import { exec } from '../ssh/client.js';
 import type { DriverContext, LogSink } from './types.js';
 import { shellQuote } from '../shell.js';
+import { driverSay } from './messages.js';
 
 /**
  * Rétention des répertoires de version sur la cible.
@@ -67,7 +68,12 @@ export async function pruneReleases(
     .filter((line) => line.length > 0);
 
   if (removed.length > 0) {
-    onLog(`rétention : ${removed.length} version(s) supprimée(s) — ${removed.join(', ')}`);
+    onLog(
+      driverSay(ctx.language)('retention.removed', {
+        count: removed.length,
+        releases: removed.join(', '),
+      }),
+    );
   }
   return removed;
 }

@@ -1,11 +1,7 @@
-import { languageOf, renderMessage, type Translated, type UiLanguage } from '@pupitre/core';
+import { renderMessage, type Translated, type UiLanguage } from '@pupitre/core';
 import type { CommitStatus } from '@pupitre/core/sources';
-import {
-  getAppSettingsValue,
-  getApplicationSource,
-  getDeploymentForRun,
-  getDeploymentSummary,
-} from '@pupitre/db';
+import { getApplicationSource, getDeploymentForRun, getDeploymentSummary } from '@pupitre/db';
+import { instanceLanguage } from '../language.js';
 import { logger } from '../logger.js';
 import { providerForConnection } from './provider.js';
 
@@ -43,9 +39,8 @@ const en: Translated<typeof fr> = {
 
 const STATUS_TEXT = { fr, en };
 
-export async function statusLanguage(): Promise<UiLanguage> {
-  return languageOf((await getAppSettingsValue()).locale);
-}
+/** La langue de l'instance — voir `instanceLanguage()`. */
+export const statusLanguage = instanceLanguage;
 
 export function statusText(
   language: UiLanguage,

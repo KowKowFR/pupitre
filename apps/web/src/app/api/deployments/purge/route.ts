@@ -1,6 +1,7 @@
 import { PURGE_MAX_ROWS, logAudit, purgeDeployments, purgeFilterSchema } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { currentLanguage } from '@/i18n/server';
 import { apiRoute, readJsonBody } from '@/lib/http';
 import { logger } from '@/lib/logger';
 import { requirePermission } from '@/lib/rbac';
@@ -31,7 +32,8 @@ export const POST = apiRoute(async (request) => {
   const auth = await requirePermission(request, 'deployment:purge');
   const { dryRun, ...filter } = await readJsonBody(request, purgeRequestSchema);
 
-  const report = await purgeDeployments(filter, { dryRun });
+  // Les refus sont montrés tels quels : dans la langue de qui les lit.
+  const report = await purgeDeployments(filter, { dryRun, language: await currentLanguage() });
 
   // Une prévisualisation n'a rien changé : elle n'a rien à journaliser.
   if (!dryRun && report.purgedCount > 0) {

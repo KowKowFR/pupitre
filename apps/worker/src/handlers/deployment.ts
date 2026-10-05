@@ -10,6 +10,7 @@ import {
 } from '@pupitre/db';
 import type { Job } from 'bullmq';
 import { logger } from '../logger.js';
+import { workerSay } from '../messages.js';
 import { openDeploymentContext } from '../deploy/context.js';
 import { DeployLogStream } from '../deploy/log-stream.js';
 import { runDeploymentPipeline } from '../deploy/pipeline.js';
@@ -129,7 +130,7 @@ export async function handleDeploymentRollback(
 
   try {
     if (!ctx.previousDeployment) {
-      throw new Error("aucun déploiement précédent vers lequel revenir");
+      throw new Error(workerSay(ctx.language)('rollback.noPrevious'));
     }
 
     stream.event({ type: 'deployment', key: data.deploymentId, status: 'running', detail: null });
@@ -140,11 +141,15 @@ export async function handleDeploymentRollback(
     // réussi même si l'ancienne version boite. C'est l'opérateur qui décide de
     // la suite, on lui donne l'information plutôt qu'un statut de plus.
     const health = await driver.healthcheck(ctx);
+    const say = workerSay(ctx.language);
     stream.line(
       'deploy',
       health.healthy
-        ? `version ${ctx.previousDeployment.version} saine — ${health.detail ?? ''}`
-        : `⚠ la version restaurée ne répond pas : ${health.detail ?? 'sans détail'}`,
+        ? say('rollback.manual.healthy', {
+            version: ctx.previousDeployment.version,
+            detail: health.detail ?? '',
+          })
+        : say('rollback.manual.down', { detail: health.detail ?? say('noDetail') }),
     );
 
     await finishDeployment(data.deploymentId, 'rolled_back', {
@@ -165,7 +170,7 @@ export async function handleDeploymentRollback(
       type: 'deployment',
       key: data.deploymentId,
       status: 'rolled_back',
-      detail: `version ${ctx.previousDeployment.version}`,
+      detail: say('version', { version: ctx.previousDeployment.version }),
     });
 
     await logAudit({

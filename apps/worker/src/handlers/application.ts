@@ -3,6 +3,7 @@ import {
   type AbandonedWorkload,
   type ApplicationDeleteJobResult,
   type DestroyedDeployment,
+  type UiLanguage,
 } from '@pupitre/core';
 import { getDriver } from '@pupitre/core/drivers';
 import type { ConnectOptions } from '@pupitre/core/ssh';
@@ -18,7 +19,9 @@ import {
 } from '@pupitre/db';
 import type { Job } from 'bullmq';
 import { env } from '../env.js';
+import { instanceLanguage } from '../language.js';
 import { logger } from '../logger.js';
+import { workerSay, type WorkerSay } from '../messages.js';
 import { destroyDeployment } from './deployment.js';
 
 /**
@@ -63,10 +66,15 @@ export async function handleApplicationDelete(
   const data = applicationDeleteJobDataSchema.parse(job.data);
   const log = logger.child({ jobId: job.id, applicationId: data.applicationId });
 
-  const application = await getApplication(data.applicationId);
-  if (!application) throw new Error(`Application « ${data.applicationId} » introuvable`);
+  // Le compte rendu est montré à l'écran et gardé au journal d'activité : dans
+  // la langue de l'instance, comme le journal d'un déploiement.
+  const language = await instanceLanguage();
+  const say = workerSay(language);
 
-  const blockers = await listApplicationDeletionBlockers(data.applicationId);
+  const application = await getApplication(data.applicationId);
+  if (!application) throw new Error(say('cascade.notFound', { id: data.applicationId }));
+
+  const blockers = await listApplicationDeletionBlockers(data.applicationId, { language });
 
   // Un déploiement en cours ne se détruit pas, ne se purge pas, et le forçage
   // ne le change pas : effacer la ligne sous le worker qui l'écrit produirait
@@ -75,8 +83,19 @@ export async function handleApplicationDelete(
   const inProgress = blockers.filter((blocker) => blocker.reason === 'in_progress');
   if (inProgress.length > 0) {
     throw new Error(
-      `${inProgress.length} déploiement(s) de « ${application.slug} » sont en cours. ` +
-        `Attendez qu'ils se terminent : ${inProgress.map(identity).join(', ')}.`,
+      say('cascade.inProgress', {
+        count: inProgress.length,
+        slug: application.slug,
+        list: inProgress
+          .map((blocker) =>
+            say('cascade.identity', {
+              slug: blocker.applicationSlug,
+              version: blocker.version,
+              target: blocker.targetName,
+            }),
+          )
+          .join(', '),
+      }),
     );
   }
 
@@ -120,10 +139,12 @@ export async function handleApplicationDelete(
 
   // ── Échec partiel sans forçage : on ne touche pas à la base ────────────────
   if (abandoned.length > 0 && !data.force) {
-    const summary =
-      `${destroyed.length} déploiement(s) détruit(s), ` +
-      `${abandoned.length} impossible(s) à détruire : ${abandoned.map(residueIdentity).join(' ; ')}. ` +
-      `« ${application.slug} » et son historique sont intacts.`;
+    const summary = say('cascade.partial', {
+      destroyed: destroyed.length,
+      abandoned: abandoned.length,
+      residues: abandoned.map((residue) => residueIdentity(residue, say)).join(' ; '),
+      slug: application.slug,
+    });
 
     await logAudit({
       actorId: data.actorId,
@@ -141,14 +162,14 @@ export async function handleApplicationDelete(
 
   // ── Tout a été détruit : la purge garde son garde-fou ──────────────────────
   if (abandoned.length === 0) {
-    const purge = await purgeAll(application.id);
+    const purge = await purgeAll(application.id, language);
 
     if (purge.refused.length > 0) {
       // Filet de sécurité : la purge voit encore quelque chose de vivant alors
       // que toutes les destructions ont réussi. On préfère refuser et le dire.
-      const summary =
-        `Historique impurgeable après destruction : ` +
-        `${purge.refused.map((refusal) => refusal.message).join(' ; ')}`;
+      const summary = say('cascade.historyStuck', {
+        refusals: purge.refused.map((refusal) => refusal.message).join(' ; '),
+      });
 
       await logAudit({
         actorId: data.actorId,
@@ -171,10 +192,12 @@ export async function handleApplicationDelete(
 
     await deleteApplication(application.id);
 
-    const summary =
-      `« ${application.slug} » supprimée : ${destroyed.length} déploiement(s) détruit(s) ` +
-      `sur leur cible, ${purge.purged.length} effacé(s) de l'historique, ` +
-      `${describePorts(purge.releasedPorts)}.`;
+    const summary = say('cascade.deleted', {
+      slug: application.slug,
+      destroyed: destroyed.length,
+      purged: purge.purged.length,
+      ports: describePorts(purge.releasedPorts, say),
+    });
 
     await logAudit({
       actorId: data.actorId,
@@ -212,12 +235,15 @@ export async function handleApplicationDelete(
   // à la main — hôte, projet Compose ou namespace, port — et non avec un
   // décompte.
   const erasure = await eraseApplication(application.id);
-  if (!erasure) throw new Error(`Application « ${application.id} » déjà effacée`);
+  if (!erasure) throw new Error(say('cascade.alreadyErased', { id: application.id }));
 
-  const summary =
-    `« ${application.slug} » effacée de force : ${destroyed.length} déploiement(s) détruit(s), ` +
-    `${abandoned.length} abandonné(s) sur leur machine — ${abandoned.map(residueIdentity).join(' ; ')}. ` +
-    `${describePorts(erasure.releasedPorts)}.`;
+  const summary = say('cascade.forced', {
+    slug: application.slug,
+    destroyed: destroyed.length,
+    abandoned: abandoned.length,
+    residues: abandoned.map((residue) => residueIdentity(residue, say)).join(' ; '),
+    ports: describePorts(erasure.releasedPorts, say),
+  });
 
   await logAudit({
     actorId: data.actorId,
@@ -262,7 +288,10 @@ export async function handleApplicationDelete(
  * sur les steps et les scans. La cascade n'a aucune raison d'avoir sa propre
  * version de tout ça.
  */
-async function purgeAll(applicationId: string): Promise<{
+async function purgeAll(
+  applicationId: string,
+  language: UiLanguage,
+): Promise<{
   purged: string[];
   releasedPorts: Array<{ targetId: string; targetName: string; port: number }>;
   refused: PurgeRefusal[];
@@ -272,7 +301,7 @@ async function purgeAll(applicationId: string): Promise<{
   let refused: PurgeRefusal[] = [];
 
   for (let round = 0; round < PURGE_ROUNDS; round += 1) {
-    const report = await purgeDeployments({ applicationId });
+    const report = await purgeDeployments({ applicationId }, { language });
     purged.push(...report.purged);
     releasedPorts.push(...report.releasedPorts);
     refused = report.refused;
@@ -308,13 +337,17 @@ function describeResidue(
   };
 }
 
-function identity(blocker: ApplicationDeletionBlocker): string {
-  return `${blocker.applicationSlug} v${blocker.version} sur ${blocker.targetName}`;
-}
-
-function residueIdentity(residue: AbandonedWorkload): string {
-  const port = residue.publishedPort === null ? 'sans port publié' : `port ${residue.publishedPort}`;
-  return `${residue.workspace} sur ${residue.targetName} (${residue.targetHost}, ${port}) — ${residue.error}`;
+function residueIdentity(residue: AbandonedWorkload, say: WorkerSay): string {
+  return say('cascade.residue', {
+    workspace: residue.workspace,
+    target: residue.targetName,
+    host: residue.targetHost,
+    port:
+      residue.publishedPort === null
+        ? say('cascade.noPort')
+        : say('cascade.port', { port: residue.publishedPort }),
+    error: residue.error,
+  });
 }
 
 /**
@@ -343,9 +376,11 @@ function cleanupHint(
   };
 }
 
-function describePorts(
-  ports: Array<{ targetName: string; port: number }>,
-): string {
-  if (ports.length === 0) return 'aucun port à rendre';
-  return `port(s) rendu(s) : ${ports.map((entry) => `${entry.port} sur ${entry.targetName}`).join(', ')}`;
+function describePorts(ports: Array<{ targetName: string; port: number }>, say: WorkerSay): string {
+  if (ports.length === 0) return say('cascade.noPortToRelease');
+  return say('cascade.portsReleased', {
+    ports: ports
+      .map((entry) => say('cascade.portOn', { port: entry.port, target: entry.targetName }))
+      .join(', '),
+  });
 }

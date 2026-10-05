@@ -19,6 +19,8 @@ import type {
   SshTarget,
 } from './types.js';
 import { shellQuote } from '../shell.js';
+import type { UiLanguage } from '../i18n.js';
+import { sshSay } from './messages.js';
 
 export const DEFAULT_EXEC_TIMEOUT_MS = 30_000;
 export const DEFAULT_READY_TIMEOUT_MS = 15_000;
@@ -41,6 +43,8 @@ export type SshSession = {
   readonly target: SshTarget;
   /** @internal */
   readonly logger: SshLogger | undefined;
+  /** La langue de ce que la session dit — voir `ConnectOptions.language`. */
+  readonly language: UiLanguage;
 };
 
 const noopLogger: SshLogger = {
@@ -74,6 +78,7 @@ export async function connect(
   options: ConnectOptions = {},
 ): Promise<SshSession> {
   const logger = options.logger ?? noopLogger;
+  const say = sshSay(options.language ?? 'fr');
   const retries = options.retries ?? DEFAULT_RETRIES;
   const readyTimeout = options.readyTimeout ?? DEFAULT_READY_TIMEOUT_MS;
 
@@ -143,6 +148,7 @@ export async function connect(
         client,
         target,
         logger: options.logger,
+        language: options.language ?? 'fr',
       };
     } catch (error) {
       lastError = error;
@@ -156,7 +162,7 @@ export async function connect(
           "clé d'hôte inattendue — connexion refusée, aucune nouvelle tentative",
         );
         await policy.onMismatch?.(seen);
-        throw new SshHostKeyError(target.host, policy.expected, seen);
+        throw new SshHostKeyError(target.host, policy.expected, seen, options.language);
       }
 
       if (isAuthFailure(error)) {
@@ -164,11 +170,7 @@ export async function connect(
           { host: target.host, authMethod: target.credentials.authMethod },
           "échec d'authentification SSH — aucune nouvelle tentative",
         );
-        throw new SshAuthError(
-          "Authentification SSH refusée (clé ou mot de passe invalide, ou passphrase manquante)",
-          target.host,
-          error,
-        );
+        throw new SshAuthError(say('auth.refused'), target.host, error);
       }
 
       const isLast = attempt === retries;
@@ -190,7 +192,7 @@ export async function connect(
   }
 
   throw new SshConnectionError(
-    `Connexion SSH impossible vers ${target.host}:${target.port} après ${retries} tentatives`,
+    say('connect.failed', { host: target.host, port: target.port, retries }),
     target.host,
     lastError,
   );
@@ -206,11 +208,7 @@ function withSudo(session: SshSession, command: string): { command: string; stdi
   }
 
   if (session.target.credentials.authMethod !== 'password') {
-    throw new SshConfigError(
-      "sudo_method « password » exige une authentification par mot de passe : " +
-        "aucun mot de passe disponible pour cette cible en authentification par clé",
-      session.host,
-    );
+    throw new SshConfigError(sshSay(session.language)('sudo.passwordWithKey'), session.host);
   }
 
   // Le mot de passe passe par stdin, jamais par la ligne de commande :
@@ -256,7 +254,12 @@ export async function exec(
       ? null
       : new Promise<never>((_, reject) => {
           timer = setTimeout(() => {
-            reject(new SshTimeoutError(`Commande interrompue après ${timeout} ms`, session.host));
+            reject(
+              new SshTimeoutError(
+                sshSay(session.language)('command.interrupted', { ms: timeout }),
+                session.host,
+              ),
+            );
           }, timeout);
         });
 
@@ -297,7 +300,7 @@ export async function exec(
       return {
         code: -1,
         stdout: '',
-        stderr: `timeout après ${timeout} ms`,
+        stderr: sshSay(session.language)('command.timedOut', { ms: timeout ?? 0 }),
         timedOut: true,
         durationMs: Date.now() - startedAt,
       };
@@ -358,7 +361,12 @@ export async function execStream(
       ? null
       : new Promise<never>((_, reject) => {
           timer = setTimeout(() => {
-            reject(new SshTimeoutError(`Commande interrompue après ${timeout} ms`, session.host));
+            reject(
+              new SshTimeoutError(
+                sshSay(session.language)('command.interrupted', { ms: timeout }),
+                session.host,
+              ),
+            );
           }, timeout);
         });
 
@@ -376,7 +384,7 @@ export async function execStream(
       return {
         code: -1,
         stdout: '',
-        stderr: `timeout après ${timeout} ms`,
+        stderr: sshSay(session.language)('command.timedOut', { ms: timeout ?? 0 }),
         timedOut: true,
         durationMs: Date.now() - startedAt,
       };
@@ -426,7 +434,11 @@ export async function execPipe(
   const logger = session.logger ?? noopLogger;
   const connection = session.client.connection;
   if (!connection) {
-    throw new SshConnectionError('Session SSH fermée', session.host, undefined);
+    throw new SshConnectionError(
+      sshSay(session.language)('session.closed'),
+      session.host,
+      undefined,
+    );
   }
   const timeout = options.timeout === undefined ? PIPE_TIMEOUT_MS : options.timeout;
   const startedAt = Date.now();

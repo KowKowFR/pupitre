@@ -1,4 +1,5 @@
 import { buildContextPath } from '../source-archive.js';
+import type { UiLanguage } from '../../i18n.js';
 import { stringify } from 'yaml';
 import { WORKSPACE_PREFIX } from '../../naming.js';
 import {
@@ -271,6 +272,8 @@ export type RenderInput = {
   sourceInRelease?: boolean;
   /** L'étiquette des images construites : la release (`releaseName()`). Défaut : la version. */
   imageTag?: string;
+  /** La langue d'une erreur de rendu (un secret sans valeur). Défaut : le français. */
+  language?: UiLanguage;
 };
 
 /** Le fichier Compose de Pupitre, toujours désigné par son nom (`-f`). */
@@ -426,7 +429,7 @@ export function renderFiles(
   // Échoue si un secret déclaré n'a pas de valeur résolue — voir
   // `completeSecretValues()`. Le rendu est le dernier endroit où l'on peut
   // encore nommer le coupable.
-  const complete = completeSecretValues(input.spec, input.secretValues ?? {});
+  const complete = completeSecretValues(input.spec, input.secretValues ?? {}, input.language);
 
   if (Object.keys(complete).length > 0) {
     files.push({

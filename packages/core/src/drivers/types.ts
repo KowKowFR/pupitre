@@ -1,3 +1,4 @@
+import type { UiLanguage } from '../i18n.js';
 import type { PortAllocator } from '../ports.js';
 import type { AppStatus } from '../supervision.js';
 import type { AppSpec } from '../spec/index.js';
@@ -55,6 +56,17 @@ export type RenderedFile = {
   mode?: number;
 };
 
+/** Ce qu'a fait l'expiration d'un constructeur d'images (`pruneIdleBuilder`). */
+export type BuilderPruneResult = {
+  /**
+   * `absent` : rien à expirer. `kept` : servi récemment, ou réclamé par un
+   * build à l'instant. `removed` : retiré.
+   */
+  outcome: 'absent' | 'kept' | 'removed';
+  /** Son dernier build (ISO), quand il y en avait un. */
+  lastUsedAt: string | null;
+};
+
 /**
  * Contexte au niveau de la **machine**, pas d'un déploiement.
  *
@@ -72,20 +84,17 @@ export type RenderedFile = {
  * déploiement accepte déjà un contexte de cible, et aucun appel existant ne
  * change.
  */
-/** Ce qu'a fait l'expiration d'un constructeur d'images (`pruneIdleBuilder`). */
-export type BuilderPruneResult = {
-  /**
-   * `absent` : rien à expirer. `kept` : servi récemment, ou réclamé par un
-   * build à l'instant. `removed` : retiré.
-   */
-  outcome: 'absent' | 'kept' | 'removed';
-  /** Son dernier build (ISO), quand il y en avait un. */
-  lastUsedAt: string | null;
-};
-
 export type TargetContext = {
   target: DriverTarget;
   sshSession: SshSession;
+  /**
+   * La langue de l'instance : celle de ce que le driver dit — lignes du
+   * journal d'un déploiement, résultats du preflight, erreurs. Obligatoire,
+   * pour qu'aucun appelant ne l'oublie : le worker la lit dans les paramètres
+   * au début de chaque tâche, comme pour les statuts de commit et les
+   * notifications.
+   */
+  language: UiLanguage;
 };
 
 export type DriverContext = TargetContext & {

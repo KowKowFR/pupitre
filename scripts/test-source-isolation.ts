@@ -94,6 +94,7 @@ async function exercise(runtime: RuntimeKind, ref: string, applicationId: string
     },
     deployment: { id: `piege-${runtime}-${Date.now()}`, version: SPEC.version, sequence: 1 },
     sshSession: session,
+    language: 'fr',
     appSlug: SPEC.name,
     applicationId,
     portAllocator: createPortAllocator(),

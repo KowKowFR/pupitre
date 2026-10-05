@@ -92,12 +92,12 @@ export const DELETE = apiRoute<Context>(async (request, context) => {
   // `destroyed` est un enregistrement d'historique, il ne retient rien. C'est
   // d'en porter un que le panel ne doit pas perdre de vue. La règle et son
   // vocabulaire sont ceux de la purge : `listApplicationDeletionBlockers()`.
-  const blockers = await listApplicationDeletionBlockers(id);
+  // La liste s'insère DANS la phrase : elle ne peut pas attendre la
+  // sérialisation comme le fait `msg()`. On lit donc la langue ici, et les
+  // deux morceaux tombent d'accord — le message de chaque bloqueur aussi.
+  const language = await currentLanguage();
+  const blockers = await listApplicationDeletionBlockers(id, { language });
   if (blockers.length > 0) {
-    // La liste s'insère DANS la phrase : elle ne peut pas attendre la
-    // sérialisation comme le fait `msg()`. On lit donc la langue ici, et les
-    // deux morceaux tombent d'accord.
-    const language = await currentLanguage();
     throw new HttpError(
       409,
       'application_has_live_deployments',

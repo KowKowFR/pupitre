@@ -72,6 +72,7 @@ async function exercise(runtime: RuntimeKind, ref: string, applicationId: string
     spec: SPEC,
     target: { id: target.id, name: target.name, host: target.host, rootPath: root },
     sshSession: session,
+    language: 'fr',
     appSlug: SPEC.name,
     applicationId,
     portAllocator: createPortAllocator(),

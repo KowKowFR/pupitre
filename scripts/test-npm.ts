@@ -184,6 +184,7 @@ async function openSide(runtime: RuntimeKind, ref: string, applicationId: string
     },
     deployment: { id: `npm-${runtime}-${Date.now()}`, version: SPEC.version, sequence: 1 },
     sshSession: session,
+    language: 'fr',
     appSlug: SPEC.name,
     applicationId,
     portAllocator: createPortAllocator(),

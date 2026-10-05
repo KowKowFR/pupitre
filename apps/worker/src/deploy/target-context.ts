@@ -3,7 +3,9 @@ import type { TargetContext } from '@pupitre/core/drivers';
 import { connect, type SshSession } from '@pupitre/core/ssh';
 import { getTargetSecret } from '@pupitre/db';
 import { env } from '../env.js';
+import { instanceLanguage } from '../language.js';
 import { logger } from '../logger.js';
+import { workerSay } from '../messages.js';
 import { sshTargetOf } from './ssh-target.js';
 
 export type OpenedTarget = {
@@ -21,11 +23,12 @@ export type OpenedTarget = {
  * pas la portée de cette fonction.
  */
 export async function openTargetContext(targetId: string): Promise<OpenedTarget> {
+  const language = await instanceLanguage();
   const record = await getTargetSecret(targetId);
-  if (!record) throw new Error(`Cible « ${targetId} » introuvable`);
+  if (!record) throw new Error(workerSay(language)('notFound.target', { id: targetId }));
 
   const { target } = record;
-  const session = await connect(sshTargetOf(record), { logger });
+  const session = await connect(sshTargetOf(record), { logger, language });
 
   return {
     session,
@@ -39,6 +42,7 @@ export async function openTargetContext(targetId: string): Promise<OpenedTarget>
         rootPath: env.DRIVER_ROOT_PATH,
       },
       sshSession: session,
+      language,
     },
   };
 }
