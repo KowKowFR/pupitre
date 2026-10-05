@@ -17,6 +17,7 @@ import { SegmentedControl } from '@/components/ui/segmented';
 import { useT } from '@/i18n/client';
 import { common } from '@/i18n/messages/common';
 import { targets as messages } from '@/i18n/messages/targets';
+import { randomUuid } from '@/lib/secure-origin';
 
 /**
  * A workload's log, or a console in it.
@@ -48,19 +49,6 @@ type ApiError = { error?: { message?: string } };
 const MAX_LINES = 2000;
 const KEEP_COMMANDS = 20;
 const TAILS = ['100', '300', '1000'] as const;
-
-/**
- * `crypto.randomUUID` only exists on a secure origin — HTTPS or localhost. A
- * self-hosted panel is sometimes browsed over HTTP on the local network:
- * `getRandomValues`, for its part, is everywhere.
- */
-function runId(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(16));
-  bytes[6] = (bytes[6]! & 0x0f) | 0x40;
-  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
-  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-}
 
 /**
  * `docker logs --timestamps`: "2026-10-01T09:12:33.123456789Z text".
@@ -119,7 +107,7 @@ export function WorkloadRunDrawer({
 
   // The log is read as soon as it opens: its first run exists before the first
   // render, the effect only plugs the stream into it.
-  const [initialRun] = useState(() => (mode === 'logs' ? runId() : null));
+  const [initialRun] = useState(() => (mode === 'logs' ? randomUuid() : null));
   const [entries, setEntries] = useState<Entry[]>(() =>
     initialRun ? [blankEntry(initialRun, null)] : [],
   );
@@ -225,7 +213,7 @@ export function WorkloadRunDrawer({
   }, [entries]);
 
   function start(body: Record<string, unknown>, label: string | null) {
-    const run = runId();
+    const run = randomUuid();
     const entry = blankEntry(run, label);
     // The log only keeps its last read; the console, its last commands.
     setEntries((list) =>

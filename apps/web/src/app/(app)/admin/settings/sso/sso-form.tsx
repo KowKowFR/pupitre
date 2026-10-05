@@ -14,6 +14,7 @@ import { settings as messages } from '@/i18n/messages/settings';
 import { toast } from '@/lib/toast';
 import { SectionForm } from '../section-form';
 import { useSettingsPatch } from '../use-settings-patch';
+import { copyText } from '@/lib/secure-origin';
 
 type Mapping = SsoSettings['roleMappings'][number];
 type Check = { ok: true; issuer: string } | { ok: false; error: string } | null;
@@ -98,12 +99,8 @@ export function SsoForm({
   }
 
   async function copyCallback() {
-    try {
-      await navigator.clipboard.writeText(callbackUrl);
-      toast({ title: t('sso.callback.copied'), tone: 'ok' });
-    } catch {
-      /* the URL stays on screen, selectable */
-    }
+    // Not copied: the URL stays on screen, selectable.
+    if (await copyText(callbackUrl)) toast({ title: t('sso.callback.copied'), tone: 'ok' });
   }
 
   return (

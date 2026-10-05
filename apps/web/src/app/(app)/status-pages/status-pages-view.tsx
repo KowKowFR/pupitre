@@ -51,6 +51,7 @@ import type { FormatSettings } from '@/lib/format';
 import type { StatusPageJson, StatusPageModel } from '@/lib/status-page';
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
+import { randomUuid } from '@/lib/secure-origin';
 
 type MonitorOption = { id: string; name: string };
 type T = Translate<typeof messages.fr>;
@@ -63,7 +64,7 @@ async function failure(response: Response, fallback: string): Promise<string> {
 }
 
 function newId(): string {
-  return crypto.randomUUID().slice(0, 8);
+  return randomUuid().slice(0, 8);
 }
 
 /** A new block of this type, ready to be set. */

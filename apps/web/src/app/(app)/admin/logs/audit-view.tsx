@@ -35,6 +35,7 @@ import { common } from '@/i18n/messages/common';
 import { formatDateTime, type FormatSettings } from '@/lib/format';
 import { toast } from '@/lib/toast';
 import { describeUserAgent } from '@/lib/user-agent';
+import { copyText } from '@/lib/secure-origin';
 
 /** A log entry, as the page serializes it. */
 export type AuditEntry = {
@@ -538,9 +539,9 @@ function EntryDrawer({
           <Button
             variant="secondary"
             onClick={() => {
-              void navigator.clipboard
-                .writeText(payload)
-                .then(() => toast({ title: t('logs.drawer.copied') }));
+              void copyText(payload).then((copied) => {
+                if (copied) toast({ title: t('logs.drawer.copied') });
+              });
             }}
           >
             <Copy aria-hidden />
