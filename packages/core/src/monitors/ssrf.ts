@@ -524,6 +524,18 @@ export function checkUrlShape(value: string): ShapeVerdict {
   return checkHostname(url.hostname);
 }
 
+/**
+ * Le reproche d'un refus : sa phrase française, et le refus en donnée — l'écran
+ * le redit dans sa langue (`issueMessage()` de `validation.ts`).
+ */
+function refusalIssue(verdict: ShapeVerdict, fallback: string) {
+  return {
+    code: 'custom' as const,
+    message: verdict.reason ?? fallback,
+    ...(verdict.refusal ? { params: { ssrf: verdict.refusal } } : {}),
+  };
+}
+
 /** URL de sonde : la forme est validée ici, les adresses au moment de sonder. */
 export const monitorUrlSchema = z
   .string()
@@ -532,7 +544,7 @@ export const monitorUrlSchema = z
   .max(2048)
   .superRefine((value, ctx) => {
     const verdict = checkUrlShape(value);
-    if (!verdict.allowed) ctx.addIssue({ code: 'custom', message: verdict.reason ?? 'URL refusée' });
+    if (!verdict.allowed) ctx.addIssue(refusalIssue(verdict, 'URL refusée'));
   });
 
 /** Nom d'hôte de sonde — pour les types qui ne parlent pas HTTP (TLS, demain DNS). */
@@ -548,6 +560,6 @@ export const monitorHostSchema = z
     }
     const verdict = checkHostname(value);
     if (!verdict.allowed) {
-      ctx.addIssue({ code: 'custom', message: verdict.reason ?? 'hôte refusé' });
+      ctx.addIssue(refusalIssue(verdict, 'hôte refusé'));
     }
   });

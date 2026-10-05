@@ -1,3 +1,4 @@
+import { invalid } from '@pupitre/core';
 import type { PreflightReport, RuntimesAvailable } from '@pupitre/core';
 import type { TargetLabels } from './schema/infra.js';
 import { and, count, eq, isNull, ne, or } from 'drizzle-orm';
@@ -90,9 +91,10 @@ export const TARGET_LABELS_MAX = 12;
 
 export const labelsSchema = z
   .record(z.string().min(1).max(60), z.string().min(1).max(200))
-  .refine((labels) => Object.keys(labels).length <= TARGET_LABELS_MAX, {
-    message: `Pas plus de ${TARGET_LABELS_MAX} étiquettes par cible`,
-  });
+  .refine(
+    (labels) => Object.keys(labels).length <= TARGET_LABELS_MAX,
+    invalid('targets.tooManyLabels', { max: TARGET_LABELS_MAX }),
+  );
 
 /**
  * Une description absente doit valoir `null`, pas `''`.
@@ -158,7 +160,7 @@ export const createTargetSchema = z
     portRangeEnd: targetFieldShapes.portRangeEnd.default(32_767),
   })
   .refine((input) => input.portRangeStart <= input.portRangeEnd, {
-    message: 'La borne basse de la plage de ports doit précéder la borne haute',
+    ...invalid('targets.portRange'),
     path: ['portRangeStart'],
   });
 

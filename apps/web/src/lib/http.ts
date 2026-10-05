@@ -1,7 +1,7 @@
 import 'server-only';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { renderMessage } from '@pupitre/core';
+import { localizeZodError, renderMessage } from '@pupitre/core';
 import { logAudit } from '@pupitre/db';
 import { errors, type ErrorKey } from '@/i18n/messages/errors';
 import { currentLanguage } from '@/i18n/server';
@@ -83,11 +83,13 @@ export function apiRoute<Context>(
         );
       }
       if (error instanceof z.ZodError) {
+        // Les reproches des schémas de Pupitre portent leur clé : on les redit
+        // dans la langue de l'écran avant de les aplatir.
         return jsonError(
           422,
           'validation_failed',
           await localizeKey('validation.schema'),
-          z.flattenError(error),
+          z.flattenError(localizeZodError(error, await currentLanguage())),
         );
       }
       logger.error(

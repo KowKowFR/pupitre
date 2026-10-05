@@ -5,6 +5,7 @@ import {
   formatCadence,
   formatUptime,
   isMonitorType,
+  issueMessage,
   monitorTargetLink,
   monitorTypeDefinition,
   parseCidrList,
@@ -102,7 +103,11 @@ export async function monitorConfigMessage(error: MonitorConfigError): Promise<H
     return new HttpError(
       422,
       'validation_failed',
-      msg(messages, 'error.configInvalid', { label, path: reason.path, issue: reason.issue }),
+      msg(messages, 'error.configInvalid', {
+        label,
+        path: reason.path,
+        issue: issueMessage({ message: reason.issue, params: reason.params }, language),
+      }),
       details,
     );
   }

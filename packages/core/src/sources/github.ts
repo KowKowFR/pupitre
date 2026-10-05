@@ -3,6 +3,8 @@ import { createWriteStream } from 'node:fs';
 import { unlink } from 'node:fs/promises';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
+import type { UiLanguage } from '../i18n.js';
+import { sourceSay } from './messages.js';
 import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import {
   SourceProviderError,
@@ -39,6 +41,8 @@ export type GitHubAppCredentials = {
   privateKey: string;
   /** `https://api.github.com`, ou l'API d'un GitHub Enterprise. */
   apiUrl?: string;
+  /** La langue de ce que le client dit — celle de l'instance. Français par défaut. */
+  language?: UiLanguage;
 };
 
 export const GITHUB_API_URL = 'https://api.github.com';
@@ -117,7 +121,7 @@ export class GitHubSourceProvider implements SourceProvider {
   private async installationToken(installationId: number | null): Promise<string> {
     if (installationId === null) {
       throw new SourceProviderError(
-        'dépôt sans installation de la GitHub App : reliez-le de nouveau depuis le panel',
+        sourceSay(this.credentials.language ?? 'fr')('github.noInstallation'),
         null,
         'github',
       );
@@ -286,18 +290,15 @@ export class GitHubSourceProvider implements SourceProvider {
       throw new SourceProviderError(await errorMessage(response), response.status, 'github');
     }
 
+    const tooLarge = sourceSay(this.credentials.language ?? 'fr')('archive.tooLarge', {
+      mib: Math.round(maxBytes / 1024 / 1024),
+    });
     let bytes = 0;
     const cap = new Transform({
       transform(chunk: Buffer, _encoding, done) {
         bytes += chunk.byteLength;
         if (bytes > maxBytes) {
-          done(
-            new SourceProviderError(
-              `archive du dépôt au-delà de ${Math.round(maxBytes / 1024 / 1024)} Mio`,
-              null,
-              'github',
-            ),
-          );
+          done(new SourceProviderError(tooLarge, null, 'github'));
           return;
         }
         done(null, chunk);

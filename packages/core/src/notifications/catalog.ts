@@ -5,6 +5,7 @@ import {
   type UiLanguage,
 } from '../i18n.js';
 import { z } from 'zod';
+import { invalid } from '../validation.js';
 
 /**
  * Catalogue des canaux de notification — la partie *données* de l'abstraction.
@@ -107,7 +108,7 @@ const mailboxListSchema = z
         .map((entry) => entry.trim())
         .filter((entry) => entry.length > 0)
         .every((entry) => ADDRESS.test(entry)),
-    { message: 'Liste d’adresses e-mail invalide (séparées par des virgules)' },
+    invalid('notifications.emailList'),
   );
 
 /**

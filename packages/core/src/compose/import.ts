@@ -12,6 +12,7 @@ import {
   type ComposeIssueCode,
   type ComposeReason,
 } from './messages.js';
+import { issueMessage } from '../validation.js';
 
 /**
  * Importer un `docker-compose.yml` : la porte d'entrée de qui arrive avec un
@@ -47,6 +48,8 @@ export type ComposeIssue = {
   vars: Vars;
   /** Motif d'un `ignored` / `unsupported` / `topLevel`, traduit à part. */
   reason?: ComposeReason;
+  /** Un reproche du schéma d'AppSpec, gardé entier pour être redit (`issueMessage()`). */
+  schemaIssue?: { path: string; message: string; params?: unknown };
 };
 
 export type ComposeImport = {
@@ -850,8 +853,17 @@ export function importCompose(
   const checked = appSpecSchema.safeParse(spec);
   if (!checked.success) {
     for (const problem of checked.error.issues) {
-      issue('blocking', 'schema', null, {
-        message: `${problem.path.join('.') || '—'} : ${problem.message}`,
+      const path = problem.path.join('.') || '—';
+      issues.push({
+        level: 'blocking',
+        code: 'schema',
+        service: null,
+        vars: { message: `${path} : ${problem.message}` },
+        schemaIssue: {
+          path,
+          message: problem.message,
+          ...('params' in problem && problem.params ? { params: problem.params } : {}),
+        },
       });
     }
   }
@@ -867,6 +879,9 @@ export function importCompose(
 export function renderComposeIssue(issue: ComposeIssue, lang: UiLanguage): string {
   const vars: Record<string, string | number> = { ...issue.vars };
   if (issue.reason) vars.reason = renderMessage(composeReasons, lang, issue.reason);
+  if (issue.schemaIssue) {
+    vars.message = `${issue.schemaIssue.path} : ${issueMessage(issue.schemaIssue, lang)}`;
+  }
   if (issue.code === 'env.interpolated' && typeof issue.vars.outcomeCode === 'string') {
     vars.outcome = renderMessage(
       composeImportMessages,

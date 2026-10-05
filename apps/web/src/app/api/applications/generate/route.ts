@@ -83,22 +83,25 @@ export const POST = apiRoute(async (request) => {
     language: uiLanguage,
   });
 
-  if (!ai.enabled) {
-    const descriptor = aiProviderDescriptor(ai.provider);
-    // Le renvoi vers la variable d'environnement s'insère DANS la phrase :
-    // il ne peut pas attendre la sérialisation, la clé qui le porte, si.
-    throw new NotImplementedError(
-      settings.ai.enabled
-        ? msg(messages, 'error.aiNoKey', {
-            provider: providerLabel,
-            envVar: descriptor.envApiKeyVar
-              ? renderMessage(messages, uiLanguage, 'error.aiEnvVar', {
-                  variable: descriptor.envApiKeyVar,
-                })
-              : '',
-          })
-        : msg(messages, 'error.aiDisabled'),
+  // Le renvoi vers la variable d'environnement s'insère DANS la phrase :
+  // il ne peut pas attendre la sérialisation, la clé qui le porte, si.
+  const descriptor = aiProviderDescriptor(ai.provider);
+  const noKey = () =>
+    new NotImplementedError(
+      msg(messages, 'error.aiNoKey', {
+        provider: providerLabel,
+        envVar: descriptor.envApiKeyVar
+          ? renderMessage(messages, uiLanguage, 'error.aiEnvVar', {
+              variable: descriptor.envApiKeyVar,
+            })
+          : '',
+      }),
     );
+
+  if (!ai.enabled) {
+    throw settings.ai.enabled
+      ? noKey()
+      : new NotImplementedError(msg(messages, 'error.aiDisabled'));
   }
 
   const modelName = ai.model;
@@ -128,9 +131,7 @@ export const POST = apiRoute(async (request) => {
       baseUrl: ai.baseUrl,
     });
   } catch (error) {
-    if (error instanceof MissingApiKeyError) {
-      throw new NotImplementedError(error.message);
-    }
+    if (error instanceof MissingApiKeyError) throw noKey();
     throw error;
   }
 
@@ -142,12 +143,13 @@ export const POST = apiRoute(async (request) => {
     timeoutMs: DEFAULT_TIMEOUT_MS,
     temperature: settings.ai.temperature,
     maxOutputTokens: settings.ai.maxTokens,
+    language: uiLanguage,
   });
 
   // Le message d'un fournisseur n'est pas un texte de confiance : OpenAI y
   // recopie la clé refusée, partiellement masquée — donc partiellement en
   // clair. Il est nettoyé ici, une fois, avant l'audit ET avant la réponse.
-  const failureMessage = result.ok ? '' : redactApiKey(result.message, ai.apiKey);
+  const failureMessage = result.ok ? '' : redactApiKey(result.message, ai.apiKey, uiLanguage);
 
   // Une seule entrée d'audit, quel que soit le verdict : c'est la même action.
   // Le prompt y figure — c'est tout l'intérêt de la trace — mais jamais la clé.

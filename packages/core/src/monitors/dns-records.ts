@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { UiLanguage } from '../i18n.js';
 import { probeSay } from '../probe/messages.js';
 import { parseIp } from './ssrf.js';
+import { invalid, type ValidationRef } from '../validation.js';
 
 /**
  * Le vocabulaire DNS, et **la comparaison de deux réponses DNS**.
@@ -228,9 +229,15 @@ export function parseExpectedRecords(type: DnsRecordType, text: string): string[
 
 /** Contrôle de forme d'une valeur attendue. `null` = la forme est bonne. */
 export function validateDnsRecordValue(type: DnsRecordType, value: string): string | null {
+  const problem = dnsRecordProblem(type, value);
+  return problem === null ? null : invalid(problem.key, problem.vars).message;
+}
+
+/** Le même contrôle, le reproche en donnée — pour un schéma. */
+export function dnsRecordProblem(type: DnsRecordType, value: string): ValidationRef | null {
   const raw = value.trim();
-  if (raw === '') return 'valeur vide';
-  if (raw.length > 2048) return 'valeur trop longue';
+  if (raw === '') return { key: 'dns.empty' };
+  if (raw.length > 2048) return { key: 'dns.tooLong' };
 
   const isName = (candidate: string): boolean =>
     candidate.length > 0 &&
@@ -242,19 +249,19 @@ export function validateDnsRecordValue(type: DnsRecordType, value: string): stri
   switch (type) {
     case 'A': {
       const parsed = parseIp(raw);
-      return parsed && parsed.family === 4 ? null : `« ${raw} » n'est pas une adresse IPv4`;
+      return parsed && parsed.family === 4 ? null : { key: 'dns.notIpv4', vars: { value: raw } };
     }
     case 'AAAA': {
       const parsed = parseIp(raw);
-      return parsed && parsed.family === 6 ? null : `« ${raw} » n'est pas une adresse IPv6`;
+      return parsed && parsed.family === 6 ? null : { key: 'dns.notIpv6', vars: { value: raw } };
     }
     case 'CNAME':
     case 'NS':
-      return isName(raw) ? null : `« ${raw} » n'est pas un nom de domaine`;
+      return isName(raw) ? null : { key: 'dns.notName', vars: { value: raw } };
     case 'MX': {
       const parts = tokens(raw);
       if (parts.length !== 2 || !/^\d{1,5}$/.test(parts[0] ?? '') || !isName(parts[1] ?? '')) {
-        return `un MX s'écrit « priorité hôte », par exemple « ${DNS_RECORD_TYPE_FORMATS.MX} »`;
+        return { key: 'dns.mx', vars: { example: DNS_RECORD_TYPE_FORMATS.MX } };
       }
       return null;
     }
@@ -265,14 +272,14 @@ export function validateDnsRecordValue(type: DnsRecordType, value: string): stri
         !parts.slice(0, 3).every((part) => /^\d{1,5}$/.test(part)) ||
         !isName(parts[3] ?? '')
       ) {
-        return `un SRV s'écrit « priorité poids port hôte », par exemple « ${DNS_RECORD_TYPE_FORMATS.SRV} »`;
+        return { key: 'dns.srv', vars: { example: DNS_RECORD_TYPE_FORMATS.SRV } };
       }
       return null;
     }
     case 'CAA': {
       const parts = tokens(raw);
       if (parts.length < 3 || !/^\d{1,3}$/.test(parts[0] ?? '') || !/^[a-z0-9]+$/i.test(parts[1] ?? '')) {
-        return `un CAA s'écrit « drapeaux étiquette valeur », par exemple « ${DNS_RECORD_TYPE_FORMATS.CAA} »`;
+        return { key: 'dns.caa', vars: { example: DNS_RECORD_TYPE_FORMATS.CAA } };
       }
       return null;
     }

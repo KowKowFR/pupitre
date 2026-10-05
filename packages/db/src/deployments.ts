@@ -9,6 +9,7 @@ import {
   type DeploymentStepKey,
   type ScanConfig,
   type StepStatus,
+  invalid,
 } from '@pupitre/core';
 import {
   and,
@@ -1033,11 +1034,9 @@ export const purgeFilterSchema = z
       filter.olderThanDays !== undefined ||
       filter.applicationId !== undefined ||
       filter.targetId !== undefined,
-    {
-      // Un filtre vide viserait tout l'historique. Ce n'est pas une purge, c'est
-      // un accident : on exige au moins un critère.
-      message: 'Au moins un critère est requis (ids, statuses, olderThanDays, applicationId, targetId)',
-    },
+    // Un filtre vide viserait tout l'historique. Ce n'est pas une purge, c'est
+    // un accident : on exige au moins un critère.
+    invalid('purge.criteria'),
   );
 
 export type PurgeFilter = z.infer<typeof purgeFilterSchema>;

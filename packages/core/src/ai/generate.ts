@@ -6,6 +6,9 @@ import {
   safeParseAppSpec,
   type AppSpec,
 } from '../spec/app-spec.js';
+import type { UiLanguage } from '../i18n.js';
+import { issueMessage } from '../validation.js';
+import { aiSay } from './messages.js';
 import { generateAppSpecPrompt } from './prompt.js';
 
 /**
@@ -119,6 +122,12 @@ export type GenerateAppSpecOptions = {
    * serait exactement la fuite que l'architecture cherche à empêcher.
    */
   providerOptions?: ProviderCallOptions;
+  /**
+   * La langue de ce qui revient à l'écran : le message d'échec et les
+   * reproches des tentatives. Le dialogue avec le modèle, lui, reste dans la
+   * langue du prompt. Français par défaut.
+   */
+  language?: UiLanguage;
 };
 
 /**
@@ -132,12 +141,15 @@ export function appSpecJsonSchema(): Record<string, unknown> {
   return z.toJSONSchema(appSpecShapeSchema, { io: 'input' }) as Record<string, unknown>;
 }
 
-/** Reproches de Zod aplatis en lignes « chemin : message ». */
-export function formatIssues(error: z.ZodError): string[] {
-  return error.issues.map((issue) => {
-    const path = issue.path.length > 0 ? issue.path.join('.') : '(racine)';
-    return `${path} : ${issue.message}`;
-  });
+/** Reproches de Zod aplatis en lignes « chemin : message », dans la langue demandée. */
+export function formatIssues(error: z.ZodError, language: UiLanguage = 'fr'): string[] {
+  const say = aiSay(language);
+  return error.issues.map((issue) =>
+    say('issue', {
+      path: issue.path.length > 0 ? issue.path.join('.') : say('root'),
+      message: issueMessage(issue, language),
+    }),
+  );
 }
 
 function userMessage(input: GenerateAppSpecInput): string {
@@ -208,6 +220,7 @@ export async function generateAppSpec(
   options: GenerateAppSpecOptions,
 ): Promise<GenerateAppSpecResult> {
   const startedAt = Date.now();
+  const language = options.language ?? 'fr';
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const signal = options.signal ?? AbortSignal.timeout(timeoutMs);
 
@@ -256,7 +269,7 @@ export async function generateAppSpec(
       const failed: GenerationAttempt = {
         index,
         ok: false,
-        issues: zodError ? formatIssues(zodError) : [],
+        issues: zodError ? formatIssues(zodError, language) : [],
         inputTokens: failedUsage.inputTokens,
         outputTokens: failedUsage.outputTokens,
         durationMs: Date.now() - attemptStartedAt,
@@ -269,7 +282,7 @@ export async function generateAppSpec(
           {
             role: 'user',
             content: zodError
-              ? repairMessage(failed.issues)
+              ? repairMessage(formatIssues(zodError))
               : repairMessage([
                   `(racine) : la réponse n'était pas un objet JSON exploitable — ${messageOf(error)}`,
                 ]),
@@ -281,12 +294,7 @@ export async function generateAppSpec(
       return {
         ok: false,
         reason: zodError ? 'invalid_spec' : noObject ? 'no_object' : 'provider',
-        message: truncated(error)
-          ? "La réponse du modèle a été coupée avant la fin : le plafond de jetons " +
-            "de sortie est trop bas pour cette application. Augmentez « Jetons " +
-            'maximum » dans Paramètres → Intelligence artificielle, ou décrivez ' +
-            'une application plus petite.'
-          : messageOf(error),
+        message: truncated(error) ? aiSay(language)('truncated') : messageOf(error, language),
         issues: failed.issues,
         model: options.modelName,
         attempts,
@@ -315,7 +323,7 @@ export async function generateAppSpec(
       };
     }
 
-    const issues = formatIssues(parsed.error);
+    const issues = formatIssues(parsed.error, language);
     attempts.push({
       index,
       ok: false,
@@ -329,9 +337,7 @@ export async function generateAppSpec(
       return {
         ok: false,
         reason: 'invalid_spec',
-        message:
-          "L'AppSpec produite ne respecte pas le schéma, même après une relance " +
-          'avec les erreurs de validation.',
+        message: aiSay(language)('invalidSpec'),
         issues,
         model: options.modelName,
         attempts,
@@ -342,7 +348,7 @@ export async function generateAppSpec(
 
     turns.push(
       { role: 'assistant', content: safeJson(object) },
-      { role: 'user', content: repairMessage(issues) },
+      { role: 'user', content: repairMessage(formatIssues(parsed.error)) },
     );
   }
 
@@ -387,10 +393,10 @@ function truncated(error: unknown): boolean {
   return false;
 }
 
-function messageOf(error: unknown): string {
+function messageOf(error: unknown, language: UiLanguage = 'fr'): string {
   if (error instanceof Error) {
     if (error.name === 'TimeoutError' || error.name === 'AbortError') {
-      return "Le modèle n'a pas répondu dans le délai imparti";
+      return aiSay(language)('timeout');
     }
     return error.message;
   }

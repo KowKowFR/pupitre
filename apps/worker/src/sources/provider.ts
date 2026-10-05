@@ -4,6 +4,7 @@ import {
   sourceConnectionSecrets,
   type SourceConnection,
 } from '@pupitre/db';
+import { instanceLanguage } from '../language.js';
 
 /**
  * Le client du fournisseur d'une liaison — GitHub, GitLab, Gitea —, fabriqué depuis sa
@@ -25,11 +26,13 @@ export async function providerForConnection(connectionId: string): Promise<{
     cache.delete(connectionId);
     return null;
   }
-  const key = `${connection.provider}:${connection.updatedAt.getTime()}`;
+  // La langue fait partie de la clé : changer celle de l'instance renouvelle le client.
+  const language = await instanceLanguage();
+  const key = `${connection.provider}:${connection.updatedAt.getTime()}:${language}`;
   const cached = cache.get(connectionId);
   if (cached?.key === key) return { provider: cached.provider, connection };
 
-  const provider = createSourceProvider(sourceConnectionSecrets(connection));
+  const provider = createSourceProvider(sourceConnectionSecrets(connection), language);
   cache.set(connectionId, { key, provider });
   return { provider, connection };
 }

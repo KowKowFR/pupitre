@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { invalid } from '../../validation.js';
 import type { ProxyDescriptor } from '../model.js';
 import type { ProbeSignatures } from '../probe.js';
 
@@ -29,9 +30,7 @@ export const npmConfigSchema = z.object({
     .trim()
     .url()
     .max(500)
-    .refine((value) => /^https?:\/\//i.test(value), {
-      message: 'une adresse http:// ou https://',
-    })
+    .refine((value) => /^https?:\/\//i.test(value), invalid('npm.url'))
     .transform(interfaceUrl),
   /** Le compte que Pupitre emploie. */
   email: z.string().trim().email().max(254),

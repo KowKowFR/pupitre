@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { UiLanguage } from '../i18n.js';
+import { invalid } from '../validation.js';
 import { proxySay } from './messages.js';
 
 /**
@@ -55,17 +56,24 @@ export function normalizeHostname(value: string): string {
   return value.trim().toLowerCase().replace(/\.$/, '');
 }
 
-export function hostnameProblem(value: string, language: UiLanguage = 'fr'): string | null {
-  const say = proxySay(language);
+export type HostnameProblem = 'empty' | 'tooLong' | 'wildcard' | 'ip' | 'noDot' | 'invalid';
+
+/** Ce qui ne va pas dans un nom, en donnée ; `null` s'il est bon. */
+export function hostnameProblemOf(value: string): HostnameProblem | null {
   const host = normalizeHostname(value);
-  if (host.length === 0) return say('hostname.empty');
-  if (host.length > 253) return say('hostname.tooLong');
-  if (host.includes('*')) return say('hostname.wildcard');
-  if (/^[0-9.]+$/.test(host) || host.includes(':')) return say('hostname.ip');
+  if (host.length === 0) return 'empty';
+  if (host.length > 253) return 'tooLong';
+  if (host.includes('*')) return 'wildcard';
+  if (/^[0-9.]+$/.test(host) || host.includes(':')) return 'ip';
   const labels = host.split('.');
-  if (labels.length < 2) return say('hostname.noDot');
-  if (!labels.every((label) => LABEL.test(label))) return say('hostname.invalid');
+  if (labels.length < 2) return 'noDot';
+  if (!labels.every((label) => LABEL.test(label))) return 'invalid';
   return null;
+}
+
+export function hostnameProblem(value: string, language: UiLanguage = 'fr'): string | null {
+  const problem = hostnameProblemOf(value);
+  return problem === null ? null : proxySay(language)(`hostname.${problem}`);
 }
 
 export const hostnameSchema = z
@@ -73,8 +81,8 @@ export const hostnameSchema = z
   .max(260)
   .transform(normalizeHostname)
   .superRefine((host, context) => {
-    const problem = hostnameProblem(host);
-    if (problem) context.addIssue({ code: 'custom', message: `« ${host} » : ${problem}` });
+    const problem = hostnameProblemOf(host);
+    if (problem) context.addIssue({ code: 'custom', ...invalid(`hostname.${problem}`, { host }) });
   });
 
 /**
@@ -109,7 +117,10 @@ export const routeListSchema = z
     const seen = new Set<string>();
     for (const route of routes) {
       if (seen.has(route.hostname)) {
-        context.addIssue({ code: 'custom', message: `« ${route.hostname} » apparaît deux fois` });
+        context.addIssue({
+          code: 'custom',
+          ...invalid('routes.duplicate', { hostname: route.hostname }),
+        });
       }
       seen.add(route.hostname);
     }

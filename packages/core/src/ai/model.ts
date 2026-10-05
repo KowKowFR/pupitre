@@ -6,6 +6,8 @@ import {
   isAiProvider,
   type AiProvider,
 } from './catalog.js';
+import type { UiLanguage } from '../i18n.js';
+import { aiSay } from './messages.js';
 import { instantiateModel, type ConfiguredModel } from './providers.js';
 
 /**
@@ -65,11 +67,15 @@ const KEY_LIKE = /\b(?:sk|pk|rk|xai|gsk)[-_][A-Za-z0-9_*-]{6,}/gi;
  * toute chaîne qui a la forme d'une clé, ce qui rattrape les versions
  * tronquées, masquées ou reformatées par le fournisseur.
  */
-export function redactApiKey(text: string, apiKey?: string | null): string {
+export function redactApiKey(
+  text: string,
+  apiKey?: string | null,
+  language: UiLanguage = 'fr',
+): string {
+  const mask = aiSay(language)('redacted');
   const key = apiKey?.trim();
-  const withoutExact =
-    key && key.length >= 8 ? text.split(key).join('[clé masquée]') : text;
-  return withoutExact.replace(KEY_LIKE, '[clé masquée]');
+  const withoutExact = key && key.length >= 8 ? text.split(key).join(mask) : text;
+  return withoutExact.replace(KEY_LIKE, mask);
 }
 
 export type ModelConfig = {

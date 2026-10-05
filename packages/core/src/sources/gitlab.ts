@@ -4,6 +4,8 @@ import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
+import type { UiLanguage } from '../i18n.js';
+import { sourceSay } from './messages.js';
 import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import { assertEgressAllowed, EgressRefusedError } from '../egress.js';
 import {
@@ -49,6 +51,8 @@ export type GitLabCredentials = {
   baseUrl: string;
   /** Le jeton d'accès. Déchiffré juste avant l'appel, jamais journalisé. */
   token: string;
+  /** La langue de ce que le client dit — celle de l'instance. Français par défaut. */
+  language?: UiLanguage;
 };
 
 /** Au-delà, une comparaison ne se croit plus : on traite tout comme changé. */
@@ -310,18 +314,15 @@ export class GitLabSourceProvider implements SourceProvider {
       throw new SourceProviderError(await errorMessage(response), response.status, 'gitlab');
     }
 
+    const tooLarge = sourceSay(this.credentials.language ?? 'fr')('archive.tooLarge', {
+      mib: Math.round(maxBytes / 1024 / 1024),
+    });
     let bytes = 0;
     const cap = new Transform({
       transform(chunk: Buffer, _encoding, done) {
         bytes += chunk.byteLength;
         if (bytes > maxBytes) {
-          done(
-            new SourceProviderError(
-              `archive du dépôt au-delà de ${Math.round(maxBytes / 1024 / 1024)} Mio`,
-              null,
-              'gitlab',
-            ),
-          );
+          done(new SourceProviderError(tooLarge, null, 'gitlab'));
           return;
         }
         done(null, chunk);
@@ -364,7 +365,9 @@ export class GitLabSourceProvider implements SourceProvider {
     // Le refus le plus courant, et le moins lisible : une branche protégée.
     if (response.status === 403) {
       throw new SourceProviderError(
-        `${await errorMessage(response)} — sur une branche protégée, GitLab n'accepte un statut que d'un jeton qui peut y pousser (rôle Maintainer, ou Developer si les développeurs y poussent)`,
+        sourceSay(this.credentials.language ?? 'fr')('gitlab.protectedBranch', {
+          error: await errorMessage(response),
+        }),
         403,
         'gitlab',
       );
@@ -427,6 +430,7 @@ export async function fetchGitLabAccount(
   guard: (url: string) => Promise<void> = assertEgressAllowed,
 ): Promise<GitLabAccount> {
   const baseUrl = gitlabBaseUrl(credentials.baseUrl);
+  const say = sourceSay(credentials.language ?? 'fr');
   const call = async (path: string, optional = false) => {
     const url = `${baseUrl}/api/v4${path}`;
     try {
@@ -463,7 +467,7 @@ export async function fetchGitLabAccount(
       : null;
   if (scopes && !scopes.includes('api')) {
     throw new SourceProviderError(
-      `jeton sans la portée « api » (il porte : ${scopes.join(', ') || 'aucune'}) — sans elle, Pupitre ne peut pas écrire l'état d'un déploiement sur un commit`,
+      say('gitlab.noApiScope', { scopes: scopes.join(', ') || say('gitlab.noScope') }),
       403,
       'gitlab',
     );

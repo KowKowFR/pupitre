@@ -1,4 +1,7 @@
+import type { UiLanguage } from '../i18n.js';
 import { safeParseAppSpec, type AppSpec } from '../spec/index.js';
+import { issueMessage } from '../validation.js';
+import { sourceSay } from './messages.js';
 
 /**
  * Lecture du `pupitre.json` d'un commit.
@@ -15,14 +18,23 @@ export type SourceSpecResult =
   | { ok: true; spec: AppSpec }
   | { ok: false; issues: string[] };
 
-export function parseSourceSpec(content: string, expectedName: string): SourceSpecResult {
+export function parseSourceSpec(
+  content: string,
+  expectedName: string,
+  language: UiLanguage = 'fr',
+): SourceSpecResult {
+  const say = sourceSay(language);
   let json: unknown;
   try {
     json = JSON.parse(content);
   } catch (error) {
     return {
       ok: false,
-      issues: [`JSON illisible : ${error instanceof Error ? error.message : String(error)}`],
+      issues: [
+        say('spec.unreadableJson', {
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      ],
     };
   }
 
@@ -30,8 +42,11 @@ export function parseSourceSpec(content: string, expectedName: string): SourceSp
   if (!parsed.success) {
     return {
       ok: false,
-      issues: parsed.error.issues.map(
-        (issue) => `${issue.path.length > 0 ? issue.path.join('.') : 'spec'} : ${issue.message}`,
+      issues: parsed.error.issues.map((issue) =>
+        say('spec.issue', {
+          path: issue.path.length > 0 ? issue.path.join('.') : 'spec',
+          message: issueMessage(issue, language),
+        }),
       ),
     };
   }
@@ -39,9 +54,7 @@ export function parseSourceSpec(content: string, expectedName: string): SourceSp
   if (parsed.data.name !== expectedName) {
     return {
       ok: false,
-      issues: [
-        `name : « ${parsed.data.name} » au lieu de « ${expectedName} », le nom de l'application liée`,
-      ],
+      issues: [say('spec.wrongName', { actual: parsed.data.name, expected: expectedName })],
     };
   }
 

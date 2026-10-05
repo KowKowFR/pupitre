@@ -2,6 +2,8 @@ import { createWriteStream } from 'node:fs';
 import { unlink } from 'node:fs/promises';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
+import type { UiLanguage } from '../i18n.js';
+import { sourceSay } from './messages.js';
 import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import { assertEgressAllowed, EgressRefusedError } from '../egress.js';
 import {
@@ -42,6 +44,8 @@ export type GiteaCredentials = {
   baseUrl: string;
   /** Le jeton d'accès. Déchiffré juste avant l'appel, jamais journalisé. */
   token: string;
+  /** La langue de ce que le client dit — celle de l'instance. Français par défaut. */
+  language?: UiLanguage;
 };
 
 /** Au-delà, une comparaison ne se croit plus : on traite tout comme changé. */
@@ -259,18 +263,15 @@ export class GiteaSourceProvider implements SourceProvider {
       throw new SourceProviderError(await errorMessage(response), response.status, 'gitea');
     }
 
+    const tooLarge = sourceSay(this.credentials.language ?? 'fr')('archive.tooLarge', {
+      mib: Math.round(maxBytes / 1024 / 1024),
+    });
     let bytes = 0;
     const cap = new Transform({
       transform(chunk: Buffer, _encoding, done) {
         bytes += chunk.byteLength;
         if (bytes > maxBytes) {
-          done(
-            new SourceProviderError(
-              `archive du dépôt au-delà de ${Math.round(maxBytes / 1024 / 1024)} Mio`,
-              null,
-              'gitea',
-            ),
-          );
+          done(new SourceProviderError(tooLarge, null, 'gitea'));
           return;
         }
         done(null, chunk);
