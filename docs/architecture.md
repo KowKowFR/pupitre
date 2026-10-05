@@ -602,12 +602,12 @@ and a line in `openBackupStore`'s table.
 
 **The `.pupb` format says how.** Each chunk is encrypted as a stream,
 AES-256-GCM, under a key **derived** from `MASTER_KEY` with HKDF and a random
-salt for each file. The header — `PUPB`, version, salt, IV — is authenticated
-with the content, the GCM tag closes the file. One byte changed, a different key:
-decryption fails, it never returns wrong content. Each backup also places its
-`manifest.json.pupb`: the list of its chunks, their sizes and SHA-256 hashes,
-enough to read the destination **without** the panel database — it is the day
-that one is lost that you need it.
+salt for each file. The header — `PUPB`, version, key fingerprint, salt, IV — is
+authenticated with the content, the GCM tag closes the file. One byte changed, a
+different key: decryption fails, it never returns wrong content. Each backup also
+places its `manifest.json.pupb`: the list of its chunks, their sizes and SHA-256
+hashes, enough to read the destination **without** the panel database — it is
+the day that one is lost that you need it.
 
 A backup's path never touches the worker's disk: target → SSH → gzip →
 encryption → destination, as a stream, with backpressure. Restore does the

@@ -534,11 +534,17 @@ byte by byte; `scripts/verify-source-archive.sh` sends one through the API.
 ## Encryption
 
 `packages/core/src/crypto.ts` — **AES-256-GCM**, key derived from `MASTER_KEY`
-with HKDF-SHA256, format `version:iv:authTag:ciphertext` with the version passed
-as **AAD** (no v2 → v1 downgrade). The panel and the worker refuse to start if
-`MASTER_KEY` is missing or shorter than 32 bytes.
+with HKDF-SHA256, format `v2:keyId:iv:authTag:ciphertext`. `keyId` is the key's
+fingerprint (an HMAC of the derived key: it names the key, it reveals nothing of
+it); the version and the key go into the **AAD**, so a value can neither be
+downgraded nor relabeled without failing. The first format,
+`v1:iv:authTag:ciphertext`, is still read. The panel and the worker refuse to
+start if `MASTER_KEY` — or a key of `MASTER_KEY_PREVIOUS` — is missing or shorter
+than 32 bytes.
 
-Ten things are encrypted by the same primitive, each in its column:
+Ten things are encrypted by the same primitive, each in its column — the list
+`ENCRYPTED_COLUMNS` (`packages/db/src/key-rotation.ts`) carries, and that a test
+compares with the schema:
 
 | What | Column | Only place it is decrypted |
 |---|---|---|
@@ -555,7 +561,7 @@ Ten things are encrypted by the same primitive, each in its column:
 
 **Backup files** are encrypted too, but as a stream and under a separate key for
 each file: HKDF of `MASTER_KEY` with a random salt, AES-256-GCM, authenticated
-header — see
+header carrying the key's fingerprint (format `PUPB` version 2) — see
 [`architecture.md`](architecture.md#backups-one-place-one-format-two-runtimes).
 A compromised destination only yields unreadable bytes; a modified backup is
 refused, never restored.
@@ -576,7 +582,8 @@ recognizable shapes — `sk-`/`pk-`/`xai-`/`gsk-…`, a Telegram bot token
 `Bearer …`. Reason: OpenAI literally returns `Incorrect API key provided:
 sk-senti***…***0000`, so the provider itself leaks a fragment of the key.
 
-If `MASTER_KEY` changes, decryption fails silently on display (the key stays
+If a value's key is missing — neither `MASTER_KEY` nor one of
+`MASTER_KEY_PREVIOUS` —, decryption fails silently on display (the key stays
 "configured", its `last4` becomes `null`) and explicitly on use. The list does
 not break.
 
@@ -602,23 +609,41 @@ then has to be reset. There again, we warn.
 They **warn** without refusing to start, on purpose: the database already
 contains values encrypted under this key, and an instance that no longer starts
 is an instance from which you can no longer extract the credentials to
-re-encrypt them. Rotation stays the operator's decision, and it is done in this
-order:
+re-encrypt them. Rotation stays the operator's decision.
+
+### Rotating `MASTER_KEY`
+
+`MASTER_KEY` is the key everything is written with; `MASTER_KEY_PREVIOUS` lists,
+comma-separated, the keys it replaced — used to read, never to write. A `v2`
+value names its key; a `v1` value is tried with the current key, then the
+previous ones. Rotating is therefore done without stopping anything and without
+retyping a secret:
 
 ```bash
 openssl rand -hex 32          # the new key
 ```
 
-1. Write down, **with the old key still in place**, everything that is encrypted
-   — the ten columns of the table above.
-2. Replace `MASTER_KEY` in `.env`, then restart panel and worker.
-3. Enter each value again through the API or the screen that carries it.
-   Nothing re-encrypts by itself: the old values become unreadable, not
-   invalid.
+1. In `.env`: the old key moves to `MASTER_KEY_PREVIOUS`, the new one goes to
+   `MASTER_KEY`. Restart the panel and the worker: everything stays readable, and
+   everything written from now on is under the new key.
+2. `docker compose run --rm worker crypto rotate --yes` (`pnpm crypto rotate
+   --yes` outside Docker): every value of the ten columns not yet under the
+   current key is encrypted again. Row by row, with a conditional write — a
+   value the panel changes meanwhile is not overwritten —; idempotent; traced in
+   the activity log (`settings.master_key.rotated`). Without `--yes`, it counts
+   and writes nothing.
+3. `crypto status` says what each value and each kept backup depends on, and
+   when `MASTER_KEY_PREVIOUS` can go.
 
-Swapping 1 and 2 loses the credentials with no recourse — that is the very
-guarantee of encryption. And backups made under the old key can only be read
-with it: keep it as long as they matter, or make new ones under the new key.
+**Backups are not encrypted again**: a file is several gigabytes on a remote
+destination. Each one records the key it was made under (`backups.key_id`, and
+the `PUPB` header of its files); those made before the rotation stay readable as
+long as their key is in `MASTER_KEY_PREVIOUS`. Keep it until they expire under the
+retention, or delete them — `crypto status` counts them. A backup made before
+rotation existed does not name its key: it is read with each key in turn.
+
+Losing a key that a value or a kept backup still needs is losing that value —
+that is the very guarantee of encryption.
 
 ## Application secret store
 

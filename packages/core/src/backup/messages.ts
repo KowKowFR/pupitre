@@ -20,8 +20,10 @@ const fr = {
   'sftp.probeMismatch': 'SFTP : le fichier témoin relu ne correspond pas',
   'format.truncated': 'fichier de sauvegarde tronqué',
   'format.authFailed':
-    'authentification impossible : fichier altéré, ou chiffré sous une autre MASTER_KEY',
+    'authentification impossible : fichier altéré, ou chiffré sous une clé qui n’est ni MASTER_KEY ni l’une de MASTER_KEY_PREVIOUS',
   'format.notPupitre': "ce n'est pas un fichier de sauvegarde Pupitre",
+  'format.unknownKey':
+    'sauvegarde chiffrée avec la clé {keyId}, qui n’est ni MASTER_KEY ni l’une de MASTER_KEY_PREVIOUS',
   'format.unknownVersion': 'version de format inconnue : {version}',
   'store.notFound': '« {key} » introuvable',
   's3.notFound': 'S3 : « {key} » introuvable',
@@ -45,8 +47,11 @@ const en: Translated<typeof fr> = {
   'sftp.writeFailed': 'SFTP: writing “{key}” failed — {error}',
   'sftp.probeMismatch': 'SFTP: the probe file read back does not match',
   'format.truncated': 'truncated backup file',
-  'format.authFailed': 'authentication failed: file altered, or encrypted under another MASTER_KEY',
+  'format.authFailed':
+    'authentication failed: file altered, or encrypted under a key that is neither MASTER_KEY nor one of MASTER_KEY_PREVIOUS',
   'format.notPupitre': 'this is not a Pupitre backup file',
+  'format.unknownKey':
+    'backup encrypted with key {keyId}, which is neither MASTER_KEY nor one of MASTER_KEY_PREVIOUS',
   'format.unknownVersion': 'unknown format version: {version}',
   'store.notFound': '“{key}” not found',
   's3.notFound': 'S3: “{key}” not found',

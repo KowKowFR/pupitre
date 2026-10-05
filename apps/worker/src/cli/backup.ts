@@ -1,6 +1,6 @@
 /* eslint-disable no-console -- a command-line tool speaks on the console */
 import { createReadStream, createWriteStream, existsSync } from 'node:fs';
-import { PassThrough, type Readable } from 'node:stream';
+import { PassThrough, Writable, type Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import {
   MANIFEST_FILE,
@@ -8,6 +8,7 @@ import {
   createDecryptStream,
   decryptBuffer,
   openBackupStore,
+  withBackupKeys,
 } from '@pupitre/core/backup';
 import { closeDb, resolveBackupDestination } from '@pupitre/db';
 import { env } from '../env.js';
@@ -70,34 +71,52 @@ async function list(): Promise<void> {
   }
 }
 
-async function restorePanel(source: string): Promise<void> {
-  let encrypted: Readable;
-  let close = async () => {};
-  if (existsSync(source)) {
-    encrypted = createReadStream(source);
-  } else {
-    const store = await activeStore();
-    close = () => store.close();
-    const folder = source.replace(/\/+$/, '').replace(new RegExp(`/${PANEL_DUMP_FILE}$`), '');
-    const manifest = backupManifestSchema.parse(
-      JSON.parse(
-        (
-          await decryptBuffer(
-            await readStream(await store.get(`${folder}/${MANIFEST_FILE}`)),
-            undefined,
-            CLI_LANGUAGE,
-          )
-        ).toString(),
-      ),
-    );
-    if (manifest.kind !== 'panel') throw new Error(`"${folder}" is not a panel backup`);
-    console.log(`backup from ${manifest.createdAt}`);
-    encrypted = await store.get(`${folder}/${PANEL_DUMP_FILE}`);
-  }
+/**
+ * The keys that open a file, in the order to use them — found by reading it once
+ * to the end, written nowhere. A file made after rotation existed names its key;
+ * an older one is tried with each key, and this pass is what tells which.
+ */
+async function keysThatOpen(open: () => Promise<Readable>): Promise<readonly string[]> {
+  return withBackupKeys(async (masterKeys) => {
+    const discard = new Writable({ write: (_chunk, _encoding, done) => done() });
+    await pipeline(await open(), createDecryptStream(masterKeys, CLI_LANGUAGE), discard);
+    return masterKeys;
+  });
+}
 
+async function restorePanel(source: string): Promise<void> {
+  let close = async () => {};
+  // Everything that opens the destination is inside the `try`: a manifest that
+  // does not decrypt must still close the connection, or the process never ends.
   try {
+    let open: () => Promise<Readable>;
+    if (existsSync(source)) {
+      open = async () => createReadStream(source);
+    } else {
+      const store = await activeStore();
+      close = () => store.close();
+      const folder = source.replace(/\/+$/, '').replace(new RegExp(`/${PANEL_DUMP_FILE}$`), '');
+      const manifest = backupManifestSchema.parse(
+        JSON.parse(
+          (
+            await decryptBuffer(
+              await readStream(await store.get(`${folder}/${MANIFEST_FILE}`)),
+              undefined,
+              CLI_LANGUAGE,
+            )
+          ).toString(),
+        ),
+      );
+      if (manifest.kind !== 'panel') throw new Error(`"${folder}" is not a panel backup`);
+      console.log(`backup from ${manifest.createdAt}`);
+      open = () => store.get(`${folder}/${PANEL_DUMP_FILE}`);
+    }
+
+    // The file is verified — and its key found — before the database is touched:
+    // pg_restore must never read the output of a wrong key.
+    const masterKeys = await keysThatOpen(open);
     const plain = new PassThrough();
-    const decrypting = pipeline(encrypted, createDecryptStream(undefined, CLI_LANGUAGE), plain);
+    const decrypting = pipeline(await open(), createDecryptStream(masterKeys, CLI_LANGUAGE), plain);
     await Promise.all([
       decrypting,
       runPgTool(
@@ -125,10 +144,12 @@ async function main(): Promise<void> {
     case 'decrypt': {
       const [input, output] = args;
       if (!input || !output) throw new Error('usage: backup decrypt <file.pupb> <output>');
-      await pipeline(
-        createReadStream(input),
-        createDecryptStream(undefined, CLI_LANGUAGE),
-        createWriteStream(output),
+      await withBackupKeys((masterKeys) =>
+        pipeline(
+          createReadStream(input),
+          createDecryptStream(masterKeys, CLI_LANGUAGE),
+          createWriteStream(output),
+        ),
       );
       console.log(`decrypted: ${output}`);
       return;

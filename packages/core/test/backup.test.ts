@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createCipheriv, randomBytes } from 'node:crypto';
 import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -14,6 +15,7 @@ import {
   encryptBuffer,
   signV4,
 } from '../src/backup/index.js';
+import { deriveBackupKey, keyIdOf } from '../src/crypto.js';
 import {
   DEFAULT_BACKUP_RETENTION,
   backupFolder,
@@ -37,6 +39,16 @@ import {
  */
 
 const KEY = 'a'.repeat(64);
+
+/** A backup file in the first format: "PUPB", version 1, salt, nonce — no key. */
+function legacyBackup(plain: Buffer, masterKey: string): Buffer {
+  const salt = randomBytes(16);
+  const iv = randomBytes(12);
+  const header = Buffer.concat([Buffer.from('PUPB', 'ascii'), Buffer.from([1]), salt, iv]);
+  const cipher = createCipheriv('aes-256-gcm', deriveBackupKey(salt, masterKey), iv);
+  cipher.setAAD(header);
+  return Buffer.concat([header, cipher.update(plain), cipher.final(), cipher.getAuthTag()]);
+}
 const OTHER_KEY = 'b'.repeat(64);
 
 async function collect(stream: Readable): Promise<Buffer> {
@@ -89,6 +101,23 @@ describe('format .pupb', () => {
       decryptBuffer(Buffer.from('not a backup at all'), KEY, 'fr'),
       BackupFormatError,
     );
+  });
+
+  it('names its key, and is read after a rotation — the first format too', async () => {
+    const sealed = await encryptBuffer(Buffer.from('before the rotation'), KEY);
+    assert.equal(sealed[4], 2, 'version 2');
+    assert.equal(sealed.subarray(5, 9).toString('hex'), keyIdOf(KEY));
+    // The new key first, the old one after: the header picks the right one.
+    assert.equal(
+      (await decryptBuffer(sealed, [OTHER_KEY, KEY], 'en')).toString(),
+      'before the rotation',
+    );
+    await assert.rejects(decryptBuffer(sealed, [OTHER_KEY], 'en'), /neither MASTER_KEY/);
+
+    // A version 1 file — no key in its header — written under the old key.
+    const legacy = legacyBackup(Buffer.from('older still'), KEY);
+    assert.equal((await decryptBuffer(legacy, [OTHER_KEY, KEY], 'en')).toString(), 'older still');
+    await assert.rejects(decryptBuffer(legacy, [OTHER_KEY], 'en'), BackupFormatError);
   });
 
   it('also encrypts an empty content', async () => {

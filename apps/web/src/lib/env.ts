@@ -21,6 +21,8 @@ const envSchema = z.object({
   // i18n-ignore — a refusal at startup, read in the console by an operator. No
   // session, no database: the instance's language does not exist yet.
   MASTER_KEY: z.string().min(32, 'MASTER_KEY must be at least 32 bytes'),
+  /** The keys MASTER_KEY replaced, comma-separated: read, never written with. */
+  MASTER_KEY_PREVIOUS: z.string().optional(),
   BETTER_AUTH_SECRET: z.string().min(32),
   BETTER_AUTH_URL: z.string().url().default('http://localhost:3000'),
   /**
@@ -69,7 +71,8 @@ export function getEnv(): Env {
     console.warn(
       `[panel] ${weakKey} — MASTER_KEY is the example value or a guessable ` +
         'one. The SSH credentials encrypted in the database are not protected. ' +
-        'Generate one: openssl rand -hex 32, then encrypt the targets again.',
+        'Generate one: openssl rand -hex 32, move this one to MASTER_KEY_PREVIOUS, ' +
+        'then run `crypto rotate --yes` (docs/security.md).',
     );
   }
   // The same judgment for Better Auth's secret: it signs the session cookies, and
