@@ -224,9 +224,71 @@ const byFrenchText = new Map<string, ValidationKey>(
     .map(([key, text]) => [text, key]),
 );
 
+/**
+ * Zod's own complaints — "Invalid input: expected number, received string",
+ * "Too small: …" — in each language, from the locales Zod ships.
+ */
+const ZOD_LOCALES: Record<UiLanguage, { localeError: (issue: never) => unknown }> = {
+  fr: z.locales.fr(),
+  en: z.locales.en(),
+};
+
+/**
+ * A value of the type Zod names after "received". A finished issue no longer
+ * carries the value it refused (`input`), which the `invalid_type` sentence reads
+ * to name its type: one of the same type says it again.
+ */
+const RECEIVED_SAMPLE: Record<string, () => unknown> = {
+  string: () => '',
+  number: () => 0,
+  NaN: () => Number.NaN,
+  Infinity: () => Number.POSITIVE_INFINITY,
+  '-Infinity': () => Number.NEGATIVE_INFINITY,
+  boolean: () => false,
+  bigint: () => 0n,
+  symbol: () => Symbol('sample'),
+  undefined: () => undefined,
+  function: () => () => undefined,
+  object: () => ({}),
+  null: () => null,
+  array: () => [],
+  Date: () => new Date(0),
+  Map: () => new Map(),
+  Set: () => new Set(),
+};
+
+function zodSays(language: UiLanguage, issue: Record<string, unknown>): string | null {
+  const said = ZOD_LOCALES[language].localeError(issue as never);
+  if (typeof said === 'string') return said;
+  if (said && typeof said === 'object' && 'message' in said) return String(said.message);
+  return null;
+}
+
+/**
+ * Zod's own sentence, said again in `language`; `null` for any other complaint.
+ *
+ * The panel never configures Zod's language: a schema is a constant, it does not
+ * know who will read it, so Zod writes its own complaints in English, its
+ * default. A complaint is recognized as Zod's when the English locale writes it
+ * again identically — ours, and a third party's, never match.
+ */
+function zodMessage(issue: Record<string, unknown>, language: UiLanguage): string | null {
+  if (typeof issue.code !== 'string' || typeof issue.message !== 'string') return null;
+  let sample: Record<string, unknown> = {};
+  if (issue.code === 'invalid_type') {
+    const received = /, received (.+)$/.exec(issue.message)?.[1];
+    const make = received ? RECEIVED_SAMPLE[received] : undefined;
+    if (!make) return null;
+    sample = { input: make() };
+  }
+  const candidate = { ...issue, ...sample };
+  if (zodSays('en', candidate) !== issue.message) return null;
+  return zodSays(language, candidate);
+}
+
 /** What a complaint says, in the requested language. An unknown complaint stays as is. */
 export function issueMessage(
-  issue: { message: string; params?: unknown },
+  issue: { message: string; params?: unknown; code?: string },
   language: UiLanguage,
 ): string {
   const params = issue.params as { i18n?: ValidationRef; ssrf?: SsrfRefusal } | undefined;
@@ -235,7 +297,8 @@ export function issueMessage(
   }
   if (params?.ssrf) return ssrfRefusalText(params.ssrf, language);
   const known = byFrenchText.get(issue.message);
-  return known ? renderMessage(validationCopy, language, known) : issue.message;
+  if (known) return renderMessage(validationCopy, language, known);
+  return zodMessage(issue as Record<string, unknown>, language) ?? issue.message;
 }
 
 /**

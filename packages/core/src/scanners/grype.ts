@@ -7,6 +7,7 @@ import {
 } from '../scan.js';
 import type { SshSession } from '../ssh/client.js';
 import { cachePath, ensureBinary, toolPath } from './install.js';
+import { GIB } from './space.js';
 import { canonicalImageReference } from '../images/reference.js';
 import { shellQuote } from '../shell.js';
 import {
@@ -63,6 +64,8 @@ export type GrypeOutput = {
 export class GrypeScanner implements Scanner {
   readonly key = 'grype' as const;
   readonly kind = SCANNERS.grype.kind;
+  /** Its database weighs about 3 GB, and an update unpacks the new one next to the old. */
+  readonly diskNeed = { firstBytes: 3.5 * GIB, updateBytes: 3.5 * GIB };
 
   async ensureInstalled(session: SshSession, onLog?: ScanLogSink): Promise<string> {
     return ensureBinary(

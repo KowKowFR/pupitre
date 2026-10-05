@@ -87,6 +87,11 @@ const fr = {
   'scan.vulnerabilities': ' — {fixable} corrigeable(s){accepted}, {blocking} bloquante(s)',
   'scan.accepted': ', {count} acceptée(s)',
   'scan.verdict': ' — verdict {verdict} ({ms} ms)',
+  'scan.space.reclaimed':
+    '[{scanner}] cache retiré pour faire de la place : {size} libérés — ce scan n’utilise pas ce scanner',
+  'scan.space.skipped':
+    'scan non lancé : il reste {free} sur la cible, {scanner} peut télécharger jusqu’à {need} et Pupitre garde {floor} libres (15 % du disque, 2 Gio au moins) — libérez de la place sur la machine',
+  'scan.space.unknown': 'espace disque de la cible illisible — scan lancé sans cette vérification',
 
   'source.archiveGone':
     'l’archive « {name} » de ce déploiement n’est plus conservée — Pupitre garde les {kept} dernières de chaque application : téléversez-la de nouveau',
@@ -308,6 +313,12 @@ const en: Translated<typeof fr> = {
   'scan.vulnerabilities': ' — {fixable} fixable{accepted}, {blocking} blocking',
   'scan.accepted': ', {count} accepted',
   'scan.verdict': ' — verdict {verdict} ({ms} ms)',
+  'scan.space.reclaimed':
+    '[{scanner}] cache removed to make room: {size} freed — this scan does not use this scanner',
+  'scan.space.skipped':
+    'scan not run: {free} left on the target, {scanner} may download up to {need} and Pupitre keeps {floor} free (15 % of the disk, 2 GiB at least) — free some space on the machine',
+  'scan.space.unknown':
+    'the target’s free disk space could not be read — scanning without this check',
 
   'source.archiveGone':
     'the archive “{name}” of this deployment is no longer kept — Pupitre keeps the last {kept} of each application: upload it again',

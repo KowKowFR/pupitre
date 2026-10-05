@@ -79,10 +79,18 @@ export type MonitorIncident = typeof monitorIncidents.$inferSelect;
  */
 export type MonitorConfigReason =
   /**
-   * The configuration does not pass the type's schema. `issue` comes from Zod, in
-   * French; `params` allows saying it again (`issueMessage()`).
+   * The configuration does not pass the type's schema. `issue` is the complaint's
+   * sentence; `zodIssue`, the whole complaint, allows saying it again in the
+   * reader's language (`issueMessage()`), Zod's own sentences included.
    */
-  | { kind: 'schema'; type: MonitorType; path: string; issue: string; params?: unknown }
+  | {
+      kind: 'schema';
+      type: MonitorType;
+      path: string;
+      issue: string;
+      params?: unknown;
+      zodIssue?: Record<string, unknown>;
+    }
   /** A literal target no allow list opens. */
   | { kind: 'target'; refusal: SsrfRefusal }
   /** An interval under the floor this type declares. */
@@ -194,6 +202,7 @@ export function resolveConfig(
         path,
         issue,
         ...(first && 'params' in first && first.params ? { params: first.params } : {}),
+        ...(first ? { zodIssue: { ...first } } : {}),
       },
     );
   }

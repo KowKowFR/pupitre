@@ -3,6 +3,7 @@ import {
   EMPTY_SEVERITY_COUNTS,
   errorMessage,
   findingBlocks,
+  SCANNER_KEYS,
   scannerLabel,
   summarizeFindings,
   verdictFor,
@@ -16,7 +17,16 @@ import {
   type SeverityCounts,
 } from '@pupitre/core';
 import type { DriverContext } from '@pupitre/core/drivers';
-import { getScanner } from '@pupitre/core/scanners';
+import {
+  cachePath,
+  getScanner,
+  parseScanSpaceProbe,
+  planScanSpace,
+  ScannerError,
+  scanSpaceProbeCommand,
+  type ScannerDiskNeed,
+} from '@pupitre/core/scanners';
+import { exec } from '@pupitre/core/ssh';
 import {
   activeAcceptancesForDeployment,
   clearScanRuns,
@@ -24,7 +34,7 @@ import {
   finishScanRun,
 } from '@pupitre/db';
 import { logger } from '../logger.js';
-import { workerSay } from '../messages.js';
+import { formatBytes, workerSay } from '../messages.js';
 
 /**
  * The pipeline's "scan" step.
@@ -118,26 +128,32 @@ export async function runSecurityScan(input: ScanStepInput): Promise<ScanStepRes
     }),
   );
 
+  // Room first: a vulnerability database weighs gigabytes, and a scan must never be
+  // what fills the target's disk. A scanner that would is not run (`planScanSpace()`).
+  const skipped = await makeScanRoom(input);
+
   // Installation first, in parallel across distinct tools: two runs of the same
   // scanner on two images would otherwise fight over the same file.
   await Promise.allSettled(
-    config.scanners.map(async (key) => {
-      const prefix = `[${key}]`;
-      try {
-        const version = await getScanner(key).ensureInstalled(ctx.sshSession, (line) =>
-          onLog(`${prefix} ${line}`),
-        );
-        logger.info({ scanner: key, version }, 'scanner available on the target');
-      } catch (error) {
-        // The failure is reproduced — and recorded — at `run` time.
-        onLog(say('scan.installFailed', { prefix, error: errorMessage(error) }));
-      }
-    }),
+    config.scanners
+      .filter((key) => !skipped.has(key))
+      .map(async (key) => {
+        const prefix = `[${key}]`;
+        try {
+          const version = await getScanner(key).ensureInstalled(ctx.sshSession, (line) =>
+            onLog(`${prefix} ${line}`),
+          );
+          logger.info({ scanner: key, version }, 'scanner available on the target');
+        } catch (error) {
+          // The failure is reproduced — and recorded — at `run` time.
+          onLog(say('scan.installFailed', { prefix, error: errorMessage(error) }));
+        }
+      }),
   );
 
-  const tasks: Array<{ scanner: ScannerKey; image: string }> = [];
+  const tasks: ScanTask[] = [];
   for (const scanner of config.scanners) {
-    for (const image of images) tasks.push({ scanner, image });
+    for (const image of images) tasks.push({ scanner, image, skip: skipped.get(scanner) });
   }
 
   const settled = await Promise.allSettled(tasks.map((task) => runOne(task, input, policy)));
@@ -201,8 +217,62 @@ function collectBlocking(runs: readonly ScanRunOutcome[]) {
   return blockingFindings;
 }
 
+type ScanTask = {
+  scanner: ScannerKey;
+  image: string;
+  /** Why the scanner is not run — recorded as its failure, readable on the security page. */
+  skip?: string | undefined;
+};
+
+/**
+ * Makes room for the scan, and says which scanners cannot run for lack of it.
+ *
+ * An unreadable probe does not stop the scan: the check protects the disk, it
+ * must not become a new reason to scan nothing.
+ */
+async function makeScanRoom(input: ScanStepInput): Promise<Map<ScannerKey, string>> {
+  const { ctx, config, onLog } = input;
+  const language = ctx.language;
+  const say = workerSay(language);
+  const skipped = new Map<ScannerKey, string>();
+
+  const probe = await exec(ctx.sshSession, scanSpaceProbeCommand(), { timeout: 30_000 })
+    .then((result) => parseScanSpaceProbe(result.stdout))
+    .catch(() => null);
+  if (!probe) {
+    onLog(say('scan.space.unknown'));
+    return skipped;
+  }
+
+  const needs = Object.fromEntries(
+    SCANNER_KEYS.map((key) => [key, getScanner(key).diskNeed]),
+  ) as Record<ScannerKey, ScannerDiskNeed>;
+  const plan = planScanSpace(probe, config.scanners, needs);
+
+  let free = plan.freeBytes;
+  for (const { scanner, bytes } of plan.reclaim) {
+    await exec(ctx.sshSession, `rm -rf ${cachePath(scanner)}`, { timeout: 60_000 }).catch(
+      () => undefined,
+    );
+    free += bytes;
+    onLog(say('scan.space.reclaimed', { scanner, size: formatBytes(bytes, language) }));
+  }
+  for (const { scanner, needBytes } of plan.skipped) {
+    skipped.set(
+      scanner,
+      say('scan.space.skipped', {
+        scanner: scannerLabel(scanner),
+        free: formatBytes(free, language),
+        need: formatBytes(needBytes, language),
+        floor: formatBytes(plan.floorBytes, language),
+      }),
+    );
+  }
+  return skipped;
+}
+
 async function runOne(
-  task: { scanner: ScannerKey; image: string },
+  task: ScanTask,
   input: ScanStepInput,
   policy: ScanPolicy,
 ): Promise<ScanRunOutcome> {
@@ -222,6 +292,7 @@ async function runOne(
   const startedAt = Date.now();
 
   try {
+    if (task.skip) throw new ScannerError(task.skip, task.scanner, 'run');
     const report = await scanner.run(
       { session: ctx.sshSession, image: task.image, store },
       (line) => onLog(`${prefix} ${line}`),

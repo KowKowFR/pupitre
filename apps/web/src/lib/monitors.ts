@@ -104,7 +104,13 @@ export async function monitorConfigMessage(error: MonitorConfigError): Promise<H
       msg(messages, 'error.configInvalid', {
         label,
         path: reason.path,
-        issue: issueMessage({ message: reason.issue, params: reason.params }, language),
+        issue: issueMessage(
+          (reason.zodIssue as { message: string } | undefined) ?? {
+            message: reason.issue,
+            params: reason.params,
+          },
+          language,
+        ),
       }),
       details,
     );

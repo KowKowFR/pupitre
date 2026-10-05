@@ -1,6 +1,7 @@
 import { SCANNERS, type ImageStore, type ScanReport } from '../scan.js';
 import type { SshSession } from '../ssh/client.js';
 import { cachePath, ensureBinary, toolPath } from './install.js';
+import { GIB } from './space.js';
 import { canonicalImageReference } from '../images/reference.js';
 import { shellQuote } from '../shell.js';
 import {
@@ -47,6 +48,8 @@ type CycloneDxDocument = {
 export class SyftSBOM implements Scanner {
   readonly key = 'syft' as const;
   readonly kind = SCANNERS.syft.kind;
+  /** No vulnerability database: only small catalogs of package metadata. */
+  readonly diskNeed = { firstBytes: 0.2 * GIB, updateBytes: 0.2 * GIB };
 
   async ensureInstalled(session: SshSession, onLog?: ScanLogSink): Promise<string> {
     return ensureBinary(

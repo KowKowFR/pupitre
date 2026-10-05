@@ -736,6 +736,17 @@ name is a legacy of the project's first version, and it is frozen in
 every existing target. Ten minutes maximum per scanner. **The first scan on a
 new target downloads the vulnerability databases: count a few minutes, once.**
 
+**A scan never fills the target's disk.** The databases weigh gigabytes —
+Grype's about 3 GiB, Trivy's 1.4 GiB, plus 1.4 GiB the first time it meets Java —
+and they are downloaded next to the applications. Before scanning, the worker
+reads the free space (`df`) and the size of each cache (`du`), and keeps 15 % of
+the disk free, never less than 2 GiB: past that line, a K3s node evicts its pods.
+Each scanner declares what it may download (`Scanner.diskNeed`); when it does not
+fit, the caches of the scanners this scan does not use are removed first, and a
+scanner that still does not fit is not run — its run is recorded as failed, with
+the free space, what it needed and the margin kept, in the deployment's log and
+on the security page (`planScanSpace()` in `scanners/space.ts`).
+
 ### Where to read the image: the driver says it
 
 A built image exists in no registry: a scanner has to read it where the runtime

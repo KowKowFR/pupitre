@@ -156,7 +156,9 @@ export const HOST_METRIC_CATALOG: Record<HostMetricKey, HostMetricDefinition> = 
   disk: {
     key: 'disk',
     label: (language) => metricSay(language)('disk.label'),
-    defaultLimitPercent: 90,
+    // 85 and not 90: past 85 %, a K3s node's kubelet starts evicting pods (it keeps
+    // 15 % of its image space free). The alert must come before, not after.
+    defaultLimitPercent: 85,
     // A single reading is enough: the disk does not bounce.
     defaultBreachSamples: 1,
     defaultClearSamples: 2,
