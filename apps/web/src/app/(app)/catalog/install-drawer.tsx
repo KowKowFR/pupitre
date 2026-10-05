@@ -23,6 +23,7 @@ import { common } from '@/i18n/messages/common';
 import { toast } from '@/lib/toast';
 import { ServiceList } from '../applications/service-list';
 import { CATEGORY_ICON, Monogram, type TemplateView } from './catalog-view';
+import { copyText } from '@/lib/secure-origin';
 
 type ApiError = { error?: { message?: string } };
 
@@ -143,13 +144,9 @@ function InstallForm({
   async function generate(secret: string) {
     const value = randomPassword();
     setSecrets((current) => ({ ...current, [secret]: value }));
-    // The clipboard can be refused (insecure context): the value stays in the field,
-    // which the Show button reveals.
-    try {
-      await navigator.clipboard.writeText(value);
+    // Not copied: the value stays in the field, which the Show button reveals.
+    if (await copyText(value)) {
       toast({ title: t('field.secret.copied'), description: secret, tone: 'ok' });
-    } catch {
-      /* nothing to report: the value is in the field */
     }
   }
 

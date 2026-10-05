@@ -25,6 +25,7 @@ import { toast } from '@/lib/toast';
 import { PermissionGroups } from '../admin/roles/permission-groups';
 import type { PermissionGroup } from '../admin/roles/roles-editor';
 import { readApiError } from './api-error';
+import { copyText } from '@/lib/secure-origin';
 
 type Preset = 'deploy' | 'read' | 'custom';
 type Expiry = '30' | '90' | '365' | 'never';
@@ -322,14 +323,8 @@ function Reveal({
   ].join('\n');
 
   async function copy(): Promise<void> {
-    // The clipboard can be refused (insecure context): the token stays on screen,
-    // selectable by hand.
-    try {
-      await navigator.clipboard.writeText(created.token);
-      toast({ title: t('reveal.copied'), tone: 'ok' });
-    } catch {
-      /* nothing to report: the token is on screen */
-    }
+    // Not copied: the token stays on screen, selectable by hand.
+    if (await copyText(created.token)) toast({ title: t('reveal.copied'), tone: 'ok' });
   }
 
   return (
