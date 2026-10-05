@@ -86,6 +86,8 @@ const fr = {
 
   'action.logs': 'Logs',
   'action.restart': 'Redémarrer',
+  'state.stopped': 'arrêtée',
+  'state.stoppedSince': 'depuis {since}',
   'action.restart.busy': 'Envoi…',
   /** A state's age, abbreviated: these units fit in a narrow column. */
   'since.none': '—',
@@ -250,6 +252,8 @@ const en: Translated<typeof fr> = {
 
   'action.logs': 'Logs',
   'action.restart': 'Restart',
+  'state.stopped': 'stopped',
+  'state.stoppedSince': 'for {since}',
   'action.restart.busy': 'Sending…',
   'since.none': '—',
   'since.seconds': '{count} s',

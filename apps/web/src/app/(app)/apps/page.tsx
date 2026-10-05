@@ -94,6 +94,7 @@ export default async function AppsPage({
     publishedPort: app.publishedPort,
     services: app.services,
     startedAt: app.startedAt?.toISOString() ?? null,
+    stoppedAt: app.stoppedAt?.toISOString() ?? null,
     // Kept as is: an application whose last update failed stays visible, with the
     // mention of the failure. Making it disappear was the bug that was fixed, and
     // grouping by server does not reintroduce it.

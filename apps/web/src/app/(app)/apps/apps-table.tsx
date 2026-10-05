@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
-import { RotateCw, ScrollText } from 'lucide-react';
+import { Play, RotateCw, ScrollText, Square } from 'lucide-react';
 import { translator, type DeploymentStatus, type Translate } from '@pupitre/core';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -20,6 +21,7 @@ import {
 } from '@/components/ui/table';
 import { useT } from '@/i18n/client';
 import { common } from '@/i18n/messages/common';
+import { appConsole } from '@/i18n/messages/console';
 import { servers } from '@/i18n/messages/servers';
 import { toast } from '@/lib/toast';
 
@@ -55,6 +57,8 @@ export type SupervisedRow = {
   publishedPort: number | null;
   services: string[];
   startedAt: string | null;
+  /** Stopped from the panel: the containers are there, not running. */
+  stoppedAt: string | null;
   lastFailedUpdate: LastFailedUpdateRow | null;
 };
 
@@ -138,9 +142,52 @@ export function AppsTable({
 }) {
   const t = useT(servers);
   const shared = useT(common);
+  // Stopping says what it does in the console's words: one description of the
+  // gesture, wherever it is offered.
+  const gestures = useT(appConsole);
+  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [restarting, setRestarting] = useState<SupervisedRow | null>(null);
+  const [stopping, setStopping] = useState<SupervisedRow | null>(null);
+  const [starting, setStarting] = useState<string | null>(null);
+
+  /**
+   * Stop or start again, through the same routes as the console. The row
+   * changes once the worker is done — the page re-reads itself on its signal.
+   */
+  async function lifecycle(app: SupervisedRow, gesture: 'stop' | 'start'): Promise<boolean> {
+    setError(null);
+    const response = await fetch(`/api/apps/${app.id}/${gesture}`, { method: 'POST' });
+    if (!response.ok) {
+      const body = (await response.json().catch(() => ({}))) as ApiError;
+      const message = body.error?.message ?? shared('http.failure', { status: response.status });
+      if (gesture === 'stop') setError(message);
+      else toast({ title: message, tone: 'danger' });
+      return false;
+    }
+    toast({
+      title: gestures(gesture === 'stop' ? 'toast.stop' : 'toast.start', {
+        slug: app.applicationSlug,
+      }),
+      tone: 'accent',
+    });
+    router.refresh();
+    return true;
+  }
+
+  async function stop(app: SupervisedRow) {
+    setBusy(true);
+    const done = await lifecycle(app, 'stop');
+    setBusy(false);
+    if (done) setStopping(null);
+  }
+
+  async function start(app: SupervisedRow) {
+    setStarting(app.id);
+    await lifecycle(app, 'start');
+    setStarting(null);
+  }
 
   async function restart(app: SupervisedRow) {
     setBusy(true);
@@ -211,7 +258,16 @@ export function AppsTable({
 
               <TableCell>
                 <span className="flex flex-col items-start gap-1">
-                  <HealthDot health={app.healthStatus} />
+                  {app.stoppedAt ? (
+                    <State
+                      tone="idle"
+                      meta={t('state.stoppedSince', { since: formatSince(app.stoppedAt, t) })}
+                    >
+                      {t('state.stopped')}
+                    </State>
+                  ) : (
+                    <HealthDot health={app.healthStatus} />
+                  )}
                   {app.status === 'rolled_back' ? (
                     <Badge variant="warn">{t('row.restored')}</Badge>
                   ) : null}
@@ -234,7 +290,9 @@ export function AppsTable({
                 </span>
               </TableCell>
 
-              <TableCell className="num text-text-3">{formatSince(app.startedAt, t)}</TableCell>
+              <TableCell className="num text-text-3">
+                {app.stoppedAt ? t('since.none') : formatSince(app.startedAt, t)}
+              </TableCell>
 
               <TableActions>
                 <span className="inline-flex items-center gap-1.5">
@@ -251,17 +309,41 @@ export function AppsTable({
                       {t('action.logs')}
                     </Link>
                   </Button>
-                  {canRestart ? (
+                  {canRestart && app.stoppedAt ? (
                     <Button
                       size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        setError(null);
-                        setRestarting(app);
-                      }}
+                      variant="secondary"
+                      loading={starting === app.id}
+                      onClick={() => void start(app)}
                     >
-                      {t('action.restart')}
+                      <Play aria-hidden />
+                      {starting === app.id ? gestures('busy.start') : gestures('gesture.start')}
                     </Button>
+                  ) : null}
+                  {canRestart && !app.stoppedAt ? (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setError(null);
+                          setRestarting(app);
+                        }}
+                      >
+                        {t('action.restart')}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setError(null);
+                          setStopping(app);
+                        }}
+                      >
+                        <Square aria-hidden />
+                        {gestures('gesture.stop')}
+                      </Button>
+                    </>
                   ) : null}
                 </span>
               </TableActions>
@@ -289,6 +371,38 @@ export function AppsTable({
         pending={busy}
         error={error}
         onConfirm={() => (restarting ? restart(restarting) : undefined)}
+      />
+
+      <ConfirmDialog
+        open={stopping !== null}
+        onOpenChange={(open) => (open ? undefined : setStopping(null))}
+        level="reversible"
+        icon={<Square />}
+        title={
+          stopping
+            ? gestures('stop.title', {
+                slug: stopping.applicationSlug,
+                target: stopping.targetName,
+              })
+            : ''
+        }
+        consequences={
+          stopping
+            ? [
+                gestures(`stop.containers.${stopping.runtime}`),
+                stopping.publishedPort === null
+                  ? gestures('stop.kept.noPort')
+                  : gestures('stop.kept', { port: stopping.publishedPort }),
+                gestures('stop.probe'),
+                gestures('stop.resume'),
+              ]
+            : []
+        }
+        confirmLabel={gestures('stop.confirm')}
+        pendingLabel={gestures('busy.stop')}
+        pending={busy}
+        error={error}
+        onConfirm={() => (stopping ? stop(stopping) : undefined)}
       />
     </>
   );
