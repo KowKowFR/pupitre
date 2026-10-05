@@ -157,7 +157,7 @@ describe('Validation complaints — said again in the screen’s language', () =
     const parsed = appSpecSchema.safeParse({ name: 'demo', version: '1.0.0', services: [] });
     assert.ok(!parsed.success);
     assert.ok(formatIssues(parsed.error, 'en').includes('services: at least one service'));
-    assert.ok(formatIssues(parsed.error).includes('services : au moins un service'));
+    assert.ok(formatIssues(parsed.error, 'fr').includes('services : au moins un service'));
     assert.equal(redactApiKey('refused: sk-abcdefgh1234', null, 'en'), 'refused: [redacted key]');
   });
 });

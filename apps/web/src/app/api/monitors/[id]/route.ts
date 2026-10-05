@@ -25,6 +25,7 @@ import {
   toIncidentView,
 } from '@/lib/monitors';
 import { requirePermission } from '@/lib/rbac';
+import { currentLanguage } from '@/i18n/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -104,7 +105,7 @@ export const PATCH = apiRoute<Context>(async (request, context) => {
     resourceId: id,
     before: {
       name: before.name,
-      target: monitorTarget(before),
+      target: monitorTarget(before, await currentLanguage()),
       enabled: before.enabled,
       intervalSeconds: before.intervalSeconds,
       failureThreshold: before.failureThreshold,
@@ -113,7 +114,7 @@ export const PATCH = apiRoute<Context>(async (request, context) => {
     },
     after: {
       name: after.name,
-      target: monitorTarget(after),
+      target: monitorTarget(after, await currentLanguage()),
       enabled: after.enabled,
       intervalSeconds: after.intervalSeconds,
       failureThreshold: after.failureThreshold,
@@ -144,7 +145,12 @@ export const DELETE = apiRoute<Context>(async (request, context) => {
     action: 'monitor.deleted',
     resourceType: 'monitor',
     resourceId: id,
-    before: { name: row.name, type: row.type, target: monitorTarget(row), status: row.status },
+    before: {
+      name: row.name,
+      type: row.type,
+      target: monitorTarget(row, await currentLanguage()),
+      status: row.status,
+    },
     ip: auth.ip,
   });
 

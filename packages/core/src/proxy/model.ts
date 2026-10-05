@@ -72,7 +72,7 @@ export function hostnameProblemOf(value: string): HostnameProblem | null {
   return null;
 }
 
-export function hostnameProblem(value: string, language: UiLanguage = 'fr'): string | null {
+export function hostnameProblem(value: string, language: UiLanguage): string | null {
   const problem = hostnameProblemOf(value);
   return problem === null ? null : proxySay(language)(`hostname.${problem}`);
 }

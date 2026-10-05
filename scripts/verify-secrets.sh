@@ -458,7 +458,7 @@ const spec = JSON.parse(readFileSync(process.env.SPEC_FILE, 'utf8'));
 // 1. No resolved value → the rendering must fail, and name the culprit.
 let message = null;
 try {
-  renderFiles({ spec, appSlug: spec.name, publishedPort: null });
+  renderFiles({ spec, appSlug: spec.name, publishedPort: null, language: 'en' });
 } catch (error) {
   message = error.message;
 }
@@ -475,7 +475,13 @@ console.log(`THROWS ${message}`);
 // 2. A DELIBERATELY empty secret stays legitimate: missing is not empty.
 const values = {};
 for (const service of spec.services) for (const name of service.secrets) values[name] = '';
-const files = renderFiles({ spec, appSlug: spec.name, publishedPort: null, secretValues: values });
+const files = renderFiles({
+  spec,
+  appSlug: spec.name,
+  publishedPort: null,
+  secretValues: values,
+  language: 'en',
+});
 const env = files.find((file) => file.path === '.env');
 if (!env || !/^POSTGRES_PASSWORD=$/m.test(env.content)) {
   console.error('EMPTY_REFUSED');
@@ -708,7 +714,7 @@ console.log(`ROOTS ${roots.sort().join(',')}`);
 const secretValues = Object.fromEntries(roots.map((name) => [name, `value-of-${name}`]));
 
 const env = docker
-  .renderFiles({ spec, appSlug: spec.name, publishedPort: null, secretValues })
+  .renderFiles({ spec, appSlug: spec.name, publishedPort: null, secretValues, language: 'en' })
   .find((file) => file.path === '.env');
 const composeMap = Object.fromEntries(
   env.content.trim().split('\n').map((line) => {
@@ -718,7 +724,7 @@ const composeMap = Object.fromEntries(
 );
 
 const kubeMap = {};
-for (const manifest of k3s.renderManifests({ spec, appSlug: spec.name, secretValues })) {
+for (const manifest of k3s.renderManifests({ spec, appSlug: spec.name, secretValues, language: 'en' })) {
   if (manifest.kind !== 'Secret') continue;
   Object.assign(kubeMap, manifest.stringData);
 }

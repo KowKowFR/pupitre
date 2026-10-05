@@ -205,8 +205,8 @@ export async function handleDeploymentRollback(
 export type DestroyOptions = {
   actorId: string | null;
   ip: string | null;
-  /** Bounds the session opening attempt. Default: the SSH one. */
-  connect?: ConnectOptions;
+  /** Bounds the session opening attempt. Default: the SSH one. Its language is the instance's. */
+  connect?: Omit<ConnectOptions, 'language'>;
 };
 
 /**

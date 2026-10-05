@@ -149,7 +149,7 @@ async function main(): Promise<void> {
         : { authMethod: 'password', password: secret },
   };
 
-  const session = await connect(sshTarget);
+  const session = await connect(sshTarget, { language: 'en' });
   ok(`connected in ${session.latencyMs} ms`);
 
   const applicationId = await ensureApplication(spec);

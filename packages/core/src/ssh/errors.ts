@@ -36,7 +36,7 @@ export class SshHostKeyError extends SshError {
     host: string,
     readonly expected: string,
     readonly presented: string,
-    language: UiLanguage = 'fr',
+    language: UiLanguage,
   ) {
     super(sshSay(language)('hostKey.changed', { host, expected, presented }), host);
   }

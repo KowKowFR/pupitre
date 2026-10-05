@@ -54,7 +54,7 @@ import { destroyDeployment } from './deployment.js';
  * what blocks. Here we want a verdict: one attempt, ten seconds. We do not try to
  * succeed despite a capricious machine, we try to know.
  */
-const CASCADE_CONNECT: ConnectOptions = { retries: 1, readyTimeout: 10_000 };
+const CASCADE_CONNECT: Omit<ConnectOptions, 'language'> = { retries: 1, readyTimeout: 10_000 };
 
 /** Cap on purge rounds — `purgeDeployments()` handles 500 rows per call. */
 const PURGE_ROUNDS = 20;

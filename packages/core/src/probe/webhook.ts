@@ -21,10 +21,10 @@ export async function postWebhook(input: {
   allowlist: readonly Cidr[];
   timeoutMs?: number;
   /** The language of the returned error — the instance's. */
-  language?: UiLanguage;
+  language: UiLanguage;
 }): Promise<WebhookDelivery> {
   const timeoutMs = input.timeoutMs ?? 10_000;
-  const language = input.language ?? 'fr';
+  const language = input.language;
 
   let target: Awaited<ReturnType<typeof resolveUrlGuarded>>;
   try {

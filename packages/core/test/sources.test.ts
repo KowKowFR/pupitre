@@ -145,19 +145,23 @@ describe('watched paths of a monorepo', () => {
 
 describe('pupitre.json', () => {
   it('accepts a valid AppSpec under the application’s name', () => {
-    const result = parseSourceSpec(JSON.stringify(BASE), 'demo-api');
+    const result = parseSourceSpec(JSON.stringify(BASE), 'demo-api', 'fr');
     assert.equal(result.ok, true);
   });
 
   it('refuses unreadable JSON, an invalid spec, another name — and says why', () => {
-    const broken = parseSourceSpec('{ "name": ', 'demo-api');
+    const broken = parseSourceSpec('{ "name": ', 'demo-api', 'fr');
     assert.equal(broken.ok, false);
     assert.match(broken.ok ? '' : broken.issues[0]!, /JSON illisible/);
 
-    const invalid = parseSourceSpec(JSON.stringify({ name: 'demo-api', version: 'x' }), 'demo-api');
+    const invalid = parseSourceSpec(
+      JSON.stringify({ name: 'demo-api', version: 'x' }),
+      'demo-api',
+      'fr',
+    );
     assert.equal(invalid.ok, false);
 
-    const other = parseSourceSpec(JSON.stringify({ ...BASE, name: 'autre-app' }), 'demo-api');
+    const other = parseSourceSpec(JSON.stringify({ ...BASE, name: 'autre-app' }), 'demo-api', 'fr');
     assert.equal(other.ok, false);
     assert.match(other.ok ? '' : other.issues[0]!, /autre-app/);
   });
@@ -218,7 +222,7 @@ describe('GitHub client', () => {
       TOKEN_ROUTE,
       [/\/commits\/main$/, () => new Response(null, { status: 304 })],
     ]);
-    const github = new GitHubSourceProvider({ appId: 1, privateKey }, fetchImpl);
+    const github = new GitHubSourceProvider({ language: 'fr', appId: 1, privateKey }, fetchImpl);
     assert.deepEqual(await github.resolveHead(REPO, 'main', '"etag-1"'), { changed: false });
     const head = calls.find((call) => call.url.endsWith('/commits/main'))!;
     assert.equal(head.headers['if-none-match'], '"etag-1"');
@@ -230,7 +234,7 @@ describe('GitHub client', () => {
       TOKEN_ROUTE,
       [/\/commits\/main$/, () => new Response(`${SHA}\n`, { headers: { etag: '"etag-2"' } })],
     ]);
-    const github = new GitHubSourceProvider({ appId: 1, privateKey }, fetchImpl);
+    const github = new GitHubSourceProvider({ language: 'fr', appId: 1, privateKey }, fetchImpl);
     assert.deepEqual(await github.resolveHead(REPO, 'main', null), {
       changed: true,
       sha: SHA,
@@ -243,7 +247,7 @@ describe('GitHub client', () => {
       TOKEN_ROUTE,
       [/\/commits\/main$/, () => new Response(SHA)],
     ]);
-    const github = new GitHubSourceProvider({ appId: 1, privateKey }, fetchImpl);
+    const github = new GitHubSourceProvider({ language: 'fr', appId: 1, privateKey }, fetchImpl);
     await github.resolveHead(REPO, 'main', null);
     await github.resolveHead(REPO, 'main', null);
     assert.equal(calls.filter((call) => call.url.includes('access_tokens')).length, 1);
@@ -262,7 +266,7 @@ describe('GitHub client', () => {
           }),
       ],
     ]);
-    const github = new GitHubSourceProvider({ appId: 1, privateKey }, fetchImpl);
+    const github = new GitHubSourceProvider({ language: 'fr', appId: 1, privateKey }, fetchImpl);
     assert.equal((await github.compare(REPO, 'b'.repeat(40), SHA)).kind, 'unknown');
     assert.deepEqual(await github.compare(REPO, 'c'.repeat(40), SHA), {
       kind: 'files',
@@ -289,7 +293,7 @@ describe('GitHub client', () => {
           }),
       ],
     ]);
-    const github = new GitHubSourceProvider({ appId: 1, privateKey }, fetchImpl);
+    const github = new GitHubSourceProvider({ language: 'fr', appId: 1, privateKey }, fetchImpl);
     assert.deepEqual(await github.findFiles(REPO, SHA, 'pupitre.json'), [
       'examples/bonjour/pupitre.json',
       'pupitre.json',
@@ -299,7 +303,7 @@ describe('GitHub client', () => {
 
   it('a file absent at the commit is `null`, not an error', async () => {
     const { fetchImpl } = fakeGitHub([TOKEN_ROUTE]);
-    const github = new GitHubSourceProvider({ appId: 1, privateKey }, fetchImpl);
+    const github = new GitHubSourceProvider({ language: 'fr', appId: 1, privateKey }, fetchImpl);
     assert.equal(await github.readFile(REPO, SHA, 'pupitre.json'), null);
   });
 
@@ -308,7 +312,7 @@ describe('GitHub client', () => {
       TOKEN_ROUTE,
       [/\/statuses\/a{40}$/, () => Response.json({}, { status: 201 })],
     ]);
-    const github = new GitHubSourceProvider({ appId: 1, privateKey }, fetchImpl);
+    const github = new GitHubSourceProvider({ language: 'fr', appId: 1, privateKey }, fetchImpl);
     await github.reportStatus(REPO, SHA, {
       state: 'success',
       description: 'x'.repeat(300),
@@ -343,7 +347,11 @@ describe('GitHub client', () => {
 
 // ─── Gitea / Forgejo ──────────────────────────────────────────────────────────
 
-const GITEA = { baseUrl: 'https://forge.exemple.fr/', token: 'jeton-gitea' };
+const GITEA = {
+  baseUrl: 'https://forge.exemple.fr/',
+  token: 'jeton-gitea',
+  language: 'fr' as const,
+};
 const GITEA_REPO = { fullName: 'atelier/vitrine', installationId: null };
 const BASE_SHA = 'b'.repeat(40);
 /** The network egress guard, without DNS: everything passes. */
@@ -502,7 +510,7 @@ describe('Gitea client', () => {
   it('the network egress guard: a forge on a link-local address is refused', async () => {
     const { fetchImpl, calls } = fakeGitHub([]);
     const gitea = new GiteaSourceProvider(
-      { baseUrl: 'http://169.254.169.254', token: 't' },
+      { language: 'fr', baseUrl: 'http://169.254.169.254', token: 't' },
       fetchImpl,
     );
     await assert.rejects(gitea.resolveHead(GITEA_REPO, 'main', null), SourceProviderError);
@@ -533,7 +541,11 @@ describe('Gitea client', () => {
 
 // ─── GitLab ───────────────────────────────────────────────────────────────────
 
-const GITLAB = { baseUrl: 'https://gitlab.exemple.fr/', token: 'glpat-jeton' };
+const GITLAB = {
+  baseUrl: 'https://gitlab.exemple.fr/',
+  token: 'glpat-jeton',
+  language: 'fr' as const,
+};
 /** A subgroup project: its whole path is its name. */
 const GITLAB_REPO = { fullName: 'atelier/web/vitrine', installationId: null };
 const GITLAB_PROJECT = 'https://gitlab.exemple.fr/api/v4/projects/atelier%2Fweb%2Fvitrine';
@@ -772,7 +784,7 @@ describe('GitLab client', () => {
       const { port } = server.address() as AddressInfo;
       const { fetchImpl, calls } = fakeGitHub([]);
       const gitlab = new GitLabSourceProvider(
-        { baseUrl: `http://127.0.0.1:${port}`, token: 'glpat-jeton' },
+        { language: 'fr', baseUrl: `http://127.0.0.1:${port}`, token: 'glpat-jeton' },
         fetchImpl,
         open,
       );
@@ -801,7 +813,7 @@ describe('GitLab client', () => {
   it('the network egress guard: an instance on a link-local address is refused', async () => {
     const { fetchImpl, calls } = fakeGitHub([]);
     const gitlab = new GitLabSourceProvider(
-      { baseUrl: 'http://169.254.169.254', token: 't' },
+      { language: 'fr', baseUrl: 'http://169.254.169.254', token: 't' },
       fetchImpl,
     );
     await assert.rejects(gitlab.resolveHead(GITLAB_REPO, 'main', null), SourceProviderError);
@@ -846,10 +858,10 @@ describe('GitLab client', () => {
 
 describe('providers and links', () => {
   it('the factory returns the connection’s client', () => {
-    assert.equal(createSourceProvider({ provider: 'gitea', ...GITEA }).kind, 'gitea');
-    assert.equal(createSourceProvider({ provider: 'gitlab', ...GITLAB }).kind, 'gitlab');
+    assert.equal(createSourceProvider({ provider: 'gitea', ...GITEA }, 'fr').kind, 'gitea');
+    assert.equal(createSourceProvider({ provider: 'gitlab', ...GITLAB }, 'fr').kind, 'gitlab');
     assert.equal(
-      createSourceProvider({ provider: 'github', appId: 1, privateKey, apiUrl: null }).kind,
+      createSourceProvider({ provider: 'github', appId: 1, privateKey, apiUrl: null }, 'fr').kind,
       'github',
     );
   });

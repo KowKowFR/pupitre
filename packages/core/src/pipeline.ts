@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { DEFAULT_UI_LANGUAGE, type Bundle, type UiLanguage } from './i18n.js';
+import { type Bundle, type UiLanguage } from './i18n.js';
 
 /**
  * Definition of the deployment pipeline.
@@ -93,11 +93,7 @@ export const deploymentStepLabels = stepLabels;
  * knows: we then return what the database had written, rather than a bare key
  * in front of a user.
  */
-export function deploymentStepLabel(
-  key: string,
-  language: UiLanguage = DEFAULT_UI_LANGUAGE,
-  fallback?: string,
-): string {
+export function deploymentStepLabel(key: string, language: UiLanguage, fallback?: string): string {
   const known = stepLabels[language] as Record<string, string | undefined>;
   return known[key] ?? fallback ?? key;
 }

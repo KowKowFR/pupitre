@@ -60,7 +60,10 @@ export function createEncryptStream(masterKey?: string): Transform {
  * is the tag. A wrong tag — truncated file, tampered with, or a different
  * `MASTER_KEY` — fails the stream at the last moment, as a `BackupFormatError`.
  */
-export function createDecryptStream(masterKey?: string, language: UiLanguage = 'fr'): Transform {
+export function createDecryptStream(
+  masterKey: string | undefined,
+  language: UiLanguage,
+): Transform {
   const say = backupSay(language);
   let header: Buffer = Buffer.alloc(0);
   let decipher: DecipherGCM | null = null;
@@ -115,8 +118,12 @@ export async function encryptBuffer(plain: Buffer, masterKey?: string): Promise<
   return collect(createEncryptStream(masterKey), plain);
 }
 
-export async function decryptBuffer(sealed: Buffer, masterKey?: string): Promise<Buffer> {
-  return collect(createDecryptStream(masterKey), sealed);
+export async function decryptBuffer(
+  sealed: Buffer,
+  masterKey: string | undefined,
+  language: UiLanguage,
+): Promise<Buffer> {
+  return collect(createDecryptStream(masterKey, language), sealed);
 }
 
 function collect(transform: Transform, input: Buffer): Promise<Buffer> {

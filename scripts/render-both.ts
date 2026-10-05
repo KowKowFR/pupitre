@@ -64,7 +64,7 @@ function main(): void {
 
   // ─── Docker ────────────────────────────────────────────────────────────────
   const compose = serializeComposeFile(
-    renderComposeFile({ spec, appSlug, publishedPort: 30_000 }),
+    renderComposeFile({ spec, appSlug, publishedPort: 30_000, language: 'en' }),
   );
   const composeDoc: unknown = parseYaml(compose);
   if (typeof composeDoc !== 'object' || composeDoc === null || !('services' in composeDoc)) {
@@ -80,7 +80,7 @@ function main(): void {
   }
 
   // ─── K3s ───────────────────────────────────────────────────────────────────
-  const manifests = k3sRender.renderManifests({ spec, appSlug, secretValues });
+  const manifests = k3sRender.renderManifests({ spec, appSlug, secretValues, language: 'en' });
   const kinds: Record<string, number> = {};
   for (const manifest of manifests) {
     kinds[manifest.kind] = (kinds[manifest.kind] ?? 0) + 1;

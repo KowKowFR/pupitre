@@ -97,6 +97,28 @@ describe('product messages, outside the screens', () => {
     const stale = Object.keys(NOT_PRODUCT).filter((file) => quiet.has(file));
     assert.deepEqual(stale, []);
   });
+
+  it('never default the language: whoever renders a sentence says in which', () => {
+    // A default language is a sentence that comes out in the wrong one as soon as a
+    // caller forgets to pass it — French on an English instance, or the reverse.
+    // Required, the compiler finds every caller instead.
+    const defaulted = [];
+    for (const root of roots) {
+      for (const file of walk(root)) {
+        const source = readFileSync(file, 'utf8');
+        const relative = path.relative(repoRoot, file).split(path.sep).join('/');
+        source.split('\n').forEach((line, index) => {
+          if (
+            /\blanguage\??: UiLanguage = /.test(line) ||
+            /\.language \?\? (?:'(?:fr|en)'|DEFAULT_UI_LANGUAGE)/.test(line)
+          ) {
+            defaulted.push(`${relative}:${index + 1}`);
+          }
+        });
+      }
+    }
+    assert.deepEqual(defaulted, []);
+  });
 });
 
 describe('the worker and database dictionaries', () => {

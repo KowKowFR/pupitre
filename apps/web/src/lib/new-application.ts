@@ -30,6 +30,7 @@ export async function newApplicationAi(): Promise<NewApplicationAi> {
   getEnv();
   const { settings } = await getAppSettings();
   const ai = resolveAiConfig({
+    language: await currentLanguage(),
     settings: settings.ai,
     settingsApiKey: await getAiApiKey(),
     env: process.env,

@@ -109,7 +109,7 @@ describe('Proxies — rendered in English', () => {
     assert.equal(hostnameProblem('localhost', 'en'), 'at least one dot is required (example.com)');
     assert.equal(hostnameProblem('*.example.com', 'en'), 'wildcards are not supported');
     // Without a language, French stays the default value.
-    assert.equal(hostnameProblem('*.example.com'), 'les jokers ne sont pas pris en charge');
+    assert.equal(hostnameProblem('*.example.com', 'fr'), 'les jokers ne sont pas pris en charge');
   });
 
   it('a Traefik found in a container', () => {
@@ -137,7 +137,7 @@ describe('Probes — rendered in English', () => {
     const config = domainConfigSchema.parse({ domain: 'example.com', warnDays: 30 });
     const verdict = judgeDomain(facts, config, NOW, 'en');
     assert.equal(verdict.detail, 'expires in 11 days (on 2026-09-25) — within the 30-day warning');
-    assert.match(judgeDomain(facts, config, NOW).detail ?? '', /\(le 25\/09\/2026\)/);
+    assert.match(judgeDomain(facts, config, NOW, 'fr').detail ?? '', /\(le 25\/09\/2026\)/);
   });
 
   it('a DNS mismatch', () => {
@@ -152,6 +152,6 @@ describe('Probes — rendered in English', () => {
   it('a timeout, said in the language of whoever reads', () => {
     const error = new ProbeTimeoutError(5000);
     assert.equal(messageOf(error, 'en'), 'timed out after 5000 ms');
-    assert.equal(messageOf(error), 'délai dépassé après 5000 ms');
+    assert.equal(messageOf(error, 'fr'), 'délai dépassé après 5000 ms');
   });
 });

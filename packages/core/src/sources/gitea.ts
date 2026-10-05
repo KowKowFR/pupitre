@@ -43,8 +43,8 @@ export type GiteaCredentials = {
   baseUrl: string;
   /** The access token. Decrypted just before the call, never logged. */
   token: string;
-  /** The language of what the client says — the instance's. French by default. */
-  language?: UiLanguage;
+  /** The language of what the client says — the instance's, or the screen's. */
+  language: UiLanguage;
 };
 
 /** Beyond this, a comparison is no longer trusted: everything is treated as changed. */
@@ -114,11 +114,7 @@ export class GiteaSourceProvider implements SourceProvider {
       await this.guard(url);
     } catch (error) {
       if (error instanceof EgressRefusedError) {
-        throw new SourceProviderError(
-          error.describe(this.credentials.language ?? 'fr'),
-          null,
-          'gitea',
-        );
+        throw new SourceProviderError(error.describe(this.credentials.language), null, 'gitea');
       }
       throw error;
     }
@@ -150,7 +146,7 @@ export class GiteaSourceProvider implements SourceProvider {
     const sha = body.commit?.id ?? '';
     if (!/^[0-9a-f]{40}([0-9a-f]{24})?$/.test(sha)) {
       throw new SourceProviderError(
-        sourceSay(this.credentials.language ?? 'fr')('commit.unreadableSha', {
+        sourceSay(this.credentials.language)('commit.unreadableSha', {
           sha: sha.slice(0, 60),
         }),
         null,
@@ -269,7 +265,7 @@ export class GiteaSourceProvider implements SourceProvider {
       throw new SourceProviderError(await errorMessage(response), response.status, 'gitea');
     }
 
-    const tooLarge = sourceSay(this.credentials.language ?? 'fr')('archive.tooLarge', {
+    const tooLarge = sourceSay(this.credentials.language)('archive.tooLarge', {
       mib: Math.round(maxBytes / 1024 / 1024),
     });
     let bytes = 0;
@@ -366,7 +362,7 @@ export async function fetchGiteaAccount(
       await guard(url);
     } catch (error) {
       if (error instanceof EgressRefusedError) {
-        throw new SourceProviderError(error.describe(credentials.language ?? 'fr'), null, 'gitea');
+        throw new SourceProviderError(error.describe(credentials.language), null, 'gitea');
       }
       throw error;
     }
@@ -379,7 +375,7 @@ export async function fetchGiteaAccount(
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new SourceProviderError(
-        sourceSay(credentials.language ?? 'fr')('forge.unreachable', { detail: message }),
+        sourceSay(credentials.language)('forge.unreachable', { detail: message }),
         null,
         'gitea',
       );

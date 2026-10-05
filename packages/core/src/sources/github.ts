@@ -41,8 +41,8 @@ export type GitHubAppCredentials = {
   privateKey: string;
   /** `https://api.github.com`, or a GitHub Enterprise's API. */
   apiUrl?: string;
-  /** The language of what the client says — the instance's. French by default. */
-  language?: UiLanguage;
+  /** The language of what the client says — the instance's, or the screen's. */
+  language: UiLanguage;
 };
 
 export const GITHUB_API_URL = 'https://api.github.com';
@@ -121,7 +121,7 @@ export class GitHubSourceProvider implements SourceProvider {
   private async installationToken(installationId: number | null): Promise<string> {
     if (installationId === null) {
       throw new SourceProviderError(
-        sourceSay(this.credentials.language ?? 'fr')('github.noInstallation'),
+        sourceSay(this.credentials.language)('github.noInstallation'),
         null,
         'github',
       );
@@ -194,7 +194,7 @@ export class GitHubSourceProvider implements SourceProvider {
     const sha = (await response.text()).trim();
     if (!/^[0-9a-f]{40}$/.test(sha)) {
       throw new SourceProviderError(
-        sourceSay(this.credentials.language ?? 'fr')('commit.unreadableSha', {
+        sourceSay(this.credentials.language)('commit.unreadableSha', {
           sha: sha.slice(0, 60),
         }),
         null,
@@ -296,7 +296,7 @@ export class GitHubSourceProvider implements SourceProvider {
       throw new SourceProviderError(await errorMessage(response), response.status, 'github');
     }
 
-    const tooLarge = sourceSay(this.credentials.language ?? 'fr')('archive.tooLarge', {
+    const tooLarge = sourceSay(this.credentials.language)('archive.tooLarge', {
       mib: Math.round(maxBytes / 1024 / 1024),
     });
     let bytes = 0;

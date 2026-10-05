@@ -115,7 +115,7 @@ step('1. toCron → fromCron → toCron is the identity');
 
   for (const simple of all) {
     const cron = toCron(simple);
-    if (cronError(cron) !== null) {
+    if (cronError(cron, 'en') !== null) {
       broken.push(`${JSON.stringify(simple)} produces "${cron}", refused by cronError`);
       continue;
     }
@@ -221,7 +221,7 @@ step('4. describeCron never lies');
 
   for (const [expression, expected] of cases) {
     check(`"${expression}" → ${expected}`, () => {
-      assert.equal(describeCron(expression, { timeZone: 'UTC' }), expected);
+      assert.equal(describeCron(expression, { locale: 'fr', timeZone: 'UTC' }), expected);
     });
   }
 
@@ -242,19 +242,22 @@ step('4. describeCron never lies');
   ];
   for (const [expression, expected] of approximated) {
     check(`"${expression}" described without rounding`, () => {
-      const described = describeCron(expression, { timeZone: 'UTC' });
+      const described = describeCron(expression, { locale: 'fr', timeZone: 'UTC' });
       assert.notEqual(described, expression, 'returned raw although it can be described');
       assert.equal(described, expected);
     });
   }
 
   check('an invalid expression is returned as is', () => {
-    assert.equal(describeCron('0 99 * * *'), '0 99 * * *');
-    assert.equal(describeCron('just anything'), 'just anything');
+    assert.equal(describeCron('0 99 * * *', { locale: 'fr' }), '0 99 * * *');
+    assert.equal(describeCron('just anything', { locale: 'fr' }), 'just anything');
   });
 
   check('an interval carries no zone — it does not depend on one', () => {
-    assert.equal(describeCron('*/5 * * * *', { timeZone: 'Europe/Paris' }), 'toutes les 5 minutes');
+    assert.equal(
+      describeCron('*/5 * * * *', { locale: 'fr', timeZone: 'Europe/Paris' }),
+      'toutes les 5 minutes',
+    );
   });
 }
 
@@ -464,11 +467,11 @@ step('6. The zone is a setting of the job, not of the process');
 
   check("the description carries the job's zone", () => {
     assert.equal(
-      describeCron('0 3 * * *', { timeZone: 'Europe/Paris' }),
+      describeCron('0 3 * * *', { locale: 'fr', timeZone: 'Europe/Paris' }),
       'tous les jours à 03:00 (Europe/Paris)',
     );
     assert.equal(
-      describeCron('0 3 * * *', { timeZone: 'UTC' }),
+      describeCron('0 3 * * *', { locale: 'fr', timeZone: 'UTC' }),
       'tous les jours à 03:00 (UTC)',
     );
   });

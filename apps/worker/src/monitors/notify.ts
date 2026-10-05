@@ -85,8 +85,6 @@ export async function notifyMonitorTransition(
   const event = to === 'healthy' ? 'monitor.up' : 'monitor.down';
   const kind = event === 'monitor.up' ? 'resolve' : 'open';
 
-  const target = monitorTarget(monitor);
-
   /**
    * The alert's language is **the instance's**, as for the notification channels
    * (`handlers/notification.ts`): nobody is in front of a screen when a site goes
@@ -96,6 +94,7 @@ export async function notifyMonitorTransition(
    */
   const settings = await getAppSettingsValue();
   const language = languageOf(settings.locale);
+  const target = monitorTarget(monitor, language);
 
   const alert = buildMonitorAlert(
     {

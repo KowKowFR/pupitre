@@ -26,6 +26,7 @@ import {
   monitorTypeOptions,
 } from '@/lib/monitors';
 import { requirePermission } from '@/lib/rbac';
+import { currentLanguage } from '@/i18n/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -116,7 +117,7 @@ export const POST = apiRoute(async (request) => {
     after: {
       name: row.name,
       type: row.type,
-      target: monitorTarget(row),
+      target: monitorTarget(row, await currentLanguage()),
       intervalSeconds: row.intervalSeconds,
       failureThreshold: row.failureThreshold,
       recoveryThreshold: row.recoveryThreshold,

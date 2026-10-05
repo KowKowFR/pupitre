@@ -41,7 +41,7 @@ export type DomainInspectInput = {
   expectedHosts: string[];
   allowlist: readonly Cidr[];
   /** The language of the errors read — the instance's. */
-  language?: UiLanguage;
+  language: UiLanguage;
 };
 
 function resolver(): Resolver {
@@ -325,7 +325,7 @@ async function certificateOf(
 }
 
 export async function inspectDomain(input: DomainInspectInput): Promise<DomainInspection> {
-  const language = input.language ?? 'fr';
+  const language = input.language;
   const hostname = input.hostname.toLowerCase().replace(/\.$/, '');
   const dns = await resolveName(hostname, language);
   const resolved = [

@@ -71,13 +71,13 @@ function t(language: UiLanguage, key: keyof typeof fr, vars?: Vars): string {
 /** The severity spelled out, in the instance's language. */
 export function notificationSeverityLabel(
   severity: NotificationSeverity,
-  language: UiLanguage = DEFAULT_UI_LANGUAGE,
+  language: UiLanguage,
 ): string {
   return t(language, `severity.${severity}`);
 }
 
 /** The label of the link to the panel — a channel never writes it itself. */
-export function notificationOpenLabel(language: UiLanguage = DEFAULT_UI_LANGUAGE): string {
+export function notificationOpenLabel(language: UiLanguage): string {
   return t(language, 'openInPanel');
 }
 
@@ -171,9 +171,9 @@ export function testNotificationMessage(options: {
   panelUrl: string | null;
   channelName: string;
   /** The instance's language. The panel resolves it before queuing the test. */
-  language?: UiLanguage;
+  language: UiLanguage;
 }): NotificationMessage {
-  const language = options.language ?? DEFAULT_UI_LANGUAGE;
+  const language = options.language;
 
   return notificationMessageSchema.parse({
     event: 'notification.test',

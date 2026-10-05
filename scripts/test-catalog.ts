@@ -148,7 +148,7 @@ async function openTarget(ref: string, wanted: RuntimeKind | null): Promise<Targ
         ? { authMethod: 'key', privateKey: secret }
         : { authMethod: 'password', password: secret },
   };
-  const session = await connect(sshTarget);
+  const session = await connect(sshTarget, { language: 'en' });
   const uname = await exec(session, 'uname -m', { timeout: 15_000 });
   // The runtime: the requested one, otherwise the first one the preflight saw, otherwise Docker.
   const runtime = wanted ?? usableRuntimes(found.runtimesAvailable)[0] ?? 'docker';

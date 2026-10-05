@@ -183,7 +183,7 @@ test("a TCP probe to the metadata service is refused at run time too", async () 
 
   await assert.rejects(
     () => resolveGuarded('169.254.169.254', parseCidrList('0.0.0.0/0')),
-    /aucune liste/,
+    /no allowlist opens it/,
     'even a fully open list does not unlock link-local',
   );
 });
@@ -341,7 +341,7 @@ test('a resolver is declared by its address, never by its name', () => {
 });
 
 test('the useful types are offered, SOA and PTR are left out', () => {
-  const definition = monitorTypeDefinition('dns');
+  const definition = monitorTypeDefinition('dns', 'en');
   const field = definition.fields.find((entry) => entry.key === 'recordType');
   assert.ok(field && field.kind === 'select');
   const offered = field.kind === 'select' ? field.options.map((option) => option.value) : [];
@@ -518,7 +518,7 @@ test('a domain carrying seventeen TXT records does not produce a two-kilobyte al
     actual,
     match: 'exact',
   });
-  const message = describeDnsComparison(comparison);
+  const message = describeDnsComparison(comparison, 400, 'fr');
   assert.equal(comparison.unexpected.length, 17);
   assert.ok(message.length < 600, `message of ${message.length} characters`);
   assert.match(message, /17 au total/);
@@ -573,7 +573,7 @@ test("both types only use field shapes the screen already renders", () => {
   // nothing to add to the forms' rendering.
   const known = new Set(['url', 'host', 'text', 'number', 'select']);
   for (const type of ['tcp', 'dns'] as const) {
-    for (const field of monitorTypeDefinition(type).fields) {
+    for (const field of monitorTypeDefinition(type, 'en').fields) {
       assert.ok(known.has(field.kind), `${type}.${field.key}: new field shape`);
     }
   }

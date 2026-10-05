@@ -103,7 +103,10 @@ async function main(): Promise<void> {
     }
 
     const started = Date.now();
-    const result = await getMonitorProbe(scenario.type).run(parsed.config, { allowlist: ALLOWLIST });
+    const result = await getMonitorProbe(scenario.type).run(parsed.config, {
+      language: 'fr',
+      allowlist: ALLOWLIST,
+    });
     const mark = result.outcome === 'healthy' ? '🟢' : result.outcome === 'unhealthy' ? '🟠' : '🔴';
 
     console.log(`   ${mark} ${result.outcome}  (${Date.now() - started} ms end to end)`);

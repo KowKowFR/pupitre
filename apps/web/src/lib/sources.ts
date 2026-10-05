@@ -37,10 +37,14 @@ export function panelOrigin(): string {
 }
 
 /** A GitHub App's credentials, for what only concerns it (its installations). */
-export function githubCredentialsOf(connection: SourceConnection): GitHubAppCredentials {
+export function githubCredentialsOf(
+  connection: SourceConnection,
+  language: UiLanguage,
+): GitHubAppCredentials {
   const secrets = sourceConnectionSecrets(connection);
-  if (secrets.provider !== 'github') throw new Error('connexion GitHub attendue');
+  if (secrets.provider !== 'github') throw new Error('a GitHub connection was expected');
   return {
+    language,
     appId: secrets.appId,
     privateKey: secrets.privateKey,
     ...(secrets.apiUrl ? { apiUrl: secrets.apiUrl } : {}),

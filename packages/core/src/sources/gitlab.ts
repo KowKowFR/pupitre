@@ -51,8 +51,8 @@ export type GitLabCredentials = {
   baseUrl: string;
   /** The access token. Decrypted just before the call, never logged. */
   token: string;
-  /** The language of what the client says — the instance's. French by default. */
-  language?: UiLanguage;
+  /** The language of what the client says — the instance's, or the screen's. */
+  language: UiLanguage;
 };
 
 /** Beyond this, a comparison is no longer trusted: everything is treated as changed. */
@@ -169,11 +169,7 @@ export class GitLabSourceProvider implements SourceProvider {
       await this.guard(url);
     } catch (error) {
       if (error instanceof EgressRefusedError) {
-        throw new SourceProviderError(
-          error.describe(this.credentials.language ?? 'fr'),
-          null,
-          'gitlab',
-        );
+        throw new SourceProviderError(error.describe(this.credentials.language), null, 'gitlab');
       }
       throw error;
     }
@@ -209,7 +205,7 @@ export class GitLabSourceProvider implements SourceProvider {
     const sha = body.commit?.id ?? '';
     if (!/^[0-9a-f]{40}([0-9a-f]{24})?$/.test(sha)) {
       throw new SourceProviderError(
-        sourceSay(this.credentials.language ?? 'fr')('commit.unreadableSha', {
+        sourceSay(this.credentials.language)('commit.unreadableSha', {
           sha: sha.slice(0, 60),
         }),
         null,
@@ -320,7 +316,7 @@ export class GitLabSourceProvider implements SourceProvider {
       throw new SourceProviderError(await errorMessage(response), response.status, 'gitlab');
     }
 
-    const tooLarge = sourceSay(this.credentials.language ?? 'fr')('archive.tooLarge', {
+    const tooLarge = sourceSay(this.credentials.language)('archive.tooLarge', {
       mib: Math.round(maxBytes / 1024 / 1024),
     });
     let bytes = 0;
@@ -371,7 +367,7 @@ export class GitLabSourceProvider implements SourceProvider {
     // The most common refusal, and the least readable: a protected branch.
     if (response.status === 403) {
       throw new SourceProviderError(
-        sourceSay(this.credentials.language ?? 'fr')('gitlab.protectedBranch', {
+        sourceSay(this.credentials.language)('gitlab.protectedBranch', {
           error: await errorMessage(response),
         }),
         403,
@@ -436,14 +432,14 @@ export async function fetchGitLabAccount(
   guard: (url: string) => Promise<void> = assertEgressAllowed,
 ): Promise<GitLabAccount> {
   const baseUrl = gitlabBaseUrl(credentials.baseUrl);
-  const say = sourceSay(credentials.language ?? 'fr');
+  const say = sourceSay(credentials.language);
   const call = async (path: string, optional = false) => {
     const url = `${baseUrl}/api/v4${path}`;
     try {
       await guard(url);
     } catch (error) {
       if (error instanceof EgressRefusedError) {
-        throw new SourceProviderError(error.describe(credentials.language ?? 'fr'), null, 'gitlab');
+        throw new SourceProviderError(error.describe(credentials.language), null, 'gitlab');
       }
       throw error;
     }
@@ -456,7 +452,7 @@ export async function fetchGitLabAccount(
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new SourceProviderError(
-        sourceSay(credentials.language ?? 'fr')('gitlab.unreachable', { detail: message }),
+        sourceSay(credentials.language)('gitlab.unreachable', { detail: message }),
         null,
         'gitlab',
       );

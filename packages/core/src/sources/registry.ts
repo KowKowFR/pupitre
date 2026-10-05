@@ -14,7 +14,7 @@ import type { SourceConnectionSecrets, SourceProvider } from './types.js';
  */
 export function createSourceProvider(
   connection: SourceConnectionSecrets,
-  language: UiLanguage = 'fr',
+  language: UiLanguage,
 ): SourceProvider {
   switch (connection.provider) {
     case 'github':

@@ -1,8 +1,5 @@
-import { DEFAULT_UI_LANGUAGE, renderMessage, type Translated, type UiLanguage, type Vars } from '../i18n.js';
-import {
-  notificationDigestItemSchema,
-  type NotificationDigestItem,
-} from './digest.js';
+import { renderMessage, type Translated, type UiLanguage, type Vars } from '../i18n.js';
+import { notificationDigestItemSchema, type NotificationDigestItem } from './digest.js';
 import {
   notificationMessageSchema,
   type NotificationField,
@@ -2119,10 +2116,7 @@ export function isNotificationEventKey(value: unknown): value is NotificationEve
  * An event's label, in the instance's language. It is what a digest's title
  * repeats — "12 × Deployment failed".
  */
-export function notificationEventLabel(
-  key: NotificationEventKey,
-  language: UiLanguage = DEFAULT_UI_LANGUAGE,
-): string {
+export function notificationEventLabel(key: NotificationEventKey, language: UiLanguage): string {
   return t(language, `${key}.label`);
 }
 
@@ -2140,9 +2134,7 @@ export type PresentedNotificationEvent = {
   readonly severity: NotificationSeverity;
 };
 
-export function presentNotificationEvents(
-  language: UiLanguage = DEFAULT_UI_LANGUAGE,
-): PresentedNotificationEvent[] {
+export function presentNotificationEvents(language: UiLanguage): PresentedNotificationEvent[] {
   return notificationEventDescriptors().map(({ key, severity }) => ({
     key,
     label: t(language, `${key}.label`),

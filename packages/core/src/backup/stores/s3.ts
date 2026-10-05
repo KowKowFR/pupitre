@@ -47,7 +47,7 @@ export class S3BackupStore implements BackupStore {
     private readonly config: S3DestinationConfig,
     private readonly secrets: S3DestinationSecrets,
     private readonly doFetch: typeof fetch = fetch,
-    private readonly language: UiLanguage = 'fr',
+    private readonly language: UiLanguage,
   ) {
     this.base = new URL(config.endpoint);
     this.say = backupSay(language);

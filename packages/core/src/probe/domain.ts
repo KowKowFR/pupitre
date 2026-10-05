@@ -155,6 +155,8 @@ async function bootstrapMap(): Promise<Map<string, string> | null> {
     allowlist: PUBLIC_ONLY,
     requireHttps: true,
     accept: 'application/json',
+    // A failure is only cached, never shown: its wording does not matter.
+    language: 'en',
   });
 
   if (!result.ok || result.status !== 200 || result.truncated) {
@@ -352,7 +354,7 @@ export function judgeDomain(
   facts: RdapDomainFacts,
   config: DomainConfig,
   now: Date,
-  language: UiLanguage = 'fr',
+  language: UiLanguage,
 ): DomainVerdict {
   const say = probeSay(language);
   const problems: string[] = [];

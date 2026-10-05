@@ -13,6 +13,9 @@ import { closeDb, resolveBackupDestination } from '@pupitre/db';
 import { env } from '../env.js';
 import { PANEL_DUMP_FILE, runPgTool } from '../backup/panel.js';
 
+/** The CLI speaks English, like its usage lines: it runs in a terminal, before any panel. */
+const CLI_LANGUAGE = 'en' as const;
+
 /**
  * Disaster recovery gestures, outside the panel.
  *
@@ -46,7 +49,7 @@ async function activeStore() {
         'from the NAS or the bucket, and pass its path.',
     );
   }
-  return openBackupStore(resolved.destination);
+  return openBackupStore(resolved.destination, CLI_LANGUAGE);
 }
 
 async function list(): Promise<void> {
@@ -79,7 +82,11 @@ async function restorePanel(source: string): Promise<void> {
     const manifest = backupManifestSchema.parse(
       JSON.parse(
         (
-          await decryptBuffer(await readStream(await store.get(`${folder}/${MANIFEST_FILE}`)))
+          await decryptBuffer(
+            await readStream(await store.get(`${folder}/${MANIFEST_FILE}`)),
+            undefined,
+            CLI_LANGUAGE,
+          )
         ).toString(),
       ),
     );
@@ -90,7 +97,7 @@ async function restorePanel(source: string): Promise<void> {
 
   try {
     const plain = new PassThrough();
-    const decrypting = pipeline(encrypted, createDecryptStream(), plain);
+    const decrypting = pipeline(encrypted, createDecryptStream(undefined, CLI_LANGUAGE), plain);
     await Promise.all([
       decrypting,
       runPgTool(
@@ -103,6 +110,7 @@ async function restorePanel(source: string): Promise<void> {
           `--dbname=${new URL(env.DATABASE_URL).pathname.replace(/^\//, '')}`,
         ],
         { stdin: plain },
+        CLI_LANGUAGE,
       ),
     ]);
     console.log('panel database restored — restart the panel and the worker');
@@ -117,7 +125,11 @@ async function main(): Promise<void> {
     case 'decrypt': {
       const [input, output] = args;
       if (!input || !output) throw new Error('usage: backup decrypt <file.pupb> <output>');
-      await pipeline(createReadStream(input), createDecryptStream(), createWriteStream(output));
+      await pipeline(
+        createReadStream(input),
+        createDecryptStream(undefined, CLI_LANGUAGE),
+        createWriteStream(output),
+      );
       console.log(`decrypted: ${output}`);
       return;
     }

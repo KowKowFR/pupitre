@@ -1,9 +1,4 @@
-import {
-  DEFAULT_UI_LANGUAGE,
-  renderMessage,
-  type Translated,
-  type UiLanguage,
-} from '../i18n.js';
+import { renderMessage, type Translated, type UiLanguage } from '../i18n.js';
 import { z } from 'zod';
 import { invalid } from '../validation.js';
 
@@ -542,9 +537,7 @@ export type PresentedNotificationChannel = {
  * comes from the caller — the panel takes it from `settings.locale`. The default
  * keeps the old call compiling and returns exactly the French from before.
  */
-export function presentNotificationChannels(
-  language: UiLanguage = DEFAULT_UI_LANGUAGE,
-): PresentedNotificationChannel[] {
+export function presentNotificationChannels(language: UiLanguage): PresentedNotificationChannel[] {
   return notificationChannelDescriptors().map((descriptor) => ({
     kind: descriptor.kind,
     label: t(language, `${descriptor.kind}.label`),

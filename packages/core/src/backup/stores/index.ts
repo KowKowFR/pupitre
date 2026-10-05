@@ -28,7 +28,7 @@ const STORES: { [K in BackupDestinationKind]: Factory<K> } = {
 /** `language`: that of what the destination says about a failure — the instance's. */
 export function openBackupStore(
   destination: ResolvedBackupDestination,
-  language: UiLanguage = 'fr',
+  language: UiLanguage,
 ): BackupStore {
   const factory = STORES[destination.kind] as Factory<typeof destination.kind>;
   return factory(destination as never, language);

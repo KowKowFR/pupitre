@@ -48,7 +48,7 @@ export interface NotificationChannel {
    * shown in the panel. It is the caller that resolves it, `packages/core` never
    * reading the instance settings.
    */
-  test(resolved: ResolvedChannelConfig, language?: UiLanguage): Promise<NotificationTestResult>;
+  test(resolved: ResolvedChannelConfig, language: UiLanguage): Promise<NotificationTestResult>;
 
   /** Delivers a single alert. Throws a `NotificationError` on failure. */
   send(resolved: ResolvedChannelConfig, message: NotificationMessage): Promise<void>;
@@ -164,7 +164,7 @@ const MASK: Record<UiLanguage, string> = { fr: '[secret masqué]', en: '[redacte
 export function redactSecrets(
   text: string,
   secrets: ChannelConfig = {},
-  language: UiLanguage = 'fr',
+  language: UiLanguage,
 ): string {
   const mask = MASK[language];
   let result = text;
@@ -200,7 +200,7 @@ export function redactSecrets(
 export function describeFailure(
   error: unknown,
   secrets: ChannelConfig = {},
-  language: UiLanguage = 'fr',
+  language: UiLanguage,
 ): string {
   let raw = error instanceof Error ? error.message : typeof error === 'string' ? error : String(error);
 

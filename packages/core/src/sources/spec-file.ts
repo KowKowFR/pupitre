@@ -21,7 +21,7 @@ export type SourceSpecResult =
 export function parseSourceSpec(
   content: string,
   expectedName: string,
-  language: UiLanguage = 'fr',
+  language: UiLanguage,
 ): SourceSpecResult {
   const say = sourceSay(language);
   let json: unknown;

@@ -150,7 +150,7 @@ export function interpretRouteProbe(
   stdout: string,
   signatures: ProbeSignatures,
   now = Date.now(),
-  language: UiLanguage = 'fr',
+  language: UiLanguage,
 ): RouteProbe {
   return judgeRouteProbe(
     route,
@@ -171,7 +171,7 @@ export function interpretRouteProbe(
 export function judgeRouteProbe(
   route: ProxyRoute,
   probes: { http?: Probed | undefined; https?: Probed | undefined; certificate: RouteCertificate },
-  language: UiLanguage = 'fr',
+  language: UiLanguage,
 ): RouteProbe {
   const say = proxySay(language);
   const problems = [

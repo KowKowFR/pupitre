@@ -33,7 +33,7 @@ export class UnresolvedSecretError extends Error {
 
   constructor(
     readonly names: readonly string[],
-    language: UiLanguage = 'fr',
+    language: UiLanguage,
   ) {
     super(driverSay(language)('secrets.unresolved', { names: names.join(', ') }));
   }
@@ -72,7 +72,7 @@ export { storedSecretNames };
 export function completeSecretValues(
   spec: AppSpec,
   values: Readonly<Record<string, string>> = {},
-  language: UiLanguage = 'fr',
+  language: UiLanguage,
 ): Record<string, string> {
   const bindings = secretBindings(spec);
   const complete: Record<string, string> = {};

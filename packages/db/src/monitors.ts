@@ -27,6 +27,7 @@ import {
   type MonitorTransition,
   type MonitorType,
   type SsrfRefusal,
+  type UiLanguage,
   type UptimeWindow,
   invalid,
 } from '@pupitre/core';
@@ -173,7 +174,11 @@ export function resolveConfig(
   rawConfig: unknown,
   intervalSeconds: number | undefined,
 ): { config: Record<string, unknown>; intervalSeconds: number } {
-  const definition = monitorTypeDefinition(type);
+  // The schema in the source language: its complaints are found again by their
+  // French sentence on the screen (`issueMessage()`). The thrown message, for the
+  // logs, names the type in English.
+  const definition = monitorTypeDefinition(type, 'fr');
+  const label = monitorTypeDefinition(type, 'en').label;
 
   const parsed = definition.schema.safeParse(rawConfig ?? {});
   if (!parsed.success) {
@@ -181,7 +186,7 @@ export function resolveConfig(
     const path = first?.path.join('.') ?? 'config';
     const issue = first?.message ?? 'value refused';
     throw new MonitorConfigError(
-      `invalid "${definition.label}" probe configuration — ${path}: ${issue}`,
+      `invalid "${label}" probe configuration — ${path}: ${issue}`,
       `config.${path}`,
       {
         kind: 'schema',
@@ -211,7 +216,7 @@ export function resolveConfig(
   const interval = intervalSeconds ?? definition.defaultIntervalSeconds;
   if (interval < definition.minIntervalSeconds) {
     throw new MonitorConfigError(
-      `a "${definition.label}" probe does not run more often than ` +
+      `a "${label}" probe does not run more often than ` +
         `${formatCadence(definition.minIntervalSeconds, 'en')} — ${formatCadence(interval, 'en')} asked`,
       'intervalSeconds',
       {
@@ -375,9 +380,9 @@ export function monitorWebhookUrl(monitor: Monitor): string | null {
 }
 
 /** A probe's target, in one line. Goes through the catalog, never through a `switch`. */
-export function monitorTarget(monitor: Monitor): string {
-  if (!isMonitorType(monitor.type)) return '(type inconnu)';
-  return describeMonitorTarget(monitor.type, monitor.config);
+export function monitorTarget(monitor: Monitor, language: UiLanguage): string {
+  if (!isMonitorType(monitor.type)) return `(${monitor.type})`;
+  return describeMonitorTarget(monitor.type, monitor.config, language);
 }
 
 // ─── sweep ────────────────────────────────────────────────────────────────────

@@ -62,7 +62,8 @@ export type OpenedContext = {
  * for a cascading deletion on a target known to be off: three dead machines make
  * two and a half minutes of waiting before the first word about what blocks.
  */
-export type OpenContextOptions = { connect?: ConnectOptions };
+/** The connection's options — its language is the instance's, set here. */
+export type OpenContextOptions = { connect?: Omit<ConnectOptions, 'language'> };
 
 export async function openDeploymentContext(
   deploymentId: string,

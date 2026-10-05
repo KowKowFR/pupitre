@@ -13,6 +13,7 @@ import { HttpError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
 import { githubConnectionView, githubCredentialsOf, providerError } from '@/lib/sources';
+import { currentLanguage } from '@/i18n/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -26,9 +27,9 @@ export const GET = apiRoute(async (request) => {
   await requirePermission(request, 'settings:read');
   const connection = await getSourceConnection('github');
   if (!connection) return NextResponse.json({ connection: null, installations: [] });
-  const installations = await listGitHubInstallations(githubCredentialsOf(connection)).catch(
-    providerError,
-  );
+  const installations = await listGitHubInstallations(
+    githubCredentialsOf(connection, await currentLanguage()),
+  ).catch(providerError);
   return NextResponse.json({ connection: githubConnectionView(connection), installations });
 });
 
@@ -49,9 +50,11 @@ export const POST = apiRoute(async (request) => {
     throw new HttpError(422, 'invalid_private_key', msg(messages, 'error.privateKey'));
   }
 
-  const info = await fetchGitHubAppInfo({ appId: body.appId, privateKey: body.privateKey }).catch(
-    providerError,
-  );
+  const info = await fetchGitHubAppInfo({
+    appId: body.appId,
+    privateKey: body.privateKey,
+    language: await currentLanguage(),
+  }).catch(providerError);
   const connection = await saveSourceConnection({
     provider: 'github',
     appId: info.appId,

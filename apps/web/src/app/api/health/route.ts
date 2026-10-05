@@ -99,6 +99,8 @@ async function aiState(): Promise<AiState> {
   }
 
   const config = resolveAiConfig({
+    // A probe for the monitoring tools, not a screen: its warnings are in English.
+    language: 'en',
     settings,
     settingsApiKey: keyInDatabase ? KEY_PRESENT : null,
     env: process.env,

@@ -167,9 +167,9 @@ export function interpretReach(input: {
   address: string;
   port: number;
   proxyName: string;
-  language?: UiLanguage;
+  language: UiLanguage;
 }): { failure: ReachFailure | null; detail: string } {
-  const say = proxySay(input.language ?? 'fr');
+  const say = proxySay(input.language);
   const where = `${input.address}:${input.port}`;
   const proxy = input.proxyName;
   if (input.curlCode === 0 && input.body.includes(input.token)) {

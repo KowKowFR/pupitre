@@ -504,6 +504,7 @@ describe('NPM — the provider, against a fake NPM', () => {
       { hostname: 'inconnu.exemple.fr', tls: false, redirectHttps: false, waf: 'off' },
       '/',
       NPM_PROBE,
+      'fr',
     );
     assert.equal(unknown.ok, false);
     assert.match(unknown.detail, /ne connaît pas ce domaine/);
@@ -513,6 +514,7 @@ describe('NPM — the provider, against a fake NPM', () => {
       { hostname: 'http.exemple.fr', tls: false, redirectHttps: false, waf: 'off' },
       '/sante',
       NPM_PROBE,
+      'fr',
     );
     assert.equal(known.ok, true);
     assert.equal(known.http, 200);

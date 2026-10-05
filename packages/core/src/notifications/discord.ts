@@ -1,9 +1,4 @@
-import {
-  DEFAULT_UI_LANGUAGE,
-  renderMessage,
-  type Translated,
-  type UiLanguage,
-} from '../i18n.js';
+import { renderMessage, type Translated, type UiLanguage } from '../i18n.js';
 import type { ChannelConfig } from './catalog.js';
 import {
   renderDigestItemLine,
@@ -111,7 +106,7 @@ export class DiscordChannel implements NotificationChannel {
    */
   async test(
     resolved: ResolvedChannelConfig,
-    language: UiLanguage = DEFAULT_UI_LANGUAGE,
+    language: UiLanguage,
   ): Promise<NotificationTestResult> {
     try {
       const result = await httpCall({

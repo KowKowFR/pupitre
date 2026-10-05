@@ -187,7 +187,7 @@ async function openSide(runtime: RuntimeKind, ref: string, applicationId: string
         ? { authMethod: 'key', privateKey: secret }
         : { authMethod: 'password', password: secret },
   };
-  const session = await connect(ssh);
+  const session = await connect(ssh, { language: 'en' });
   const ctx: DriverContext = {
     spec: SPEC,
     target: {

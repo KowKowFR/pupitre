@@ -7,6 +7,7 @@ import { HttpError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
 import { getSupervisionQueue } from '@/lib/supervision-queue';
+import { currentLanguage } from '@/i18n/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -53,7 +54,11 @@ export const POST = apiRoute<Context>(async (request, context) => {
     action: 'monitor.check.requested',
     resourceType: 'monitor',
     resourceId: id,
-    after: { jobId: job.id, name: monitor.name, target: monitorTarget(monitor) },
+    after: {
+      jobId: job.id,
+      name: monitor.name,
+      target: monitorTarget(monitor, await currentLanguage()),
+    },
     ip: auth.ip,
   });
 

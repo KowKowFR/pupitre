@@ -261,10 +261,7 @@ export function renderDigestItemLine(item: NotificationDigestItem): string {
  * The sentence **every** channel must render when it truncates the list.
  * Without it, ten lines shown out of fifty held are a lie by omission.
  */
-export function renderDigestOmission(
-  omitted: number,
-  language: UiLanguage = DEFAULT_UI_LANGUAGE,
-): string | null {
+export function renderDigestOmission(omitted: number, language: UiLanguage): string | null {
   if (omitted <= 0) return null;
   return t(language, 'omission', { count: omitted });
 }

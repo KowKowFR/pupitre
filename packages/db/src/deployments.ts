@@ -1,5 +1,4 @@
 import {
-  DEFAULT_UI_LANGUAGE,
   DEPLOYMENT_STEPS,
   deploymentStepLabel,
   scanConfigSchema,
@@ -1116,10 +1115,10 @@ export type ApplicationDeletionBlocker = PurgeRefusal & {
 export async function listApplicationDeletionBlockers(
   applicationId: string,
   /** `language`: that of the messages, which the screen shows as is. */
-  options: { language?: UiLanguage } = {},
+  options: { language: UiLanguage },
   db: Database = getDb(),
 ): Promise<ApplicationDeletionBlocker[]> {
-  const say = dbSay(options.language ?? DEFAULT_UI_LANGUAGE);
+  const say = dbSay(options.language);
   const [rows, pinned] = await Promise.all([
     db
       .select({
@@ -1194,11 +1193,11 @@ function purgeWhere(filter: PurgeFilter) {
 export async function purgeDeployments(
   filter: PurgeFilter,
   /** `language`: that of the refusals, which the screen shows as is. */
-  options: { dryRun?: boolean; language?: UiLanguage } = {},
+  options: { dryRun?: boolean; language: UiLanguage },
   db: Database = getDb(),
 ): Promise<PurgeReport> {
   const dryRun = options.dryRun ?? false;
-  const say = dbSay(options.language ?? DEFAULT_UI_LANGUAGE);
+  const say = dbSay(options.language);
   const where = purgeWhere(filter);
 
   const [candidates, [totalRow], pinned] = await Promise.all([
@@ -1589,7 +1588,7 @@ function abandonMessage(
 export async function abandonDeployment(
   id: string,
   /** `language`: that of the verdict written in the deployment's error. */
-  options: { cause: string; observedAt?: Date; language?: UiLanguage },
+  options: { cause: string; observedAt?: Date; language: UiLanguage },
   db: Database = getDb(),
 ): Promise<AbandonReport | null> {
   const observedAt = options.observedAt ?? new Date();
@@ -1600,12 +1599,7 @@ export async function abandonDeployment(
   const row = (await listUnfinishedDeployments(db)).find((candidate) => candidate.id === id);
   if (!row) return null;
 
-  const error = abandonMessage(
-    row,
-    options.cause,
-    observedAt,
-    options.language ?? DEFAULT_UI_LANGUAGE,
-  );
+  const error = abandonMessage(row, options.cause, observedAt, options.language);
   const failedStep = row.currentStep?.key ?? null;
 
   return db.transaction(async (tx) => {

@@ -75,6 +75,7 @@ describe('a target’s host key', () => {
     const seen: string[] = [];
     const session = await connect(
       target(machine.port, { expected: null, onFirstSeen: (fp) => void seen.push(fp) }),
+      'fr',
     );
     assert.equal(session.hostKey, machine.fingerprint);
     assert.deepEqual(seen, [machine.fingerprint]);
@@ -90,6 +91,7 @@ describe('a target’s host key', () => {
           firstSeen += 1;
         },
       }),
+      'fr',
     );
     assert.equal(session.hostKey, machine.fingerprint);
     assert.equal(firstSeen, 0);
@@ -105,7 +107,7 @@ describe('a target’s host key', () => {
           expected: machine.fingerprint,
           onMismatch: (presented) => void mismatches.push(presented),
         }),
-        { retries: 3 },
+        { language: 'fr', retries: 3 },
       ),
       (error: unknown) =>
         error instanceof SshHostKeyError &&
@@ -118,7 +120,7 @@ describe('a target’s host key', () => {
   });
 
   it('without a policy — test tools —, accepts and notes the key', async () => {
-    const session = await connect(target(impostor.port));
+    const session = await connect(target(impostor.port), 'fr');
     assert.equal(session.hostKey, impostor.fingerprint);
     await disconnect(session);
   });

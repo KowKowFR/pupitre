@@ -79,11 +79,11 @@ const plain: ProxyRoute = {
 
 describe('domain names', () => {
   it('normalizes and refuses what cannot be routed', () => {
-    assert.equal(hostnameProblem('Blog.Example.FR.'), null);
-    assert.match(hostnameProblem('localhost') ?? '', /point/);
-    assert.match(hostnameProblem('192.168.1.10') ?? '', /IP/);
-    assert.match(hostnameProblem('*.example.fr') ?? '', /joker/);
-    assert.match(hostnameProblem('-bad.example.fr') ?? '', /invalide/);
+    assert.equal(hostnameProblem('Blog.Example.FR.', 'fr'), null);
+    assert.match(hostnameProblem('localhost', 'fr') ?? '', /point/);
+    assert.match(hostnameProblem('192.168.1.10', 'fr') ?? '', /IP/);
+    assert.match(hostnameProblem('*.example.fr', 'fr') ?? '', /joker/);
+    assert.match(hostnameProblem('-bad.example.fr', 'fr') ?? '', /invalide/);
   });
 
   it('refuses the same domain twice for one application', () => {
@@ -265,6 +265,7 @@ describe('Traefik — reading an existing installation', () => {
         HostConfig: { NetworkMode: 'host' },
       },
       null,
+      'fr',
     );
     assert.equal(finding.config?.directory, '/srv/traefik/dyn');
     assert.equal(finding.config?.upstreamHost, '127.0.0.1');
@@ -281,6 +282,7 @@ describe('Traefik — reading an existing installation', () => {
         NetworkSettings: { Networks: { proxy: { Gateway: '172.20.0.1' } } },
       },
       null,
+      'fr',
     );
     assert.equal(bridged.config?.upstreamHost, '172.20.0.1');
     assert.ok(bridged.warnings.some((warning) => warning.includes('passerelle 172.20.0.1')));
@@ -288,11 +290,12 @@ describe('Traefik — reading an existing installation', () => {
     const unmounted = interpretTraefikContainer(
       { Args: ['--entrypoints.web.address=:80', '--providers.file.directory=/dyn'] },
       null,
+      'fr',
     );
     assert.equal(unmounted.config, null);
     assert.ok(unmounted.warnings.some((warning) => warning.includes('n’est pas monté')));
 
-    const labelsOnly = interpretTraefikContainer({ Args: ['--providers.docker=true'] }, null);
+    const labelsOnly = interpretTraefikContainer({ Args: ['--providers.docker=true'] }, null, 'fr');
     assert.equal(labelsOnly.config, null);
     assert.match(labelsOnly.warnings[0] ?? '', /providers\.file\.directory/);
   });
@@ -307,10 +310,14 @@ describe('Traefik — reading an existing installation', () => {
       }),
     );
     assert.deepEqual(classes, ['traefik']);
-    const finding = interpretTraefikCluster(classes, {
-      namespace: 'kube-system',
-      args: ['--entryPoints.web.address=:8000/tcp', '--entryPoints.websecure.address=:8443/tcp'],
-    });
+    const finding = interpretTraefikCluster(
+      classes,
+      {
+        namespace: 'kube-system',
+        args: ['--entryPoints.web.address=:8000/tcp', '--entryPoints.websecure.address=:8443/tcp'],
+      },
+      'fr',
+    );
     assert.equal(finding.config?.entryPoints.http, 'web');
     assert.equal(finding.config?.entryPoints.https, 'websecure');
     assert.equal(finding.config?.certResolver, null);
@@ -333,6 +340,7 @@ describe('a route’s probe', () => {
       ].join('\n'),
       TRAEFIK_PROBE,
       now,
+      'fr',
     );
     assert.equal(probe.ok, true);
     assert.equal(probe.certificate.status, 'valid');
@@ -341,23 +349,24 @@ describe('a route’s probe', () => {
 
   it('tells a missing route, a silent application, a proxy off and a missing redirect apart', () => {
     assert.match(
-      interpretRouteProbe(plain, 'probe http 404 1', TRAEFIK_PROBE, now).detail,
+      interpretRouteProbe(plain, 'probe http 404 1', TRAEFIK_PROBE, now, 'fr').detail,
       /ne connaît pas/,
     );
     assert.match(
-      interpretRouteProbe(plain, 'probe http 502 0', TRAEFIK_PROBE, now).detail,
+      interpretRouteProbe(plain, 'probe http 502 0', TRAEFIK_PROBE, now, 'fr').detail,
       /ne joint pas/,
     );
     assert.match(
-      interpretRouteProbe(plain, 'probe http 000 0', TRAEFIK_PROBE, now).detail,
+      interpretRouteProbe(plain, 'probe http 000 0', TRAEFIK_PROBE, now, 'fr').detail,
       /ne répond pas/,
     );
     assert.match(
-      interpretRouteProbe(secure, 'probe http 200 0\nprobe https 200 0', TRAEFIK_PROBE, now).detail,
+      interpretRouteProbe(secure, 'probe http 200 0\nprobe https 200 0', TRAEFIK_PROBE, now, 'fr')
+        .detail,
       /redirection/,
     );
     // A 404 from the application itself is not a missing route.
-    assert.equal(interpretRouteProbe(plain, 'probe http 404 0', TRAEFIK_PROBE, now).ok, true);
+    assert.equal(interpretRouteProbe(plain, 'probe http 404 0', TRAEFIK_PROBE, now, 'fr').ok, true);
   });
 
   it('recognizes Traefik’s default certificate, and an expired certificate', () => {
@@ -467,13 +476,14 @@ describe('the upstream, as the driver tells it', () => {
 
   it('Compose publishes on loopback when a proxy of the machine serves the application', () => {
     const compose = renderComposeFile({
+      language: 'fr',
       spec,
       appSlug: 'blog',
       publishedPort: 30001,
       publishAddress: '127.0.0.1',
     });
     assert.deepEqual(compose.services.front?.ports, ['127.0.0.1:30001:8080']);
-    const open = renderComposeFile({ spec, appSlug: 'blog', publishedPort: 30001 });
+    const open = renderComposeFile({ language: 'fr', spec, appSlug: 'blog', publishedPort: 30001 });
     assert.deepEqual(open.services.front?.ports, ['30001:8080']);
   });
 });
@@ -553,6 +563,7 @@ describe('the central proxy — a machine served by another’s proxy', () => {
 
   it('K3s: only the entry point as NodePort, reserved to the proxy by a NetworkPolicy', () => {
     const manifests = renderManifests({
+      language: 'fr',
       spec,
       appSlug: 'blog',
       publishedPort: 30001,
@@ -585,7 +596,7 @@ describe('the central proxy — a machine served by another’s proxy', () => {
   });
 
   it('K3s: without a remote proxy, neither NodePort nor NetworkPolicy', () => {
-    const manifests = renderManifests({ spec, appSlug: 'blog' });
+    const manifests = renderManifests({ language: 'fr', spec, appSlug: 'blog' });
     assert.ok(
       manifests
         .filter((manifest) => manifest.kind === 'Service')
@@ -599,6 +610,7 @@ describe('the central proxy — a machine served by another’s proxy', () => {
 
   it('Compose: published on the private address the proxy reaches, probed there', () => {
     const compose = renderComposeFile({
+      language: 'fr',
       spec,
       appSlug: 'blog',
       publishedPort: 30001,
@@ -645,19 +657,28 @@ describe('the central proxy — the connection tested between the two machines',
 
   it('says what blocks: nothing, a refusal, a silence, another machine', () => {
     const base = { token: 'abc123', address: '10.0.0.12', port: 30042, proxyName: 'srv-1' };
-    assert.equal(interpretReach({ ...base, curlCode: 0, body: 'abc123\n\ncurl=0' }).failure, null);
-    const refused = interpretReach({ ...base, curlCode: 7, body: '' });
+    assert.equal(
+      interpretReach({ language: 'fr', ...base, curlCode: 0, body: 'abc123\n\ncurl=0' }).failure,
+      null,
+    );
+    const refused = interpretReach({ language: 'fr', ...base, curlCode: 7, body: '' });
     assert.equal(refused.failure, 'refused');
     assert.match(refused.detail, /10\.0\.0\.12:30042 refuse/);
-    const silent = interpretReach({ ...base, curlCode: 28, body: '' });
+    const silent = interpretReach({ language: 'fr', ...base, curlCode: 28, body: '' });
     assert.equal(silent.failure, 'timeout');
     assert.match(silent.detail, /groupe de sécurité/);
     assert.equal(
-      interpretReach({ ...base, curlCode: 0, body: '<html>nginx</html>' }).failure,
+      interpretReach({ language: 'fr', ...base, curlCode: 0, body: '<html>nginx</html>' }).failure,
       'mismatch',
     );
-    assert.match(interpretReach({ ...base, curlCode: 52, body: '' }).detail, /coupe sans réponse/);
-    assert.equal(interpretReach({ ...base, curlCode: 6, body: '' }).failure, 'error');
+    assert.match(
+      interpretReach({ language: 'fr', ...base, curlCode: 52, body: '' }).detail,
+      /coupe sans réponse/,
+    );
+    assert.equal(
+      interpretReach({ language: 'fr', ...base, curlCode: 6, body: '' }).failure,
+      'error',
+    );
   });
 });
 
@@ -703,7 +724,7 @@ describe('BunkerWeb — the connection and what it allows', () => {
 
   it('recognizes its default page, served as a 200, and its placeholder certificate', () => {
     const now = Date.parse('2026-10-01T12:00:00Z');
-    const absent = interpretRouteProbe(plain, 'probe http 200 1', BUNKERWEB_PROBE, now);
+    const absent = interpretRouteProbe(plain, 'probe http 200 1', BUNKERWEB_PROBE, now, 'fr');
     assert.equal(absent.ok, false);
     assert.match(absent.detail, /ne connaît pas ce domaine \(200\)/);
     const pending = interpretRouteProbe(
@@ -716,6 +737,7 @@ describe('BunkerWeb — the connection and what it allows', () => {
       ].join('\n'),
       BUNKERWEB_PROBE,
       now,
+      'fr',
     );
     assert.equal(pending.ok, true);
     assert.equal(pending.certificate.status, 'pending');

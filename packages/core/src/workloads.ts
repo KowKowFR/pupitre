@@ -250,13 +250,11 @@ export const workloadCopy = { fr, en };
  * A refusal's message, in one place: the HTTP route returns it as a 409, the
  * driver raises it as a `DriverError`, and both therefore say the same thing.
  *
- * French by default: a driver raises this error deep in a job, without an
- * instance language at hand, and its trace is read in the logs. The panel
- * passes its own.
+ * The driver passes the instance's language, the panel its screen's.
  */
 export function managedWorkloadRefusal(
   workload: Pick<Workload, 'name' | 'managedApp'>,
-  language: UiLanguage = 'fr',
+  language: UiLanguage,
 ): string {
   const t = translator(workloadCopy, language);
   const app = workload.managedApp;
@@ -268,7 +266,7 @@ export function managedWorkloadRefusal(
 /** The refusal to stop or start a panel workload outside its Monitoring page. */
 export function managedWorkloadControlRefusal(
   workload: Pick<Workload, 'name'>,
-  language: UiLanguage = 'fr',
+  language: UiLanguage,
 ): string {
   return translator(workloadCopy, language)('managed.control', { name: workload.name });
 }
