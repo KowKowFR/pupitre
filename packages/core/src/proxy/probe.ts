@@ -2,6 +2,8 @@ import { exec } from '../ssh/client.js';
 import type { RouteCertificate } from './model.js';
 import type { ProxyHostContext, ProxyRoute, RouteProbe } from './types.js';
 import { shellQuote } from '../shell.js';
+import type { UiLanguage } from '../i18n.js';
+import { proxySay, type ProxySay } from './messages.js';
 
 /**
  * La sonde d'une route, commune à tous les proxies qui écoutent sur les ports
@@ -124,16 +126,21 @@ export function parseCertificate(
   };
 }
 
-function judge(name: string, probed: Probed | undefined, redirectExpected: boolean): string | null {
-  if (!probed) return `${name} : aucune réponse lisible`;
+function judge(
+  name: string,
+  probed: Probed | undefined,
+  redirectExpected: boolean,
+  say: ProxySay,
+): string | null {
+  if (!probed) return say('probe.unreadable', { name });
   const { code, noRoute } = probed;
-  if (code === 0) return `${name} : le proxy ne répond pas sur ce port`;
-  if (noRoute) return `${name} : le proxy ne connaît pas ce domaine (${code})`;
+  if (code === 0) return say('probe.silent', { name });
+  if (noRoute) return say('probe.unknownDomain', { name, code });
   if (code === 502 || code === 503 || code === 504) {
-    return `${name} : le proxy ne joint pas l'application (${code})`;
+    return say('probe.upstreamDown', { name, code });
   }
   if (redirectExpected && ![301, 302, 307, 308].includes(code)) {
-    return `${name} : la redirection vers HTTPS manque (${code})`;
+    return say('probe.noRedirect', { name, code });
   }
   return null;
 }
@@ -143,13 +150,18 @@ export function interpretRouteProbe(
   stdout: string,
   signatures: ProbeSignatures,
   now = Date.now(),
+  language: UiLanguage = 'fr',
 ): RouteProbe {
-  return judgeRouteProbe(route, {
-    ...parseProbes(stdout),
-    certificate: route.tls
-      ? parseCertificate(stdout, signatures, now)
-      : { status: 'none', subject: null, issuer: null, notAfter: null },
-  });
+  return judgeRouteProbe(
+    route,
+    {
+      ...parseProbes(stdout),
+      certificate: route.tls
+        ? parseCertificate(stdout, signatures, now)
+        : { status: 'none', subject: null, issuer: null, notAfter: null },
+    },
+    language,
+  );
 }
 
 /**
@@ -159,10 +171,12 @@ export function interpretRouteProbe(
 export function judgeRouteProbe(
   route: ProxyRoute,
   probes: { http?: Probed | undefined; https?: Probed | undefined; certificate: RouteCertificate },
+  language: UiLanguage = 'fr',
 ): RouteProbe {
+  const say = proxySay(language);
   const problems = [
-    judge('HTTP', probes.http, route.tls && route.redirectHttps),
-    route.tls ? judge('HTTPS', probes.https, false) : null,
+    judge('HTTP', probes.http, route.tls && route.redirectHttps, say),
+    route.tls ? judge('HTTPS', probes.https, false, say) : null,
   ].filter((problem): problem is string => problem !== null);
   const certificate: RouteCertificate = route.tls
     ? probes.certificate
@@ -175,7 +189,8 @@ export function judgeRouteProbe(
     ok: problems.length === 0,
     http: probes.http?.code ?? null,
     https: route.tls ? (probes.https?.code ?? null) : null,
-    detail: problems.length > 0 ? problems.join(' · ') : `répond — ${codes.join(', ')}`,
+    detail:
+      problems.length > 0 ? problems.join(' · ') : say('probe.ok', { codes: codes.join(', ') }),
     certificate,
   };
 }
@@ -189,5 +204,5 @@ export async function probeRoute(
   const result = await exec(ctx.sshSession, routeProbeScript(route, path, signatures), {
     timeout: PROBE_TIMEOUT_MS,
   });
-  return interpretRouteProbe(route, result.stdout, signatures);
+  return interpretRouteProbe(route, result.stdout, signatures, Date.now(), ctx.language);
 }

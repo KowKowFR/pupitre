@@ -10,7 +10,9 @@ import { classifyAddress, type Cidr } from '../monitors/ssrf.js';
 import { MONITOR_MAX_RESPONSE_BYTES } from '../monitors/state.js';
 import { readRdapDomain, rdapEndpointFor } from './domain.js';
 import { PUBLIC_ONLY, decodeBody, guardedFetch } from './fetch.js';
-import { SsrfBlockedError, messageOf, resolveGuarded } from './net.js';
+import type { UiLanguage } from '../i18n.js';
+import { probeSay } from './messages.js';
+import { ProbeTimeoutError, SsrfBlockedError, messageOf, resolveGuarded } from './net.js';
 
 /**
  * Le relevé d'un domaine, pour son tiroir : DNS, adresses, RDAP, certificat.
@@ -40,6 +42,8 @@ export type DomainInspectInput = {
   /** Les machines du proxy qui sert le nom (nom ou adresse) ; vide si on l'ignore. */
   expectedHosts: string[];
   allowlist: readonly Cidr[];
+  /** La langue des erreurs relevées — celle de l'instance. */
+  language?: UiLanguage;
 };
 
 function resolver(): Resolver {
@@ -57,7 +61,10 @@ async function answer<T>(question: Promise<T[]>): Promise<T[]> {
   }
 }
 
-async function resolveName(hostname: string): Promise<DomainInspection['dns']> {
+async function resolveName(
+  hostname: string,
+  language: UiLanguage,
+): Promise<DomainInspection['dns']> {
   const dns = resolver();
   try {
     const [cname, a, aaaa] = await Promise.all([
@@ -76,7 +83,14 @@ async function resolveName(hostname: string): Promise<DomainInspection['dns']> {
       ttl: ttls.length === 0 ? null : Math.min(...ttls),
     };
   } catch (error) {
-    return { status: 'error', error: messageOf(error), cname: [], a: [], aaaa: [], ttl: null };
+    return {
+      status: 'error',
+      error: messageOf(error, language),
+      cname: [],
+      a: [],
+      aaaa: [],
+      ttl: null,
+    };
   }
 }
 
@@ -139,7 +153,10 @@ function emptyRegistration(
   };
 }
 
-async function registrationOf(hostname: string): Promise<DomainInspection['registration']> {
+async function registrationOf(
+  hostname: string,
+  language: UiLanguage,
+): Promise<DomainInspection['registration']> {
   if (isLocalHostname(hostname)) return emptyRegistration('local', null);
   const domain = registrableDomainOf(hostname);
   if (domain === null) return emptyRegistration('unsupported', null);
@@ -157,6 +174,7 @@ async function registrationOf(hostname: string): Promise<DomainInspection['regis
     allowlist: PUBLIC_ONLY,
     requireHttps: true,
     accept: 'application/rdap+json, application/json',
+    language,
   });
   if (!result.ok) return emptyRegistration('error', domain, { server, error: result.detail });
   if (result.status === 404) return emptyRegistration('not_found', domain, { server });
@@ -168,7 +186,10 @@ async function registrationOf(hostname: string): Promise<DomainInspection['regis
   try {
     payload = JSON.parse(decodeBody(result.body, result.headers['content-type']));
   } catch {
-    return emptyRegistration('error', domain, { server, error: 'réponse RDAP illisible' });
+    return emptyRegistration('error', domain, {
+      server,
+      error: probeSay(language)('inspect.rdapUnreadable'),
+    });
   }
   const facts = readRdapDomain(payload);
   return {
@@ -229,6 +250,7 @@ function isoOrNull(value: string | undefined): string | null {
 async function certificateOf(
   hostname: string,
   allowlist: readonly Cidr[],
+  language: UiLanguage,
 ): Promise<DomainInspection['certificate']> {
   let address: string;
   try {
@@ -238,11 +260,12 @@ async function certificateOf(
     const unresolved =
       error instanceof SsrfBlockedError &&
       (error.refusal.key === 'reason.unresolved' || error.refusal.key === 'reason.noAddress');
-    return error instanceof SsrfBlockedError && !unresolved
-      ? emptyCertificate('blocked', { error: error.reason })
-      : emptyCertificate('error', {
-          error: error instanceof SsrfBlockedError ? error.reason : messageOf(error),
-        });
+    return emptyCertificate(
+      error instanceof SsrfBlockedError && !unresolved ? 'blocked' : 'error',
+      {
+        error: messageOf(error, language),
+      },
+    );
   }
 
   let socket: TLSSocket;
@@ -261,18 +284,18 @@ async function certificateOf(
       opened.once('secureConnect', () => resolve(opened));
       opened.once('timeout', () => {
         opened.destroy();
-        reject(new Error(`délai dépassé après ${TLS_TIMEOUT_MS} ms`));
+        reject(new ProbeTimeoutError(TLS_TIMEOUT_MS));
       });
       opened.once('error', reject);
     });
   } catch (error) {
-    return emptyCertificate('error', { address, error: messageOf(error) });
+    return emptyCertificate('error', { address, error: messageOf(error, language) });
   }
 
   try {
     const peer = socket.getPeerCertificate(false);
     if (!peer || !peer.valid_to) {
-      return emptyCertificate('error', { address, error: 'aucun certificat présenté' });
+      return emptyCertificate('error', { address, error: probeSay(language)('noCertificate') });
     }
     const validTo = isoOrNull(peer.valid_to);
     const authorizationError = socket.authorizationError ? String(socket.authorizationError) : null;
@@ -304,8 +327,9 @@ async function certificateOf(
 }
 
 export async function inspectDomain(input: DomainInspectInput): Promise<DomainInspection> {
+  const language = input.language ?? 'fr';
   const hostname = input.hostname.toLowerCase().replace(/\.$/, '');
-  const dns = await resolveName(hostname);
+  const dns = await resolveName(hostname, language);
   const resolved = [
     ...dns.a.map((address) => ({ address, family: 4 as const })),
     ...dns.aaaa.map((address) => ({ address, family: 6 as const })),
@@ -318,9 +342,9 @@ export async function inspectDomain(input: DomainInspectInput): Promise<DomainIn
     Promise.all(input.expectedHosts.map((host) => addressesOf(host))).then((lists) => [
       ...new Set(lists.flat()),
     ]),
-    registrationOf(hostname),
+    registrationOf(hostname, language),
     input.tls
-      ? certificateOf(hostname, input.allowlist)
+      ? certificateOf(hostname, input.allowlist, language)
       : Promise.resolve(emptyCertificate('http')),
   ]);
 

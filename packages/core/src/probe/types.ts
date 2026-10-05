@@ -1,6 +1,7 @@
 import type { Cidr } from '../monitors/ssrf.js';
 import type { CheckResult } from '../monitors/state.js';
 import type { MonitorType } from '../monitors/catalog.js';
+import type { UiLanguage } from '../i18n.js';
 
 /**
  * **L'abstraction.** Une sonde, quel que soit ce qu'elle observe.
@@ -20,6 +21,8 @@ import type { MonitorType } from '../monitors/catalog.js';
 export type ProbeContext = {
   /** Plages internes autorisées. La politique SSRF s'applique à tous les types. */
   allowlist: readonly Cidr[];
+  /** La langue de l'instance : celle du `detail` de chaque relevé. */
+  language: UiLanguage;
 };
 
 export interface MonitorProbe {

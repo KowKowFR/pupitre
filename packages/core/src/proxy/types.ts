@@ -1,4 +1,5 @@
 import type { LogSink, TargetContext } from '../drivers/types.js';
+import type { UiLanguage } from '../i18n.js';
 import type {
   AcmeServer,
   AcmeSettings,
@@ -140,6 +141,8 @@ export interface ProxyProvider {
 export type RemoteProxyContext = {
   config: unknown;
   secrets: Readonly<Record<string, string>>;
+  /** La langue de l'instance, comme `TargetContext.language`. */
+  language: UiLanguage;
 };
 
 /**

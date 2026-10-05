@@ -177,7 +177,7 @@ test('la sonde trouve un mot-clé accentué sur une page servie en windows-1252'
 
   const result = await keywordProbe.run(
     { url: `${url}/`, mustContain: 'utilisateur connecte' },
-    { allowlist: LOOPBACK },
+    { allowlist: LOOPBACK, language: 'fr' },
   );
   assert.equal(result.outcome, 'healthy', result.detail ?? '');
   assert.equal(result.metrics.httpStatus, 200);
@@ -192,7 +192,7 @@ test('un texte interdit présent fait échouer la sonde, et le dit', async () =>
 
   const result = await keywordProbe.run(
     { url: `${url}/`, mustNotContain: 'Erreur 500' },
-    { allowlist: LOOPBACK },
+    { allowlist: LOOPBACK, language: 'fr' },
   );
   assert.equal(result.outcome, 'unhealthy');
   assert.match(result.detail ?? '', /texte interdit/);
@@ -209,7 +209,7 @@ test('une coupure ne se fait jamais passer pour une absence', async () => {
 
   const result = await keywordProbe.run(
     { url: `${url}/`, mustContain: 'Se connecter', maxKib: 16 },
-    { allowlist: LOOPBACK },
+    { allowlist: LOOPBACK, language: 'fr' },
   );
   assert.equal(result.outcome, 'unhealthy');
   assert.match(result.detail ?? '', /réponse coupée à 16 kio/);
@@ -225,7 +225,7 @@ test('un « sain » sur réponse coupée dit ce qu’il n’a pas pu vérifier',
 
   const result = await keywordProbe.run(
     { url: `${url}/`, mustContain: 'Se connecter', mustNotContain: 'Erreur 500', maxKib: 16 },
-    { allowlist: LOOPBACK },
+    { allowlist: LOOPBACK, language: 'fr' },
   );
   assert.equal(result.outcome, 'healthy');
   assert.match(result.detail ?? '', /16 premiers kio seulement/);
@@ -242,7 +242,7 @@ test('la sonde de mot-clé hérite de la garde SSRF à chaque redirection', asyn
 
   const result = await keywordProbe.run(
     { url: `${url}/`, mustContain: 'peu importe' },
-    { allowlist: LOOPBACK },
+    { allowlist: LOOPBACK, language: 'fr' },
   );
   assert.equal(result.outcome, 'unreachable');
   assert.match(result.detail ?? '', /redirection refusée/);
@@ -257,7 +257,7 @@ test('une redirection vers une plage non autorisée est refusée aussi', async (
 
   const result = await keywordProbe.run(
     { url: `${url}/`, mustContain: 'peu importe' },
-    { allowlist: LOOPBACK },
+    { allowlist: LOOPBACK, language: 'fr' },
   );
   assert.equal(result.outcome, 'unreachable');
   assert.match(result.detail ?? '', /redirection refusée/);
@@ -272,7 +272,7 @@ test('sans plage autorisée, la sonde n’atteint même pas le serveur local', a
 
   const result = await keywordProbe.run(
     { url: `${url}/`, mustContain: 'Se connecter' },
-    { allowlist: [] },
+    { allowlist: [], language: 'fr' },
   );
   assert.equal(result.outcome, 'unreachable');
   assert.match(result.detail ?? '', /bouclage|de bouclage/);
@@ -287,7 +287,7 @@ test('le code attendu est vérifié avant le mot-clé', async () => {
 
   const result = await keywordProbe.run(
     { url: `${url}/`, mustContain: 'Se connecter' },
-    { allowlist: LOOPBACK },
+    { allowlist: LOOPBACK, language: 'fr' },
   );
   assert.equal(result.outcome, 'unhealthy');
   assert.match(result.detail ?? '', /code 404/);
@@ -446,7 +446,7 @@ test('un registre sans date d’expiration ne rend pas la sonde malade', () => {
   const verdict = judgeDomain(readRdapDomain({ status: ['active'] }), baseConfig(), NOW);
   assert.equal(verdict.outcome, 'healthy');
   assert.equal(verdict.daysRemaining, null);
-  assert.match(verdict.detail ?? '', /ne publie pas de date d'expiration/);
+  assert.match(verdict.detail ?? '', /ne publie pas de date d’expiration/);
 });
 
 test('un changement de registrar fait échouer la sonde — c’est à ça qu’il sert', () => {
@@ -514,7 +514,7 @@ test('la sonde HTTP rend toujours code, latence et adresse', async () => {
     res.writeHead(200, { 'content-type': 'text/plain' });
     res.end('bonjour');
   });
-  const result = await httpProbe.run({ url: `${url}/` }, { allowlist: LOOPBACK });
+  const result = await httpProbe.run({ url: `${url}/` }, { allowlist: LOOPBACK, language: 'fr' });
   assert.equal(result.outcome, 'healthy');
   assert.equal(result.metrics.httpStatus, 200);
   assert.equal(result.metrics.redirects, 0);
@@ -526,7 +526,7 @@ test('une boucle de redirection est un « répond mal », pas un « injoignable 
     res.writeHead(302, { location: '/encore' });
     res.end();
   });
-  const result = await httpProbe.run({ url: `${url}/` }, { allowlist: LOOPBACK });
+  const result = await httpProbe.run({ url: `${url}/` }, { allowlist: LOOPBACK, language: 'fr' });
   assert.equal(result.outcome, 'unhealthy', 'la cible a répondu — mal');
   assert.match(result.detail ?? '', /plus de 5 redirections/);
   assert.equal(result.metrics.httpStatus, 302);
@@ -541,12 +541,12 @@ test("l'option mot-clé de la sonde HTTP reste une sous-chaîne exacte", async (
   // Volontairement intolérante : c'est le type `keyword` qui plie la casse.
   const strict = await httpProbe.run(
     { url: `${url}/`, keyword: 'se connecter' },
-    { allowlist: LOOPBACK },
+    { allowlist: LOOPBACK, language: 'fr' },
   );
   assert.equal(strict.outcome, 'unhealthy');
   const exact = await httpProbe.run(
     { url: `${url}/`, keyword: 'Se Connecter' },
-    { allowlist: LOOPBACK },
+    { allowlist: LOOPBACK, language: 'fr' },
   );
   assert.equal(exact.outcome, 'healthy');
 });

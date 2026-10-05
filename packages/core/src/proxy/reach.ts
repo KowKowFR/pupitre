@@ -6,6 +6,8 @@ import type { PortRange } from '../ports.js';
 import { exec } from '../ssh/client.js';
 import type { ReachAttempt } from './types.js';
 import { firstLine, shellQuote } from '../shell.js';
+import type { UiLanguage } from '../i18n.js';
+import { proxySay } from './messages.js';
 
 /**
  * La machine d'un proxy joint-elle vraiment celle qu'il doit servir ?
@@ -166,41 +168,32 @@ export function interpretReach(input: {
   address: string;
   port: number;
   proxyName: string;
+  language?: UiLanguage;
 }): { failure: ReachFailure | null; detail: string } {
+  const say = proxySay(input.language ?? 'fr');
   const where = `${input.address}:${input.port}`;
+  const proxy = input.proxyName;
   if (input.curlCode === 0 && input.body.includes(input.token)) {
-    return {
-      failure: null,
-      detail: `connexion ouverte depuis « ${input.proxyName} » vers ${where}`,
-    };
+    return { failure: null, detail: say('reach.ok', { proxy, where }) };
   }
   if (input.curlCode === 0) {
-    return {
-      failure: 'mismatch',
-      detail: `${where} a répondu, mais ce n'est pas cette machine — l'adresse mène ailleurs (NAT, autre serveur ?)`,
-    };
+    return { failure: 'mismatch', detail: say('reach.elsewhere', { where }) };
   }
   if (input.curlCode === 52 || input.curlCode === 56) {
-    return {
-      failure: 'mismatch',
-      detail: `${where} accepte la connexion puis la coupe sans réponse — ce n'est pas cette machine qui répond (proxy transparent, NAT, autre serveur ?)`,
-    };
+    return { failure: 'mismatch', detail: say('reach.cutOff', { where }) };
   }
   if (input.curlCode === 7) {
-    return {
-      failure: 'refused',
-      detail: `${where} refuse la connexion depuis « ${input.proxyName} » — un pare-feu la rejette, ou l'adresse n'est pas celle de cette machine`,
-    };
+    return { failure: 'refused', detail: say('reach.refused', { where, proxy }) };
   }
   if (input.curlCode === 28) {
     return {
       failure: 'timeout',
-      detail: `aucune réponse de ${where} en ${CONNECT_TIMEOUT_S} s depuis « ${input.proxyName} » — un pare-feu ou le groupe de sécurité de l'hébergeur bloque sans doute le passage`,
+      detail: say('reach.timeout', { where, seconds: CONNECT_TIMEOUT_S, proxy }),
     };
   }
   return {
     failure: 'error',
-    detail: `connexion impossible de « ${input.proxyName} » vers ${where} (curl code ${input.curlCode})`,
+    detail: say('reach.error', { proxy, where, code: input.curlCode }),
   };
 }
 
@@ -285,6 +278,7 @@ export async function checkReach(input: {
   const { origin, served, address } = input;
   const onLog = input.onLog ?? (() => {});
   const proxyName = origin.name;
+  const say = proxySay(served.language);
   const base: ReachResult = {
     ok: false,
     address,
@@ -302,11 +296,13 @@ export async function checkReach(input: {
     return {
       ...base,
       failure: 'no_route',
-      detail: `« ${proxyName} » n'a aucune route vers ${address}`,
+      detail: say('reach.noRoute', { proxy: proxyName, address }),
     };
   }
   const routeSource = found ?? null;
-  if (routeSource) onLog(`route de « ${proxyName} » vers ${address} : depuis ${routeSource}`);
+  if (routeSource) {
+    onLog(say('reach.route', { proxy: proxyName, address, source: routeSource }));
+  }
 
   // 2. L'adresse est-elle à la machine servie ? On écoute alors sur elle seule.
   const addresses = await exec(
@@ -328,7 +324,7 @@ export async function checkReach(input: {
     return {
       ...withRoute,
       failure: 'no_listener',
-      detail: `aucun port libre dans ${input.portRange.min}-${input.portRange.max} pour éprouver la connexion`,
+      detail: say('reach.noFreePort', { min: input.portRange.min, max: input.portRange.max }),
     };
   }
 
@@ -378,7 +374,7 @@ export async function checkReach(input: {
           ...withRoute,
           ok: null,
           port,
-          detail: `ni python3, ni perl, ni nc sur « ${served.target.name} » : la connexion n'a pas pu être éprouvée, seule la route l'a été`,
+          detail: say('reach.noTool', { target: served.target.name }),
         };
       }
       if (state === 'dead') {
@@ -386,7 +382,11 @@ export async function checkReach(input: {
           ...withRoute,
           port,
           failure: 'no_listener',
-          detail: `impossible d'écouter sur ${listenOn}:${port} sur « ${served.target.name} »`,
+          detail: say('reach.cannotListen', {
+            address: listenOn,
+            port,
+            target: served.target.name,
+          }),
         };
       }
 
@@ -399,6 +399,7 @@ export async function checkReach(input: {
         address,
         port,
         proxyName,
+        language: served.language,
       });
 
       // 6. D'où la connexion est arrivée, vue d'ici.
@@ -408,7 +409,7 @@ export async function checkReach(input: {
       const observedSource =
         verdict.failure === null ? normalizePeer(firstLine(peer.stdout)) : null;
       if (observedSource && routeSource && observedSource !== routeSource) {
-        onLog(`arrivée vue de « ${served.target.name} » : ${observedSource} (NAT entre les deux)`);
+        onLog(say('reach.nat', { target: served.target.name, source: observedSource }));
       }
       // Ni l'écouteur (nc ne la note pas) ni la route (un proxy distant ne la
       // dit pas) : on ne sait pas d'où il arrive, et on le dit — le port des
@@ -421,7 +422,7 @@ export async function checkReach(input: {
         observedSource,
         failure: verdict.failure,
         detail: unknownSource
-          ? `${verdict.detail} — d'où il arrive n'a pas pu être relevé (ni python3 ni perl sur « ${served.target.name} ») : le port des applications ne sera pas restreint au proxy`
+          ? say('reach.unknownSource', { detail: verdict.detail, target: served.target.name })
           : verdict.detail,
       };
     } finally {
@@ -445,7 +446,7 @@ export async function checkReach(input: {
   // On réessaie ailleurs avant de conclure ; une adresse qui mène vraiment
   // ailleurs échoue deux fois.
   if (result.failure === 'mismatch' && candidates[1] !== undefined) {
-    onLog(`${result.detail} — nouvel essai sur un autre port`);
+    onLog(say('reach.retry', { detail: result.detail }));
     result = await attempt(candidates[1]);
   }
   return result;

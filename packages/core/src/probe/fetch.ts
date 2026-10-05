@@ -3,7 +3,15 @@ import { request as httpsRequest } from 'node:https';
 import type { TLSSocket } from 'node:tls';
 import type { Cidr } from '../monitors/ssrf.js';
 import { MONITOR_MAX_REDIRECTS, MONITOR_USER_AGENT } from '../monitors/state.js';
-import { SsrfBlockedError, messageOf, resolveUrlGuarded, type ResolvedTarget } from './net.js';
+import type { UiLanguage } from '../i18n.js';
+import { probeSay } from './messages.js';
+import {
+  ProbeTimeoutError,
+  SsrfBlockedError,
+  messageOf,
+  resolveUrlGuarded,
+  type ResolvedTarget,
+} from './net.js';
 
 /**
  * La requête HTTP **gardée** — un seul exemplaire, pour toutes les sondes qui
@@ -53,6 +61,8 @@ export type GuardedFetchInput = {
   /** `false` pour ne pas lire le corps du tout (HEAD, ou rien à y chercher). */
   readBody: boolean;
   allowlist: readonly Cidr[];
+  /** La langue du `detail` d'un échec — celle de l'instance. */
+  language?: UiLanguage;
   accept?: string;
   maxRedirects?: number;
   /**
@@ -177,7 +187,7 @@ function requestOnce(input: {
     request.on('timeout', () => {
       finish(() => {
         request.destroy();
-        reject(new Error(`délai dépassé après ${input.timeoutMs} ms`));
+        reject(new ProbeTimeoutError(input.timeoutMs));
       });
     });
 
@@ -264,6 +274,8 @@ export async function guardedFetch(input: GuardedFetchInput): Promise<GuardedFet
   const deadline = Date.now() + input.timeoutMs;
   const maxRedirects = input.maxRedirects ?? MONITOR_MAX_REDIRECTS;
   const accept = input.accept ?? '*/*';
+  const language = input.language ?? 'fr';
+  const say = probeSay(language);
 
   let current = input.url;
   let redirects = 0;
@@ -287,7 +299,7 @@ export async function guardedFetch(input: GuardedFetchInput): Promise<GuardedFet
 
   for (;;) {
     if (Date.now() >= deadline) {
-      return fail('network', `délai dépassé après ${input.timeoutMs} ms`, null);
+      return fail('network', say('timeout', { ms: input.timeoutMs }), null);
     }
 
     let target: ResolvedTarget;
@@ -301,19 +313,19 @@ export async function guardedFetch(input: GuardedFetchInput): Promise<GuardedFet
       address = target.address;
     } catch (error) {
       const blocked = error instanceof SsrfBlockedError;
+      const reason = messageOf(error, language);
       return fail(
         blocked ? 'blocked' : 'network',
-        blocked
-          ? `${redirects > 0 ? 'redirection refusée : ' : ''}${error.reason}`
-          : messageOf(error),
+        blocked && redirects > 0 ? say('fetch.redirectRefused', { reason }) : reason,
         null,
       );
     }
 
     if (input.requireHttps === true && parsed.protocol !== 'https:') {
+      const reason = say('fetch.notHttps', { url: current });
       return fail(
         'blocked',
-        `${redirects > 0 ? 'redirection refusée : ' : ''}« ${current} » n'est pas en https`,
+        redirects > 0 ? say('fetch.redirectRefused', { reason }) : reason,
         null,
       );
     }
@@ -330,7 +342,7 @@ export async function guardedFetch(input: GuardedFetchInput): Promise<GuardedFet
         accept,
       });
     } catch (error) {
-      return fail('network', messageOf(error), null);
+      return fail('network', messageOf(error, language), null);
     }
 
     latencyMs += hop.headersAtMs;
@@ -338,12 +350,12 @@ export async function guardedFetch(input: GuardedFetchInput): Promise<GuardedFet
 
     if (REDIRECT_CODES.has(hop.status) && typeof location === 'string' && location !== '') {
       if (redirects >= maxRedirects) {
-        return fail('redirect', `plus de ${maxRedirects} redirections`, hop.status);
+        return fail('redirect', say('fetch.tooManyRedirects', { max: maxRedirects }), hop.status);
       }
       try {
         current = new URL(location, current).toString();
       } catch {
-        return fail('redirect', `redirection illisible vers « ${location} »`, hop.status);
+        return fail('redirect', say('fetch.badRedirect', { location }), hop.status);
       }
       redirects += 1;
       continue;

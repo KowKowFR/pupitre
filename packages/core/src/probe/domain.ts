@@ -8,6 +8,8 @@ import {
 import { MONITOR_MAX_RESPONSE_BYTES, type CheckResult } from '../monitors/state.js';
 import { PUBLIC_ONLY, decodeBody, guardedFetch } from './fetch.js';
 import { foldForSearch } from './keyword.js';
+import type { UiLanguage } from '../i18n.js';
+import { probeSay } from './messages.js';
 import type { MonitorProbe, ProbeContext } from './types.js';
 
 /**
@@ -313,10 +315,12 @@ function daysUntil(iso: string, now: Date): number {
   return Math.floor((new Date(iso).getTime() - now.getTime()) / DAY_MS);
 }
 
-function frenchDate(iso: string): string {
+/** « 25/09/2026 » en français ; la date ISO, sans ambiguïté, ailleurs. */
+function displayDate(iso: string, language: UiLanguage): string {
   const [date] = iso.split('T');
   const parts = (date ?? iso).split('-');
-  return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : iso;
+  if (parts.length !== 3) return iso;
+  return language === 'fr' ? `${parts[2]}/${parts[1]}/${parts[0]}` : (date ?? iso);
 }
 
 export type DomainVerdict = {
@@ -349,7 +353,9 @@ export function judgeDomain(
   facts: RdapDomainFacts,
   config: DomainConfig,
   now: Date,
+  language: UiLanguage = 'fr',
 ): DomainVerdict {
+  const say = probeSay(language);
   const problems: string[] = [];
   const notes: string[] = [];
 
@@ -359,16 +365,21 @@ export function judgeDomain(
     // Le registre a répondu et connaît le domaine : il *est* enregistré. Ne pas
     // publier de date n'est pas une panne, c'est une limite de ce registre — et
     // la taire serait laisser croire qu'on surveille l'expiration.
-    notes.push("ce registre ne publie pas de date d'expiration");
+    notes.push(say('domain.noExpiry'));
   } else if (daysRemaining < 0) {
     problems.push(
-      `domaine expiré depuis ${-daysRemaining} jour${daysRemaining < -1 ? 's' : ''} ` +
-        `(le ${frenchDate(facts.expiresOn)})`,
+      say('domain.expired', {
+        count: -daysRemaining,
+        date: displayDate(facts.expiresOn, language),
+      }),
     );
   } else if (daysRemaining < config.warnDays) {
     problems.push(
-      `expire dans ${daysRemaining} jour${daysRemaining > 1 ? 's' : ''} ` +
-        `(le ${frenchDate(facts.expiresOn)}) — sous le préavis de ${config.warnDays} jours`,
+      say('domain.expiresSoon', {
+        count: daysRemaining,
+        date: displayDate(facts.expiresOn, language),
+        warnDays: config.warnDays,
+      }),
     );
   }
 
@@ -376,11 +387,13 @@ export function judgeDomain(
     const expected = foldForSearch(config.expectedRegistrar);
     const actual = facts.registrar === null ? null : foldForSearch(facts.registrar);
     if (actual === null) {
-      notes.push("ce registre ne publie pas de registrar — la comparaison n'a pas pu se faire");
+      notes.push(say('domain.noRegistrar'));
     } else if (!actual.includes(expected)) {
       problems.push(
-        `registrar « ${facts.registrar} », « ${config.expectedRegistrar} » attendu — ` +
-          'un transfert de domaine ressemble exactement à ça',
+        say('domain.registrar', {
+          actual: facts.registrar ?? '',
+          expected: config.expectedRegistrar,
+        }),
       );
     }
   }
@@ -388,11 +401,10 @@ export function judgeDomain(
   if (config.expectedNameserverSuffix !== null) {
     const suffix = config.expectedNameserverSuffix.toLowerCase().replace(/^\.|\.$/g, '');
     if (facts.nameservers.length === 0) {
-      notes.push('ce registre ne publie pas les serveurs de noms');
+      notes.push(say('domain.noNameservers'));
     } else if (!facts.nameservers.some((name) => name === suffix || name.endsWith(`.${suffix}`))) {
       problems.push(
-        `aucun serveur de noms ne finit par « ${suffix} » — ` +
-          `délégation actuelle : ${facts.nameservers.join(', ')}`,
+        say('domain.nameservers', { suffix, nameservers: facts.nameservers.join(', ') }),
       );
     }
   }
@@ -403,10 +415,12 @@ export function judgeDomain(
     );
     if (!locked) {
       problems.push(
-        'le verrou de transfert n’est pas annoncé' +
-          (facts.statuses.length === 0
-            ? ' (ce registre ne publie aucun statut)'
-            : ` (statuts : ${facts.statuses.join(', ')})`),
+        say('domain.noLock', {
+          statuses:
+            facts.statuses.length === 0
+              ? say('domain.noStatuses')
+              : say('domain.statuses', { statuses: facts.statuses.join(', ') }),
+        }),
       );
     }
   }
@@ -435,7 +449,8 @@ function emptyMetrics(rdapServer: string | null) {
   };
 }
 
-async function runDomain(config: DomainConfig): Promise<CheckResult> {
+async function runDomain(config: DomainConfig, language: UiLanguage): Promise<CheckResult> {
+  const say = probeSay(language);
   const tld = tldOf(config.domain);
   const endpoint = await rdapEndpointFor(tld);
 
@@ -448,12 +463,7 @@ async function runDomain(config: DomainConfig): Promise<CheckResult> {
     return {
       outcome: 'unreachable',
       latencyMs: null,
-      detail:
-        known === false
-          ? `le TLD « .${tld} » ne publie pas de service RDAP — cette sonde ne peut rien y constater, ` +
-            'et un domaine sans RDAP n’est pas un domaine en panne : mieux vaut la supprimer'
-          : `aucun serveur RDAP connu pour « .${tld} » — liste d’amorçage de l’IANA injoignable ` +
-            'et TLD absent de l’amorce embarquée',
+      detail: known === false ? say('domain.noRdap', { tld }) : say('domain.noRdapServer', { tld }),
       metrics: emptyMetrics(null),
     };
   }
@@ -470,13 +480,14 @@ async function runDomain(config: DomainConfig): Promise<CheckResult> {
     allowlist: PUBLIC_ONLY,
     requireHttps: true,
     accept: 'application/rdap+json, application/json',
+    language,
   });
 
   if (!result.ok) {
     return {
       outcome: 'unreachable',
       latencyMs: null,
-      detail: `registre ${server} : ${result.detail}`,
+      detail: say('domain.registry', { server, detail: result.detail }),
       metrics: emptyMetrics(server),
     };
   }
@@ -488,10 +499,7 @@ async function runDomain(config: DomainConfig): Promise<CheckResult> {
     return {
       outcome: 'unhealthy',
       latencyMs: result.latencyMs,
-      detail:
-        `le registre ${server} ne connaît pas « ${config.domain} » — ` +
-        'domaine expiré et purgé, ou nom qui n’est pas celui qui est enregistré ' +
-        '(« exemple.fr », pas « www.exemple.fr »)',
+      detail: say('domain.unknown', { server, domain: config.domain }),
       metrics: { ...emptyMetrics(server), latencyMs: result.latencyMs },
     };
   }
@@ -501,7 +509,7 @@ async function runDomain(config: DomainConfig): Promise<CheckResult> {
     return {
       outcome: 'unreachable',
       latencyMs: result.latencyMs,
-      detail: `le registre ${server} a répondu ${result.status} — c’est le registre, pas le domaine`,
+      detail: say('domain.registryStatus', { server, status: result.status }),
       metrics: { ...emptyMetrics(server), latencyMs: result.latencyMs },
     };
   }
@@ -513,13 +521,13 @@ async function runDomain(config: DomainConfig): Promise<CheckResult> {
     return {
       outcome: 'unreachable',
       latencyMs: result.latencyMs,
-      detail: `réponse illisible du registre ${server} — ce n’est pas du JSON RDAP`,
+      detail: say('domain.unreadable', { server }),
       metrics: { ...emptyMetrics(server), latencyMs: result.latencyMs },
     };
   }
 
   const facts = readRdapDomain(payload);
-  const verdict = judgeDomain(facts, config, new Date());
+  const verdict = judgeDomain(facts, config, new Date(), language);
 
   return {
     outcome: verdict.outcome,
@@ -541,16 +549,18 @@ async function runDomain(config: DomainConfig): Promise<CheckResult> {
 
 export const domainProbe: MonitorProbe = {
   type: 'domain',
-  async run(config, _ctx: ProbeContext): Promise<CheckResult> {
+  async run(config, ctx: ProbeContext): Promise<CheckResult> {
     const parsed = domainConfigSchema.safeParse(config);
     if (!parsed.success) {
       return {
         outcome: 'unreachable',
         latencyMs: null,
-        detail: `configuration de sonde invalide : ${parsed.error.issues.map((issue) => issue.message).join(', ')}`,
+        detail: probeSay(ctx.language)('invalidConfig', {
+          issues: parsed.error.issues.map((issue) => issue.message).join(', '),
+        }),
         metrics: {},
       };
     }
-    return runDomain(parsed.data);
+    return runDomain(parsed.data, ctx.language);
   },
 };

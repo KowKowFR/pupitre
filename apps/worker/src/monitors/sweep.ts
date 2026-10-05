@@ -24,6 +24,7 @@ import {
   type Monitor,
   type MonitorIncident,
 } from '@pupitre/db';
+import { instanceLanguage } from '../language.js';
 import { logger } from '../logger.js';
 import { getSupervisionQueue } from '../queue.js';
 import { getRedis } from '../redis.js';
@@ -95,6 +96,7 @@ async function runOne(monitor: Monitor, counters: SweepCounters): Promise<void> 
 
   const result = await getMonitorProbe(monitor.type).run(monitor.config, {
     allowlist: allowedCidrs(),
+    language: await instanceLanguage(),
   });
 
   const applied = await applyCheck(monitor, result);

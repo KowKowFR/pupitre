@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import type { UiLanguage } from '../i18n.js';
+import { probeSay } from '../probe/messages.js';
 import { parseIp } from './ssrf.js';
 
 /**
@@ -344,19 +346,26 @@ export function compareDnsRecords(input: {
  * `maxChars` borne chaque liste : un domaine qui porte dix-sept TXT produirait
  * un message de plusieurs kilooctets, que ni Slack ni personne ne lit.
  */
-export function describeDnsComparison(comparison: DnsComparison, maxChars = 400): string {
+export function describeDnsComparison(
+  comparison: DnsComparison,
+  maxChars = 400,
+  language: UiLanguage = 'fr',
+): string {
+  const say = probeSay(language);
   const list = (values: readonly string[]): string => {
     const joined = values.join(', ');
     if (joined.length <= maxChars) return joined;
-    return `${joined.slice(0, maxChars)}… (${values.length} au total)`;
+    return say('dns.total', { values: joined.slice(0, maxChars), count: values.length });
   };
 
   const parts: string[] = [];
   if (comparison.missing.length > 0) {
-    parts.push(`manquant${comparison.missing.length > 1 ? 's' : ''} : ${list(comparison.missing)}`);
+    parts.push(
+      say('dns.missing', { count: comparison.missing.length, values: list(comparison.missing) }),
+    );
   }
   if (comparison.unexpected.length > 0) {
-    parts.push(`en trop : ${list(comparison.unexpected)}`);
+    parts.push(say('dns.unexpected', { values: list(comparison.unexpected) }));
   }
   return parts.join(' · ');
 }

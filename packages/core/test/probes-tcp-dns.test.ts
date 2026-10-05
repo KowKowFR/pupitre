@@ -156,7 +156,7 @@ test('le résolveur déclaré, lui, est bien une cible de connexion', () => {
 test("une sonde TCP vers le bouclage est refusée à l'exécution, liste vide", async () => {
   const result = await getMonitorProbe('tcp').run(
     { host: '127.0.0.1', port: 5432 },
-    { allowlist: NOTHING_ALLOWED },
+    { allowlist: NOTHING_ALLOWED, language: 'fr' },
   );
   assert.equal(result.outcome, 'unreachable');
   assert.match(result.detail ?? '', /bouclage/);
@@ -166,7 +166,7 @@ test("une sonde TCP vers le bouclage est refusée à l'exécution, liste vide", 
 test("une sonde TCP vers une plage privée est refusée à l'exécution", async () => {
   const result = await getMonitorProbe('tcp').run(
     { host: '10.0.0.5', port: 22 },
-    { allowlist: NOTHING_ALLOWED },
+    { allowlist: NOTHING_ALLOWED, language: 'fr' },
   );
   assert.equal(result.outcome, 'unreachable');
   assert.match(result.detail ?? '', /privée/);
@@ -177,7 +177,7 @@ test("une sonde TCP vers le service de métadonnées est refusée à l'exécutio
   // garde n'existe : la seconde ligne de défense doit tenir seule.
   const viaProbe = await getMonitorProbe('tcp').run(
     { host: '169.254.169.254', port: 80 },
-    { allowlist: parseCidrList('0.0.0.0/0') },
+    { allowlist: parseCidrList('0.0.0.0/0'), language: 'fr' },
   );
   assert.equal(viaProbe.outcome, 'unreachable');
 
@@ -193,7 +193,7 @@ test('la garde ne se contourne pas par un nom qui pointe sur le bouclage', async
   // 127.0.0.1 tombe au contrôle des adresses résolues.
   const result = await getMonitorProbe('tcp').run(
     { host: 'localhost', port: 5432 },
-    { allowlist: parseCidrList('127.0.0.0/8') },
+    { allowlist: parseCidrList('127.0.0.0/8'), language: 'fr' },
   );
   assert.equal(result.outcome, 'unreachable');
   assert.match(result.detail ?? '', /localhost/);
@@ -218,7 +218,7 @@ test('un port qui écoute est sain, un port fermé est injoignable', async () =>
   try {
     const up = await getMonitorProbe('tcp').run(
       { host: '127.0.0.1', port },
-      { allowlist: LOOPBACK_ALLOWED },
+      { allowlist: LOOPBACK_ALLOWED, language: 'fr' },
     );
     assert.equal(up.outcome, 'healthy');
     assert.equal(typeof up.metrics.connectMs, 'number');
@@ -229,7 +229,7 @@ test('un port qui écoute est sain, un port fermé est injoignable', async () =>
 
   const down = await getMonitorProbe('tcp').run(
     { host: '127.0.0.1', port },
-    { allowlist: LOOPBACK_ALLOWED },
+    { allowlist: LOOPBACK_ALLOWED, language: 'fr' },
   );
   assert.equal(down.outcome, 'unreachable', 'le port vient de fermer');
   assert.match(down.detail ?? '', /ECONNREFUSED/);
@@ -241,20 +241,20 @@ test('la bannière distingue « ça écoute » de « le bon service écoute »',
   try {
     const good = await getMonitorProbe('tcp').run(
       { host: '127.0.0.1', port, expectBanner: '220 ' },
-      { allowlist: LOOPBACK_ALLOWED },
+      { allowlist: LOOPBACK_ALLOWED, language: 'fr' },
     );
     assert.equal(good.outcome, 'healthy');
     assert.equal(good.metrics.banner, '220 mail.exemple.fr ESMTP Postfix');
 
     const insensitive = await getMonitorProbe('tcp').run(
       { host: '127.0.0.1', port, expectBanner: 'esmtp postfix' },
-      { allowlist: LOOPBACK_ALLOWED },
+      { allowlist: LOOPBACK_ALLOWED, language: 'fr' },
     );
     assert.equal(insensitive.outcome, 'healthy', 'la casse de la bannière est fixée par le protocole');
 
     const wrong = await getMonitorProbe('tcp').run(
       { host: '127.0.0.1', port, expectBanner: 'SSH-2.0' },
-      { allowlist: LOOPBACK_ALLOWED },
+      { allowlist: LOOPBACK_ALLOWED, language: 'fr' },
     );
     assert.equal(wrong.outcome, 'unhealthy', 'le port répond, mais pas le bon service');
     assert.match(wrong.detail ?? '', /SSH-2\.0/);
@@ -271,13 +271,13 @@ test("un service muet est sain sans bannière attendue, en échec avec", async (
   try {
     const bare = await getMonitorProbe('tcp').run(
       { host: '127.0.0.1', port },
-      { allowlist: LOOPBACK_ALLOWED },
+      { allowlist: LOOPBACK_ALLOWED, language: 'fr' },
     );
     assert.equal(bare.outcome, 'healthy');
 
     const expecting = await getMonitorProbe('tcp').run(
       { host: '127.0.0.1', port, expectBanner: 'PostgreSQL', timeoutMs: 1_000 },
-      { allowlist: LOOPBACK_ALLOWED },
+      { allowlist: LOOPBACK_ALLOWED, language: 'fr' },
     );
     assert.equal(expecting.outcome, 'unhealthy');
     assert.match(expecting.detail ?? '', /rien annoncé/);
@@ -531,7 +531,7 @@ test('un nom qui ne résout pas est « unhealthy », pas « unreachable »', asy
   // attendue. `unreachable` voudrait dire « je n'ai pas pu regarder ».
   const result = await getMonitorProbe('dns').run(
     { name: 'nexistepas.pupitre-test.invalid', recordType: 'A', timeoutMs: 3_000 },
-    { allowlist: NOTHING_ALLOWED },
+    { allowlist: NOTHING_ALLOWED, language: 'fr' },
   );
   assert.equal(result.outcome, 'unhealthy');
   assert.equal(result.metrics.recordCount, 0);
@@ -540,7 +540,7 @@ test('un nom qui ne résout pas est « unhealthy », pas « unreachable »', asy
 test('un résolveur interne non autorisé est refusé, sans interroger quoi que ce soit', async () => {
   const result = await getMonitorProbe('dns').run(
     { name: 'exemple.fr', recordType: 'A', resolver: '10.0.0.53' },
-    { allowlist: NOTHING_ALLOWED },
+    { allowlist: NOTHING_ALLOWED, language: 'fr' },
   );
   assert.equal(result.outcome, 'unreachable');
   assert.match(result.detail ?? '', /résolveur refusé/);

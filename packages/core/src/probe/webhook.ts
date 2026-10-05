@@ -2,7 +2,9 @@ import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import type { Cidr } from '../monitors/ssrf.js';
 import { MONITOR_USER_AGENT } from '../monitors/state.js';
-import { SsrfBlockedError, messageOf, resolveUrlGuarded } from './net.js';
+import type { UiLanguage } from '../i18n.js';
+import { probeSay } from './messages.js';
+import { messageOf, resolveUrlGuarded } from './net.js';
 
 export type WebhookDelivery = { ok: true; status: number } | { ok: false; error: string };
 
@@ -18,14 +20,17 @@ export async function postWebhook(input: {
   payload: unknown;
   allowlist: readonly Cidr[];
   timeoutMs?: number;
+  /** La langue de l'erreur rendue — celle de l'instance. */
+  language?: UiLanguage;
 }): Promise<WebhookDelivery> {
   const timeoutMs = input.timeoutMs ?? 10_000;
+  const language = input.language ?? 'fr';
 
   let target: Awaited<ReturnType<typeof resolveUrlGuarded>>;
   try {
     target = await resolveUrlGuarded(input.url, input.allowlist);
   } catch (error) {
-    return { ok: false, error: error instanceof SsrfBlockedError ? error.reason : messageOf(error) };
+    return { ok: false, error: messageOf(error, language) };
   }
 
   const url = target.parsed;
@@ -61,16 +66,16 @@ export async function postWebhook(input: {
 
     request.on('timeout', () => {
       request.destroy();
-      finish({ ok: false, error: `délai dépassé après ${timeoutMs} ms` });
+      finish({ ok: false, error: probeSay(language)('timeout', { ms: timeoutMs }) });
     });
-    request.on('error', (error) => finish({ ok: false, error: messageOf(error) }));
+    request.on('error', (error) => finish({ ok: false, error: messageOf(error, language) }));
     request.on('response', (response) => {
       response.resume();
       const status = response.statusCode ?? 0;
       finish(
         status >= 200 && status < 300
           ? { ok: true, status }
-          : { ok: false, error: `le récepteur a répondu ${status}` },
+          : { ok: false, error: probeSay(language)('webhook.status', { status }) },
       );
     });
 

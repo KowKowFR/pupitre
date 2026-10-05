@@ -14,6 +14,7 @@ import {
   type Monitor,
   type MonitorIncident,
 } from '@pupitre/db';
+import { instanceLanguage } from '../language.js';
 import { logger } from '../logger.js';
 import { allowedCidrs } from './policy.js';
 
@@ -180,7 +181,12 @@ export async function notifyMonitorTransition(
 
   if (!url) return false;
 
-  const delivery = await postWebhook({ url, payload: alert, allowlist: allowedCidrs() });
+  const delivery = await postWebhook({
+    url,
+    payload: alert,
+    allowlist: allowedCidrs(),
+    language: await instanceLanguage(),
+  });
 
   await markIncidentAlerted(
     incident.id,

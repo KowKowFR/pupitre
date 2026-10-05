@@ -2,6 +2,8 @@ import { httpConfigSchema, type HttpConfig } from '../monitors/catalog.js';
 import type { Cidr } from '../monitors/ssrf.js';
 import { MONITOR_MAX_RESPONSE_BYTES, type CheckResult } from '../monitors/state.js';
 import { certificateMetrics, decodeBody, guardedFetch } from './fetch.js';
+import type { UiLanguage } from '../i18n.js';
+import { probeSay } from './messages.js';
 import type { MonitorProbe, ProbeContext } from './types.js';
 
 /**
@@ -14,7 +16,11 @@ import type { MonitorProbe, ProbeContext } from './types.js';
  * propre au type : le verdict, et les mesures qu'il rend.
  */
 
-async function runHttp(config: HttpConfig, allowlist: readonly Cidr[]): Promise<CheckResult> {
+async function runHttp(
+  config: HttpConfig,
+  allowlist: readonly Cidr[],
+  language: UiLanguage,
+): Promise<CheckResult> {
   const result = await guardedFetch({
     url: config.url,
     method: config.method,
@@ -23,7 +29,9 @@ async function runHttp(config: HttpConfig, allowlist: readonly Cidr[]): Promise<
     // HEAD n'a pas de corps ; sans mot-clé à chercher, on n'en lit pas non plus.
     readBody: config.method !== 'HEAD' && config.keyword !== null,
     allowlist,
+    language,
   });
+  const say = probeSay(language);
 
   const metrics = (status: number | null, latencyMs: number | null) => ({
     httpStatus: status,
@@ -54,7 +62,7 @@ async function runHttp(config: HttpConfig, allowlist: readonly Cidr[]): Promise<
   });
 
   if (result.status !== config.expectedStatus) {
-    return fail(`code ${result.status}, ${config.expectedStatus} attendu`);
+    return fail(say('http.status', { status: result.status, expected: config.expectedStatus }));
   }
 
   if (config.keyword !== null) {
@@ -62,8 +70,11 @@ async function runHttp(config: HttpConfig, allowlist: readonly Cidr[]): Promise<
     if (!body.includes(config.keyword)) {
       return fail(
         result.truncated
-          ? `mot-clé « ${config.keyword} » absent des ${MONITOR_MAX_RESPONSE_BYTES} premiers octets`
-          : `mot-clé « ${config.keyword} » absent de la réponse`,
+          ? say('http.keywordMissingTruncated', {
+              keyword: config.keyword,
+              bytes: MONITOR_MAX_RESPONSE_BYTES,
+            })
+          : say('http.keywordMissing', { keyword: config.keyword }),
       );
     }
   }
@@ -84,10 +95,12 @@ export const httpProbe: MonitorProbe = {
       return {
         outcome: 'unreachable',
         latencyMs: null,
-        detail: `configuration de sonde invalide : ${parsed.error.issues.map((issue) => issue.message).join(', ')}`,
+        detail: probeSay(ctx.language)('invalidConfig', {
+          issues: parsed.error.issues.map((issue) => issue.message).join(', '),
+        }),
         metrics: {},
       };
     }
-    return runHttp(parsed.data, ctx.allowlist);
+    return runHttp(parsed.data, ctx.allowlist, ctx.language);
   },
 };

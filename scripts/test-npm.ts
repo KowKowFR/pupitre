@@ -273,6 +273,7 @@ async function main(): Promise<void> {
   const ctx: RemoteProxyContext = {
     config: { url: NPM_URL, email: PUPITRE.email, entrypoint: ENTRYPOINT },
     secrets: { password: PUPITRE.password },
+    language: 'fr',
   };
   const origin: ReachOrigin = {
     name: 'NPM de test',
@@ -337,7 +338,8 @@ async function main(): Promise<void> {
         side.runtime,
         `NPM joint ${side.ctx.target.name} à ${side.address}`,
         result.ok === true &&
-          (source === npmIp || (source === null && /n'a pas pu être relevé/.test(result.detail))),
+          (source === npmIp ||
+            (source === null && /n['’]a pas pu être relevé/.test(result.detail))),
         `${result.detail}${source ? ` — arrivée depuis ${source}` : ''}`,
       );
     }

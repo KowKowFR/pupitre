@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import type { UiLanguage } from '../i18n.js';
+import { proxySay } from './messages.js';
 
 /**
  * Les reverse proxies — le vocabulaire, sans rien exécuter.
@@ -53,15 +55,16 @@ export function normalizeHostname(value: string): string {
   return value.trim().toLowerCase().replace(/\.$/, '');
 }
 
-export function hostnameProblem(value: string): string | null {
+export function hostnameProblem(value: string, language: UiLanguage = 'fr'): string | null {
+  const say = proxySay(language);
   const host = normalizeHostname(value);
-  if (host.length === 0) return 'vide';
-  if (host.length > 253) return 'plus de 253 caractères';
-  if (host.includes('*')) return 'les jokers ne sont pas pris en charge';
-  if (/^[0-9.]+$/.test(host) || host.includes(':')) return 'une adresse IP n’est pas un domaine';
+  if (host.length === 0) return say('hostname.empty');
+  if (host.length > 253) return say('hostname.tooLong');
+  if (host.includes('*')) return say('hostname.wildcard');
+  if (/^[0-9.]+$/.test(host) || host.includes(':')) return say('hostname.ip');
   const labels = host.split('.');
-  if (labels.length < 2) return 'il faut au moins un point (exemple.fr)';
-  if (!labels.every((label) => LABEL.test(label))) return 'caractère ou libellé invalide';
+  if (labels.length < 2) return say('hostname.noDot');
+  if (!labels.every((label) => LABEL.test(label))) return say('hostname.invalid');
   return null;
 }
 

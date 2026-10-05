@@ -7,7 +7,9 @@ import {
   parseExpectedRecords,
   type DnsRecordType,
 } from '../monitors/dns-records.js';
-import { checkAddress, type Cidr } from '../monitors/ssrf.js';
+import { checkAddress, ssrfRefusalText, type Cidr } from '../monitors/ssrf.js';
+import type { UiLanguage } from '../i18n.js';
+import { probeSay } from './messages.js';
 import type { CheckResult } from '../monitors/state.js';
 import { messageOf } from './net.js';
 import type { MonitorProbe, ProbeContext } from './types.js';
@@ -144,7 +146,12 @@ function summarize(values: readonly string[]): string | null {
   return `${kept.join(', ')}… (+${hidden})`;
 }
 
-async function runDns(config: DnsConfig, allowlist: readonly Cidr[]): Promise<CheckResult> {
+async function runDns(
+  config: DnsConfig,
+  allowlist: readonly Cidr[],
+  language: UiLanguage,
+): Promise<CheckResult> {
+  const say = probeSay(language);
   const name = normalizeDnsName(config.name);
 
   const resolver = new Resolver({ timeout: config.timeoutMs, tries: 1 });
@@ -157,14 +164,17 @@ async function runDns(config: DnsConfig, allowlist: readonly Cidr[]): Promise<Ch
       return {
         outcome: 'unreachable',
         latencyMs: null,
-        detail: `résolveur refusé — ${verdict.reason}`,
+        detail: say('dns.resolverRefused', {
+          reason: ssrfRefusalText(verdict.refusal, language),
+        }),
         metrics: { resolver: config.resolver },
       };
     }
     resolver.setServers([config.resolver]);
   }
 
-  const resolverLabel = config.resolver ?? `système (${resolver.getServers().join(', ')})`;
+  const resolverLabel =
+    config.resolver ?? say('dns.systemResolver', { servers: resolver.getServers().join(', ') });
   const expected = parseExpectedRecords(config.recordType, config.expected);
 
   const started = performance.now();
@@ -184,15 +194,15 @@ async function runDns(config: DnsConfig, allowlist: readonly Cidr[]): Promise<Ch
         latencyMs: resolveMs,
         detail:
           code === 'ENOTFOUND'
-            ? `le nom « ${name} » n'existe pas (NXDOMAIN)`
-            : `« ${name} » n'a aucun enregistrement ${config.recordType}`,
+            ? say('dns.nxdomain', { name })
+            : say('dns.noRecord', { name, type: config.recordType }),
         metrics: { resolveMs, recordCount: 0, values: null, resolver: resolverLabel },
       };
     }
     return {
       outcome: 'unreachable',
       latencyMs: null,
-      detail: messageOf(error),
+      detail: messageOf(error, language),
       metrics: { resolver: resolverLabel },
     };
   }
@@ -215,7 +225,7 @@ async function runDns(config: DnsConfig, allowlist: readonly Cidr[]): Promise<Ch
     return {
       outcome: 'unhealthy',
       latencyMs: resolveMs,
-      detail: `« ${name} » n'a aucun enregistrement ${config.recordType}`,
+      detail: say('dns.noRecord', { name, type: config.recordType }),
       metrics,
     };
   }
@@ -242,7 +252,11 @@ async function runDns(config: DnsConfig, allowlist: readonly Cidr[]): Promise<Ch
     return {
       outcome: 'unhealthy',
       latencyMs: resolveMs,
-      detail: `${config.recordType} de « ${name} » : ${describeDnsComparison(comparison, VALUES_MAX_CHARS)}`,
+      detail: say('dns.mismatch', {
+        type: config.recordType,
+        name,
+        comparison: describeDnsComparison(comparison, VALUES_MAX_CHARS, language),
+      }),
       metrics,
     };
   }
@@ -258,10 +272,12 @@ export const dnsProbe: MonitorProbe = {
       return {
         outcome: 'unreachable',
         latencyMs: null,
-        detail: `configuration de sonde invalide : ${parsed.error.issues.map((issue) => issue.message).join(', ')}`,
+        detail: probeSay(ctx.language)('invalidConfig', {
+          issues: parsed.error.issues.map((issue) => issue.message).join(', '),
+        }),
         metrics: {},
       };
     }
-    return runDns(parsed.data, ctx.allowlist);
+    return runDns(parsed.data, ctx.allowlist, ctx.language);
   },
 };

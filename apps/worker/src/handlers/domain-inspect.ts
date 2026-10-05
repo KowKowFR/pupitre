@@ -6,6 +6,7 @@ import {
 import { inspectDomain } from '@pupitre/core/probe';
 import { getRouteById, getTarget, listServingProxies } from '@pupitre/db';
 import type { Job } from 'bullmq';
+import { instanceLanguage } from '../language.js';
 import { logger } from '../logger.js';
 import { allowedCidrs } from '../monitors/policy.js';
 
@@ -39,6 +40,7 @@ export async function handleDomainInspect(job: Job): Promise<DomainInspection> {
     tls: route.tls,
     expectedHosts: hostTarget ? [hostTarget.host] : [],
     allowlist: allowedCidrs(),
+    language: await instanceLanguage(),
   });
 
   logger.info(

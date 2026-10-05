@@ -7,6 +7,8 @@ import {
 import type { Cidr } from '../monitors/ssrf.js';
 import type { CheckResult } from '../monitors/state.js';
 import { certificateMetrics, decodeBody, guardedFetch } from './fetch.js';
+import type { UiLanguage } from '../i18n.js';
+import { probeSay } from './messages.js';
 import type { MonitorProbe, ProbeContext } from './types.js';
 
 /**
@@ -135,7 +137,12 @@ export function containsKeyword(
 
 // ─── verdict ──────────────────────────────────────────────────────────────────
 
-async function runKeyword(config: KeywordConfig, allowlist: readonly Cidr[]): Promise<CheckResult> {
+async function runKeyword(
+  config: KeywordConfig,
+  allowlist: readonly Cidr[],
+  language: UiLanguage,
+): Promise<CheckResult> {
+  const say = probeSay(language);
   const maxBytes = config.maxKib * 1024;
 
   const result = await guardedFetch({
@@ -150,6 +157,7 @@ async function runKeyword(config: KeywordConfig, allowlist: readonly Cidr[]): Pr
     // et re-contrôle chaque saut. La sonde de mot-clé n'a pas sa propre boucle,
     // donc pas sa propre façon de l'oublier.
     allowlist,
+    language,
   });
 
   if (!result.ok) {
@@ -162,7 +170,7 @@ async function runKeyword(config: KeywordConfig, allowlist: readonly Cidr[]): Pr
         httpStatus: result.status,
         latencyMs: result.status === null ? null : result.latencyMs,
         bytesRead: 0,
-        truncated: 'non',
+        truncated: say('no'),
         redirects: result.redirects,
         address: result.address,
         finalUrl: result.finalUrl,
@@ -174,7 +182,7 @@ async function runKeyword(config: KeywordConfig, allowlist: readonly Cidr[]): Pr
     httpStatus: result.status,
     latencyMs: result.latencyMs,
     bytesRead: result.body.byteLength,
-    truncated: result.truncated ? 'oui' : 'non',
+    truncated: result.truncated ? say('yes') : say('no'),
     redirects: result.redirects,
     address: result.address,
     finalUrl: result.finalUrl,
@@ -189,24 +197,27 @@ async function runKeyword(config: KeywordConfig, allowlist: readonly Cidr[]): Pr
   });
 
   if (result.status !== config.expectedStatus) {
-    return verdict('unhealthy', `code ${result.status}, ${config.expectedStatus} attendu`);
+    return verdict(
+      'unhealthy',
+      say('http.status', { status: result.status, expected: config.expectedStatus }),
+    );
   }
 
   const body = decodeBody(result.body, result.headers['content-type']);
   const haystack = haystackOf(body, config.scope);
   // La coupure se dit toujours, et jamais comme une absence : « je ne l'ai pas
   // trouvé » et « je n'ai pas fini de chercher » sont deux constats différents.
-  const cut = result.truncated ? ` (réponse coupée à ${config.maxKib} kio)` : '';
+  const cut = result.truncated ? say('keyword.cut', { kib: config.maxKib }) : '';
 
   if (config.mustContain !== null && !containsKeyword(haystack, config.mustContain, config.matching)) {
-    return verdict('unhealthy', `texte attendu « ${config.mustContain} » absent de la page${cut}`);
+    return verdict('unhealthy', say('keyword.missing', { text: config.mustContain, cut }));
   }
 
   if (
     config.mustNotContain !== null &&
     containsKeyword(haystack, config.mustNotContain, config.matching)
   ) {
-    return verdict('unhealthy', `texte interdit « ${config.mustNotContain} » trouvé dans la page`);
+    return verdict('unhealthy', say('keyword.forbidden', { text: config.mustNotContain }));
   }
 
   // Sain, mais pas muet : si la réponse a été coupée, l'absence du texte
@@ -214,7 +225,7 @@ async function runKeyword(config: KeywordConfig, allowlist: readonly Cidr[]): Pr
   // mieux que de laisser croire à une preuve.
   const partial =
     result.truncated && config.mustNotContain !== null
-      ? `absence du texte interdit vérifiée sur les ${config.maxKib} premiers kio seulement`
+      ? say('keyword.partial', { kib: config.maxKib })
       : null;
 
   return verdict('healthy', partial);
@@ -228,10 +239,12 @@ export const keywordProbe: MonitorProbe = {
       return {
         outcome: 'unreachable',
         latencyMs: null,
-        detail: `configuration de sonde invalide : ${parsed.error.issues.map((issue) => issue.message).join(', ')}`,
+        detail: probeSay(ctx.language)('invalidConfig', {
+          issues: parsed.error.issues.map((issue) => issue.message).join(', '),
+        }),
         metrics: {},
       };
     }
-    return runKeyword(parsed.data, ctx.allowlist);
+    return runKeyword(parsed.data, ctx.allowlist, ctx.language);
   },
 };

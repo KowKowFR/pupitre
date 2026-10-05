@@ -1,5 +1,7 @@
 import { assertEgressAllowed, EgressRefusedError } from '../../egress.js';
+import type { UiLanguage } from '../../i18n.js';
 import { ProxyError } from '../types.js';
+import { npmSay, type NpmSay } from './messages.js';
 
 /**
  * L'API de Nginx Proxy Manager, réduite à ce que Pupitre emploie : entrer avec
@@ -76,10 +78,10 @@ export class NpmApiError extends ProxyError {
   }
 }
 
-function reason(error: unknown): string {
+function reason(error: unknown, say: NpmSay): string {
   if (error instanceof Error) {
     const cause = (error as { cause?: { code?: string; message?: string } }).cause;
-    if (error.name === 'TimeoutError' || error.name === 'AbortError') return 'pas de réponse';
+    if (error.name === 'TimeoutError' || error.name === 'AbortError') return say('noAnswer');
     return cause?.code ?? cause?.message ?? error.message;
   }
   return String(error);
@@ -90,8 +92,9 @@ async function call<T>(
   step: string,
   method: string,
   path: string,
-  options: { token?: string; body?: unknown; timeout?: number } = {},
+  options: { token?: string; body?: unknown; timeout?: number; language?: UiLanguage } = {},
 ): Promise<T> {
+  const say = npmSay(options.language ?? 'fr');
   try {
     await assertEgressAllowed(base);
   } catch (error) {
@@ -111,7 +114,7 @@ async function call<T>(
       signal: AbortSignal.timeout(options.timeout ?? REQUEST_TIMEOUT_MS),
     });
   } catch (error) {
-    throw new NpmApiError(`${base} injoignable : ${reason(error)}`, step, 0);
+    throw new NpmApiError(say('api.unreachable', { base, reason: reason(error, say) }), step, 0);
   }
   const text = await response.text();
   let payload: unknown = null;
@@ -130,14 +133,16 @@ async function call<T>(
 }
 
 /** L'API répond-elle, et quelle version ? Sans compte. */
-export function npmHealth(base: string): Promise<NpmHealth> {
-  return call<NpmHealth>(base, 'health', 'GET', '/');
+export function npmHealth(base: string, language: UiLanguage = 'fr'): Promise<NpmHealth> {
+  return call<NpmHealth>(base, 'health', 'GET', '/', { language });
 }
 
 export class NpmClient {
   private constructor(
     readonly base: string,
     private readonly token: string,
+    /** La langue de l'instance : celle des erreurs de ce client, et de ce qu'on en dit. */
+    readonly language: UiLanguage,
   ) {}
 
   /**
@@ -145,16 +150,23 @@ export class NpmClient {
    * rend qu'un défi : Pupitre ne saurait pas y répondre seul — il lui faut un
    * compte à lui, sans elle.
    */
-  static async login(base: string, email: string, password: string): Promise<NpmClient> {
+  static async login(
+    base: string,
+    email: string,
+    password: string,
+    language: UiLanguage = 'fr',
+  ): Promise<NpmClient> {
+    const say = npmSay(language);
     let answer: { token?: string; requires_2fa?: boolean };
     try {
       answer = await call(base, 'login', 'POST', '/tokens', {
         body: { identity: email, secret: password, scope: 'user' },
+        language,
       });
     } catch (error) {
       if (error instanceof NpmApiError && (error.status === 401 || error.status === 400)) {
         throw new NpmApiError(
-          `identifiants refusés par NPM pour ${email} (${error.message})`,
+          say('login.refused', { email, detail: error.message }),
           'login',
           error.status,
         );
@@ -162,14 +174,10 @@ export class NpmClient {
       throw error;
     }
     if (answer.requires_2fa) {
-      throw new NpmApiError(
-        `le compte ${email} a la double authentification : Pupitre ne peut pas y répondre — donnez-lui un compte à lui, sans elle`,
-        'login',
-        401,
-      );
+      throw new NpmApiError(say('login.twoFactor', { email }), 'login', 401);
     }
-    if (!answer.token) throw new NpmApiError('NPM n’a pas rendu de jeton', 'login', 500);
-    return new NpmClient(base, answer.token);
+    if (!answer.token) throw new NpmApiError(say('login.noToken'), 'login', 500);
+    return new NpmClient(base, answer.token, language);
   }
 
   private request<T>(
@@ -181,6 +189,7 @@ export class NpmClient {
   ): Promise<T> {
     return call<T>(this.base, step, method, path, {
       token: this.token,
+      language: this.language,
       ...(body !== undefined ? { body } : {}),
       ...(timeout !== undefined ? { timeout } : {}),
     });

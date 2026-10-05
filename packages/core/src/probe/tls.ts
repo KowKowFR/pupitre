@@ -2,7 +2,9 @@ import { connect, type PeerCertificate, type TLSSocket } from 'node:tls';
 import { tlsConfigSchema, type TlsConfig } from '../monitors/catalog.js';
 import type { Cidr } from '../monitors/ssrf.js';
 import type { CheckResult } from '../monitors/state.js';
-import { SsrfBlockedError, messageOf, resolveGuarded } from './net.js';
+import type { UiLanguage } from '../i18n.js';
+import { probeSay } from './messages.js';
+import { ProbeTimeoutError, messageOf, resolveGuarded } from './net.js';
 import type { MonitorProbe, ProbeContext } from './types.js';
 
 /**
@@ -74,14 +76,19 @@ function handshake(input: {
     socket.once('timeout', () =>
       finish(() => {
         socket.destroy();
-        reject(new Error(`délai dépassé après ${input.timeoutMs} ms`));
+        reject(new ProbeTimeoutError(input.timeoutMs));
       }),
     );
     socket.once('error', (error) => finish(() => reject(error)));
   });
 }
 
-async function runTls(config: TlsConfig, allowlist: readonly Cidr[]): Promise<CheckResult> {
+async function runTls(
+  config: TlsConfig,
+  allowlist: readonly Cidr[],
+  language: UiLanguage,
+): Promise<CheckResult> {
+  const say = probeSay(language);
   const servername = config.servername ?? config.host;
 
   let address: string;
@@ -91,7 +98,7 @@ async function runTls(config: TlsConfig, allowlist: readonly Cidr[]): Promise<Ch
     return {
       outcome: 'unreachable',
       latencyMs: null,
-      detail: error instanceof SsrfBlockedError ? error.reason : messageOf(error),
+      detail: messageOf(error, language),
       metrics: {},
     };
   }
@@ -120,7 +127,7 @@ async function runTls(config: TlsConfig, allowlist: readonly Cidr[]): Promise<Ch
     return {
       outcome: certificateProblem ? 'unhealthy' : 'unreachable',
       latencyMs: null,
-      detail: messageOf(error),
+      detail: messageOf(error, language),
       metrics: { address },
     };
   }
@@ -133,7 +140,7 @@ async function runTls(config: TlsConfig, allowlist: readonly Cidr[]): Promise<Ch
       return {
         outcome: 'unhealthy',
         latencyMs: elapsedMs,
-        detail: 'aucun certificat présenté',
+        detail: say('noCertificate'),
         metrics: { address, protocol, handshakeMs: elapsedMs },
       };
     }
@@ -160,7 +167,7 @@ async function runTls(config: TlsConfig, allowlist: readonly Cidr[]): Promise<Ch
       return {
         outcome: 'unhealthy',
         latencyMs: elapsedMs,
-        detail: `date d'expiration illisible « ${certificate.valid_to} »`,
+        detail: say('tls.unreadableExpiry', { value: certificate.valid_to }),
         metrics,
       };
     }
@@ -168,7 +175,7 @@ async function runTls(config: TlsConfig, allowlist: readonly Cidr[]): Promise<Ch
       return {
         outcome: 'unhealthy',
         latencyMs: elapsedMs,
-        detail: `certificat expiré depuis ${Math.abs(daysRemaining)} jour(s)`,
+        detail: say('tls.expired', { count: Math.abs(daysRemaining) }),
         metrics,
       };
     }
@@ -176,7 +183,7 @@ async function runTls(config: TlsConfig, allowlist: readonly Cidr[]): Promise<Ch
       return {
         outcome: 'unhealthy',
         latencyMs: elapsedMs,
-        detail: 'certificat pas encore valide',
+        detail: say('tls.notYetValid'),
         metrics,
       };
     }
@@ -184,7 +191,7 @@ async function runTls(config: TlsConfig, allowlist: readonly Cidr[]): Promise<Ch
       return {
         outcome: 'unhealthy',
         latencyMs: elapsedMs,
-        detail: `certificat expire dans ${daysRemaining} jour(s), préavis réglé à ${config.warnDays}`,
+        detail: say('tls.expiresSoon', { count: daysRemaining, warnDays: config.warnDays }),
         metrics,
       };
     }
@@ -203,10 +210,12 @@ export const tlsProbe: MonitorProbe = {
       return {
         outcome: 'unreachable',
         latencyMs: null,
-        detail: `configuration de sonde invalide : ${parsed.error.issues.map((issue) => issue.message).join(', ')}`,
+        detail: probeSay(ctx.language)('invalidConfig', {
+          issues: parsed.error.issues.map((issue) => issue.message).join(', '),
+        }),
         metrics: {},
       };
     }
-    return runTls(parsed.data, ctx.allowlist);
+    return runTls(parsed.data, ctx.allowlist, ctx.language);
   },
 };

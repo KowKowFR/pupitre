@@ -3,6 +3,7 @@ import { exec, upload } from '../ssh/client.js';
 import type { ProxyKind } from './model.js';
 import { ProxyError, type ProxyHostContext } from './types.js';
 import { firstLine, shellQuote } from '../shell.js';
+import { proxySay } from './messages.js';
 
 /**
  * Les gestes sur la machine d'un proxy que tous les providers partagent :
@@ -31,7 +32,7 @@ export async function ensureDirectory(
   );
   if (elevated.code !== 0) {
     throw new ProxyError(
-      `${directory} : ${firstLine(elevated.stderr) ?? firstLine(direct.stderr) ?? 'création impossible'}`,
+      `${directory} : ${firstLine(elevated.stderr) ?? firstLine(direct.stderr) ?? proxySay(ctx.language)('host.mkdirFailed')}`,
       kind,
       'directory',
     );
@@ -65,7 +66,7 @@ export async function writeFile(
   );
   if (moved.code !== 0) {
     throw new ProxyError(
-      `${path} : ${firstLine(moved.stderr) ?? 'écriture refusée'}`,
+      `${path} : ${firstLine(moved.stderr) ?? proxySay(ctx.language)('host.writeRefused')}`,
       kind,
       'write',
     );
@@ -85,7 +86,7 @@ export async function removeFile(
   });
   if (elevated.code !== 0) {
     throw new ProxyError(
-      `${path} : ${firstLine(elevated.stderr) ?? 'suppression refusée'}`,
+      `${path} : ${firstLine(elevated.stderr) ?? proxySay(ctx.language)('host.removeRefused')}`,
       kind,
       'remove',
     );
