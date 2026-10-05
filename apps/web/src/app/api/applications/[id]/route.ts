@@ -12,6 +12,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { applications as messages } from '@/i18n/messages/applications';
 import { currentLanguage } from '@/i18n/server';
+import { nameConflict } from '@/lib/application-name';
 import { HttpError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
 import { requireApplicationScope, requirePermission } from '@/lib/rbac';
@@ -47,7 +48,10 @@ export const PATCH = apiRoute<Context>(async (request, context) => {
   const before = await getApplication(id);
   if (!before) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
-  const after = await updateApplication(id, patch);
+  // A rename the machines would confuse is refused here — see `lib/application-name.ts`.
+  const after = await updateApplication(id, patch).catch((error: unknown) => {
+    throw nameConflict(error) ?? error;
+  });
   if (!after) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
   // An AppSpec that declares one more secret sees it created here. A secret it

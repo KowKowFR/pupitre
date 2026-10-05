@@ -9,6 +9,7 @@ import {
   type GenerationOrigin,
 } from '@pupitre/db';
 import { applications as messages } from '@/i18n/messages/applications';
+import { assertNameFree } from './application-name';
 import { ConflictError, msg } from './errors';
 
 /**
@@ -40,6 +41,7 @@ export async function createApplicationFromSpec(input: {
   if (existing) {
     throw new ConflictError(msg(messages, 'error.slugTaken', { name: input.appSpec.name }));
   }
+  await assertNameFree(input.appSpec.name);
 
   const application = await createApplication({
     appSpec: input.appSpec,

@@ -83,6 +83,22 @@ export async function bindingsFor(source: ApplicationSourceView): Promise<Source
  * becomes the commit's, and it is its code a manual deployment will build. The
  * commit says so on GitHub.
  */
+/**
+ * The application keeps its name, whatever `pupitre.json` says: that name is
+ * its project on the machines (`app-{name}`) and its identity in the panel —
+ * the repository's only named it at its creation. Taken as is, a rename in the
+ * repository would move the application to a new project and leave the running
+ * one behind, under a name another application could then take.
+ */
+function keepName(spec: AppSpec, name: string, repository: string): AppSpec {
+  if (spec.name === name) return spec;
+  logger.info(
+    { repository, proposed: spec.name, kept: name },
+    'name in pupitre.json ignored: the application keeps its own',
+  );
+  return { ...spec, name };
+}
+
 export async function syncFromSource(input: {
   source: ApplicationSourceView;
   sha: string;
@@ -94,9 +110,10 @@ export async function syncFromSource(input: {
   actorId: string | null;
   ip: string | null;
 }): Promise<void> {
-  const { source, sha, spec } = input;
+  const { source, sha } = input;
   const application = await getApplication(source.applicationId);
   if (!application) throw new Error(`application "${source.applicationId}" not found`);
+  const spec = keepName(input.spec, application.slug, source.repository);
   await updateApplication(application.id, { appSpec: spec });
   await markSourceSynced(source.id, sha);
   await supersedePendingProposals(source.id, input.proposalId ?? null);
@@ -142,9 +159,10 @@ export async function deployFromSource(input: {
   actorId: string | null;
   ip: string | null;
 }): Promise<SourceDeployResult> {
-  const { source, sha, spec, commit } = input;
+  const { source, sha, commit } = input;
   const application = await getApplication(source.applicationId);
   if (!application) throw new Error(`application "${source.applicationId}" not found`);
+  const spec = keepName(input.spec, application.slug, source.repository);
 
   await updateApplication(application.id, { appSpec: spec });
   await markSourceSynced(source.id, sha);

@@ -17,6 +17,7 @@ import { z } from 'zod';
 import { catalog as messages } from '@/i18n/messages/catalog';
 import { applications as appMessages } from '@/i18n/messages/applications';
 import { currentLanguage } from '@/i18n/server';
+import { assertNameFree } from '@/lib/application-name';
 import { ConflictError, HttpError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
@@ -69,6 +70,7 @@ export const POST = apiRoute<Context>(async (request, context) => {
   if (await getApplicationBySlug(appSpec.name)) {
     throw new ConflictError(msg(appMessages, 'error.slugTaken', { name: appSpec.name }));
   }
+  await assertNameFree(appSpec.name);
 
   const language = await currentLanguage();
   const application = await createApplication({

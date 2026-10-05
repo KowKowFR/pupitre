@@ -398,6 +398,10 @@ const fr = {
   'images.update.toast': '« {slug} » redéployée sur « {target} »',
   'error.jobNoId': "La tâche n'a pas reçu d'identifiant",
   'error.slugTaken': 'Une application « {name} » existe déjà',
+  'error.renameDeployed':
+    '« {name} » est déployée — {targets} : sur ces machines, son projet porte ce nom. Gardez-le, ou détruisez d’abord ses déploiements pour la renommer.',
+  'error.nameHeld':
+    '« {name} » est encore le nom d’un déploiement de « {application} » sur {target} : la machine le connaît sous ce nom. Choisissez-en un autre, ou détruisez ce déploiement.',
   'error.secretNotDeclared':
     '« {name} » n’est pas un secret que cette AppSpec déclare (ou c’est un alias, qui reprend la valeur d’un autre).',
   'error.enqueueFailed': "La tâche n'a pas reçu d'identifiant",
@@ -815,6 +819,10 @@ const en: Translated<typeof fr> = {
   'images.update.toast': '“{slug}” redeployed on “{target}”',
   'error.jobNoId': 'The job got no ID',
   'error.slugTaken': 'An application “{name}” already exists',
+  'error.renameDeployed':
+    '“{name}” is deployed — {targets}: on these machines, its project bears this name. Keep it, or destroy its deployments first to rename it.',
+  'error.nameHeld':
+    '“{name}” is still the name of a deployment of “{application}” on {target}: the machine knows it by this name. Choose another one, or destroy that deployment.',
   'error.secretNotDeclared':
     '“{name}” is not a secret this AppSpec declares (or it is an alias, which takes another’s value).',
   'error.enqueueFailed': 'The job got no ID',
