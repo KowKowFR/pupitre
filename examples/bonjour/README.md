@@ -1,21 +1,21 @@
-# Exemple — une application déployée depuis son dépôt
+# Example — an application deployed from its repository
 
-Une page statique servie par nginx, construite sur la machine cible depuis le
-code du dépôt. Elle sert à voir le suivi d'un dépôt de bout en bout.
+A static page served by nginx, built on the target machine from the
+repository's code. It is there to see repository tracking end to end.
 
-Dans Pupitre : **Applications → Nouvelle application → Depuis un dépôt GitHub**,
-puis ce dépôt et sa branche. Le fichier `examples/bonjour/pupitre.json` est
-trouvé tout seul ; seuls les changements sous `examples/bonjour/` concernent
-l'application, le reste du dépôt ne la touche pas.
+In Pupitre: **Applications → New application → From a repository**, then this
+repository and its branch. The `examples/bonjour/pupitre.json` file is found by
+itself; only changes under `examples/bonjour/` concern the application, the rest
+of the repository does not touch it.
 
-À chaque nouveau commit, au choix :
+On each new commit, as you choose:
 
-- **mettre à jour l'application** : la nouvelle version attend que vous la
-  déployiez, où vous voulez ;
-- **la redéployer là où elle tourne**.
+- **update the application**: the new version waits for you to deploy it,
+  wherever you want;
+- **redeploy it where it runs**.
 
-L'état est renvoyé sur le commit dans GitHub.
+The status is sent back to the commit on GitHub.
 
-L'image tourne avec le durcissement que Pupitre applique à tout ce qu'il
-construit depuis votre code — racine en lecture seule, utilisateur non
-privilégié, sans capacité — d'où la base `nginx-unprivileged` sur le port 8080.
+The image runs with the hardening Pupitre applies to everything it builds from
+your code — read-only root, unprivileged user, no capability — hence the
+`nginx-unprivileged` base on port 8080.

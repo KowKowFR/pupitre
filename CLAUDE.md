@@ -1,137 +1,140 @@
-# Pupitre — contrat d'architecture
+# Pupitre — architecture contract
 
-Ce document fait autorité sur la forme du code. Il se lit en cinq minutes et il
-est le premier à consulter avant de contribuer — les règles ci-dessous ne sont
-pas des conseils, une revue les fait respecter. Le « pourquoi » développé, avec
-les conséquences pratiques, est dans [`docs/architecture.md`](docs/architecture.md).
+This document is the authority on the shape of the code. It takes five minutes
+to read and comes first before contributing — the rules below are not advice,
+review enforces them. The detailed "why", with its practical consequences, is
+in [`docs/architecture.md`](docs/architecture.md).
 
-## Ce qu'on construit
+## What we are building
 
-Un **control plane auto-hébergé** déployé via `docker compose up`, qui sert à déployer
-des web apps sur des machines cibles distantes, en Docker Compose **ou** en K3s au choix,
-avec génération de l'app par IA, scans de sécurité, RBAC et audit log.
+A **self-hosted control plane** deployed with `docker compose up`, used to deploy
+web apps to remote target machines, with Docker Compose **or** K3s as you choose,
+with AI-generated apps, security scans, RBAC and an audit log.
 
-Le panel n'est pas l'app déployée. Le panel orchestre. Ne jamais confondre les deux.
+The panel is not the deployed app. The panel orchestrates. Never confuse the two.
 
 ## Stack
 
 - Next.js 16 App Router + shadcn/ui + Tailwind
-- Worker Node séparé (`apps/worker`), même monorepo pnpm
-- PostgreSQL 16 + Drizzle (migrations SQL versionnées)
-- Redis + BullMQ (queue ET scheduler via repeatable jobs)
-- Better Auth (plugin admin)
-- node-ssh pour l'exécution distante
+- Separate Node worker (`apps/worker`), same pnpm monorepo
+- PostgreSQL 16 + Drizzle (versioned SQL migrations)
+- Redis + BullMQ (queue AND scheduler through repeatable jobs)
+- Better Auth (admin plugin)
+- node-ssh for remote execution
 - Vercel AI SDK + `@openrouter/ai-sdk-provider`
-- Zod pour toute validation, Pino pour les logs
+- Zod for all validation, Pino for logs
 
-## Structure
+## Layout
 
 ```
 apps/web        Next.js — UI + Route Handlers
-apps/worker     Process Node — consomme BullMQ, exécute les déploiements
-packages/db     Schéma Drizzle + migrations (source unique)
+apps/worker     Node process — consumes BullMQ, runs deployments
+packages/db     Drizzle schema + migrations (single source)
 packages/core   AppSpec, DeploymentDriver, ProxyProvider, Scanner
 ```
 
-## Les 4 abstractions — ne jamais les contourner
+## The 4 abstractions — never bypass them
 
 ### DeploymentDriver
 `preflight() deploy() healthcheck() rollback() destroy() logs() allocatePort() upstream()`
-Implémentations : `DockerComposeDriver`, `K3sDriver`.
+Implementations: `DockerComposeDriver`, `K3sDriver`.
 
 ### ProxyProvider
 `detect() install() check() apply(routes) probe(route) uninstall()`
-Implémentations : `TraefikProvider` (défaut), `BunkerWebProvider` (WAF, par son API).
-Un domaine est une **route** posée par le proxy vers l'amont que le driver
-annonce (`upstream()` : port publié, Service du cluster). Le driver ne pose
-jamais de route ; le proxy ne sait pas sur quel runtime il route. Comment
-publier l'application pour son proxy — celui de la machine, ou celui d'une
-autre (proxy central, `proxy_links`) — est une intention (`DriverContext.exposure`)
-que chaque driver traduit : boucle locale, adresse privée, NodePort, pare-feu.
-Un proxy **hors des cibles**, joint par son API et jamais par SSH, remplit
-`RemoteProxyProvider` — `check() apply(routes) probe(route) reach()` :
-`NginxProxyManagerProvider`. Le worker ne voit que `openProxy()`.
+Implementations: `TraefikProvider` (default), `BunkerWebProvider` (WAF, through its API).
+A domain is a **route** set by the proxy toward the upstream the driver
+announces (`upstream()`: published port, cluster Service). The driver never
+sets a route; the proxy does not know which runtime it routes to. How to
+publish the application for its proxy — the machine's own, or another
+machine's (central proxy, `proxy_links`) — is an intent (`DriverContext.exposure`)
+that each driver translates: loopback, private address, NodePort, firewall.
+A proxy **outside the targets**, reached through its API and never through
+SSH, implements `RemoteProxyProvider` — `check() apply(routes) probe(route) reach()`:
+`NginxProxyManagerProvider`. The worker only sees `openProxy()`.
 
 ### Scanner
-`run(image): Promise<ScanReport>` — rapport normalisé
-Implémentations : `TrivyScanner`, `GrypeScanner`, `SyftSBOM`.
+`run(image): Promise<ScanReport>` — normalized report
+Implementations: `TrivyScanner`, `GrypeScanner`, `SyftSBOM`.
 
 ### SourceProvider
 `resolveHead() compare() readFile() findFiles() commit() downloadArchive() reportStatus() listRepositories()`
-Implémentations : `GitHubSourceProvider` (GitHub App), `GitLabSourceProvider` (gitlab.com ou
-auto-hébergé, par jeton), `GiteaSourceProvider` (Gitea, Forgejo, Codeberg, par jeton) — polling,
-jamais de webhook. `createSourceProvider()` fabrique le client
-d'une connexion.
+Implementations: `GitHubSourceProvider` (GitHub App), `GitLabSourceProvider` (gitlab.com or
+self-hosted, by token), `GiteaSourceProvider` (Gitea, Forgejo, Codeberg, by token) — polling,
+never webhooks. `createSourceProvider()` builds the client of a connection.
 
-**Critère de qualité :** ajouter un runtime, un proxy, un scanner ou un fournisseur
-de code doit se faire en ajoutant une classe, sans modifier une seule ligne ailleurs.
+**Quality bar:** adding a runtime, a proxy, a scanner or a code provider must be
+done by adding a class, without changing a single line elsewhere.
 
-## AppSpec — la spec neutre
+## AppSpec — the neutral spec
 
-L'IA et les formulaires produisent une `AppSpec` qui **ne connaît ni Docker ni Kubernetes**.
-Elle est stockée en base. Le rendu vers `compose.yml` ou vers des manifests K8s se fait
-au moment du déploiement, par le driver.
+The AI and the forms produce an `AppSpec` that **knows neither Docker nor Kubernetes**.
+It is stored in the database. Rendering to `compose.yml` or to K8s manifests happens
+at deployment time, in the driver.
 
-Conséquence : la même app se redéploie sur l'autre runtime en changeant un champ.
+Consequence: the same app redeploys on the other runtime by changing one field.
 
-## Règles non négociables
+## Non-negotiable rules
 
-1. **Aucun `if (runtime === 'docker')` hors des drivers.** Les divergences
-   (allocation de ports, UFW, isolation) sont des responsabilités du driver.
-2. **Toute opération longue passe par BullMQ.** Jamais dans une route HTTP.
-3. **Route Handlers REST**, pas de Server Actions pour les déploiements.
-   Le worker et d'éventuels webhooks doivent pouvoir appeler l'API.
-4. **Le LLM ne produit jamais de shell.** Il produit du JSON validé par Zod.
-   C'est notre code qui exécute.
-5. **L'anti-collision de ports est une contrainte unique `(target_id, port)` en base.**
-   Pas un `if` en TypeScript.
-6. **L'audit log passe par `logAudit()`**, un point d'entrée unique.
-   Jamais d'insert dispersé dans les handlers.
-7. **Les credentials SSH sont chiffrés en base** (AES-256-GCM, `MASTER_KEY`).
-   Jamais en clair, jamais dans les logs.
-8. **Les logs de déploiement transitent par Redis pub/sub** sur `deploy:{id}`,
-   relayés en SSE. Pas de `tail` sur fichier.
-9. **Un dépôt lié ne porte que l'AppSpec** (`pupitre.json`). Ni cible, ni runtime,
-   ni script : le dépôt dit quoi, le panel dit où et quand. Et Pupitre interroge
-   le dépôt (polling) — le panel reste privé, aucun webhook entrant. Seule
-   exception, en lecture seule : ses pages de statut **publiées** (`/status…`).
+1. **No `if (runtime === 'docker')` outside the drivers.** Divergences
+   (port allocation, UFW, isolation) are the driver's responsibility.
+2. **Every long-running operation goes through BullMQ.** Never in an HTTP route.
+3. **REST Route Handlers**, no Server Actions for deployments.
+   The worker and any webhooks must be able to call the API.
+4. **The LLM never produces shell.** It produces JSON validated by Zod.
+   Our code does the executing.
+5. **Port collision avoidance is a unique `(target_id, port)` constraint in the database.**
+   Not an `if` in TypeScript.
+6. **The audit log goes through `logAudit()`**, a single entry point.
+   Never scattered inserts in handlers.
+7. **SSH credentials are encrypted in the database** (AES-256-GCM, `MASTER_KEY`).
+   Never in clear, never in logs.
+8. **Deployment logs travel through Redis pub/sub** on `deploy:{id}`,
+   relayed over SSE. No `tail` on a file.
+9. **A linked repository carries only the AppSpec** (`pupitre.json`). No target,
+   no runtime, no script: the repository says what, the panel says where and when.
+   And Pupitre polls the repository — the panel stays private, no incoming
+   webhook. Single exception, read-only: its **published** status pages (`/status…`).
 
 ## Conventions
 
-- Namespace / projet compose : `app-{slug}`
-- Permissions : chaînes `ressource:action` (`deployment:create`, `target:delete`)
-- Statuts de step : `pending | running | success | failed | skipped`
-- Domaines : une route par nom, **unique en base** (`routes.hostname`). L'AppSpec
-  (`ingress.host`) n'en donne que la valeur par défaut au premier déploiement
-- Migrations : jamais éditer une migration appliquée, toujours en créer une nouvelle
-- Temps réel : un canal Redis `pupitre:realtime` relayé en SSE. Un écran reçoit un
-  signal, jamais des données — il se relit (`<LiveRefresh>`) avec ses permissions
+- Language: **English** for code, comments, documentation, commits and pull
+  requests. The product itself is bilingual (French and English): every
+  user-facing text lives in a dictionary, never hard-coded — test guards
+  enforce it. Older French comments are being translated; write new ones in English.
+- Compose namespace / project: `app-{slug}`
+- Permissions: `resource:action` strings (`deployment:create`, `target:delete`)
+- Step statuses: `pending | running | success | failed | skipped`
+- Domains: one route per name, **unique in the database** (`routes.hostname`). The AppSpec
+  (`ingress.host`) only gives the default value at the first deployment
+- Migrations: never edit an applied migration, always create a new one
+- Real time: a Redis channel `pupitre:realtime` relayed over SSE. A screen receives a
+  signal, never data — it re-reads itself (`<LiveRefresh>`) with its permissions
 
-## Décisions déjà tranchées — ne pas rouvrir
+## Decisions already made — do not reopen
 
-- Build des images **sur la machine cible** via SSH, pas de registry
-- **Pas d'Ansible**
-- **Pas de cron Linux** — BullMQ repeatable jobs
-- Traefik par défaut sur les deux runtimes ; BunkerWeb en conteneur Docker, par son API
+- Images are **built on the target machine** over SSH, no registry
+- **No Ansible**
+- **No Linux cron** — BullMQ repeatable jobs
+- Traefik by default on both runtimes; BunkerWeb as a Docker container, through its API
 
-## Commandes
+## Commands
 
 ```bash
-pnpm dev                          # web + worker en watch
-pnpm db:generate                  # génère une migration Drizzle
-pnpm db:migrate                   # applique les migrations
-pnpm test                         # tests unitaires de @pupitre/core
-pnpm test:parity <docker> <k3s>   # la même AppSpec sur les deux runtimes
-pnpm test:proxy <docker> <k3s>    # le reverse proxy de bout en bout, certificats compris
-pnpm test:npm <docker> <k3s>      # Nginx Proxy Manager, un proxy distant, de bout en bout
-pnpm test:rollback <docker> <k3s> # revenir en arrière retrouve le bon code, même version
-pnpm test:source-isolation <docker> <k3s>  # un dépôt piégé ne passe pas
-pnpm test:catalog <cible>         # chaque modèle du catalogue déployé, sondé, détruit
-docker compose up -d              # stack complète
+pnpm dev                          # web + worker in watch mode
+pnpm db:generate                  # generate a Drizzle migration
+pnpm db:migrate                   # apply migrations
+pnpm test                         # unit tests of @pupitre/core
+pnpm test:parity <docker> <k3s>   # the same AppSpec on both runtimes
+pnpm test:proxy <docker> <k3s>    # the reverse proxy end to end, certificates included
+pnpm test:npm <docker> <k3s>      # Nginx Proxy Manager, a remote proxy, end to end
+pnpm test:rollback <docker> <k3s> # rolling back finds the right code, same version
+pnpm test:source-isolation <docker> <k3s>  # a booby-trapped repository does not get through
+pnpm test:catalog <target>        # every catalog template deployed, probed, destroyed
+docker compose up -d              # full stack
 ```
 
-## Le test qui valide l'architecture
+## The test that validates the architecture
 
-Déployer **la même AppSpec** sur une cible Docker et une cible K3s, obtenir deux URLs
-qui répondent, puis rollback des deux. C'est `pnpm test:parity`, et il doit rester vert.
-Si du code spécifique au runtime a fui hors des drivers, corriger immédiatement.
+Deploy **the same AppSpec** to a Docker target and a K3s target, get two URLs
+that answer, then roll both back. That is `pnpm test:parity`, and it must stay green.
+If runtime-specific code has leaked out of the drivers, fix it immediately.

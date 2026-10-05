@@ -1,167 +1,168 @@
-# Rejouer la CI sur son poste
+# Replaying CI on your workstation
 
-Deux workflows, deux natures.
+Two workflows, two natures.
 
-| Workflow | Déclenchement | Durée mesurée | Ce qu'il lui faut |
+| Workflow | Trigger | Measured duration | What it needs |
 | --- | --- | --- | --- |
-| `ci.yml` | chaque poussée, chaque PR | **25 s** depuis un dépôt vierge | rien d'autre que Node et pnpm |
-| `e2e.yml` | manuel, et 03:00 UTC en semaine | ~6 min ici, ~12 min sur un runner | Docker, la stack complète |
+| `ci.yml` | every push, every PR | **25 s** from a fresh clone | nothing but Node and pnpm |
+| `e2e.yml` | manual, and 03:00 UTC on weekdays | ~6 min here, ~12 min on a runner | Docker, the full stack |
 
 ---
 
-## `ci.yml` — le socle
+## `ci.yml` — the base
 
-### L'ordre n'est pas décoratif
+### The order is not decorative
 
-`@pupitre/core` et `@pupitre/db` sont consommés **par leur `dist`** : le champ `exports` de
-leurs `package.json` pointe vers `./dist/*.js` et `./dist/*.d.ts`, jamais vers
-`src`. Sur une copie neuve, `dist/` n'existe pas.
+`@pupitre/core` and `@pupitre/db` are consumed **through their `dist`**: the
+`exports` field of their `package.json` points to `./dist/*.js` and
+`./dist/*.d.ts`, never to `src`. On a fresh clone, `dist/` does not exist.
 
-Conséquence, mesurée et non supposée : lancer `pnpm -r typecheck` en premier
-donne **35 erreurs** de la forme
+Consequence, measured and not assumed: running `pnpm -r typecheck` first gives
+**35 errors** of the form
 
 ```
 src/schema/infra.ts(1,66): error TS2307: Cannot find module '@pupitre/core'
 ```
 
-sur des symboles qui existent pourtant dans les sources. `pnpm -r` respecte bien
-l'ordre topologique, mais cela ne suffit pas : le `typecheck` de `@pupitre/core` est
-en `--noEmit`, il ne produit donc pas le `dist` dont `@pupitre/db` a besoin. Il faut
-une vraie construction.
+on symbols that do exist in the sources. `pnpm -r` does respect the topological
+order, but that is not enough: `@pupitre/core`'s `typecheck` runs with
+`--noEmit`, so it does not produce the `dist` that `@pupitre/db` needs. A real
+build is required.
 
-**`pnpm build:packages` d'abord. Toujours.**
+**`pnpm build:packages` first. Always.**
 
-### Le socle, dans l'ordre exact du workflow
+### The base, in the workflow's exact order
 
-Depuis un dépôt propre — sans `node_modules`, sans `dist` :
+From a clean clone — without `node_modules`, without `dist`:
 
 ```bash
-pnpm install --frozen-lockfile              #  3,5 s
-pnpm build:packages                         #  3,3 s   ← prérequis des deux typecheck
-pnpm -r typecheck                           #  6,6 s
-pnpm exec tsc --noEmit -p scripts/tsconfig.json   #  0,9 s
-pnpm --filter @pupitre/web lint                  #  5,0 s
-pnpm --filter @pupitre/core test                 #  1,2 s   (205 tests, 2 ignorés)
-pnpm test:schedule                          #  0,5 s
-pnpm test:ai                                #  3,7 s   (hors ligne, aucune clé)
+pnpm install --frozen-lockfile              #  3.5 s
+pnpm build:packages                         #  3.3 s   ← prerequisite of both typechecks
+pnpm -r typecheck                           #  6.6 s
+pnpm exec tsc --noEmit -p scripts/tsconfig.json   #  0.9 s
+pnpm --filter @pupitre/web lint                  #  5.0 s
+pnpm --filter @pupitre/core test                 #  1.2 s
+pnpm test:schedule                          #  0.5 s
+pnpm test:ai                                #  3.7 s   (offline, no key)
 ```
 
-Durées relevées sur un Mac M-series. Compter deux à trois fois plus sur un
-runner GitHub à 2 vCPU.
+Durations noted on an M-series Mac. Count two to three times more on a 2-vCPU
+GitHub runner.
 
-`pnpm typecheck` à la racine enchaîne déjà les trois premières lignes ; le
-workflow les sépare pour que la ligne rouge nomme le contrôle fautif.
+`pnpm typecheck` at the root already chains the first three lines; the workflow
+separates them so that the red line names the failing check.
 
-En CI, les six contrôles qui suivent la construction sont indépendants et
-s'exécutent **tous**, même si l'un d'eux tombe : un seul passage donne l'ampleur
-réelle des dégâts. Le tableau récapitulatif est en bas de la page du run.
+In CI, the six checks that follow the build are independent and **all** run,
+even if one of them fails: a single run gives the real extent of the damage.
+The summary table is at the bottom of the run's page.
 
 ### Versions
 
-Ni Node ni pnpm ne sont choisis au hasard, et aucun n'est « le dernier » :
+Neither Node nor pnpm is chosen at random, and neither is "the latest":
 
-- **pnpm** — jamais écrit dans le workflow. `pnpm/action-setup` lit
-  `packageManager` dans le `package.json` racine (`pnpm@10.32.1`).
-- **Node 24** — `NODE_VERSION` en tête de `ci.yml`. Doit suivre l'`ARG
-  NODE_VERSION` du `Dockerfile` (`24-alpine`) et `engines.node` (`>=24`).
-  Il n'y a pas de `.nvmrc` ; s'il en apparaît un, il faudra les accorder.
+- **pnpm** — never written in the workflow. `pnpm/action-setup` reads
+  `packageManager` in the root `package.json` (`pnpm@10.32.1`).
+- **Node 24** — `NODE_VERSION` at the top of `ci.yml`. Must follow the
+  `Dockerfile`'s `ARG NODE_VERSION` (`24-alpine`) and `engines.node` (`>=24`).
+  There is no `.nvmrc`; if one appears, they will have to agree.
 
 ---
 
-## Les deux gardes
+## The two guards
 
-Elles tournent dans leur propre job, en parallèle du socle : un checkout, aucune
-dépendance, quelques secondes.
+They run in their own job (`gardes`), in parallel with the base: a checkout, no
+dependencies, a few seconds.
 
-### Garde 1 — aucun secret dans le dépôt
+### Guard 1 — no secret in the repository
 
-Cinq contrôles, écrits à la main plutôt qu'empruntés à un détecteur générique :
+Five checks, written by hand rather than borrowed from a generic detector:
 
-1. ni `.env` ni `.test-target-key*` dans l'index (à n'importe quelle profondeur) ;
-2. `.gitignore` les couvre toujours — la protection d'origine n'a pas sauté ;
-3. aucune valeur de `MASTER_KEY` ni de `BETTER_AUTH_SECRET` qui ait **la forme
-   d'un secret** : ≥ 32 caractères, alphabet hex/base64 seulement. Le critère est
-   la forme, pas une liste : `z.string().min(32)` et `${MASTER_KEY}` passent sans
-   bruit, un vrai secret ne passe pas ;
-4. aucune clé d'API à la forme réelle de son fournisseur (`sk-or-v1-` + hex,
-   `sk-ant-`, `sk-proj-`, `ghp_`, `AKIA`) ;
-5. aucune clé privée **complète**. L'en-tête PEM seul ne suffit pas à accuser :
-   l'écran d'ajout de cible l'affiche comme exemple. C'est le corps — de longues
-   lignes de base64 dans le même fichier — qui trahit une vraie clé.
+1. neither `.env` nor `.test-target-key*` in the index (at any depth);
+2. `.gitignore` still covers them — the original protection has not gone;
+3. no `MASTER_KEY` or `BETTER_AUTH_SECRET` value that has **the shape of a
+   secret**: ≥ 32 characters, hex/base64 alphabet only. The criterion is the
+   shape, not a list: `z.string().min(32)` and `${MASTER_KEY}` pass without
+   noise, a real secret does not;
+4. no API key shaped like its provider's real keys (`sk-or-v1-` + hex,
+   `sk-ant-`, `sk-proj-`, `ghp_`, `AKIA`);
+5. no **complete** private key. The PEM header alone is not enough to accuse:
+   the add-target screen shows it as an example. It is the body — long lines of
+   base64 in the same file — that betrays a real key.
 
-Rejouer sur son poste :
+Replaying on your workstation:
 
 ```bash
-# extrait le bloc `run:` du workflow et l'exécute tel quel
-python3 - <<'PY' > /tmp/garde-secrets.sh
+# extracts the workflow's `run:` block and runs it as is
+python3 - <<'PY' > /tmp/guard-secrets.sh
 import yaml
 wf = yaml.safe_load(open('.github/workflows/ci.yml'))
 print(next(s['run'] for s in wf['jobs']['gardes']['steps'] if s.get('id') == 'secrets'))
 PY
-bash /tmp/garde-secrets.sh
+bash /tmp/guard-secrets.sh
 ```
 
-### Garde 2 — les migrations sont immuables
+### Guard 2 — migrations are immutable
 
-`CLAUDE.md` : « jamais éditer une migration appliquée, toujours en créer une
-nouvelle ». Une migration déjà passée sur une instance ne sera jamais rejouée :
-la modifier ne change rien là-bas et tout ailleurs.
+`CLAUDE.md`: "never edit an applied migration, always create a new one". A
+migration that already ran on an instance will never be replayed: changing it
+changes nothing there and everything elsewhere.
 
-La garde refuse toute **modification**, **suppression** ou **renommage** d'un
-`packages/db/migrations/*.sql` déjà présent sur la branche par défaut. Un ajout
-reste évidemment permis.
+The guard refuses any **change**, **deletion** or **rename** of a
+`packages/db/migrations/*.sql` already present on the default branch. An
+addition is of course allowed.
 
-La base de comparaison est **toujours** l'état de la branche par défaut, jamais
-la poussée précédente — sans quoi une migration ajoutée puis retouchée avant la
-fusion serait refusée à tort, alors qu'elle n'a jamais été appliquée nulle part.
-Seule exception : la poussée sur la branche par défaut elle-même, où la base est
-bien `github.event.before`.
+The comparison base is **always** the default branch's state, never the previous
+push — otherwise a migration added then touched up before merging would be
+wrongly refused, although it was never applied anywhere. The only exception: a
+push to the default branch itself, where the base is indeed
+`github.event.before`.
 
 ```bash
-python3 - <<'PY' > /tmp/garde-migrations.sh
+python3 - <<'PY' > /tmp/guard-migrations.sh
 import yaml
 wf = yaml.safe_load(open('.github/workflows/ci.yml'))
 print(next(s['run'] for s in wf['jobs']['gardes']['steps'] if s.get('id') == 'migrations'))
 PY
-GITHUB_EVENT_NAME=push GITHUB_REF=refs/heads/travail BRANCHE_DEFAUT=main AVANT='' \
-  bash /tmp/garde-migrations.sh
+GITHUB_EVENT_NAME=push GITHUB_REF=refs/heads/work BRANCHE_DEFAUT=main AVANT='' \
+  bash /tmp/guard-migrations.sh
 ```
 
 ---
 
-## `e2e.yml` — les scripts de bout en bout
+## `e2e.yml` — the end-to-end scripts
 
-Neuf des vingt-six `verify-*.sh` y tournent : ceux qui se contentent de
-`postgres`, `redis`, `panel`, `worker` et `mailpit`. Le workflow tire lui-même
-`MASTER_KEY`, `BETTER_AUTH_SECRET` et le mot de passe Postgres au sort — **aucun
-secret GitHub n'est nécessaire**.
+Ten of the thirty-three `verify-*.sh` run there: those that make do with
+`postgres`, `redis`, `panel`, `worker` and `mailpit`. The workflow draws
+`MASTER_KEY`, `BETTER_AUTH_SECRET` and the Postgres password at random itself —
+**no GitHub secret is needed**.
 
-Les dix-sept autres exigent une cible SSH docker-in-docker privilégiée, un vrai
-cluster K3s, ou n'ont pas encore été éprouvés sur un runner. Le raisonnement
-complet, chiffres à l'appui, est en tête de `.github/workflows/e2e.yml`.
+The others require a privileged docker-in-docker SSH target, a real K3s cluster,
+a forge or an identity provider, or have not been tried on a runner yet. The
+full reasoning, with figures, is at the top of `.github/workflows/e2e.yml`.
 
-Sur son poste, ces neuf scripts se lancent contre la stack habituelle :
+On your workstation, these ten scripts run against the usual stack:
 
 ```bash
 docker compose up -d --wait
 docker compose --profile test up -d mailpit
 for s in rbac-audit onboarding roles api-tokens account 2fa-reset settings schedules notifications monitors; do
-  ./scripts/verify-$s.sh || echo "ÉCHEC : verify-$s.sh"
+  ./scripts/verify-$s.sh || echo "FAILED: verify-$s.sh"
 done
 ```
 
-Durées mesurées : `roles` 2 s, `rbac-audit` 1 s, `settings` 4 s, `schedules` 5 s,
-`notifications` 17 s, `onboarding` 23 s, `2fa-reset` 37 s, `account` 48 s,
-`monitors` 2 min 24 (il attend de vrais cycles de sonde) — **281 s** en tout.
+Measured durations: `roles` 2 s, `rbac-audit` 1 s, `settings` 4 s,
+`schedules` 5 s, `notifications` 17 s, `onboarding` 23 s, `2fa-reset` 37 s,
+`account` 48 s, `monitors` 2 min 24 (it waits for real probe cycles) — **281 s**
+in all, before `api-tokens` was added.
 
 ---
 
-## Valider un changement de workflow sans pousser
+## Validating a workflow change without pushing
 
 ```bash
-# syntaxe YAML + schéma GitHub Actions + shellcheck des blocs `run:`
+# YAML syntax + GitHub Actions schema + shellcheck of the `run:` blocks
 actionlint .github/workflows/*.yml
 ```
 
-`actionlint` n'est pas une dépendance du projet : binaire autonome, à récupérer
-sur la page des versions de `rhysd/actionlint`.
+`actionlint` is not a project dependency: a standalone binary, to get from the
+`rhysd/actionlint` releases page.

@@ -1,159 +1,160 @@
-# Vérifier
+# Verifying
 
-Vingt-six scripts `./scripts/verify-*.sh`. Ils ne sont pas des tests unitaires :
-ils empruntent **exactement les mêmes routes que l'UI**, contre une pile qui
-tourne, avec `curl` + `jq`, et vérifient souvent l'effet réel sur la machine
-cible ou en SQL.
+Thirty-three `./scripts/verify-*.sh` scripts. They are not unit tests: they take
+**exactly the same routes as the UI**, against a running stack, with `curl` +
+`jq`, and often check the real effect on the target machine or in SQL.
 
-Ils partagent leurs conventions :
+They share their conventions:
 
 ```bash
 ./scripts/verify-secrets.sh
 BASE_URL=http://localhost:3200 ./scripts/verify-secrets.sh
-TARGET_NAME=ma-vm ./scripts/verify-purge.sh
+TARGET_NAME=my-vm ./scripts/verify-purge.sh
 ```
 
-- Chacun sort en code non nul au premier point en échec, et se relance.
-- Chacun crée **sa propre matière** et la démonte à la fin, par un `trap`.
-  Plusieurs comparent l'inventaire des applications avant et après pour prouver
-  qu'ils n'ont touché à rien d'autre.
-- `jq` est requis. La plupart ont besoin d'une cible Docker déployable —
-  `./scripts/setup-test-target.sh` en provisionne une.
-- Quand un script ne *peut pas* vérifier quelque chose, il le dit et saute, sans
-  fabriquer de faux succès. C'est le cas de tout ce qui dépend d'un fournisseur
-  d'IA sur cette instance.
+- Each one exits with a non-zero code at the first failing point, and can be run
+  again.
+- Each one creates **its own material** and tears it down at the end, with a
+  `trap`. Several compare the inventory of applications before and after to
+  prove they touched nothing else.
+- `jq` is required. Most need a deployable Docker target —
+  `./scripts/setup-test-target.sh` provisions one.
+- When a script *cannot* verify something, it says so and skips, without
+  fabricating a false success. That is the case of everything that depends on an
+  AI provider on this instance.
 
-## Ce que chacun prouve
+## What each one proves
 
-### Socle
+### Foundations
 
-| Script | Ce qu'il établit |
+| Script | What it establishes |
 |---|---|
-| `verify-rbac-audit.sh` | un viewer se prend un `403` sur `POST /api/deployments`, et le refus apparaît dans les logs d'activité avec l'acteur **et l'IP derrière le reverse proxy** ; il lit les déploiements, mais pas le journal |
-| `verify-api-tokens.sh` | un jeton d'API n'est montré qu'une fois et gardé en empreinte ; il ouvre l'API dans ses permissions, pas l'interface ni la fabrique de jetons ; **il perd ce que perd son auteur** et disparaît avec lui ; limité à une application, il est refusé partout ailleurs, même sur une route de sa propre application qui ne vérifie pas la portée ; révoqué, échu, inconnu : 401 ; le journal nomme le jeton et ne le contient jamais. Sans cible — **37/37** au dernier passage |
-| `verify-sso.sh` | la connexion unique contre un vrai Keycloak (`docker compose --profile test up -d keycloak`) : « Tester » reconnaît le bon émetteur et refuse un realm inexistant ; un rôle inconnu est refusé ; le secret du client ne ressort jamais et il est chiffré ; un compte naît **directement** avec le rôle de ses groupes ; création désactivée → `signup_disabled` sans compte ; e-mail non vérifié chez le fournisseur → pas de liaison, compte local intact ; un groupe changé chez Keycloak change le rôle à la connexion suivante, dans les deux sens. **17/17** au dernier passage |
-| `verify-targets-preflight.sh` | une cible est ajoutée avec une clé SSH, le preflight rapporte « Docker ✓ / K3s ✗ » sans recharger la page, le credential est illisible en base, et l'API ne le renvoie jamais — vérifié à toute profondeur du JSON |
-| `verify-roles.sh` | les rôles sont des données : on en crée un, on modifie ses permissions, `admin` refuse d'être touché, un rôle porté refuse d'être supprimé, et **le seed ne réécrit pas une personnalisation** au redémarrage |
-| `verify-account.sh` | mot de passe (l'ancien exigé, l'ancien meurt, les *autres* sessions tombent), TOTP en deux temps avec de vrais codes RFC 6238, un code de secours qui ne sert qu'une fois, et le secret absent de la base comme des logs |
-| `verify-2fa-reset.sh` | la porte de sortie de qui a perdu son téléphone : `403` sans `user:reset-2fa`, la ligne **et** le drapeau effacés dans le même geste, sessions fermées, anciens codes de secours morts, un admin qui se réinitialise garde sa session, et rien de secret dans l'audit |
-| `verify-source-gitea.sh` | un second fournisseur de code contre une vraie forge Gitea (`docker compose --profile test up -d gitea`, compte et dépôt fabriqués par `scripts/test-gitea/setup.sh`) : « Tester » refuse un mauvais jeton et nomme le compte du bon ; le jeton est chiffré et ne ressort jamais ; ses dépôts se listent à côté de ceux de GitHub ; une application créée depuis le dépôt se construit sur Docker avec le code téléchargé chez Gitea, et `success` est écrit sur le commit ; un commit est vu par le polling et redéployé là où l'application tourne ; la liaison est vérifiée par le client Gitea, sans erreur ; un changement d'infrastructure attend une validation et le dit sur le commit ; rien de secret au journal. **15/15** au dernier passage |
-| `verify-source-gitlab.sh` | le troisième fournisseur de code contre une vraie instance GitLab CE (`docker compose --profile test up -d gitlab`, plusieurs minutes au premier démarrage ; groupe, sous-groupe, projet et jeton de projet fabriqués par `scripts/test-gitlab/setup.sh`) : « Tester » refuse un mauvais jeton **et un jeton sans la portée `api`**, nomme le robot du bon et son échéance ; le jeton est chiffré et ne ressort jamais ; un projet de sous-groupe (`atelier/web/bonjour`) se liste et son `pupitre.json` se trouve ; l'application se construit sur Docker avec l'archive téléchargée chez GitLab, et `success` est écrit sur le commit ; un commit est vu par le polling (comparaison comprise) et redéployé ; un changement d'infrastructure attend une validation et le dit sur le commit ; un second « pending » est refusé par l'automate de GitLab avec le message que le client reconnaît ; rien de secret au journal. **16/16** au dernier passage |
-| `verify-source-archive.sh` | le code téléversé, de bout en bout sur une cible Docker et une cible K3s (`DOCKER_TARGET`, `K3S_TARGET`) : sans code, le déploiement est refusé avant de partir ; une archive piégée (un lien qui sortirait du code une fois le dossier de tête retiré) est refusée par le worker et ses octets effacés ; un zip sain est prêt, son SHA-256 est celui du fichier, il se construit et sert sa page — bit d'exécution conservé, code sous `source/`, rien à la racine de la release ; une V2 en tar.gz le remplace, et redéployer la version 1 reconstruit **son** code ; sur K3s, le pod sert la dernière archive ; un jeton limité à l'application téléverse, limité à une autre il est refusé ; une archive effacée ne se redéploie plus ; seules les cinq dernières sont gardées ; tout est au journal, sans jeton. **20/20** au dernier passage |
-| `verify-account-security.sh` | « Comptes et sessions » : exiger le second facteur sans l'avoir soi-même → `409` ; sous « droits sensibles », un opérateur sans second facteur n'a plus que l'écran d'activation — `403 two_factor_required` sur l'API, la discussion **et son jeton d'API**, toutes ses pages renvoient vers `/two-factor-setup` —, l'observateur n'est pas concerné, ni un compte sans mot de passe (connexion unique) ; les routes directes du plugin `twoFactor` de Better Auth répondent 404 ; une fois activé, tout se rouvre dans la même session et le facteur ne se retire plus (`409`) ; « tous les comptes » touche l'observateur ; raccourcir la durée sans activité ramène les sessions ouvertes ; le plafond absolu ferme une session trop vieille et la retire de la base ; rien de secret au journal. **33/33** au dernier passage |
-| `verify-onboarding.sh` | l'assistant redirige sur un état vierge et **ne cède pas au second passage**, la coquille est nue (aucun lien de navigation), quitter passe par une modale (cherchée jusque dans les chunks JS), une étape franchie survit à une reconnexion, passer ≠ terminer, et **une cible créée par l'assistant est identique en SQL à une cible créée par `/targets/new`** |
-| `verify-settings.sh` | défauts complets sur base vierge, fuseau inventé refusé, **un PATCH partiel ne réinitialise aucune autre section** (au bit près, par empreinte), la clé d'API absente de toutes les pages, et un auditeur voit les sections sans pouvoir les modifier |
+| `verify-rbac-audit.sh` | a viewer gets a `403` on `POST /api/deployments`, and the refusal appears in the activity log with the actor **and the IP behind the reverse proxy**; it reads deployments, but not the audit log |
+| `verify-api-tokens.sh` | an API token is shown only once and kept as a hash; it opens the API within its permissions, not the interface nor the token factory; **it loses what its author loses** and disappears with them; limited to one application, it is refused everywhere else, even on a route of its own application that does not check the scope; revoked, expired, unknown: 401; the audit log names the token and never contains it. No target — **37/37** on the last run |
+| `verify-sso.sh` | single sign-on against a real Keycloak (`docker compose --profile test up -d keycloak`): **Test** recognizes the right issuer and refuses a nonexistent realm; an unknown role is refused; the client secret never comes back out and it is encrypted; an account is born **directly** with its groups' role; creation disabled → `signup_disabled` without an account; email not verified at the provider → no link, local account intact; a group changed in Keycloak changes the role at the next sign-in, both ways. **17/17** on the last run |
+| `verify-targets-preflight.sh` | a target is added with an SSH key, the preflight reports "Docker ✓ / K3s ✗" without reloading the page, the credential is unreadable in the database, and the API never returns it — checked at every depth of the JSON |
+| `verify-roles.sh` | roles are data: one is created, its permissions changed, `admin` refuses to be touched, a role in use refuses to be deleted, and **the seed does not rewrite a customization** at restart |
+| `verify-account.sh` | password (the old one required, the old one dies, the *other* sessions drop), two-stage TOTP with real RFC 6238 codes, a backup code that only works once, and the secret absent from the database as from the logs |
+| `verify-2fa-reset.sh` | the way out for whoever lost their phone: `403` without `user:reset-2fa`, the row **and** the flag erased in the same gesture, sessions closed, old backup codes dead, an admin resetting themselves keeps their session, and nothing secret in the audit log |
+| `verify-source-gitea.sh` | a second code provider against a real Gitea forge (`docker compose --profile test up -d gitea`, account and repository made by `scripts/test-gitea/setup.sh`): **Test** refuses a wrong token and names the right one's account; the token is encrypted and never comes back out; its repositories are listed next to GitHub's; an application created from the repository builds on Docker with the code downloaded from Gitea, and `success` is written on the commit; a commit is seen by polling and redeployed where the application runs; the link is checked by the Gitea client, without error; an infrastructure change waits for an approval and says so on the commit; nothing secret in the audit log. **15/15** on the last run |
+| `verify-source-gitlab.sh` | the third code provider against a real GitLab CE instance (`docker compose --profile test up -d gitlab`, several minutes at first start; group, subgroup, project and project token made by `scripts/test-gitlab/setup.sh`): **Test** refuses a wrong token **and a token without the `api` scope**, names the right one's bot and its expiry; the token is encrypted and never comes back out; a subgroup project (`atelier/web/bonjour`) is listed and its `pupitre.json` found; the application builds on Docker with the archive downloaded from GitLab, and `success` is written on the commit; a commit is seen by polling (comparison included) and redeployed; an infrastructure change waits for an approval and says so on the commit; a second "pending" is refused by GitLab's state machine with the message the client recognizes; nothing secret in the audit log. **16/16** on the last run |
+| `verify-source-archive.sh` | uploaded code, end to end on a Docker target and a K3s target (`DOCKER_TARGET`, `K3S_TARGET`): without code, the deployment is refused before it starts; a booby-trapped archive (a link that would leave the code once the leading folder is removed) is refused by the worker and its bytes deleted; a healthy zip is ready, its SHA-256 is the file's, it builds and serves its page — execute bit kept, code under `source/`, nothing at the root of the release; a V2 as tar.gz replaces it, and redeploying version 1 rebuilds **its** code; on K3s, the pod serves the latest archive; a token limited to the application uploads, limited to another one it is refused; a deleted archive can no longer be redeployed; only the last five are kept; everything is in the audit log, without the token. **20/20** on the last run |
+| `verify-account-security.sh` | **Accounts and sessions**: requiring the second factor without having it yourself → `409`; under "sensitive permissions", an operator without a second factor only has the activation screen left — `403 two_factor_required` on the API, the chat **and their API token**, all their pages send to `/two-factor-setup` —, the viewer is not affected, nor an account without a password (single sign-on); the direct routes of Better Auth's `twoFactor` plugin answer 404; once enabled, everything opens again in the same session and the factor can no longer be removed (`409`); "every account" affects the viewer; shortening the idle duration brings open sessions back; the absolute cap closes a session that is too old and removes it from the database; nothing secret in the audit log. **33/33** on the last run |
+| `verify-onboarding.sh` | the setup guide redirects on an empty state and **does not give in on the second pass**, the shell is bare (no navigation link), leaving goes through a modal (looked for even in the JS chunks), a completed step survives a new sign-in, skipping ≠ finishing, and **a target created by the guide is identical in SQL to a target created by `/targets/new`** |
+| `verify-settings.sh` | complete defaults on an empty database, a made-up time zone refused, **a partial PATCH resets no other section** (to the bit, by hash), the API key absent from every page, and an auditor sees the sections without being able to change them |
 
-### Déploiement
+### Deployment
 
-| Script | Ce qu'il établit |
+| Script | What it establishes |
 |---|---|
-| `verify-deploy-logs.sh` | une application créée depuis `simple.json` se déploie, les étapes s'enchaînent, les logs défilent en direct, l'URL répond — et **se rebrancher en cours de déploiement retrouve les logs déjà passés** |
-| `verify-scanners.sh` | quatre déploiements de la même image volontairement vulnérable, en ne changeant que la politique de scan : blocage par Trivy, blocage par Grype seul, passage en `failOn: NONE`, SBOM téléchargeable. Le point clé est la comparaison **CVE par CVE** entre les deux scanners |
-| `verify-ports-rollback.sh` | deux applications sur la même cible → deux ports distincts et deux règles UFW nommées par commentaire ; un destroy libère l'un sans toucher l'autre ; une v2 au healthcheck cassé → **rollback automatique**, statut `rolled_back` distinct de `failed`, diagnostic capturé, et l'URL sert de nouveau la v1 |
-| `verify-appspec-generation.sh` | le prompt système est bien chargé depuis l'image (taille comprise, pas seulement un `ok`), la chaîne de génération sous modèle simulé, le rendu vers les deux runtimes, et une tâche `scan:periodic` qui tourne, survit à un redémarrage du worker, puis se désactive |
-| `verify-secrets.sh` | le magasin de secrets, en 23 étapes : valeur générée non vide **acceptée par le moteur de base**, `.env` en 0600, empreinte identique après redéploiement, une seule ligne en base, invisible partout, rendu qui échoue **en nommant** le secret manquant tout en acceptant une valeur vide. Puis les alias : référence inconnue et cycle refusés à la validation, une ligne pour deux noms, **WordPress qui s'authentifie réellement sur MariaDB**, et la même carte de secrets côté Compose et côté Kubernetes |
-| `verify-export.sh` | l'export des logs d'un déploiement en texte et en JSONL, avec les bons en-têtes, **autant de lignes qu'en base** (ce qui prouve que la pagination ne tronque pas), 404/422 sur identifiant fautif, et l'export tracé |
+| `verify-deploy-logs.sh` | an application created from `simple.json` deploys, the steps follow one another, the logs scroll live, the URL answers — and **reconnecting during the deployment finds the logs already gone by** |
+| `verify-scanners.sh` | four deployments of the same deliberately vulnerable image, changing only the scan policy: blocked by Trivy, blocked by Grype alone, passing with `failOn: NONE`, SBOM downloadable. The key point is the **CVE by CVE** comparison between the two scanners |
+| `verify-ports-rollback.sh` | two applications on the same target → two distinct ports and two UFW rules named by comment; a destroy releases one without touching the other; a v2 with a broken healthcheck → **automatic rollback**, `rolled_back` status distinct from `failed`, diagnosis captured, and the URL serves v1 again |
+| `verify-appspec-generation.sh` | the system prompt is really loaded from the image (size included, not just an `ok`), the generation chain with a mock model, the rendering to both runtimes, and a `scan:periodic` task that runs, survives a worker restart, then is disabled |
+| `verify-secrets.sh` | the secret store, in 23 steps: a generated non-empty value **accepted by the database engine**, `.env` with mode 0600, identical hash after redeployment, a single row in the database, invisible everywhere, a render that fails **naming** the missing secret while accepting an empty value. Then aliases: unknown reference and cycle refused at validation, one row for two names, **WordPress really authenticating on MariaDB**, and the same secret map on the Compose side and on the Kubernetes side |
+| `verify-export.sh` | exporting a deployment's logs as text and as JSONL, with the right headers, **as many lines as in the database** (which proves pagination does not truncate), 404/422 on a wrong identifier, and the export traced |
 
-### Cycle de vie
+### Life cycle
 
-| Script | Ce qu'il établit |
+| Script | What it establishes |
 |---|---|
-| `verify-force-delete.sh` | la garde, la cascade et le forçage. Le cas central : la cible est débranchée, le forçage exige le slug retapé, l'enregistrement part — puis **la cible est rebranchée, les conteneurs tournent toujours, et le script nettoie la machine avec la commande lue dans le journal d'activité**. Si le journal ne suffisait pas, le test échouerait |
-| `verify-purge.sh` | purger n'est pas détruire : décompte exact en prévisualisation, une application en marche refuse (`409`), les entrées d'audit du run purgé sont toujours là, une réservation orpheline est rendue — et le trou corrigé, une version en service dont la dernière mise à jour a échoué refuse toujours la purge |
-| `verify-workloads.sh` | l'inventaire distingue les charges du panel des autres, une charge du panel **refuse** d'être supprimée (`409`), une charge étrangère se met à jour et se supprime par la file en publiant sa progression en SSE, et les applications du panel tournent toujours à la fin |
+| `verify-app-actions.sh` | a running application's operations gestures, on **both** runtimes: stopping keeps the volume's data and the reserved port, starting brings the same version back healthy; stopping twice, starting what runs, restarting what is stopped, rolling back without a previous version: four `409`s that name the reason; a viewer gets `403` on `deployment:restart`, traced; the audit log carries each gesture with actor and IP; destroying from the application's screen leaves nothing on the machine |
+| `verify-force-delete.sh` | the guard, the cascade and forcing. The central case: the target is unplugged, forcing requires the slug typed again, the record goes — then **the target is plugged back, the containers are still running, and the script cleans the machine with the command read in the activity log**. If the log were not enough, the test would fail |
+| `verify-purge.sh` | purging is not destroying: exact count in the preview, a running application refuses (`409`), the purged run's audit entries are still there, an orphan reservation is released — and, the gap fixed, a version in service whose last update failed still refuses the purge |
+| `verify-workloads.sh` | the inventory tells the panel's workloads from the others, a panel workload **refuses** to be deleted (`409`), a foreign workload is updated and deleted through the queue publishing its progress over SSE, and the panel's applications are still running at the end |
 
-### Supervision
+### Monitoring
 
-| Script | Ce qu'il établit |
+| Script | What it establishes |
 |---|---|
-| `verify-supervision.sh` | la liste ne montre que ce qui tourne, le flux SSE remonte l'état des services et des logs attribués au bon service, **il tient dans la durée** (le piège des gardes de timeout SSH), le redémarrage passe par la file, et une application dont la dernière mise à jour a échoué reste listée avec un état qui le dit |
-| `verify-server-supervision.sh` | les métriques sont **recoupées avec la machine elle-même** (`nproc`, `/proc/loadavg`, `/proc/meminfo`) ; puis `nproc` est temporairement caché pour prouver qu'une métrique manquante rend `null` **et pas zéro**, sans emporter le reste ; une cible injoignable garde ses applications à l'écran ; le dépliant est un vrai bouton accessible au clavier ; et le relevé passe bien par la file — vérifié en cherchant `ssh2` dans le bundle du panel, où il ne doit pas être |
-| `verify-monitors.sh` | la SSRF (métadonnées, hors-liste, `localhost`, `file://`, identifiants dans l'URL, **et l'URL de webhook**), la cadence minimale par type, un rebond isolé qui ne crée aucun incident, la panne confirmée au seuil avec **une seule** alerte, la fermeture au rétablissement, le taux de disponibilité comparé à un historique fabriqué, la rétention qui supprime vraiment, et une sonde TLS pour prouver que l'abstraction accueille autre chose que HTTP |
-| `verify-notifications.sh` | le catalogue est une donnée (et **aucun `schema` Zod ne fuit dans le JSON**, ce qui donnerait un formulaire vide sans erreur), les quatre canaux se configurent et s'essaient contre de vrais serveurs, chaque canal rend dans **sa** forme (MarkdownV2 échappé, embed Discord, en-têtes du webhook), un canal injoignable ne casse pas l'action notifiée, et un événement déclenche **un** envoi et un seul |
-| `verify-schedules.sh` | la saisie simple écrit le cron attendu **en base**, la relecture rend le mode simple, une expression exotique bascule en mode expert, le fuseau est réellement appliqué (« 3 h à Paris » tombe à 01:00 ou 02:00 UTC selon la saison, jamais 03:00), changer le fuseau **reprogramme** l'occurrence dans BullMQ, et les tâches antérieures à `0009` n'ont pas bougé |
-| `verify-ai.sh` | les trois fournisseurs sont configurables et le modèle par défaut suit le fournisseur, un `501` qui nomme ce qui manque, et surtout : la clé n'apparaît **nulle part**, y compris après un appel réel à chacun des trois fournisseurs avec une clé bidon — le script cherche aussi le **préfixe**, parce qu'OpenAI répond littéralement `Incorrect API key provided: sk-senti***…***0000` |
-| `verify-monitor-notifications.sh` | une sonde qui oscille ne produit **aucun** message (l'hystérésis est en amont de l'audit, donc un rebond n'écrit rien), une panne confirmée part sur les canaux abonnés en quelques secondes, douze sites tombés produisent **deux** messages et non douze — une alerte immédiate et un résumé qui nomme les onze autres —, et le secret d'une sonde ne fuit ni dans l'API, ni dans le HTML, ni dans l'audit, ni dans les logs |
-| `verify-host-history.sh` | un relevé écrit exactement une ligne, la courbe sur 24 h se reconstruit à la lecture, les trois couches de seuils se résolvent dans le bon ordre, un second seuil global est refusé **par la base** et non par un `if`, un dépassement confirmé écrit **une** entrée d'audit et pas une par relevé, la purge supprime les relevés au-delà de 30 jours sans emporter les dépassements, et le balayage tourne sans que personne le demande |
-| `verify-stuck-deployment.sh` | un déploiement lent n'est **pas** un fantôme — le détecteur n'est pas une minuterie —, une tâche abandonnée par BullMQ est constatée par le worker qui arrête le déploiement à `failed` sans rejeu, le message enregistré nomme le projet Compose, la cible et le port encore réservé, et le déblocage manuel exige `deployment:purge` et non `deployment:destroy` |
-| `verify-invitations.sh` | sans canal SMTP le parcours n'est pas proposé et aucun compte orphelin n'est créé, un compte invité n'a **littéralement aucune** ligne `credential`, le lien vaut une fois et une seule, une réinitialisation coupe les sessions en cours, une adresse inconnue ne se distingue pas d'une adresse connue — ni par le corps, ni par le temps de réponse —, et aucun jeton n'apparaît dans l'audit, les logs, ni les clés BullMQ de Redis |
+| `verify-supervision.sh` | the list only shows what runs, the SSE stream brings up the state of services and logs attributed to the right service, **it holds over time** (the SSH timeout guards trap), the restart goes through the queue, and an application whose last update failed stays listed with a state that says so |
+| `verify-server-supervision.sh` | the metrics are **cross-checked with the machine itself** (`nproc`, `/proc/loadavg`, `/proc/meminfo`); then `nproc` is temporarily hidden to prove that a missing metric returns `null` **and not zero**, without taking the rest down; an unreachable target keeps its applications on screen; the fold-out is a real keyboard-accessible button; and the reading really goes through the queue — checked by looking for `ssh2` in the panel's bundle, where it must not be |
+| `verify-monitors.sh` | SSRF (metadata, outside the list, `localhost`, `file://`, credentials in the URL, **and the webhook URL**), the minimum interval per type, an isolated blip creating no incident, the outage confirmed at the threshold with **a single** alert, closing on recovery, the availability rate compared with a fabricated history, retention that really deletes, and a TLS probe to prove the abstraction welcomes something other than HTTP |
+| `verify-notifications.sh` | the catalog is data (and **no Zod `schema` leaks into the JSON**, which would give an empty form without an error), the four channels are configured and tested against real servers, each channel renders in **its** shape (escaped MarkdownV2, Discord embed, webhook headers), an unreachable channel does not break the notified action, and one event triggers **one** send and only one |
+| `verify-schedules.sh` | simple input writes the expected cron **in the database**, reading back gives simple mode, an exotic expression switches to expert mode, the time zone is really applied ("3 am in Paris" falls at 01:00 or 02:00 UTC depending on the season, never 03:00), changing the time zone **reschedules** the occurrence in BullMQ, and the tasks older than `0009` did not move |
+| `verify-ai.sh` | the three providers are configurable and the default model follows the provider, a `501` that names what is missing, and above all: the key appears **nowhere**, including after a real call to each of the three providers with a dummy key — the script also looks for the **prefix**, because OpenAI literally answers `Incorrect API key provided: sk-senti***…***0000` |
+| `verify-monitor-notifications.sh` | an oscillating probe produces **no** message (hysteresis is upstream of the audit, so a blip writes nothing), a confirmed outage goes to the subscribed channels within seconds, twelve sites down produce **two** messages and not twelve — an immediate alert and a summary naming the eleven others —, and a probe's secret leaks neither in the API, nor in the HTML, nor in the audit log, nor in the logs |
+| `verify-host-history.sh` | a reading writes exactly one row, the 24 h curve is rebuilt on read, the three layers of thresholds resolve in the right order, a second global threshold is refused **by the database** and not by an `if`, a confirmed breach writes **one** audit entry and not one per reading, the purge deletes readings beyond 30 days without taking the breaches along, and the sweep runs without anybody asking |
+| `verify-stuck-deployment.sh` | a slow deployment is **not** a ghost — the detector is not a timer —, a task abandoned by BullMQ is noticed by the worker which stops the deployment at `failed` without replay, the recorded message names the Compose project, the target and the port still reserved, and manual unblocking requires `deployment:purge` and not `deployment:destroy` |
+| `verify-invitations.sh` | without an SMTP channel the flow is not offered and no orphan account is created, an invited account has **literally no** `credential` row, the link works once and only once, a reset cuts the sessions in progress, an unknown address cannot be told from a known one — neither by the body, nor by the response time —, and no token appears in the audit log, the logs, or Redis's BullMQ keys |
 
-## Les autres outils
+## The other tools
 
-| Commande | Ce qu'elle fait |
+| Command | What it does |
 |---|---|
-| `pnpm test` | 263 tests unitaires de `@pupitre/core` : crypto, AppSpec et ses refinements, alias de secrets, rendu Compose et K8s, normalisation des scans, génération IA sous modèle simulé, machine à états des sondes |
-| `pnpm typecheck` | TypeScript strict sur les quatre projets **et** sur `scripts/` |
-| `pnpm tsx scripts/render-both.ts <spec>` | rend une AppSpec vers les deux runtimes sans rien déployer, et **re-parse chaque manifest sérialisé** — un rendu qui ne repasse pas par son propre analyseur n'a rien prouvé |
-| `pnpm test:driver <cible>` | un déploiement de bout en bout, en pilotant le driver en direct |
-| `pnpm test:parity <docker> <k3s>` | le test de vérité — voir ci-dessous |
-| `pnpm test:schedule` | traduction et calcul des expressions cron, hors ligne |
-| `pnpm test:ai` | configuration multi-fournisseur, hors ligne |
+| `pnpm test` | the unit tests of `@pupitre/core` (crypto, AppSpec and its refinements, secret aliases, Compose and K8s rendering, scan normalization, AI generation with a mock model, the probes' state machine, messages in both languages…) and of the panel (dictionaries, the guards against hard-coded French, security headers…) |
+| `pnpm typecheck` | strict TypeScript on the four projects **and** on `scripts/` |
+| `pnpm tsx scripts/render-both.ts <spec>` | renders an AppSpec to both runtimes without deploying anything, and **re-parses each serialized manifest** — a rendering that does not go back through its own parser has proven nothing |
+| `pnpm test:driver <target>` | an end-to-end deployment, driving the driver live |
+| `pnpm test:parity <docker> <k3s>` | the test of truth — see below |
+| `pnpm test:schedule` | translation and computation of cron expressions, offline |
+| `pnpm test:ai` | multi-provider configuration, offline |
 
-## `pnpm test:parity` — le test de vérité
+## `pnpm test:parity` — the test of truth
 
-Une seule AppSpec, deux runtimes, jamais un champ modifié entre les deux. Il
-pilote les drivers **en direct**, sans passer par le worker ni la file, et rend
-un tableau à deux colonnes.
+A single AppSpec, two runtimes, never a field changed between the two. It drives
+the drivers **live**, without going through the worker or the queue, and returns
+a two-column table.
 
 ```bash
 pnpm test:parity cible-docker-locale cible-k3s-locale
-pnpm test:parity cible-docker-locale cible-k3s-locale --spec ma-spec.json --keep
+pnpm test:parity cible-docker-locale cible-k3s-locale --spec my-spec.json --keep
 ```
 
-Il enchaîne, pour chaque côté : `preflight` → `allocatePort` → `render` →
-`upload` → `build` → `deploy` → `healthcheck` → **route posée sur le proxy de
-la cible** et sondée à travers lui depuis la cible (à défaut de proxy, par le
-port publié), puis `rollback` + resonde, puis `destroy` + contrôle des résidus.
-Il sort en code 1 si **une seule** vérification échoue.
+It chains, for each side: `preflight` → `allocatePort` → `render` → `upload` →
+`build` → `deploy` → `healthcheck` → **route set on the target's proxy** and
+probed through it from the target (without a proxy, through the published port),
+then `rollback` + probe again, then `destroy` + check for leftovers. It exits
+with code 1 if **a single** check fails.
 
-Il rend **32/32 au vert** au dernier passage, avec un Traefik sur chaque cible. Le tableau et son analyse sont
-dans le [README](../README.md#limites-connues) : c'est le document qui porte
-l'état daté du projet.
+It returned **32/32 green** on its last run, with a Traefik on each target. The
+table and its analysis are in the [README](../README.md#known-limits): it is the
+document that carries the project's dated state.
 
-Prérequis : les deux cibles doivent être enregistrées et joignables **depuis le
-poste** (`cible-docker-locale`, `cible-k3s-locale`) —
-[`demarrage.md`](demarrage.md#la-cible-k3s-de-test) explique comment monter la
-seconde, qui n'a pas de script.
+Prerequisites: both targets must be registered and reachable **from the
+workstation** (`cible-docker-locale`, `cible-k3s-locale`) —
+[`getting-started.md`](getting-started.md#the-k3s-test-target) explains how to
+set up the second one, which has no script.
 
-## `pnpm test:proxy` — le reverse proxy, de bout en bout
+## `pnpm test:proxy` — the reverse proxy, end to end
 
-Le pendant de la parité pour les domaines : sur chaque cible, avec le même code,
-il installe Traefik par Pupitre (conteneur sous Docker, Traefik de K3s réglé),
-le teste, le retrouve par la détection, déploie une petite application par son
-driver, lui pose deux domaines — l'un en HTTPS avec redirection, l'autre en HTTP —,
-vérifie qu'ils répondent **à travers le proxy**, que le certificat est émis, qu'un
-domaine retiré ne répond plus.
+The counterpart of parity for domains: on each target, with the same code, it
+installs Traefik through Pupitre (a container on Docker, K3s's Traefik
+configured), tests it, finds it again through detection, deploys a small
+application through its driver, sets two domains on it — one over HTTPS with a
+redirect, the other over HTTP —, checks that they answer **through the proxy**,
+that the certificate is issued, that a removed domain no longer answers.
 
-Avant toute installation, une **phase 0** : les deux machines se joignent-elles,
-dans les deux sens ? Par l'épreuve même du produit (`checkReach()`, celle du
-test d'une liaison et du préflight) : une connexion ouverte de l'une vers un
-écouteur éphémère de l'autre, sur un port de la plage des applications. Une
-adresse injoignable doit être signalée telle, sans rien laisser derrière. Si
-les machines ne se joignent pas, le proxy central n'est pas exercé — et c'est
-compté en échec.
+Before any installation, a **phase 0**: do the two machines reach each other,
+both ways? Through the product's own test (`checkReach()`, the one used by the
+link test and the preflight): a connection opened from one to an ephemeral
+listener on the other, on a port in the applications' range. An unreachable
+address must be reported as such, without leaving anything behind. If the
+machines do not reach each other, the central proxy is not exercised — and that
+counts as a failure.
 
-Puis le **proxy central**, dans les deux sens : le Traefik de la machine Docker
-sert l'application déployée sur la machine K3s, et celui de K3s l'application
-de la machine Docker. L'adresse d'arrivée du proxy est relevée comme le fait le
-test d'une liaison ; l'application est publiée pour lui seul — `NodePort`
-réservé par une `NetworkPolicy` côté K3s, port publié sur l'adresse privée côté
-Docker (la boucle locale ne répond plus) ; côté K3s, un premier déploiement
-réservé à une autre adresse vérifie que le proxy s'y voit **refusé**. Ses deux
-domaines répondent à travers le proxy de l'autre machine, certificat émis, puis
-tout est retiré et rien ne doit rester chez le proxy. Enfin, tout est détruit et
-Traefik désinstallé.
+Then the **central proxy**, both ways: the Docker machine's Traefik serves the
+application deployed on the K3s machine, and K3s's the Docker machine's
+application. The proxy's arrival address is recorded the way the link test does
+it; the application is published for it alone — a `NodePort` reserved by a
+`NetworkPolicy` on K3s, a port published on the private address on Docker (the
+loopback no longer answers); on K3s, a first deployment reserved to another
+address checks that the proxy is **refused** there. Its two domains answer
+through the other machine's proxy, certificate issued, then everything is removed
+and nothing must remain at the proxy. Finally, everything is destroyed and
+Traefik uninstalled.
 
-Avec **`--proxy=bunkerweb`**, le même déroulé éprouve BunkerWeb : installé en
-conteneur sur la machine Docker — sur la machine K3s, l'option doit se dire
-indisponible et renvoyer vers la liaison —, testé, détecté, deux domaines,
-puis son **WAF éprouvé depuis l'autre machine**, une adresse qu'aucune liste
-blanche ne couvre : une injection SQL refusée (403) en « Protection », vingt
-requêtes simultanées toutes servies, la même injection qui passe en «
-Détection seule ». BunkerWeb n'acceptant que Let's Encrypt, ses certificats
-viennent de Pebble par le relais `acme-front` (Caddy), dont le script fait
-connaître les noms et l'autorité **au seul conteneur de test** — rien de cela
-dans le code du produit. Le proxy central : le BunkerWeb de la machine Docker
-sert l'application K3s, NetworkPolicy comprise.
+With **`--proxy=bunkerweb`**, the same run tests BunkerWeb: installed as a
+container on the Docker machine — on the K3s machine, the option must say it is
+unavailable and point to the link —, tested, detected, two domains, then its
+**WAF tested from the other machine**, an address no whitelist covers: an SQL
+injection refused (403) in **Protection**, twenty simultaneous requests all
+served, the same injection getting through in **Detection only**. Since
+BunkerWeb only accepts Let's Encrypt, its certificates come from Pebble through
+the `acme-front` relay (Caddy), whose names and authority the script makes known
+**to the test container only** — none of it in the product's code. The central
+proxy: the Docker machine's BunkerWeb serves the K3s application, NetworkPolicy
+included.
 
 ```bash
 docker compose --profile test up -d pebble pebble-dns acme-front
@@ -161,96 +162,86 @@ pnpm test:proxy cible-docker-locale k3s-locale
 pnpm test:proxy cible-docker-locale k3s-locale --proxy=bunkerweb
 ```
 
-Les certificats viennent de **Pebble**, le serveur ACME de test de l'équipe Let's
-Encrypt : il valide réellement le défi HTTP-01 sur le port 80 de la cible, et
-`pebble-dns` résout les domaines de test vers elle. Sans eux (`--no-acme`), tout
-le reste est vérifié, sauf l'émission. Côté Docker, il vérifie aussi que le port
-de l'application n'est publié que sur la boucle locale. **45/45** au dernier
-passage pour Traefik, **30/30** pour BunkerWeb (`--proxy=bunkerweb`).
+The certificates come from **Pebble**, the Let's Encrypt team's test ACME
+server: it really validates the HTTP-01 challenge on the target's port 80, and
+`pebble-dns` resolves the test domains to it. Without them (`--no-acme`),
+everything else is checked, except issuance. On the Docker side, it also checks
+that the application's port is only published on the loopback. **45/45** on the
+last run for Traefik, **30/30** for BunkerWeb (`--proxy=bunkerweb`).
 
-## `pnpm test:npm` — Nginx Proxy Manager, un proxy distant
+## `pnpm test:npm` — Nginx Proxy Manager, a remote proxy
 
-Contre une vraie instance (2.16, service `npm-proxy` du profil `test`, ses
-certificats émis par Pebble) et les deux cibles de test. Son administrateur
-crée le compte de Pupitre aux droits conseillés — *Manage* sur les hôtes et
-les certificats, visibilité *Created Items* —, puis : « Tester » passe, un
-mauvais mot de passe est refusé en le disant ; la liaison est éprouvée
-**à travers NPM** vers chaque cible (l'arrivée relevée sur Docker ; sur l'Alpine
-de K3s, l'écouteur `nc` ne la note pas, et le résultat doit le dire), une
-adresse qui ne mène nulle part est dite telle, aucun hôte de test ne reste ;
-sur chaque runtime, un domaine posé — HTTP renvoie vers HTTPS, certificat de
-Pebble, sondé depuis le panel ; deux certificats demandés en même temps sont
-obtenus tous deux ; le domaine d'un autre compte est refusé sans gêner les
-autres ; un joker déjà dans NPM est repris ; au retrait, les hôtes et les
-certificats de Pupitre partent, le joker et l'hôte de l'autre compte restent,
-et une machine ne touche pas aux domaines de l'autre. **15/15** au dernier
-passage.
+Against a real instance (2.16, the `npm-proxy` service of the `test` profile,
+its certificates issued by Pebble) and the two test targets. Its administrator
+creates Pupitre's account with the recommended rights — *Manage* on hosts and
+certificates, *Created Items* visibility —, then: **Test** passes, a wrong
+password is refused, saying so; the link is tested **through NPM** to each target
+(the arrival recorded on Docker; on K3s's Alpine, the `nc` listener does not
+note it, and the result must say so), an address that leads nowhere is reported
+as such, no test host remains; on each runtime, a domain set — HTTP redirects to
+HTTPS, Pebble certificate, probed from the panel; two certificates requested at
+the same time are both obtained; another account's domain is refused without
+disturbing the others; a wildcard already in NPM is reused; on removal,
+Pupitre's hosts and certificates go, the wildcard and the other account's host
+stay, and one machine does not touch the other's domains. **15/15** on the last
+run.
 
 ```bash
 docker compose --profile test up -d pebble pebble-dns npm-proxy
 pnpm test:npm cible-docker-locale k3s-locale
 ```
 
-Le même parcours a été fait par le panel et son worker : connexion (refusée
-puis acceptée), liaison des deux cibles, déploiement à domaine sur chaque
-runtime par le pipeline, « Appliquer » qui redemande un certificat, sonde
-périodique, destruction qui retire hôtes et certificats de NPM.
+The same path was walked through the panel and its worker: connection (refused
+then accepted), linking both targets, a deployment with a domain on each runtime
+through the pipeline, **Apply** requesting a certificate again, periodic probe,
+destruction removing hosts and certificates from NPM.
 
-## `pnpm test:rollback` — revenir en arrière retrouve le bon code
+## `pnpm test:rollback` — going back finds the right code
 
-Un commit de code ne change pas la version de l'AppSpec. Sur chaque runtime,
-une application construite depuis son code : la release A, puis la release B
-**de la même version** — chacune son répertoire et son image —, puis le retour
-en arrière, qui doit servir A de nouveau. Côté Docker, une release d'avant le
-nommage `{version}-r{numéro}` se retrouve encore, et une application déployée
-avant la mise à jour reste pilotable. Enfin, assez de déploiements pour que le
-ménage passe : les cinq releases les plus récentes restent, les autres partent
-avec leurs images construites ; et la destruction ne laisse aucune image
-construite derrière elle. **12/12** au dernier passage.
+A code commit does not change the AppSpec's version. On each runtime, an
+application built from its code: release A, then release B **of the same
+version** — each with its directory and its image —, then going back, which must
+serve A again. On Docker, a release from before the `{version}-r{number}` naming
+is still found, and an application deployed before the update stays drivable.
+Finally, enough deployments for the cleanup to run: the five most recent
+releases stay, the others go with their built images; and destruction leaves no
+built image behind. **12/12** on the last run.
 
 ```bash
 pnpm test:rollback cible-docker-locale k3s-locale
 ```
 
-## `pnpm test:source-isolation` — un dépôt piégé ne passe pas
+## `pnpm test:source-isolation` — a booby-trapped repository does not get through
 
-Sur chaque runtime, une application construite depuis l'archive d'un « dépôt »
-qui porte, en plus de son code, un `compose.override.yml` (conteneur privilégié,
-disque de la machine monté), un `docker-compose.yml` et un `.env` qui détournent
-le nom du projet, et un dossier `k8s/` à appliquer. Le script vérifie que le
-code est déposé dans `source/`, que l'application s'y construit et démarre
-saine, et qu'aucun piège n'a pris : conteneur non privilégié et sans montage,
-ni projet détourné ni service intrus, aucun objet du dossier `k8s/` dans le
-cluster. **7/7** au dernier passage.
+On each runtime, an application built from the archive of a "repository" that
+carries, besides its code, a `compose.override.yml` (privileged container,
+machine disk mounted), a `docker-compose.yml` and a `.env` that hijack the
+project name, and a `k8s/` folder to apply. The script checks that the code is
+placed in `source/`, that the application builds there and starts healthy, and
+that no trap worked: an unprivileged container without mounts, no hijacked
+project nor intruding service, no object of the `k8s/` folder in the cluster.
+**7/7** on the last run.
 
 ```bash
 pnpm test:source-isolation cible-docker-locale k3s-locale
 ```
 
-## Ce qui n'est pas vérifié
+## What is not verified
 
-- **Aucun vrai modèle d'IA n'a répondu sur cette instance.** Voir
-  [`ia.md`](ia.md#sans-clé).
-- **Un vrai certificat Let's Encrypt par BunkerWeb.** `test:proxy
-  --proxy=bunkerweb` obtient de vrais certificats, mais de Pebble, que le
-  relais `acme-front` fait passer pour Let's Encrypt dans le conteneur de test.
-  Un certificat de la vraie autorité demande un domaine public pointé sur une
-  machine ouverte à Internet.
-- **Le déploiement d'un service construit depuis un Dockerfile, par le panel.**
-  Les deux drivers savent le faire, et `pnpm test:parity` le prouve — mais en
-  pilotant les drivers en direct, avec un contexte de build qu'il fabrique
-  lui-même. Ni `apps/web` ni `apps/worker` ne remplissent
-  `DriverContext.additionalFiles` : par le panel, seules les applications en
-  `source.type: "image"` se déploient. Voir
-  [`feuille-de-route.md`](feuille-de-route.md).
-- **Les sauvegardes n'ont pas de script de bout en bout.** `pnpm test` couvre
-  le format chiffré (aller-retour, falsification, mauvaise clé), la signature
-  SigV4 contre le vecteur d'AWS, le plan, la rétention, les destinations et le
-  dossier local. Le reste a été joué à la main sur les cibles de test — export
-  et restauration PostgreSQL, MariaDB et MongoDB, arrêt bref, restauration
-  d'une sauvegarde Docker sur K3s, base du panel par la ligne de commande —
-  vers un SFTP et un S3 compatible (CloudServer), **jamais vers AWS, Scaleway
-  ou Backblaze réels**.
-- Le point 9 de `verify-ports-rollback.sh` se contente d'un `pnpm typecheck` sur
-  `test-parity.ts` au lieu de le jouer : il n'a qu'une cible Docker sous la main.
-  La parité elle-même se joue par `pnpm test:parity`, séparément.
+- **No real AI model has answered on this instance.** See
+  [`ai.md`](ai.md#without-a-key).
+- **A real Let's Encrypt certificate through BunkerWeb.** `test:proxy
+  --proxy=bunkerweb` gets real certificates, but from Pebble, which the
+  `acme-front` relay passes off as Let's Encrypt in the test container. A
+  certificate from the real authority requires a public domain pointed at a
+  machine open to the Internet.
+- **Backups have no end-to-end script.** `pnpm test` covers the encrypted format
+  (round trip, tampering, wrong key), the SigV4 signature against AWS's test
+  vector, the plan, retention, destinations and the local folder. The rest was
+  played by hand on the test targets — PostgreSQL, MariaDB and MongoDB export
+  and restore, brief stop, restoring a Docker backup on K3s, the panel database
+  through the command line — to an SFTP and an S3-compatible store
+  (CloudServer), **never to the real AWS, Scaleway or Backblaze**.
+- Point 9 of `verify-ports-rollback.sh` settles for a `pnpm typecheck` on
+  `test-parity.ts` instead of running it: it only has a Docker target at hand.
+  Parity itself is played by `pnpm test:parity`, separately.
