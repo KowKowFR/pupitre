@@ -28,6 +28,11 @@ case "${1:-web}" in
     shift
     exec node /app/apps/worker/dist/cli/backup.js "$@"
     ;;
+  crypto)
+    # MASTER_KEY rotation: `docker compose run --rm worker crypto status | rotate --yes`
+    shift
+    exec node /app/apps/worker/dist/cli/crypto.js "$@"
+    ;;
   *)
     exec "$@"
     ;;

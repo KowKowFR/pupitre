@@ -848,8 +848,10 @@ like the rest; default retention.
 
 **`MASTER_KEY` is not in the backups**, and without it none can be read — neither
 the files, nor the encrypted secrets they contain. Store it elsewhere, with
-`BETTER_AUTH_SECRET`, in a password manager. A changed `MASTER_KEY` makes every
-backup made before unreadable.
+`BETTER_AUTH_SECRET`, in a password manager. After a rotation, the backups made
+before stay readable as long as their key is in `MASTER_KEY_PREVIOUS` —
+`crypto status` counts them; see
+[Rotating `MASTER_KEY`](security.md#rotating-master_key).
 
 ### Restoring the panel database
 
@@ -865,8 +867,8 @@ docker compose start web worker                                      # the panel
 ```
 
 **The panel's machine is lost.** On the new one: same `.env` — same
-`MASTER_KEY` above all —, `docker compose up -d postgres redis`, then one of two
-ways:
+`MASTER_KEY` above all, and `MASTER_KEY_PREVIOUS` if the backup predates a
+rotation —, `docker compose up -d postgres redis`, then one of two ways:
 
 - download `panel/<folder>/panel.dump.pupb` from the bucket or the NAS, and pass
   it to `restore-panel`:
@@ -881,6 +883,10 @@ ways:
 
 Applications are then restored from their page: the restored database knows
 their backups and the destination where they are.
+
+A backup made before a `MASTER_KEY` rotation brings back values encrypted under
+the old key: they are read thanks to `MASTER_KEY_PREVIOUS`, and
+`crypto rotate --yes` moves them to the current one again.
 
 `backup decrypt <file.pupb> <output>` decrypts any backup file, to inspect it or
 replay it by hand — a PostgreSQL export is gzip-compressed, a volume archive is

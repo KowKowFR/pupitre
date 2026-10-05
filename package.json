@@ -25,7 +25,8 @@
     "test:rollback": "tsx --env-file-if-exists=.env scripts/test-rollback.ts",
     "test:npm": "tsx --env-file-if-exists=.env scripts/test-npm.ts",
     "test:schedule": "tsx scripts/test-schedule.ts",
-    "test:ai": "pnpm build:packages && tsx scripts/test-ai.ts"
+    "test:ai": "pnpm build:packages && tsx scripts/test-ai.ts",
+    "crypto": "tsx --env-file-if-exists=.env apps/worker/src/cli/crypto.ts"
   },
   "devDependencies": {
     "@pupitre/core": "workspace:*",

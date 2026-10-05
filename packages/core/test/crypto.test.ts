@@ -1,13 +1,19 @@
 import assert from 'node:assert/strict';
-import { randomBytes } from 'node:crypto';
+import { createCipheriv, randomBytes } from 'node:crypto';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import {
   CURRENT_CRYPTO_VERSION,
   DecryptionError,
   MasterKeyError,
+  currentKeyId,
   decrypt,
   deriveKey,
   encrypt,
+  encryptionKeyOf,
+  isOnCurrentKey,
+  keyIdOf,
+  previousKeyIds,
+  reencrypt,
   masterKeyWeakness,
   secretWeakness,
   resetKeyCache,
@@ -17,13 +23,32 @@ import {
 const VALID_HEX_KEY = randomBytes(32).toString('hex');
 const OTHER_HEX_KEY = randomBytes(32).toString('hex');
 
-function withMasterKey(key: string | undefined): void {
+function withMasterKey(key: string | undefined, previous?: string): void {
   if (key === undefined) {
     delete process.env.MASTER_KEY;
   } else {
     process.env.MASTER_KEY = key;
   }
+  if (previous === undefined) {
+    delete process.env.MASTER_KEY_PREVIOUS;
+  } else {
+    process.env.MASTER_KEY_PREVIOUS = previous;
+  }
   resetKeyCache();
+}
+
+/** A value in the first format, `v1:iv:authTag:ciphertext`, as the panel wrote them before rotation. */
+function legacyEncrypt(plaintext: string, masterKey: string): string {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', deriveKey(masterKey), iv, { authTagLength: 16 });
+  cipher.setAAD(Buffer.from('v1', 'utf8'));
+  const data = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
+  return [
+    'v1',
+    iv.toString('base64'),
+    cipher.getAuthTag().toString('base64'),
+    data.toString('base64'),
+  ].join(':');
 }
 
 describe('crypto', () => {
@@ -51,12 +76,14 @@ describe('crypto', () => {
       assert.equal(decrypt(a), decrypt(b));
     });
 
-    it('follows the version:iv:authTag:ciphertext format', () => {
+    it('follows the v2:keyId:iv:authTag:ciphertext format', () => {
       const parts = encrypt('x').split(':');
-      assert.equal(parts.length, 4);
+      assert.equal(parts.length, 5);
       assert.equal(parts[0], CURRENT_CRYPTO_VERSION);
-      assert.equal(Buffer.from(parts[1] ?? '', 'base64').byteLength, 12);
-      assert.equal(Buffer.from(parts[2] ?? '', 'base64').byteLength, 16);
+      assert.equal(parts[1], keyIdOf(VALID_HEX_KEY));
+      assert.match(parts[1] ?? '', /^[0-9a-f]{8}$/);
+      assert.equal(Buffer.from(parts[2] ?? '', 'base64').byteLength, 12);
+      assert.equal(Buffer.from(parts[3] ?? '', 'base64').byteLength, 16);
     });
 
     it('does not let the plaintext appear in the output', () => {
@@ -101,16 +128,70 @@ describe('crypto', () => {
 
     it('rejects an IV or a tag of the wrong size', () => {
       const parts = encrypt('secret').split(':');
-      const shortIv = [parts[0], Buffer.alloc(8).toString('base64'), parts[2], parts[3]].join(':');
+      const short = Buffer.alloc(8).toString('base64');
+      const shortIv = [parts[0], parts[1], short, parts[3], parts[4]].join(':');
       assert.throws(() => decrypt(shortIv), DecryptionError);
-      const shortTag = [parts[0], parts[1], Buffer.alloc(8).toString('base64'), parts[3]].join(':');
+      const shortTag = [parts[0], parts[1], parts[2], short, parts[4]].join(':');
       assert.throws(() => decrypt(shortTag), DecryptionError);
+    });
+
+    it('rejects a value whose key was relabeled', () => {
+      withMasterKey(VALID_HEX_KEY, OTHER_HEX_KEY);
+      const parts = encrypt('secret').split(':');
+      parts[1] = keyIdOf(OTHER_HEX_KEY);
+      assert.throws(() => decrypt(parts.join(':')), DecryptionError);
     });
 
     it('rejects a value encrypted with another MASTER_KEY', () => {
       const payload = encrypt('secret');
       withMasterKey(OTHER_HEX_KEY);
       assert.throws(() => decrypt(payload), DecryptionError);
+    });
+  });
+
+  describe('rotation', () => {
+    it('reads what the previous key encrypted, and encrypts again under the new one', () => {
+      const before = encrypt('ssh password');
+      assert.equal(isOnCurrentKey(before), true);
+
+      // The operator rotates: the old key moves to MASTER_KEY_PREVIOUS.
+      withMasterKey(OTHER_HEX_KEY, VALID_HEX_KEY);
+      assert.equal(currentKeyId(), keyIdOf(OTHER_HEX_KEY));
+      assert.deepEqual(previousKeyIds(), [keyIdOf(VALID_HEX_KEY)]);
+      assert.equal(decrypt(before), 'ssh password');
+      assert.equal(isOnCurrentKey(before), false);
+
+      const after = reencrypt(before);
+      assert.equal(isOnCurrentKey(after), true);
+      assert.deepEqual(encryptionKeyOf(after), { version: 'v2', keyId: keyIdOf(OTHER_HEX_KEY) });
+
+      // Once everything is encrypted again, the old key can go.
+      withMasterKey(OTHER_HEX_KEY);
+      assert.equal(decrypt(after), 'ssh password');
+      assert.throws(() => decrypt(before), /neither MASTER_KEY nor one of MASTER_KEY_PREVIOUS/);
+    });
+
+    it('reads the first format, which does not name its key, with each key in turn', () => {
+      const legacy = legacyEncrypt('ai key', VALID_HEX_KEY);
+      assert.deepEqual(encryptionKeyOf(legacy), { version: 'v1' });
+      assert.equal(decrypt(legacy), 'ai key');
+      assert.equal(isOnCurrentKey(legacy), false, 'the first format is always rewritten');
+
+      withMasterKey(OTHER_HEX_KEY, VALID_HEX_KEY);
+      assert.equal(decrypt(legacy), 'ai key');
+      withMasterKey(OTHER_HEX_KEY);
+      assert.throws(() => decrypt(legacy), DecryptionError);
+    });
+
+    it('ignores a previous key equal to the current one, and several previous keys', () => {
+      const third = randomBytes(32).toString('hex');
+      withMasterKey(VALID_HEX_KEY, ` ${VALID_HEX_KEY} , ${OTHER_HEX_KEY},${third} `);
+      assert.deepEqual(previousKeyIds(), [keyIdOf(OTHER_HEX_KEY), keyIdOf(third)]);
+    });
+
+    it('refuses a previous key that is too short, like the current one', () => {
+      withMasterKey(VALID_HEX_KEY, 'short');
+      assert.throws(() => encrypt('secret'), MasterKeyError);
     });
   });
 

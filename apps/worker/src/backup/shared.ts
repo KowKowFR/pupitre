@@ -7,6 +7,7 @@ import { errorMessage, type UiLanguage } from '@pupitre/core';
 import {
   createDecryptStream,
   createEncryptStream,
+  withBackupKeys,
   expiredBackups,
   openBackupStore,
   type BackupRetention,
@@ -114,6 +115,9 @@ export async function storePiece(
  * Reads a piece back into a local file, decrypted, **verified**: the hash of
  * what was placed, then the encryption's tag. Nothing is applied before both
  * match.
+ *
+ * A piece made before rotation existed does not name its key: it is downloaded
+ * again for each key that could have encrypted it (`withBackupKeys()`).
  */
 export async function fetchPiece(
   store: BackupStore,
@@ -122,21 +126,23 @@ export async function fetchPiece(
   destination: string,
   language: UiLanguage,
 ): Promise<void> {
-  const source: Readable = await store.get(key);
-  const hash = createHash('sha256');
-  const tap = new Transform({
-    transform(chunk: Buffer, _encoding, callback) {
-      hash.update(chunk);
-      callback(null, chunk);
-    },
+  const actual = await withBackupKeys(async (masterKeys) => {
+    const source: Readable = await store.get(key);
+    const hash = createHash('sha256');
+    const tap = new Transform({
+      transform(chunk: Buffer, _encoding, callback) {
+        hash.update(chunk);
+        callback(null, chunk);
+      },
+    });
+    await pipeline(
+      source,
+      tap,
+      createDecryptStream(masterKeys, language),
+      createWriteStream(destination),
+    );
+    return hash.digest('hex');
   });
-  await pipeline(
-    source,
-    tap,
-    createDecryptStream(undefined, language),
-    createWriteStream(destination),
-  );
-  const actual = hash.digest('hex');
   if (actual !== expectedSha256) {
     throw new BackupError(
       workerSay(language)('backup.changed', { key, hash: actual.slice(0, 12) }),

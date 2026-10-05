@@ -2,6 +2,7 @@ import { isDeepStrictEqual } from 'node:util';
 import {
   DEFAULT_BACKUP_POLICY,
   backupPolicySchema,
+  currentKeyId,
   decrypt,
   encrypt,
   parseBackupDestination,
@@ -311,7 +312,11 @@ export async function createBackupRecord(
   },
   db: Database = getDb(),
 ): Promise<BackupRow> {
-  const [row] = await db.insert(backups).values(input).returning();
+  // Its files will be encrypted under the current key: the record says which.
+  const [row] = await db
+    .insert(backups)
+    .values({ ...input, keyId: currentKeyId() })
+    .returning();
   if (!row) throw new Error('the backup was not saved');
   return row;
 }

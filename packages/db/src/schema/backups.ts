@@ -85,6 +85,13 @@ export const backups = pgTable(
     /** The backup's folder on the destination, relative to its prefix. */
     location: text('location').notNull(),
     manifest: jsonb('manifest').$type<BackupManifest>(),
+    /**
+     * The fingerprint of the `MASTER_KEY` its files are encrypted under
+     * (`keyIdOf()`). `null` for the backups made before rotation existed: their
+     * files do not say, they are read with each key in turn. Tells `crypto status`
+     * whether `MASTER_KEY_PREVIOUS` is still needed.
+     */
+    keyId: text('key_id'),
     bytes: bigint('bytes', { mode: 'number' }).notNull().default(0),
     error: text('error'),
     requestedBy: text('requested_by').references(() => users.id, { onDelete: 'set null' }),

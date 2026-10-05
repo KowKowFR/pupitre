@@ -6,6 +6,8 @@ const envSchema = z.object({
   REDIS_URL: z.string().url(),
   /** Validated in depth by `assertMasterKey()` at startup. */
   MASTER_KEY: z.string().min(32, 'MASTER_KEY must be at least 32 bytes'),
+  /** The keys MASTER_KEY replaced, comma-separated: read, never written with. */
+  MASTER_KEY_PREVIOUS: z.string().optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
   WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(64).default(4),
   /** Simultaneous log viewers. Each holds an SSH session open. */

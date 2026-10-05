@@ -134,8 +134,9 @@ curl -s http://localhost:3000/api/health # {"status":"ok","db":"ok","redis":"ok"
 ```
 
 For anything beyond a local trial, regenerate both secrets before the first
-start — `MASTER_KEY` encrypts the SSH credentials and **cannot be changed
-afterwards** without making everything it protects unreadable:
+start — `MASTER_KEY` encrypts the SSH credentials; it can be rotated later
+(`crypto rotate`, see [docs/security.md](docs/security.md#rotating-master_key)),
+but a key you lose takes everything it protects with it:
 
 ```bash
 openssl rand -hex 32      # → MASTER_KEY
@@ -438,8 +439,6 @@ instance.
 
 ### Smaller details, but real
 
-- **`MASTER_KEY` cannot be rotated.** The `version:iv:authTag:ciphertext` format
-  exists to allow it one day; the rotation code is not written.
 - **Keycloak roles do not come through as is.** Single sign-on reads groups in
   the ID token; Keycloak only puts its roles in the access token. Go through
   groups, or tick "Add to ID token" on the roles mapper.

@@ -53,8 +53,15 @@ import {
   WORKLOAD_REMOVE_JOB,
   WORKLOAD_UPDATE_JOB,
   assertMasterKey,
+  previousKeyIds,
 } from '@pupitre/core';
-import { HOST_SWEEP_EVERY_MS, closeDb, failInterruptedBackups, pingDb } from '@pupitre/db';
+import {
+  HOST_SWEEP_EVERY_MS,
+  closeDb,
+  failInterruptedBackups,
+  keyRotationStatus,
+  pingDb,
+} from '@pupitre/db';
 import { Worker, type Job } from 'bullmq';
 import { env } from './env.js';
 import { handlePing } from './handlers/ping.js';
@@ -489,6 +496,39 @@ async function waitForDatabase(attempts = 30, delayMs = 2000): Promise<void> {
   throw new Error(`database unreachable after ${attempts} attempts`);
 }
 
+/**
+ * With `MASTER_KEY_PREVIOUS` set, says where the rotation stands: what still
+ * depends on the old keys, or that the line can go. Nothing is decrypted — the
+ * values' prefixes are enough.
+ */
+async function reportKeyRotation(): Promise<void> {
+  if (previousKeyIds().length === 0) return;
+  try {
+    const status = await keyRotationStatus();
+    const pending = status.columns.reduce(
+      (total, column) =>
+        total + Object.values(column.previous).reduce((sum, count) => sum + count, 0),
+      0,
+    );
+    const backups = Object.entries(status.backups)
+      .filter(([keyId]) => keyId !== status.currentKeyId)
+      .reduce((total, [, count]) => total + count, 0);
+    if (status.previousRemovable) {
+      logger.info('MASTER_KEY_PREVIOUS is set, but nothing depends on it any more: it can go');
+    } else {
+      logger.warn(
+        { values: pending, backups },
+        'MASTER_KEY rotation in progress — ' +
+          (pending > 0
+            ? 'values are still on a previous key: run `crypto rotate --yes`'
+            : 'kept backups still need MASTER_KEY_PREVIOUS'),
+      );
+    }
+  } catch (error) {
+    logger.warn({ err: error }, 'MASTER_KEY rotation status unavailable');
+  }
+}
+
 async function main(): Promise<void> {
   // Refuses to start without a usable MASTER_KEY — and says it out loud if it is
   // usable but guessable. The targets' SSH credentials are encrypted under this
@@ -500,10 +540,12 @@ async function main(): Promise<void> {
       { reason: weakKey },
       'MASTER_KEY is the example value or a guessable one — ' +
         'the credentials encrypted in the database are not protected. ' +
-        'Generate one: openssl rand -hex 32, then encrypt the targets again.',
+        'Generate one: openssl rand -hex 32, move this one to MASTER_KEY_PREVIOUS, ' +
+        'then run `crypto rotate --yes` (docs/security.md).',
     );
   }
   await waitForDatabase();
+  await reportKeyRotation();
 
   const connection = createRedisConnection();
 

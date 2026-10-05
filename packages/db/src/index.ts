@@ -32,3 +32,4 @@ export * from './maintenance.js';
 export * from './status-pages.js';
 export * from './status-updates.js';
 export * from './vulnerability-acceptances.js';
+export * from './key-rotation.js';

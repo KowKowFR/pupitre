@@ -1,0 +1,1 @@
+ALTER TABLE "backups" ADD COLUMN "key_id" text;

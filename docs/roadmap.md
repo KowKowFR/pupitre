@@ -9,17 +9,6 @@ The limits *already* observable by a user are described, with their
 measurements, in the "Known limits" section of the [README](../README.md). This
 document is its counterpart: what we would do to make them disappear.
 
-## What blocks real use
-
-### `MASTER_KEY` rotation
-
-The encryption format is `version:iv:authTag:ciphertext`: the `version` field
-exists **to allow** a rotation. The rotation code itself is not written. Today,
-changing `MASTER_KEY` makes unreadable the SSH credentials, secret values, the
-AI API key, notification channel secrets, probe webhook URLs, the GitHub App's
-key, forge tokens, backup destination keys — and **every backup already made**,
-whose format (`PUPB`, version 1) has no room for a second key.
-
 ## Coverage gaps
 
 ### Keycloak roles do not come through as is

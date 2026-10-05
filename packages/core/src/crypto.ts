@@ -1,6 +1,7 @@
 import {
   createCipheriv,
   createDecipheriv,
+  createHmac,
   hkdfSync,
   randomBytes,
   timingSafeEqual,
@@ -10,16 +11,24 @@ import {
  * Symmetric encryption of the secrets stored in the database (SSH credentials
  * first, various tokens later).
  *
- * Output format: `version:iv:authTag:ciphertext`
- * The last three fields are base64 — the base64 alphabet contains no `:`, so the
- * split is unambiguous.
+ * Output format: `v2:keyId:iv:authTag:ciphertext`
+ * `keyId` names the `MASTER_KEY` the value was encrypted with — a fingerprint,
+ * which reveals nothing of it. The last three fields are base64 — the base64
+ * alphabet contains no `:`, so the split is unambiguous.
  *
- * The version prefix will allow a key rotation: a future `v2` will live
- * alongside the `v1` values already in the database, and `decrypt()` will pick
- * the algorithm from the prefix.
+ * ── Rotation ────────────────────────────────────────────────────────────────
+ * `MASTER_KEY` is the current key: everything is encrypted with it.
+ * `MASTER_KEY_PREVIOUS` lists, separated by commas, the keys it replaced: they
+ * are only used to read. A `v2` value names its key; a `v1` value — the first
+ * format, without an identifier — is tried with the current key, then with the
+ * previous ones. The worker's `crypto rotate` command encrypts again under the
+ * current key everything that is not yet; once it is done, and once the backups
+ * made under an old key have expired, `MASTER_KEY_PREVIOUS` can be removed.
  */
 
-export const CURRENT_CRYPTO_VERSION = 'v1' as const;
+export const CURRENT_CRYPTO_VERSION = 'v2' as const;
+/** The first format, without a key identifier: still read, never written. */
+const LEGACY_CRYPTO_VERSION = 'v1';
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12; // 96 bits, the recommended size for GCM
@@ -102,11 +111,68 @@ export function deriveBackupKey(
   );
 }
 
-let cachedKey: Buffer | null = null;
+/** A key of the ring: the key derived from a `MASTER_KEY`, and its fingerprint. */
+type RingKey = { id: string; key: Buffer; masterKey: string };
 
-function activeKey(): Buffer {
-  cachedKey ??= deriveKey(process.env.MASTER_KEY);
-  return cachedKey;
+function fingerprint(derived: Buffer): string {
+  return createHmac('sha256', derived).update('pupitre/key-id').digest('hex').slice(0, 8);
+}
+
+/**
+ * A `MASTER_KEY`'s public fingerprint: eight hexadecimal characters that name it
+ * — in an encrypted value, a backup's header, a status — without revealing it.
+ */
+export function keyIdOf(masterKey: string): string {
+  return fingerprint(deriveKey(masterKey));
+}
+
+function ringKey(masterKey: string | undefined): RingKey {
+  const key = deriveKey(masterKey);
+  return { id: fingerprint(key), key, masterKey: masterKey as string };
+}
+
+/** `MASTER_KEY_PREVIOUS`: the replaced keys, separated by commas. */
+function previousMasterKeys(): string[] {
+  return (process.env.MASTER_KEY_PREVIOUS ?? '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
+}
+
+let cachedRing: { current: RingKey; previous: RingKey[] } | null = null;
+
+function ring(): { current: RingKey; previous: RingKey[] } {
+  if (!cachedRing) {
+    const current = ringKey(process.env.MASTER_KEY);
+    const previous: RingKey[] = [];
+    for (const masterKey of previousMasterKeys()) {
+      const candidate = ringKey(masterKey);
+      if (candidate.id !== current.id && !previous.some((key) => key.id === candidate.id)) {
+        previous.push(candidate);
+      }
+    }
+    cachedRing = { current, previous };
+  }
+  return cachedRing;
+}
+
+/** The current key's fingerprint — the one everything is encrypted with. */
+export function currentKeyId(): string {
+  return ring().current.id;
+}
+
+/** The fingerprints of the keys `MASTER_KEY_PREVIOUS` lists, without the current one. */
+export function previousKeyIds(): string[] {
+  return ring().previous.map((key) => key.id);
+}
+
+/**
+ * The `MASTER_KEY`s a backup may have been encrypted with: the current one first,
+ * then the previous ones. A backup file derives its own key from one of them.
+ */
+export function backupMasterKeys(): string[] {
+  const { current, previous } = ring();
+  return [current.masterKey, ...previous.map((key) => key.masterKey)];
 }
 
 /**
@@ -171,45 +237,103 @@ export function secretWeakness(value: string | undefined, name: string): string 
  * with it — here we do not know yet which log we write with.
  */
 export function assertMasterKey(): string | null {
-  activeKey();
+  ring();
   return masterKeyWeakness(process.env.MASTER_KEY);
 }
 
-/** Resets the memorized key. Reserved to tests. */
+/** Resets the memorized keys. Reserved to tests. */
 export function resetKeyCache(): void {
-  cachedKey = null;
+  cachedRing = null;
 }
 
 export function encrypt(plaintext: string): string {
+  const { current } = ring();
   const iv = randomBytes(IV_LENGTH);
-  const cipher = createCipheriv(ALGORITHM, activeKey(), iv, { authTagLength: AUTH_TAG_LENGTH });
-  // The version goes into the authenticated data: impossible to downgrade a `v2`
-  // to `v1` without invalidating the tag.
-  cipher.setAAD(Buffer.from(CURRENT_CRYPTO_VERSION, 'utf8'));
+  const cipher = createCipheriv(ALGORITHM, current.key, iv, { authTagLength: AUTH_TAG_LENGTH });
+  // The version and the key go into the authenticated data: impossible to
+  // downgrade a `v2` to `v1`, or to relabel its key, without invalidating the tag.
+  cipher.setAAD(Buffer.from(`${CURRENT_CRYPTO_VERSION}:${current.id}`, 'utf8'));
 
   const ciphertext = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
 
   return [
     CURRENT_CRYPTO_VERSION,
+    current.id,
     iv.toString('base64'),
     cipher.getAuthTag().toString('base64'),
     ciphertext.toString('base64'),
   ].join(':');
 }
 
+/** What an encrypted value says of itself, without decrypting it. */
+export type EncryptionKeyInfo =
+  | { version: 'v2'; keyId: string }
+  /** The first format: its key is not written in it. */
+  | { version: 'v1' }
+  | { version: 'unknown' };
+
+export function encryptionKeyOf(payload: string): EncryptionKeyInfo {
+  const parts = payload.split(':');
+  if (parts.length === 5 && parts[0] === CURRENT_CRYPTO_VERSION) {
+    return { version: 'v2', keyId: parts[1] as string };
+  }
+  if (parts.length === 4 && parts[0] === LEGACY_CRYPTO_VERSION) return { version: 'v1' };
+  return { version: 'unknown' };
+}
+
+/** Is the value encrypted with the current key, in the current format? */
+export function isOnCurrentKey(payload: string): boolean {
+  const info = encryptionKeyOf(payload);
+  return info.version === 'v2' && info.keyId === ring().current.id;
+}
+
+/** The same value, encrypted again with the current key. */
+export function reencrypt(payload: string): string {
+  return encrypt(decrypt(payload));
+}
+
 export function decrypt(payload: string): string {
   const parts = payload.split(':');
-  if (parts.length !== 4) {
+  if (parts[0] === CURRENT_CRYPTO_VERSION && parts.length === 5) {
+    const [, keyId, ivB64, tagB64, dataB64] = parts as [string, string, string, string, string];
+    const { current, previous } = ring();
+    const key = [current, ...previous].find((candidate) => candidate.id === keyId);
+    if (!key) {
+      throw new DecryptionError(
+        `Encrypted with key ${keyId}, which is neither MASTER_KEY nor one of MASTER_KEY_PREVIOUS`,
+      );
+    }
+    return decryptWith(key.key, `${CURRENT_CRYPTO_VERSION}:${keyId}`, ivB64, tagB64, dataB64);
+  }
+  if (parts[0] === LEGACY_CRYPTO_VERSION && parts.length === 4) {
+    const [version, ivB64, tagB64, dataB64] = parts as [string, string, string, string];
+    // The first format does not name its key: the current one, then the previous ones.
+    const { current, previous } = ring();
+    let failure: unknown = null;
+    for (const key of [current, ...previous]) {
+      try {
+        return decryptWith(key.key, version, ivB64, tagB64, dataB64);
+      } catch (error) {
+        failure = error;
+      }
+    }
+    throw failure as Error;
+  }
+  if (parts.length !== 4 && parts.length !== 5) {
     throw new DecryptionError(
-      `Expected format "version:iv:authTag:ciphertext", ${parts.length} field(s) received`,
+      `Expected format "version:keyId:iv:authTag:ciphertext", ${parts.length} field(s) received`,
     );
   }
+  throw new DecryptionError(`Unknown encryption version "${parts[0] ?? ''}"`);
+}
 
-  const [version, ivB64, tagB64, dataB64] = parts as [string, string, string, string];
-  if (version !== CURRENT_CRYPTO_VERSION) {
-    throw new DecryptionError(`Unknown encryption version "${version}"`);
-  }
-
+function decryptWith(
+  key: Buffer,
+  aad: string,
+  ivB64: string,
+  tagB64: string,
+  dataB64: string,
+): string {
   const iv = Buffer.from(ivB64, 'base64');
   const authTag = Buffer.from(tagB64, 'base64');
   const ciphertext = Buffer.from(dataB64, 'base64');
@@ -223,10 +347,10 @@ export function decrypt(payload: string): string {
     );
   }
 
-  const decipher = createDecipheriv(ALGORITHM, activeKey(), iv, {
+  const decipher = createDecipheriv(ALGORITHM, key, iv, {
     authTagLength: AUTH_TAG_LENGTH,
   });
-  decipher.setAAD(Buffer.from(version, 'utf8'));
+  decipher.setAAD(Buffer.from(aad, 'utf8'));
   decipher.setAuthTag(authTag);
 
   try {
@@ -235,7 +359,8 @@ export function decrypt(payload: string): string {
     // `final()` fails as soon as the tag does not match: tampering with the
     // ciphertext, the IV, the tag, or decryption with another key.
     throw new DecryptionError(
-      'Decryption failed: data tampered with or encrypted with another MASTER_KEY',
+      'Decryption failed: data tampered with, or encrypted with a key that is neither ' +
+        'MASTER_KEY nor one of MASTER_KEY_PREVIOUS',
     );
   }
 }
