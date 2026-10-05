@@ -368,15 +368,14 @@ export const monitorStateCopy = { fr, en };
 type StateTranslate = Translate<typeof fr>;
 
 /**
- * The default stays French, as for the catalog: the worker and the database call
- * these formats without an instance language to offer. The panel passes its
- * own.
+ * Every format takes its language: the panel passes its screen's, the worker the
+ * instance's.
  */
 function copy(language: UiLanguage): StateTranslate {
   return translator(monitorStateCopy, language);
 }
 
-export function formatUptime(window: UptimeWindow, language: UiLanguage = 'fr'): string {
+export function formatUptime(window: UptimeWindow, language: UiLanguage): string {
   const t = copy(language);
   if (window.ratio === null) return t('uptime.none');
   const percent = window.ratio * 100;
@@ -393,7 +392,7 @@ export function formatUptime(window: UptimeWindow, language: UiLanguage = 'fr'):
   return t('uptime.ratio', { percent: text, count: window.samples });
 }
 
-export function formatDuration(seconds: number, language: UiLanguage = 'fr'): string {
+export function formatDuration(seconds: number, language: UiLanguage): string {
   const t = copy(language);
   if (seconds < 60) return t('duration.seconds', { value: seconds });
   if (seconds < 3600) return t('duration.minutes', { value: Math.floor(seconds / 60) });
@@ -408,7 +407,7 @@ export function formatDuration(seconds: number, language: UiLanguage = 'fr'): st
 }
 
 /** A duration, spelled out: "30 seconds", "6 hours", "1 day". */
-export function formatInterval(seconds: number, language: UiLanguage = 'fr'): string {
+export function formatInterval(seconds: number, language: UiLanguage): string {
   const t = copy(language);
   if (seconds < 60) return t('interval.seconds', { count: seconds });
   if (seconds % 86_400 === 0) return t('interval.days', { count: seconds / 86_400 });
@@ -423,7 +422,7 @@ export function formatInterval(seconds: number, language: UiLanguage = 'fr'): st
  * minute, « tous les » before a day. Concatenating a duration after a frozen
  * « toutes les » produced « toutes les heure ».
  */
-export function formatCadence(seconds: number, language: UiLanguage = 'fr'): string {
+export function formatCadence(seconds: number, language: UiLanguage): string {
   const t = copy(language);
   if (seconds === 86_400) return t('cadence.daily');
   if (seconds === 3_600) return t('cadence.hourly');
@@ -475,9 +474,7 @@ export type MonitorAlert = z.infer<typeof monitorAlertSchema>;
  * The alert's sentence is rendered **here**, in the language it is given.
  *
  * It goes to channels, not to a screen: nobody is in front, so the language is
- * the instance's. The worker reads it from the settings and passes it; the
- * default stays French, as everywhere in this file, for callers that have none
- * — a test, a script.
+ * the instance's. The worker reads it from the settings and passes it.
  */
 export function buildMonitorAlert(
   input: {
@@ -490,7 +487,7 @@ export function buildMonitorAlert(
     consecutiveFailures: number;
     at?: Date;
   },
-  language: UiLanguage = 'fr',
+  language: UiLanguage,
 ): MonitorAlert {
   const t = copy(language);
   const at = input.at ?? new Date();

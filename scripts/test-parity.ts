@@ -319,7 +319,7 @@ async function openSide(
         : { authMethod: 'password', password: secret },
   };
 
-  const session = await connect(sshTarget);
+  const session = await connect(sshTarget, { language: 'en' });
   const deployment: DriverDeployment = {
     id: `parity-${runtime}-${Date.now()}`,
     version: spec.version,

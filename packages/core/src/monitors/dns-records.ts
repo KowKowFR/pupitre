@@ -350,7 +350,7 @@ export function compareDnsRecords(input: {
 export function describeDnsComparison(
   comparison: DnsComparison,
   maxChars = 400,
-  language: UiLanguage = 'fr',
+  language: UiLanguage,
 ): string {
   const say = probeSay(language);
   const list = (values: readonly string[]): string => {

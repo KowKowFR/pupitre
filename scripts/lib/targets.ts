@@ -33,7 +33,7 @@ export async function openTarget(ref: string): Promise<OpenedTarget> {
         ? { authMethod: 'key', privateKey: secret }
         : { authMethod: 'password', password: secret },
   };
-  return { session: await connect(ssh), target: found };
+  return { session: await connect(ssh, { language: 'en' }), target: found };
 }
 
 /** The test application in the database, created if needed; its identifier. */

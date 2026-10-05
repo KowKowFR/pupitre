@@ -163,7 +163,7 @@ export type ContainerFinding = {
 export function interpretTraefikContainer(
   container: InspectedContainer,
   staticFile: string | null,
-  language: UiLanguage = 'fr',
+  language: UiLanguage,
 ): ContainerFinding {
   const say = traefikSay(language);
   const name = (container.Name ?? '').replace(/^\//, '') || 'traefik';
@@ -254,7 +254,7 @@ export type ClusterFinding = {
 export function interpretTraefikCluster(
   ingressClasses: string[],
   deployment: { namespace: string; args: string[] } | null,
-  language: UiLanguage = 'fr',
+  language: UiLanguage,
 ): ClusterFinding {
   const say = traefikSay(language);
   if (ingressClasses.length === 0) {

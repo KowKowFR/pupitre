@@ -2341,7 +2341,7 @@ function toServiceState(phase: string, ready: boolean): ServiceState {
   }
 }
 
-function parsePods(json: string, language: UiLanguage = 'fr'): ServiceStatus[] {
+function parsePods(json: string, language: UiLanguage): ServiceStatus[] {
   const say = k3sSay(language);
   let parsed: unknown;
   try {
@@ -2591,7 +2591,7 @@ function toPodWorkload(item: KubeItem, say: K3sSay): Workload | null {
  * `kubectl get deployments,statefulsets,daemonsets,pods -A -o json` → workloads.
  * Pods driven by a controller are left out: their row would be a decoy.
  */
-export function parseWorkloads(json: string, language: UiLanguage = 'fr'): Workload[] {
+export function parseWorkloads(json: string, language: UiLanguage): Workload[] {
   const say = k3sSay(language);
   const workloads: Workload[] = [];
 

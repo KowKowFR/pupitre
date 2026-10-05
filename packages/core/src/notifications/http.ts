@@ -23,7 +23,7 @@ export type HttpCallOptions = {
   /** Values to mask in any reported error message. */
   secrets: ChannelConfig;
   /** The language of the reported errors — the instance's. */
-  language?: UiLanguage;
+  language: UiLanguage;
 };
 
 export type HttpCallResult = { status: number; text: string };
@@ -47,7 +47,7 @@ export async function httpCall(options: HttpCallOptions): Promise<HttpCallResult
   } catch (error) {
     if (!(error instanceof EgressRefusedError)) throw error;
     throw new NotificationError(
-      error.describe(options.language ?? 'fr'),
+      error.describe(options.language),
       options.channel,
       'connect',
       error,

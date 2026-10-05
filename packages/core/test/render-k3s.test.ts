@@ -83,7 +83,7 @@ const kubectlAvailable = probeKubectl();
  * counts: a syntactically correct YAML can still be an invalid manifest.
  */
 function validateWithKubectl(spec: AppSpec): string {
-  const document = renderFiles({ spec, appSlug: spec.name })
+  const document = renderFiles({ language: 'fr', spec, appSlug: spec.name })
     .map((file) => file.content)
     .join('\n---\n');
 
@@ -109,7 +109,7 @@ function deploymentOf(manifests: KubeManifest[], name: string): DeploymentManife
 describe('render() — AppSpec to Kubernetes manifests', () => {
   describe('simple.json', () => {
     const spec = fixture('simple');
-    const manifests = renderManifests({ spec, appSlug: spec.name });
+    const manifests = renderManifests({ language: 'fr', spec, appSlug: spec.name });
 
     it('creates the app-{slug} namespace first', () => {
       assert.equal(namespaceName('demo-api'), 'app-demo-api');
@@ -226,7 +226,7 @@ describe('render() — AppSpec to Kubernetes manifests', () => {
       JWT_SECRET: 'ligne1\nligne2',
       POSTGRES_PASSWORD: '*pas-une-ancre',
     };
-    const manifests = renderManifests({ spec, appSlug: spec.name, secretValues });
+    const manifests = renderManifests({ language: 'fr', spec, appSlug: spec.name, secretValues });
 
     it('renders one resource per object, in apply order', () => {
       assert.deepEqual(
@@ -252,7 +252,7 @@ describe('render() — AppSpec to Kubernetes manifests', () => {
     });
 
     it('names the files so that kubectl apply -f . respects the order of kinds', () => {
-      const files = renderFiles({ spec, appSlug: spec.name, secretValues });
+      const files = renderFiles({ language: 'fr', spec, appSlug: spec.name, secretValues });
       // `kubectl apply -f <dir>` reads files in lexicographic order: it is the
       // numeric prefix that carries the apply order.
       const sorted = [...files].map((file) => file.path).sort();
@@ -354,7 +354,7 @@ describe('render() — AppSpec to Kubernetes manifests', () => {
     });
 
     it('renders the Secrets as 0600, like the .env on the Docker side', () => {
-      const files = renderFiles({ spec, appSlug: spec.name, secretValues });
+      const files = renderFiles({ language: 'fr', spec, appSlug: spec.name, secretValues });
       for (const file of files) {
         assert.equal(
           file.mode,
@@ -377,7 +377,7 @@ describe('render() — AppSpec to Kubernetes manifests', () => {
 
     it('refuses to render a declared secret with no resolved value, like the Docker render', () => {
       assert.throws(
-        () => renderManifests({ spec, appSlug: spec.name }),
+        () => renderManifests({ language: 'fr', spec, appSlug: spec.name }),
         /DATABASE_PASSWORD/,
       );
     });
@@ -460,7 +460,7 @@ describe('render() — AppSpec to Kubernetes manifests', () => {
         ],
       });
 
-      const manifests = renderManifests({ spec, appSlug: 'echappement' });
+      const manifests = renderManifests({ language: 'fr', spec, appSlug: 'echappement' });
       const configMap = manifests.find((manifest) => manifest.kind === 'ConfigMap');
       assert.ok(configMap);
 
@@ -504,6 +504,7 @@ describe('render() — AppSpec to Kubernetes manifests', () => {
       });
 
       const manifests = renderManifests({
+        language: 'fr',
         spec,
         appSlug: 'pieges',
         secretValues: { MOT_DE_PASSE: 'y' },
@@ -540,12 +541,18 @@ describe('render() — AppSpec to Kubernetes manifests', () => {
         JWT_SECRET: 'jwt',
         POSTGRES_PASSWORD: 'pg',
       };
-      const once = renderFiles({ spec, appSlug: spec.name, secretValues: values }).map(
-        (file) => file.content,
-      );
-      const twice = renderFiles({ spec, appSlug: spec.name, secretValues: values }).map(
-        (file) => file.content,
-      );
+      const once = renderFiles({
+        language: 'fr',
+        spec,
+        appSlug: spec.name,
+        secretValues: values,
+      }).map((file) => file.content);
+      const twice = renderFiles({
+        language: 'fr',
+        spec,
+        appSlug: spec.name,
+        secretValues: values,
+      }).map((file) => file.content);
       assert.deepEqual(once, twice);
     });
   });
@@ -581,7 +588,7 @@ describe('render() — AppSpec to Kubernetes manifests', () => {
     const secretValues = { MARIADB_PASSWORD: 'valeur-partagee', MARIADB_ROOT_PASSWORD: 'root' };
 
     it('the application service’s K8s Secret carries the aliased name and the root’s value', () => {
-      const manifests = renderManifests({ spec, appSlug: spec.name, secretValues });
+      const manifests = renderManifests({ language: 'fr', spec, appSlug: spec.name, secretValues });
       const secret = manifests.find(
         (manifest): manifest is SecretManifest =>
           manifest.kind === 'Secret' && manifest.metadata.name === 'web-secrets',
@@ -591,7 +598,13 @@ describe('render() — AppSpec to Kubernetes manifests', () => {
     });
 
     it('the Docker `.env` carries both names with the same value', () => {
-      const files = renderComposeFiles({ spec, appSlug: spec.name, publishedPort: null, secretValues });
+      const files = renderComposeFiles({
+        language: 'fr',
+        spec,
+        appSlug: spec.name,
+        publishedPort: null,
+        secretValues,
+      });
       const env = files.find((file) => file.path === '.env');
       assert.ok(env);
       assert.match(env.content, /^WORDPRESS_DB_PASSWORD=valeur-partagee$/m);
@@ -599,7 +612,7 @@ describe('render() — AppSpec to Kubernetes manifests', () => {
     });
 
     it('both renders start from the same map, aliases included', () => {
-      const complete = completeSecretValues(spec, secretValues);
+      const complete = completeSecretValues(spec, secretValues, 'fr');
       assert.deepEqual(complete, {
         WORDPRESS_DB_PASSWORD: 'valeur-partagee',
         MARIADB_PASSWORD: 'valeur-partagee',
@@ -635,7 +648,7 @@ describe('render() — AppSpec to Kubernetes manifests', () => {
         },
       ],
     });
-    const manifests = renderManifests({ spec, appSlug: spec.name });
+    const manifests = renderManifests({ language: 'fr', spec, appSlug: spec.name });
     const own = deploymentOf(manifests, 'web').spec.template.spec;
     const third = deploymentOf(manifests, 'db').spec.template.spec;
 

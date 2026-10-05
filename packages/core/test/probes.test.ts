@@ -408,7 +408,7 @@ const baseConfig = (over: Partial<DomainConfig> = {}): DomainConfig =>
 
 test('a domain far from its expiry is healthy and silent', () => {
   const facts = readRdapDomain(fixture('rdap-afnic-fr.json'));
-  const verdict = judgeDomain(facts, baseConfig(), NOW);
+  const verdict = judgeDomain(facts, baseConfig(), NOW, 'fr');
   assert.equal(verdict.outcome, 'healthy');
   assert.equal(verdict.detail, null);
   assert.equal(verdict.daysRemaining, 1038);
@@ -418,21 +418,21 @@ test('within the notice period, the probe fails — and the sentence says “at 
   const facts = readRdapDomain({
     events: [{ eventAction: 'expiration', eventDate: '2026-09-25T00:00:00Z' }],
   });
-  const verdict = judgeDomain(facts, baseConfig({ warnDays: 30 }), NOW);
+  const verdict = judgeDomain(facts, baseConfig({ warnDays: 30 }), NOW, 'fr');
   assert.equal(verdict.outcome, 'unhealthy');
   assert.equal(verdict.daysRemaining, 11);
   assert.match(verdict.detail ?? '', /expire dans 11 jours \(le 25\/09\/2026\)/);
   assert.match(verdict.detail ?? '', /préavis de 30 jours/);
   // A shorter notice period leaves the same domain healthy: it is a setting, not
   // a property of the domain.
-  assert.equal(judgeDomain(facts, baseConfig({ warnDays: 7 }), NOW).outcome, 'healthy');
+  assert.equal(judgeDomain(facts, baseConfig({ warnDays: 7 }), NOW, 'fr').outcome, 'healthy');
 });
 
 test('an expired domain is counted in elapsed days', () => {
   const facts = readRdapDomain({
     events: [{ eventAction: 'expiration', eventDate: '2026-09-01T00:00:00Z' }],
   });
-  const verdict = judgeDomain(facts, baseConfig(), NOW);
+  const verdict = judgeDomain(facts, baseConfig(), NOW, 'fr');
   assert.equal(verdict.outcome, 'unhealthy');
   assert.match(verdict.detail ?? '', /expiré depuis 13 jours/);
 });
@@ -441,7 +441,7 @@ test('a registry without an expiry date does not make the probe sick', () => {
   // The registry answered and knows the domain: it *is* registered. Not
   // publishing a date is a limit of that registry, not an outage — but we say
   // so, otherwise we would suggest we monitor the expiry.
-  const verdict = judgeDomain(readRdapDomain({ status: ['active'] }), baseConfig(), NOW);
+  const verdict = judgeDomain(readRdapDomain({ status: ['active'] }), baseConfig(), NOW, 'fr');
   assert.equal(verdict.outcome, 'healthy');
   assert.equal(verdict.daysRemaining, null);
   assert.match(verdict.detail ?? '', /ne publie pas de date d’expiration/);
@@ -449,17 +449,21 @@ test('a registry without an expiry date does not make the probe sick', () => {
 
 test('a registrar change fails the probe — that is what it is for', () => {
   const facts = readRdapDomain(fixture('rdap-example-com.json'));
-  assert.equal(judgeDomain(facts, baseConfig({ expectedRegistrar: 'Internet Assigned' }), NOW).outcome, 'healthy');
+  assert.equal(
+    judgeDomain(facts, baseConfig({ expectedRegistrar: 'Internet Assigned' }), NOW, 'fr').outcome,
+    'healthy',
+  );
   // Tolerant comparison: "OVH" must recognize "OVH SAS".
   assert.equal(
     judgeDomain(
       readRdapDomain({ entities: [{ roles: ['registrar'], vcardArray: ['vcard', [['fn', {}, 'text', 'OVH SAS']]] }] }),
       baseConfig({ expectedRegistrar: 'ovh' }),
       NOW,
+      'fr',
     ).outcome,
     'healthy',
   );
-  const hijacked = judgeDomain(facts, baseConfig({ expectedRegistrar: 'OVH' }), NOW);
+  const hijacked = judgeDomain(facts, baseConfig({ expectedRegistrar: 'OVH' }), NOW, 'fr');
   assert.equal(hijacked.outcome, 'unhealthy');
   assert.match(hijacked.detail ?? '', /transfert de domaine/);
 });
@@ -467,23 +471,27 @@ test('a registrar change fails the probe — that is what it is for', () => {
 test('a move of the name servers shows', () => {
   const facts = readRdapDomain(fixture('rdap-example-com.json'));
   assert.equal(
-    judgeDomain(facts, baseConfig({ expectedNameserverSuffix: 'cloudflare.com' }), NOW).outcome,
+    judgeDomain(facts, baseConfig({ expectedNameserverSuffix: 'cloudflare.com' }), NOW, 'fr')
+      .outcome,
     'healthy',
   );
-  const moved = judgeDomain(facts, baseConfig({ expectedNameserverSuffix: 'ovh.net' }), NOW);
+  const moved = judgeDomain(facts, baseConfig({ expectedNameserverSuffix: 'ovh.net' }), NOW, 'fr');
   assert.equal(moved.outcome, 'unhealthy');
   assert.match(moved.detail ?? '', /délégation actuelle : elliott\.ns\.cloudflare\.com/);
 });
 
 test('the transfer lock is only required if asked for', () => {
   const afnic = readRdapDomain(fixture('rdap-afnic-fr.json'));
-  assert.equal(judgeDomain(afnic, baseConfig(), NOW).outcome, 'healthy', 'off by default');
-  const required = judgeDomain(afnic, baseConfig({ transferLock: 'required' }), NOW);
+  assert.equal(judgeDomain(afnic, baseConfig(), NOW, 'fr').outcome, 'healthy', 'off by default');
+  const required = judgeDomain(afnic, baseConfig({ transferLock: 'required' }), NOW, 'fr');
   assert.equal(required.outcome, 'unhealthy', '.fr only announces “active”');
   assert.match(required.detail ?? '', /statuts : active/);
 
   const verisign = readRdapDomain(fixture('rdap-example-com.json'));
-  assert.equal(judgeDomain(verisign, baseConfig({ transferLock: 'required' }), NOW).outcome, 'healthy');
+  assert.equal(
+    judgeDomain(verisign, baseConfig({ transferLock: 'required' }), NOW, 'fr').outcome,
+    'healthy',
+  );
 });
 
 test('several findings are told together, not just one', () => {
@@ -494,7 +502,7 @@ test('several findings are told together, not just one', () => {
     events: [{ eventAction: 'expiration', eventDate: '2026-09-20T00:00:00Z' }],
     entities: [{ roles: ['registrar'], vcardArray: ['vcard', [['fn', {}, 'text', 'Registrar Inconnu']]] }],
   });
-  const verdict = judgeDomain(facts, baseConfig({ expectedRegistrar: 'OVH' }), NOW);
+  const verdict = judgeDomain(facts, baseConfig({ expectedRegistrar: 'OVH' }), NOW, 'fr');
   assert.equal(verdict.outcome, 'unhealthy');
   assert.match(verdict.detail ?? '', /expire dans 6 jours/);
   assert.match(verdict.detail ?? '', /Registrar Inconnu/);

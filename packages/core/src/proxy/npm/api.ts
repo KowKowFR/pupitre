@@ -92,14 +92,14 @@ async function call<T>(
   step: string,
   method: string,
   path: string,
-  options: { token?: string; body?: unknown; timeout?: number; language?: UiLanguage } = {},
+  options: { token?: string; body?: unknown; timeout?: number; language: UiLanguage },
 ): Promise<T> {
-  const say = npmSay(options.language ?? 'fr');
+  const say = npmSay(options.language);
   try {
     await assertEgressAllowed(base);
   } catch (error) {
     if (error instanceof EgressRefusedError) {
-      throw new NpmApiError(error.describe(options.language ?? 'fr'), step, 0);
+      throw new NpmApiError(error.describe(options.language), step, 0);
     }
     throw error;
   }
@@ -135,7 +135,7 @@ async function call<T>(
 }
 
 /** Does the API answer, and which version? Without an account. */
-export function npmHealth(base: string, language: UiLanguage = 'fr'): Promise<NpmHealth> {
+export function npmHealth(base: string, language: UiLanguage): Promise<NpmHealth> {
   return call<NpmHealth>(base, 'health', 'GET', '/', { language });
 }
 
@@ -156,7 +156,7 @@ export class NpmClient {
     base: string,
     email: string,
     password: string,
-    language: UiLanguage = 'fr',
+    language: UiLanguage,
   ): Promise<NpmClient> {
     const say = npmSay(language);
     let answer: { token?: string; requires_2fa?: boolean };

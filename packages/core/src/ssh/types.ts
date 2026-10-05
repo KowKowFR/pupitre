@@ -89,7 +89,7 @@ export type ConnectOptions = {
   logger?: SshLogger;
   /**
    * The language of what the session will say — connection errors, timeouts. The
-   * instance's; French by default.
+   * instance's.
    */
-  language?: UiLanguage;
+  language: UiLanguage;
 };

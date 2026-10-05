@@ -145,8 +145,8 @@ export function standardLabels(
 export type RenderInput = {
   spec: AppSpec;
   appSlug: string;
-  /** The language of a render error (a secret without a value). Default: French. */
-  language?: UiLanguage;
+  /** The language of a render error (a secret without a value). */
+  language: UiLanguage;
   /**
    * Values of the declared secrets. A missing value **fails** the render, as on
    * the Docker side: see `completeSecretValues()`.

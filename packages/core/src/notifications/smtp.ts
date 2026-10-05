@@ -1,10 +1,5 @@
 import nodemailer from 'nodemailer';
-import {
-  DEFAULT_UI_LANGUAGE,
-  renderMessage,
-  type Translated,
-  type UiLanguage,
-} from '../i18n.js';
+import { renderMessage, type Translated, type UiLanguage } from '../i18n.js';
 import { BRAND_MARK, EMAIL_COLORS, brandHeaderHtml } from './brand.js';
 import { splitMailboxList, type ChannelConfig } from './catalog.js';
 import {
@@ -281,7 +276,7 @@ export class SmtpChannel implements NotificationChannel {
 
   async test(
     resolved: ResolvedChannelConfig,
-    language: UiLanguage = DEFAULT_UI_LANGUAGE,
+    language: UiLanguage,
   ): Promise<NotificationTestResult> {
     const transport = this.transport(this.options(resolved));
     try {
@@ -291,7 +286,7 @@ export class SmtpChannel implements NotificationChannel {
         detail: t(language, 'probe.ok', { host: str(resolved.config, 'host') }),
       };
     } catch (error) {
-      return { ok: false, detail: describeFailure(error, resolved.secrets) };
+      return { ok: false, detail: describeFailure(error, resolved.secrets, language) };
     } finally {
       transport.close();
     }
@@ -328,7 +323,7 @@ export class SmtpChannel implements NotificationChannel {
       });
     } catch (error) {
       throw new NotificationError(
-        describeFailure(error, resolved.secrets),
+        describeFailure(error, resolved.secrets, message.language),
         this.kind,
         'send',
         error,
@@ -380,7 +375,7 @@ export class SmtpChannel implements NotificationChannel {
       });
     } catch (error) {
       throw new NotificationError(
-        describeFailure(error, resolved.secrets),
+        describeFailure(error, resolved.secrets, digest.language),
         this.kind,
         'send',
         error,

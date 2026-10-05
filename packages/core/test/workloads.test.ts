@@ -69,7 +69,7 @@ describe('Docker — what a container accepts', () => {
 
 describe('K3s — what a resource accepts', () => {
   const byName = (json: string) =>
-    new Map(parseWorkloads(json).map((workload) => [workload.name, workload]));
+    new Map(parseWorkloads(json, 'fr').map((workload) => [workload.name, workload]));
 
   it('according to its kind and its state', () => {
     const workloads = byName(
@@ -107,6 +107,7 @@ describe('K3s — what a resource accepts', () => {
       kubeList([
         { ...deployment('coredns', 1, 1), metadata: { name: 'coredns', namespace: 'kube-system' } },
       ]),
+      'fr',
     );
     assert.deepEqual(coredns?.controls, []);
     assert.equal(coredns?.exec, false);

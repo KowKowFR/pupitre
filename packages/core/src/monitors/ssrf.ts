@@ -228,8 +228,11 @@ export type SsrfRefusal = {
   readonly category?: AddressCategory;
 };
 
-/** Renders a refusal. French by default: it is the language of logs and readings. */
-export function ssrfRefusalText(refusal: SsrfRefusal, language: UiLanguage = 'fr'): string {
+/**
+ * Renders a refusal. In French, the source language, when it becomes a schema's
+ * complaint; in the reader's language everywhere else.
+ */
+export function ssrfRefusalText(refusal: SsrfRefusal, language: UiLanguage): string {
   const category =
     refusal.category === undefined
       ? undefined
@@ -427,7 +430,9 @@ export type AddressVerdict =
   | { allowed: false; category: AddressCategory | null; refusal: SsrfRefusal; reason: string };
 
 function refused(refusal: SsrfRefusal, category: AddressCategory | null = null) {
-  return { allowed: false as const, category, refusal, reason: ssrfRefusalText(refusal) };
+  // `reason` is in French, the source language: it becomes a schema's complaint,
+  // which a screen says again in its language from `refusal` (`issueMessage()`).
+  return { allowed: false as const, category, refusal, reason: ssrfRefusalText(refusal, 'fr') };
 }
 
 /**
@@ -437,7 +442,7 @@ function refused(refusal: SsrfRefusal, category: AddressCategory | null = null) 
 export type ShapeVerdict = { allowed: boolean; refusal?: SsrfRefusal; reason?: string };
 
 function refusedShape(refusal: SsrfRefusal): ShapeVerdict {
-  return { allowed: false, refusal, reason: ssrfRefusalText(refusal) };
+  return { allowed: false, refusal, reason: ssrfRefusalText(refusal, 'fr') };
 }
 
 /** The check of an address, once resolved. Single entry point. */

@@ -227,7 +227,7 @@ const TABLES = new Map<UiLanguage, Record<ScheduledJobType, ScheduledJobDefiniti
  * requested, built once, never at each render.
  */
 export function scheduledJobTypes(
-  language: UiLanguage = 'fr',
+  language: UiLanguage,
 ): Record<ScheduledJobType, ScheduledJobDefinition> {
   const cached = TABLES.get(language);
   if (cached) return cached;
@@ -349,10 +349,10 @@ function validateField(raw: string, bound: CronBound, t: ScheduleTranslate): str
  * `null` if the expression is valid, otherwise the reason for the refusal.
  *
  * The reason shows under the input field: it is therefore rendered in the
- * language it is given. The default stays French, for `cronSchema` — a Zod
- * message travels in `details`, which the panel does not show.
+ * language it is given. `cronSchema` asks for French, the source language of
+ * the schemas' complaints.
  */
-export function cronError(expression: string, language: UiLanguage = 'fr'): string | null {
+export function cronError(expression: string, language: UiLanguage): string | null {
   const t = translator(scheduleCopy, language);
   const fields = expression.trim().split(/\s+/);
   if (fields.length !== 5 && fields.length !== 6) {
@@ -379,7 +379,8 @@ export const cronSchema = z
   .min(1)
   .max(120)
   .superRefine((value, ctx) => {
-    const error = cronError(value);
+    // French, the source language of the schemas' complaints (`issueMessage()`).
+    const error = cronError(value, 'fr');
     if (error) ctx.addIssue({ code: 'custom', message: error });
   });
 
@@ -501,7 +502,7 @@ function plainWeekday(token: string): number | null {
  * the five-field form.
  */
 export function fromCron(expression: string): SimpleSchedule | null {
-  if (cronError(expression) !== null) return null;
+  if (cronError(expression, 'en') !== null) return null;
 
   let fields = expression.trim().split(/\s+/);
   if (fields.length === 6) {
@@ -617,7 +618,7 @@ export function browserTimeZone(): string {
 export type CronLocale = 'fr' | 'en';
 
 export type DescribeCronOptions = {
-  locale?: CronLocale | string;
+  locale: CronLocale | string;
   /** Shown next to the time. It is the task's. */
   timeZone?: string;
 };
@@ -695,8 +696,8 @@ const WORDS: Record<CronLocale, Words> = {
   },
 };
 
-function wordsFor(locale: CronLocale | string | undefined): Words {
-  const key = (locale ?? 'fr').slice(0, 2).toLowerCase();
+function wordsFor(locale: CronLocale | string): Words {
+  const key = locale.slice(0, 2).toLowerCase();
   return key === 'en' ? WORDS.en : WORDS.fr;
 }
 
@@ -716,7 +717,7 @@ const pad2 = (value: number): string => String(value).padStart(2, '0');
  * without rounding. An invalid expression, or a form we cannot put into words,
  * is returned as is — a wrong description would be worse than no description.
  */
-export function describeCron(expression: string, options: DescribeCronOptions = {}): string {
+export function describeCron(expression: string, options: DescribeCronOptions): string {
   const words = wordsFor(options.locale);
   const suffix = options.timeZone ? ` (${options.timeZone})` : '';
 
@@ -897,7 +898,7 @@ function expandField(
 
 /** Fields of a cron expression, expanded into sets of values. */
 function parseCronFields(expression: string): CronFields | null {
-  if (cronError(expression) !== null) return null;
+  if (cronError(expression, 'en') !== null) return null;
   const fields = expression.trim().split(/\s+/);
   if (fields.length !== 5 && fields.length !== 6) return null;
 

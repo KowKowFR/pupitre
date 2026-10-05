@@ -67,7 +67,9 @@ export const POST = apiRoute(async (request) => {
   // require touching `env.ts`.
   getEnv();
   const { settings } = await getAppSettings();
+  const uiLanguage = await currentLanguage();
   const ai = resolveAiConfig({
+    language: uiLanguage,
     settings: settings.ai,
     settingsApiKey: await getAiApiKey(),
     env: process.env,
@@ -76,7 +78,6 @@ export const POST = apiRoute(async (request) => {
   const providerLabel = aiProviderDescriptor(ai.provider).label;
   // The same warning as `resolveAiConfig()`'s, but rendered in the instance's
   // language: this one ends up in an error message read on screen.
-  const uiLanguage = await currentLanguage();
   const modelWarning = aiModelMismatch(ai.provider, ai.model, {
     baseUrl: ai.baseUrl,
     language: uiLanguage,

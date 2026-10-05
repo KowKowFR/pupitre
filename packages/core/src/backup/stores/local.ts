@@ -21,7 +21,7 @@ export class LocalBackupStore implements BackupStore {
 
   private readonly say: BackupSay;
 
-  constructor(config: LocalDestinationConfig, language: UiLanguage = 'fr') {
+  constructor(config: LocalDestinationConfig, language: UiLanguage) {
     this.root = resolve(config.path);
     this.say = backupSay(language);
   }

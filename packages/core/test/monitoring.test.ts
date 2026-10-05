@@ -186,51 +186,57 @@ test('an incident left open under a “healthy” state closes at the next succe
 
 test('a rate without measurements is null, never 0%', () => {
   assert.equal(uptimeRatio(0, 0), null);
-  assert.equal(formatUptime({ hours: 24, samples: 0, up: 0, ratio: null }), 'aucune mesure');
+  assert.equal(formatUptime({ hours: 24, samples: 0, up: 0, ratio: null }, 'fr'), 'aucune mesure');
 });
 
 test('the rate says how many measurements it covers', () => {
-  assert.equal(formatUptime({ hours: 24, samples: 3, up: 3, ratio: 1 }), '100 % sur 3 mesures');
   assert.equal(
-    formatUptime({ hours: 24, samples: 1440, up: 1439, ratio: 1439 / 1440 }),
+    formatUptime({ hours: 24, samples: 3, up: 3, ratio: 1 }, 'fr'),
+    '100 % sur 3 mesures',
+  );
+  assert.equal(
+    formatUptime({ hours: 24, samples: 1440, up: 1439, ratio: 1439 / 1440 }, 'fr'),
     '99,93 % sur 1440 mesures',
   );
-  assert.equal(formatUptime({ hours: 24, samples: 1, up: 1, ratio: 1 }), '100 % sur 1 mesure');
+  assert.equal(
+    formatUptime({ hours: 24, samples: 1, up: 1, ratio: 1 }, 'fr'),
+    '100 % sur 1 mesure',
+  );
 });
 
 test('the rate is exact on a known history', () => {
   assert.equal(uptimeRatio(9, 10), 0.9);
   assert.equal(
-    formatUptime({ hours: 24, samples: 10, up: 9, ratio: 0.9 }),
+    formatUptime({ hours: 24, samples: 10, up: 9, ratio: 0.9 }, 'fr'),
     '90,00 % sur 10 mesures',
   );
 });
 
 test('durations and intervals read in French', () => {
-  assert.equal(formatInterval(30), '30 secondes');
-  assert.equal(formatInterval(60), '1 minute');
-  assert.equal(formatInterval(300), '5 minutes');
-  assert.equal(formatInterval(3600), '1 heure');
-  assert.equal(formatInterval(21600), '6 heures');
-  assert.equal(formatInterval(86400), '1 jour');
+  assert.equal(formatInterval(30, 'fr'), '30 secondes');
+  assert.equal(formatInterval(60, 'fr'), '1 minute');
+  assert.equal(formatInterval(300, 'fr'), '5 minutes');
+  assert.equal(formatInterval(3600, 'fr'), '1 heure');
+  assert.equal(formatInterval(21600, 'fr'), '6 heures');
+  assert.equal(formatInterval(86400, 'fr'), '1 jour');
 
   // French does not compose: « toutes les » before a minute, « tous les » before
   // a day. Concatenating a duration after a frozen « toutes les » produced
   // « toutes les heure ».
-  assert.equal(formatCadence(30), 'toutes les 30 secondes');
-  assert.equal(formatCadence(60), 'toutes les minutes');
-  assert.equal(formatCadence(300), 'toutes les 5 minutes');
-  assert.equal(formatCadence(3600), 'toutes les heures');
-  assert.equal(formatCadence(21600), 'toutes les 6 heures');
-  assert.equal(formatCadence(86400), 'tous les jours');
-  assert.equal(formatCadence(2 * 86400), 'tous les 2 jours');
+  assert.equal(formatCadence(30, 'fr'), 'toutes les 30 secondes');
+  assert.equal(formatCadence(60, 'fr'), 'toutes les minutes');
+  assert.equal(formatCadence(300, 'fr'), 'toutes les 5 minutes');
+  assert.equal(formatCadence(3600, 'fr'), 'toutes les heures');
+  assert.equal(formatCadence(21600, 'fr'), 'toutes les 6 heures');
+  assert.equal(formatCadence(86400, 'fr'), 'tous les jours');
+  assert.equal(formatCadence(2 * 86400, 'fr'), 'tous les 2 jours');
 });
 
 // ─── catalog: the abstraction ─────────────────────────────────────────────────
 
 test('each type declares everything the screen needs', () => {
   for (const type of MONITOR_TYPES_LIST) {
-    const definition = monitorTypeDefinition(type);
+    const definition = monitorTypeDefinition(type, 'en');
     assert.equal(definition.type, type);
     assert.ok(definition.label.length > 0, `${type}: label missing`);
     assert.ok(definition.description.length > 0, `${type} : description manquante`);
@@ -258,7 +264,7 @@ test('each catalog type has a registered probe', () => {
 
 test('the declared fields exist in the type’s schema', () => {
   for (const type of MONITOR_TYPES_LIST) {
-    const definition = monitorTypeDefinition(type);
+    const definition = monitorTypeDefinition(type, 'en');
     const defaults = definition.defaults as Record<string, unknown>;
     for (const field of definition.fields) {
       assert.ok(field.key in defaults, `${type}.${field.key}: missing from the starting values`);
@@ -288,10 +294,19 @@ test('the configuration is validated by its type’s schema', () => {
 });
 
 test('the target describes itself without knowing the type', () => {
-  assert.equal(describeMonitorTarget('http', { url: 'https://exemple.fr/' }), 'https://exemple.fr/');
-  assert.equal(describeMonitorTarget('tls', { host: 'exemple.fr' }), 'exemple.fr');
-  assert.equal(describeMonitorTarget('tls', { host: 'exemple.fr', port: 8443 }), 'exemple.fr:8443');
-  assert.equal(describeMonitorTarget('http', { url: 'not a url' }), '(unreadable configuration)');
+  assert.equal(
+    describeMonitorTarget('http', { url: 'https://exemple.fr/' }, 'en'),
+    'https://exemple.fr/',
+  );
+  assert.equal(describeMonitorTarget('tls', { host: 'exemple.fr' }, 'en'), 'exemple.fr');
+  assert.equal(
+    describeMonitorTarget('tls', { host: 'exemple.fr', port: 8443 }, 'en'),
+    'exemple.fr:8443',
+  );
+  assert.equal(
+    describeMonitorTarget('http', { url: 'not a url' }, 'en'),
+    '(unreadable configuration)',
+  );
   assert.equal(
     describeMonitorTarget('http', { url: 'not a url' }, 'fr'),
     '(configuration illisible)',
@@ -414,15 +429,18 @@ test('the SSRF policy holds for every type, not only HTTP', () => {
 // ─── alert payload ────────────────────────────────────────────────────────────
 
 test('the alert carries text and content, for Slack as for Discord', () => {
-  const alert = buildMonitorAlert({
-    event: 'monitor.down',
-    monitor: { id: 'm1', name: 'Site', type: 'http', target: 'https://example.com/' },
-    incident: { id: 'i1', startedAt: new Date('2026-01-01T00:00:00Z'), resolvedAt: null },
-    status: 'unreachable',
-    detail: 'ECONNREFUSED',
-    metrics: { httpStatus: null },
-    consecutiveFailures: 3,
-  });
+  const alert = buildMonitorAlert(
+    {
+      event: 'monitor.down',
+      monitor: { id: 'm1', name: 'Site', type: 'http', target: 'https://example.com/' },
+      incident: { id: 'i1', startedAt: new Date('2026-01-01T00:00:00Z'), resolvedAt: null },
+      status: 'unreachable',
+      detail: 'ECONNREFUSED',
+      metrics: { httpStatus: null },
+      consecutiveFailures: 3,
+    },
+    'fr',
+  );
   assert.equal(alert.event, 'monitor.down');
   assert.equal(alert.text, alert.content);
   assert.match(alert.text, /ECONNREFUSED/);
@@ -430,19 +448,22 @@ test('the alert carries text and content, for Slack as for Discord', () => {
 });
 
 test("the recovery alert carries the outage's duration", () => {
-  const alert = buildMonitorAlert({
-    event: 'monitor.up',
-    monitor: { id: 'm1', name: 'Site', type: 'tls', target: 'example.com' },
-    incident: {
-      id: 'i1',
-      startedAt: new Date('2026-01-01T00:00:00Z'),
-      resolvedAt: new Date('2026-01-01T00:05:00Z'),
+  const alert = buildMonitorAlert(
+    {
+      event: 'monitor.up',
+      monitor: { id: 'm1', name: 'Site', type: 'tls', target: 'example.com' },
+      incident: {
+        id: 'i1',
+        startedAt: new Date('2026-01-01T00:00:00Z'),
+        resolvedAt: new Date('2026-01-01T00:05:00Z'),
+      },
+      status: 'healthy',
+      detail: null,
+      metrics: { daysRemaining: 62 },
+      consecutiveFailures: 0,
     },
-    status: 'healthy',
-    detail: null,
-    metrics: { daysRemaining: 62 },
-    consecutiveFailures: 0,
-  });
+    'fr',
+  );
   assert.equal(alert.incident.durationSeconds, 300);
   assert.match(alert.text, /5 min/);
   assert.equal(alert.monitor.type, 'tls');

@@ -37,7 +37,7 @@ export class SftpBackupStore implements BackupStore {
   constructor(
     private readonly config: SftpDestinationConfig,
     private readonly secrets: SftpDestinationSecrets,
-    language: UiLanguage = 'fr',
+    language: UiLanguage,
   ) {
     this.say = backupSay(language);
   }

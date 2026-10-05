@@ -1,9 +1,4 @@
-import {
-  DEFAULT_UI_LANGUAGE,
-  renderMessage,
-  type Translated,
-  type UiLanguage,
-} from '../i18n.js';
+import { renderMessage, type Translated, type UiLanguage } from '../i18n.js';
 import type { ChannelConfig } from './catalog.js';
 import { notificationDigestOmitted, type NotificationDigest } from './digest.js';
 import type { NotificationMessage } from './message.js';
@@ -96,10 +91,7 @@ export class WebhookChannel implements NotificationChannel {
    * and probing it would amount to delivering. We say so rather than pretend to
    * have checked — it is the test send that is authoritative here.
    */
-  test(
-    resolved: ResolvedChannelConfig,
-    language: UiLanguage = DEFAULT_UI_LANGUAGE,
-  ): Promise<NotificationTestResult> {
+  test(resolved: ResolvedChannelConfig, language: UiLanguage): Promise<NotificationTestResult> {
     this.target(resolved, language);
     return Promise.resolve({ ok: true, detail: t(language, 'probe.none') });
   }

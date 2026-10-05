@@ -54,7 +54,7 @@ async function probe(
   console.log(`\n▸ ${title}`);
   console.log(`   ${DIM}${JSON.stringify(config)}${OFF}`);
   const started = performance.now();
-  const result = await getMonitorProbe(type).run(config, { allowlist });
+  const result = await getMonitorProbe(type).run(config, { language: 'fr', allowlist });
   show(result);
   console.log(`   ${DIM}measured in ${Math.round(performance.now() - started)} ms${OFF}`);
 }

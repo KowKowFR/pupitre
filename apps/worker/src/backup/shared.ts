@@ -3,7 +3,7 @@ import { createWriteStream } from 'node:fs';
 import { PassThrough, Transform, type Readable, type Writable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { createGzip } from 'node:zlib';
-import { DEFAULT_UI_LANGUAGE, errorMessage, type UiLanguage } from '@pupitre/core';
+import { errorMessage, type UiLanguage } from '@pupitre/core';
 import {
   createDecryptStream,
   createEncryptStream,
@@ -120,7 +120,7 @@ export async function fetchPiece(
   key: string,
   expectedSha256: string,
   destination: string,
-  language: UiLanguage = DEFAULT_UI_LANGUAGE,
+  language: UiLanguage,
 ): Promise<void> {
   const source: Readable = await store.get(key);
   const hash = createHash('sha256');

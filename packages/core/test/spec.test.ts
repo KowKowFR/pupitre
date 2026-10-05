@@ -381,7 +381,7 @@ describe('AppSpec', () => {
           db: ['MARIADB_PASSWORD'],
         }),
       );
-      const values = completeSecretValues(spec, { MARIADB_PASSWORD: 's3cr3t' });
+      const values = completeSecretValues(spec, { MARIADB_PASSWORD: 's3cr3t' }, 'fr');
       assert.deepEqual(values, {
         WORDPRESS_DB_PASSWORD: 's3cr3t',
         MARIADB_PASSWORD: 's3cr3t',
@@ -396,7 +396,7 @@ describe('AppSpec', () => {
         }),
       );
       assert.throws(
-        () => completeSecretValues(spec, {}),
+        () => completeSecretValues(spec, {}, 'fr'),
         (error: Error) =>
           error.message.includes('MARIADB_PASSWORD') &&
           !error.message.includes('WORDPRESS_DB_PASSWORD'),

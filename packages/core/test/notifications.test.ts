@@ -413,7 +413,7 @@ describe('notifications — the catalog', () => {
     assert.deepEqual(channelSecretFields('discord'), ['webhookUrl']);
     // Serializable: a `RegExp` or a function would become `{}` in JSON, and the
     // screen would show an empty form without the slightest error.
-    const presented = presentNotificationChannels();
+    const presented = presentNotificationChannels('en');
     assert.deepEqual(JSON.parse(JSON.stringify(presented)), presented);
     assert.ok(presented.every((channel) => channel.fields.every((f) => !('schema' in f))));
   });
@@ -452,10 +452,13 @@ describe('notifications — the channels', () => {
     const { transports, calls } = fakeTransports(() => new Response('{"name":"ops"}', { status: 200 }));
     const url = 'https://discord.com/api/webhooks/1/abcdefghijklmnop';
 
-    const probe = await getNotificationChannel('discord', transports).test({
-      config: {},
-      secrets: { webhookUrl: url },
-    });
+    const probe = await getNotificationChannel('discord', transports).test(
+      {
+        config: {},
+        secrets: { webhookUrl: url },
+      },
+      'en',
+    );
     assert.equal(probe.ok, true);
     assert.equal(calls[0]?.init.method, 'GET');
 
@@ -517,7 +520,7 @@ describe('notifications — the channels', () => {
       secrets: { password: 'mot-de-passe-smtp' },
     };
 
-    const probe = await getNotificationChannel('smtp', transports).test(resolved);
+    const probe = await getNotificationChannel('smtp', transports).test(resolved, 'en');
     assert.equal(probe.ok, true);
     assert.equal(mails.verified, 1);
     // Implicit SMTPS: the session opens encrypted, STARTTLS is not required.
@@ -541,10 +544,19 @@ describe('notifications — the channels', () => {
 
   it('smtp: STARTTLS is required, never opportunistic', async () => {
     const { transports, mails } = fakeTransports();
-    await getNotificationChannel('smtp', transports).test({
-      config: { host: 'smtp.example.test', port: 587, security: 'starttls', from: 'a@b.test', to: 'c@d.test' },
-      secrets: {},
-    });
+    await getNotificationChannel('smtp', transports).test(
+      {
+        config: {
+          host: 'smtp.example.test',
+          port: 587,
+          security: 'starttls',
+          from: 'a@b.test',
+          to: 'c@d.test',
+        },
+        secrets: {},
+      },
+      'en',
+    );
     assert.equal(mails.options.secure, false);
     assert.equal(mails.options.requireTls, true);
     // No credentials: no authentication, rather than an empty authentication.
@@ -555,13 +567,19 @@ describe('notifications — the channels', () => {
 describe('notifications — secrets do not leak through error messages', () => {
   it('masks the exact value, the Telegram token and a Discord webhook’s token', () => {
     const token = '123456789:AAbbccddeeffgghhiijjkkllmmnnoopp';
-    assert.ok(!redactSecrets(`échec sur ${token}`).includes(token));
+    assert.ok(!redactSecrets(`échec sur ${token}`, {}, 'fr').includes(token));
     assert.equal(
-      redactSecrets('https://discord.com/api/webhooks/42/tres-long-jeton-ici'),
+      redactSecrets('https://discord.com/api/webhooks/42/tres-long-jeton-ici', {}, 'fr'),
       'https://discord.com/api/webhooks/42/[secret masqué]',
     );
-    assert.ok(!redactSecrets('refusé : sekret-de-la-mort', { token: 'sekret-de-la-mort' }).includes('sekret'));
-    assert.ok(!redactSecrets('Authorization: Bearer abcdefghijklmnop').includes('abcdefghij'));
+    assert.ok(
+      !redactSecrets('refusé : sekret-de-la-mort', { token: 'sekret-de-la-mort' }, 'fr').includes(
+        'sekret',
+      ),
+    );
+    assert.ok(
+      !redactSecrets('Authorization: Bearer abcdefghijklmnop', {}, 'fr').includes('abcdefghij'),
+    );
   });
 
   it('unfolds the cause: “fetch failed” alone does not make the failure visible', () => {
@@ -569,7 +587,7 @@ describe('notifications — secrets do not leak through error messages', () => {
       cause: new Error('connect ECONNREFUSED 127.0.0.1:9'),
     });
     assert.equal(
-      describeFailure(wrapped),
+      describeFailure(wrapped, {}, 'fr'),
       'fetch failed : connect ECONNREFUSED 127.0.0.1:9',
     );
   });

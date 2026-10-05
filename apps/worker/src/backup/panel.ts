@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { Readable, type Writable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import { DEFAULT_UI_LANGUAGE, errorMessage, type UiLanguage } from '@pupitre/core';
+import { errorMessage, type UiLanguage } from '@pupitre/core';
 import {
   DEFAULT_BACKUP_RETENTION,
   MANIFEST_FILE,
@@ -57,7 +57,7 @@ export function runPgTool(
   command: string,
   args: string[],
   streams: { stdout?: Writable; stdin?: Readable },
-  language: UiLanguage = DEFAULT_UI_LANGUAGE,
+  language: UiLanguage,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {

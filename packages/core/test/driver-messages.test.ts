@@ -65,7 +65,7 @@ describe('Driver and SSH messages — rendered in English', () => {
     assert.match(error.message, /JWT_SECRET/);
     assert.doesNotMatch(error.message, /[éèàç]/);
     // Without a language, French stays the default value.
-    assert.notEqual(new UnresolvedSecretError(['JWT_SECRET']).message, error.message);
+    assert.notEqual(new UnresolvedSecretError(['JWT_SECRET'], 'fr').message, error.message);
   });
 
   it('a host key that changed', () => {
@@ -96,7 +96,7 @@ describe('Driver and SSH messages — rendered in English', () => {
     assert.equal(byName.get('api')?.since, '1/2 ready');
     assert.equal(byName.get('idle')?.since, 'scaled to zero');
 
-    const french = new Map(parseWorkloads(json).map((workload) => [workload.name, workload]));
+    const french = new Map(parseWorkloads(json, 'fr').map((workload) => [workload.name, workload]));
     assert.equal(french.get('api')?.since, '1/2 prêts');
   });
 });

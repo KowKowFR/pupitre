@@ -73,12 +73,9 @@ export function hostKeyFingerprint(key: Buffer): string {
  * **Never** on an authentication failure: the key will not become valid by
  * retrying, and some targets ban the IP after a few attempts.
  */
-export async function connect(
-  target: SshTarget,
-  options: ConnectOptions = {},
-): Promise<SshSession> {
+export async function connect(target: SshTarget, options: ConnectOptions): Promise<SshSession> {
   const logger = options.logger ?? noopLogger;
-  const say = sshSay(options.language ?? 'fr');
+  const say = sshSay(options.language);
   const retries = options.retries ?? DEFAULT_RETRIES;
   const readyTimeout = options.readyTimeout ?? DEFAULT_READY_TIMEOUT_MS;
 
@@ -148,7 +145,7 @@ export async function connect(
         client,
         target,
         logger: options.logger,
-        language: options.language ?? 'fr',
+        language: options.language,
       };
     } catch (error) {
       lastError = error;
@@ -529,7 +526,7 @@ export async function disconnect(session: SshSession): Promise<void> {
 export async function withSession<T>(
   target: SshTarget,
   run: (session: SshSession) => Promise<T>,
-  options: ConnectOptions = {},
+  options: ConnectOptions,
 ): Promise<T> {
   const session = await connect(target, options);
   try {

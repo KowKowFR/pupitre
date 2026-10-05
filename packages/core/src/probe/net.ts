@@ -32,7 +32,7 @@ export class SsrfBlockedError extends Error {
     readonly refusal: SsrfRefusal,
     readonly target: string,
   ) {
-    super(ssrfRefusalText(refusal));
+    super(ssrfRefusalText(refusal, 'en'));
     this.reason = this.message;
   }
 }
@@ -124,7 +124,7 @@ export class ProbeTimeoutError extends Error {
   }
 }
 
-export function messageOf(error: unknown, language: UiLanguage = 'fr'): string {
+export function messageOf(error: unknown, language: UiLanguage): string {
   if (error instanceof ProbeTimeoutError) return probeSay(language)('timeout', { ms: error.ms });
   if (error instanceof SsrfBlockedError) return ssrfRefusalText(error.refusal, language);
   if (error instanceof Error) {

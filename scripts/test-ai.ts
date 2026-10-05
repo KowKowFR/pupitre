@@ -141,6 +141,7 @@ step('2. The default model follows the provider');
   for (const provider of AI_PROVIDERS) {
     check(`${provider} → ${defaultAiModel(provider)}`, () => {
       const resolved = resolveAiConfig({
+        language: 'fr',
         settings: { provider, enabled: true },
         settingsApiKey: 'sk-test',
       });
@@ -157,6 +158,7 @@ step('2. The default model follows the provider');
 
   check('a model set by hand wins over the default', () => {
     const resolved = resolveAiConfig({
+      language: 'fr',
       settings: { provider: 'anthropic', model: 'claude-opus-4-5' },
       settingsApiKey: 'sk-test',
     });
@@ -166,6 +168,7 @@ step('2. The default model follows the provider');
 
   check('an unknown provider in the database falls back on OpenRouter, without crashing', () => {
     const resolved = resolveAiConfig({
+      language: 'fr',
       settings: { provider: 'skynet' },
       settingsApiKey: 'sk-test',
     });
@@ -181,7 +184,7 @@ step("3. The fallback environment variable is specific to the provider");
   };
 
   check('OpenRouter lit OPENROUTER_API_KEY', () => {
-    const resolved = resolveAiConfig({ settings: { provider: 'openrouter' }, env });
+    const resolved = resolveAiConfig({ language: 'fr', settings: { provider: 'openrouter' }, env });
     assert.equal(resolved.enabled, true);
     assert.equal(resolved.keySource, 'env');
     assert.equal(resolved.model, 'openai/gpt-5');
@@ -190,7 +193,7 @@ step("3. The fallback environment variable is specific to the provider");
 
   for (const provider of ['openai', 'anthropic'] as const) {
     check(`${provider} ignores OPENROUTER_API_KEY — no key, no generation`, () => {
-      const resolved = resolveAiConfig({ settings: { provider }, env });
+      const resolved = resolveAiConfig({ language: 'fr', settings: { provider }, env });
       assert.equal(resolved.enabled, false);
       assert.equal(resolved.keySource, 'none');
       assert.equal(resolved.apiKey, undefined);
@@ -206,17 +209,22 @@ step("3. The fallback environment variable is specific to the provider");
       ANTHROPIC_API_KEY: 'sk-ant-xxx',
       ANTHROPIC_MODEL: 'claude-haiku-4-5',
     };
-    const openai = resolveAiConfig({ settings: { provider: 'openai' }, env: full });
+    const openai = resolveAiConfig({ language: 'fr', settings: { provider: 'openai' }, env: full });
     assert.equal(openai.enabled, true);
     assert.equal(openai.apiKey, 'sk-oa-xxx');
 
-    const anthropic = resolveAiConfig({ settings: { provider: 'anthropic' }, env: full });
+    const anthropic = resolveAiConfig({
+      language: 'fr',
+      settings: { provider: 'anthropic' },
+      env: full,
+    });
     assert.equal(anthropic.apiKey, 'sk-ant-xxx');
     assert.equal(anthropic.model, 'claude-haiku-4-5');
   });
 
   check("the settings' key takes precedence over the environment's", () => {
     const resolved = resolveAiConfig({
+      language: 'fr',
       settings: { provider: 'openrouter' },
       settingsApiKey: 'sk-settings',
       env,
@@ -227,6 +235,7 @@ step("3. The fallback environment variable is specific to the provider");
 
   check('the switch cuts the generation even with a key', () => {
     const resolved = resolveAiConfig({
+      language: 'fr',
       settings: { provider: 'openrouter', enabled: false },
       settingsApiKey: 'sk-settings',
     });
@@ -236,12 +245,14 @@ step("3. The fallback environment variable is specific to the provider");
 
   check('the base URL is only kept by the providers that declare it', () => {
     const openai = resolveAiConfig({
+      language: 'fr',
       settings: { provider: 'openai', baseUrl: 'https://llm.internal/v1' },
       settingsApiKey: 'k',
     });
     assert.equal(openai.baseUrl, 'https://llm.internal/v1');
 
     const anthropic = resolveAiConfig({
+      language: 'fr',
       settings: { provider: 'anthropic', baseUrl: 'https://llm.internal/v1' },
       settingsApiKey: 'k',
     });
@@ -252,40 +263,47 @@ step("3. The fallback environment variable is specific to the provider");
 step('4. A model inconsistent with the provider is flagged');
 {
   check('OpenRouter + "gpt-5.2" → warned, and OpenAI is named', () => {
-    const warning = aiModelMismatch('openrouter', 'gpt-5.2');
+    const warning = aiModelMismatch('openrouter', 'gpt-5.2', { language: 'fr' });
     assert.ok(warning, 'no warning');
     assert.match(warning, /OpenAI/);
   });
 
   check('Anthropic + "anthropic/claude-sonnet-4.5" → warned, OpenRouter is named', () => {
-    const warning = aiModelMismatch('anthropic', 'anthropic/claude-sonnet-4.5');
+    const warning = aiModelMismatch('anthropic', 'anthropic/claude-sonnet-4.5', { language: 'fr' });
     assert.ok(warning);
     assert.match(warning, /OpenRouter/);
   });
 
   check('OpenAI + "claude-sonnet-4-5" → warned, Anthropic is named', () => {
-    const warning = aiModelMismatch('openai', 'claude-sonnet-4-5');
+    const warning = aiModelMismatch('openai', 'claude-sonnet-4-5', { language: 'fr' });
     assert.ok(warning);
     assert.match(warning, /Anthropic/);
   });
 
   check('a native identifier triggers nothing', () => {
-    assert.equal(aiModelMismatch('openrouter', 'anthropic/claude-sonnet-4.5'), null);
-    assert.equal(aiModelMismatch('openai', 'gpt-4.1'), null);
-    assert.equal(aiModelMismatch('openai', 'o3-mini'), null);
-    assert.equal(aiModelMismatch('anthropic', 'claude-opus-4-5'), null);
+    assert.equal(
+      aiModelMismatch('openrouter', 'anthropic/claude-sonnet-4.5', { language: 'fr' }),
+      null,
+    );
+    assert.equal(aiModelMismatch('openai', 'gpt-4.1', { language: 'fr' }), null);
+    assert.equal(aiModelMismatch('openai', 'o3-mini', { language: 'fr' }), null);
+    assert.equal(aiModelMismatch('anthropic', 'claude-opus-4-5', { language: 'fr' }), null);
   });
 
   check('a custom base URL suspends the warning', () => {
     assert.equal(
-      aiModelMismatch('openai', 'mixtral-8x7b-instruct', { baseUrl: 'https://llm.internal/v1' }),
+      aiModelMismatch('openai', 'mixtral-8x7b-instruct', {
+        language: 'fr',
+        baseUrl: 'https://llm.internal/v1',
+      }),
       null,
     );
-    assert.ok(aiModelMismatch('openai', 'mixtral-8x7b-instruct'));
+    assert.ok(aiModelMismatch('openai', 'mixtral-8x7b-instruct', { language: 'fr' }));
   });
 
   check('resolveAiConfig carries the warning to the route', () => {
     const resolved = resolveAiConfig({
+      language: 'fr',
       settings: { provider: 'anthropic', model: 'anthropic/claude-sonnet-4.5' },
       settingsApiKey: 'k',
     });
@@ -431,7 +449,7 @@ step("8. A provider's message is cleaned before being relayed");
   const key = 'sk-sentinelle-verif-ia-0000000000000000';
 
   check('the exact key disappears from the message', () => {
-    const cleaned = redactApiKey(`401 rejected key ${key}`, key);
+    const cleaned = redactApiKey(`401 rejected key ${key}`, key, 'fr');
     assert.ok(!cleaned.includes(key), cleaned);
     assert.match(cleaned, /clé masquée/);
   });
@@ -440,21 +458,22 @@ step("8. A provider's message is cleaned before being relayed");
   // and the last four characters of the key. A mask that leaves twelve characters
   // in clear is not a mask.
   check('the form masked by OpenAI disappears too', () => {
-    const masked = 'Incorrect API key provided: sk-senti***************************0000. You can find…';
-    const cleaned = redactApiKey(masked, key);
+    const masked =
+      'Incorrect API key provided: sk-senti***************************0000. You can find…';
+    const cleaned = redactApiKey(masked, key, 'fr');
     assert.ok(!cleaned.includes('sk-senti'), cleaned);
     assert.match(cleaned, /clé masquée/);
   });
 
   check("the other providers' forms are covered", () => {
     for (const sample of ['sk-ant-api03-AbCdEf', 'sk-or-v1-0123456789', 'gsk_ABCDEFGHIJ']) {
-      assert.ok(!redactApiKey(`error: ${sample}`).includes(sample), sample);
+      assert.ok(!redactApiKey(`error: ${sample}`, undefined, 'fr').includes(sample), sample);
     }
   });
 
   check('a message without a key goes through intact', () => {
     const message = 'The model did not answer within the allotted time';
-    assert.equal(redactApiKey(message, key), message);
+    assert.equal(redactApiKey(message, key, 'fr'), message);
   });
 }
 

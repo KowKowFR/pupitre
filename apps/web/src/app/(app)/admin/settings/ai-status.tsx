@@ -1,7 +1,7 @@
 import { aiProviderDescriptor, resolveAiConfig } from '@pupitre/core/ai';
-import type { AppSettings } from '@pupitre/core';
+import type { AppSettings, UiLanguage } from '@pupitre/core';
 import { Badge } from '@/components/ui/badge';
-import { getT } from '@/i18n/server';
+import { currentLanguage, getT } from '@/i18n/server';
 import { settings as messages } from '@/i18n/messages/settings';
 
 /**
@@ -18,8 +18,9 @@ import { settings as messages } from '@/i18n/messages/settings';
  * Three states, because there are three distinct situations to tell apart and a
  * boolean only covers two.
  */
-function aiReadiness(settings: AppSettings, storedApiKey: string | null) {
+function aiReadiness(settings: AppSettings, storedApiKey: string | null, language: UiLanguage) {
   return resolveAiConfig({
+    language,
     settings: settings.ai,
     settingsApiKey: storedApiKey ?? undefined,
     env: process.env,
@@ -33,7 +34,7 @@ export async function AiStatusBadge({
   settings: AppSettings;
   storedApiKey: string | null;
 }) {
-  const config = aiReadiness(settings, storedApiKey);
+  const config = aiReadiness(settings, storedApiKey, await currentLanguage());
   const t = await getT(messages);
 
   if (!settings.ai.enabled) {

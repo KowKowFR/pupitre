@@ -60,7 +60,7 @@ describe('format .pupb', () => {
     assert.equal(sealed.subarray(0, 4).toString(), 'PUPB');
     assert.equal(sealed.length, plain.length + BACKUP_HEADER_BYTES + 16);
     // Hostile chunking: pieces smaller than the header and than the tag.
-    const back = await collect(chunked(sealed, 5).pipe(createDecryptStream(KEY)));
+    const back = await collect(chunked(sealed, 5).pipe(createDecryptStream(KEY, 'fr')));
     assert.ok(back.equals(plain));
   });
 
@@ -68,29 +68,32 @@ describe('format .pupb', () => {
     const a = await encryptBuffer(Buffer.from('same content'), KEY);
     const b = await encryptBuffer(Buffer.from('same content'), KEY);
     assert.notDeepEqual(a, b);
-    assert.equal((await decryptBuffer(a, KEY)).toString(), 'same content');
+    assert.equal((await decryptBuffer(a, KEY, 'fr')).toString(), 'same content');
   });
 
   it('refuses a file tampered with, truncated, or encrypted under another key', async () => {
     const sealed = await encryptBuffer(Buffer.from('important data'), KEY);
     const tampered = Buffer.from(sealed);
     tampered[BACKUP_HEADER_BYTES + 2] = (tampered[BACKUP_HEADER_BYTES + 2] ?? 0) ^ 1;
-    await assert.rejects(decryptBuffer(tampered, KEY), BackupFormatError);
+    await assert.rejects(decryptBuffer(tampered, KEY, 'fr'), BackupFormatError);
     await assert.rejects(
-      decryptBuffer(sealed.subarray(0, sealed.length - 3), KEY),
+      decryptBuffer(sealed.subarray(0, sealed.length - 3), KEY, 'fr'),
       BackupFormatError,
     );
-    await assert.rejects(decryptBuffer(sealed, OTHER_KEY), BackupFormatError);
+    await assert.rejects(decryptBuffer(sealed, OTHER_KEY, 'fr'), BackupFormatError);
     // The header is authenticated too: changing the salt is changing the key.
     const header = Buffer.from(sealed);
     header[6] = (header[6] ?? 0) ^ 1;
-    await assert.rejects(decryptBuffer(header, KEY), BackupFormatError);
-    await assert.rejects(decryptBuffer(Buffer.from('not a backup at all'), KEY), BackupFormatError);
+    await assert.rejects(decryptBuffer(header, KEY, 'fr'), BackupFormatError);
+    await assert.rejects(
+      decryptBuffer(Buffer.from('not a backup at all'), KEY, 'fr'),
+      BackupFormatError,
+    );
   });
 
   it('also encrypts an empty content', async () => {
     const sealed = await encryptBuffer(Buffer.alloc(0), KEY);
-    assert.equal((await decryptBuffer(sealed, KEY)).length, 0);
+    assert.equal((await decryptBuffer(sealed, KEY, 'fr')).length, 0);
   });
 });
 
@@ -286,7 +289,7 @@ describe('“mounted folder” destination', () => {
   it('places, lists, reads back and deletes — without ever leaving the folder', async () => {
     const root = await mkdtemp(join(tmpdir(), 'pupitre-store-'));
     try {
-      const store = new LocalBackupStore({ path: root });
+      const store = new LocalBackupStore({ path: root }, 'fr');
       await store.check();
       const bytes = await store.put('apps/blog/x/a.pupb', Readable.from([Buffer.from('bonjour')]));
       assert.equal(bytes, 7);

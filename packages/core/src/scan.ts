@@ -80,14 +80,8 @@ const failOnLabelsEn: Translated<typeof failOnLabelsFr> = {
 
 export const failOnLabels = { fr: failOnLabelsFr, en: failOnLabelsEn };
 
-/**
- * A threshold's label in a given language.
- *
- * The default is French because it is the source language: a caller that does
- * not know which language it speaks — a log, a seed — gets the original value
- * rather than a bare key.
- */
-export function failOnLabel(failOn: FailOn, language: UiLanguage = 'fr'): string {
+/** A threshold's label in a given language. */
+export function failOnLabel(failOn: FailOn, language: UiLanguage): string {
   const table: Record<FailOn, string> = failOnLabels[language] ?? failOnLabelsFr;
   return table[failOn];
 }
@@ -153,7 +147,7 @@ const scannerDescriptionsEn: Translated<typeof scannerDescriptionsFr> = {
 
 export const scannerDescriptions = { fr: scannerDescriptionsFr, en: scannerDescriptionsEn };
 
-export function scannerDescription(key: ScannerKey, language: UiLanguage = 'fr'): string {
+export function scannerDescription(key: ScannerKey, language: UiLanguage): string {
   const table: Record<ScannerKey, string> = scannerDescriptions[language] ?? scannerDescriptionsFr;
   return table[key];
 }

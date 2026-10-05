@@ -69,8 +69,8 @@ const KEY_LIKE = /\b(?:sk|pk|rk|xai|gsk)[-_][A-Za-z0-9_*-]{6,}/gi;
  */
 export function redactApiKey(
   text: string,
-  apiKey?: string | null,
-  language: UiLanguage = 'fr',
+  apiKey: string | null | undefined,
+  language: UiLanguage,
 ): string {
   const mask = aiSay(language)('redacted');
   const key = apiKey?.trim();
@@ -123,6 +123,8 @@ export function createModel(config: ModelConfig): ConfiguredModel {
  * only have its environment.
  */
 export type AiConfigSources = {
+  /** The language of the model warning: the screen's, or the instance's. */
+  language: UiLanguage;
   /** Settings from `app_settings.value.ai`. Absent = never configured. */
   settings?:
     | {
@@ -204,6 +206,6 @@ export function resolveAiConfig(sources: AiConfigSources): ResolvedAiConfig {
     baseUrl,
     keySource,
     modelSource,
-    modelWarning: aiModelMismatch(provider, model, { baseUrl }),
+    modelWarning: aiModelMismatch(provider, model, { baseUrl, language: sources.language }),
   };
 }

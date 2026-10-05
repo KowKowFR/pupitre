@@ -61,7 +61,7 @@ export type GuardedFetchInput = {
   readBody: boolean;
   allowlist: readonly Cidr[];
   /** The language of a failure's `detail` — the instance's. */
-  language?: UiLanguage;
+  language: UiLanguage;
   accept?: string;
   maxRedirects?: number;
   /**
@@ -273,7 +273,7 @@ export async function guardedFetch(input: GuardedFetchInput): Promise<GuardedFet
   const deadline = Date.now() + input.timeoutMs;
   const maxRedirects = input.maxRedirects ?? MONITOR_MAX_REDIRECTS;
   const accept = input.accept ?? '*/*';
-  const language = input.language ?? 'fr';
+  const language = input.language;
   const say = probeSay(language);
 
   let current = input.url;

@@ -60,6 +60,7 @@ function validateWithDockerCompose(name: string, spec: AppSpec, publishedPort: n
   mkdirSync(dir, { recursive: true });
 
   for (const file of renderFiles({
+    language: 'fr',
     spec,
     appSlug: spec.name,
     publishedPort,
@@ -85,7 +86,12 @@ function validateWithDockerCompose(name: string, spec: AppSpec, publishedPort: n
 describe('render() — AppSpec to Compose', () => {
   describe('simple.json', () => {
     const spec = fixture('simple');
-    const file = renderComposeFile({ spec, appSlug: spec.name, publishedPort: 30001 });
+    const file = renderComposeFile({
+      language: 'fr',
+      spec,
+      appSlug: spec.name,
+      publishedPort: 30001,
+    });
 
     it('names the app-{slug} project and its network', () => {
       assert.equal(file.name, 'app-demo-api');
@@ -118,7 +124,12 @@ describe('render() — AppSpec to Compose', () => {
 
   describe('fullstack.json', () => {
     const spec = fixture('fullstack');
-    const file = renderComposeFile({ spec, appSlug: spec.name, publishedPort: null });
+    const file = renderComposeFile({
+      language: 'fr',
+      spec,
+      appSlug: spec.name,
+      publishedPort: null,
+    });
 
     it('puts the services in dependency order', () => {
       assert.deepEqual(Object.keys(file.services), ['postgres', 'api', 'front']);
@@ -162,6 +173,7 @@ describe('render() — AppSpec to Compose', () => {
 
     it('generates a 0600 .env with the declared names', () => {
       const files = renderFiles({
+        language: 'fr',
         spec,
         appSlug: spec.name,
         publishedPort: null,
@@ -212,7 +224,7 @@ describe('render() — AppSpec to Compose', () => {
 
     it('refuses to render a declared secret without a resolved value, naming it', () => {
       assert.throws(
-        () => renderFiles({ spec, appSlug: spec.name, publishedPort: null }),
+        () => renderFiles({ language: 'fr', spec, appSlug: spec.name, publishedPort: null }),
         (error: unknown) => {
           assert.ok(error instanceof UnresolvedSecretError);
           assert.deepEqual(
@@ -228,6 +240,7 @@ describe('render() — AppSpec to Compose', () => {
     it('accepts a deliberately empty secret — absent is not empty', () => {
       const values = { ...stubSecrets(spec), JWT_SECRET: '' };
       const files = renderFiles({
+        language: 'fr',
         spec,
         appSlug: spec.name,
         publishedPort: null,
@@ -266,7 +279,9 @@ describe('render() — AppSpec to Compose', () => {
         ],
       });
 
-      const yaml = serializeComposeFile(renderComposeFile({ spec, appSlug: 'echappement', publishedPort: 30002 }));
+      const yaml = serializeComposeFile(
+        renderComposeFile({ language: 'fr', spec, appSlug: 'echappement', publishedPort: 30002 }),
+      );
       const parsed = parseYaml(yaml) as {
         services: { web: { environment: Record<string, string> } };
       };
@@ -279,8 +294,12 @@ describe('render() — AppSpec to Compose', () => {
 
     it('stays deterministic', () => {
       const spec = fixture('fullstack');
-      const once = serializeComposeFile(renderComposeFile({ spec, appSlug: spec.name, publishedPort: 30003 }));
-      const twice = serializeComposeFile(renderComposeFile({ spec, appSlug: spec.name, publishedPort: 30003 }));
+      const once = serializeComposeFile(
+        renderComposeFile({ language: 'fr', spec, appSlug: spec.name, publishedPort: 30003 }),
+      );
+      const twice = serializeComposeFile(
+        renderComposeFile({ language: 'fr', spec, appSlug: spec.name, publishedPort: 30003 }),
+      );
       assert.equal(once, twice);
     });
   });
@@ -296,6 +315,7 @@ describe('render() — AppSpec to Compose', () => {
 describe('security context', () => {
   const fullstack = fixture('fullstack');
   const file = renderComposeFile({
+    language: 'fr',
     spec: fullstack,
     appSlug: fullstack.name,
     publishedPort: null,
@@ -398,7 +418,12 @@ describe('security context', () => {
         },
       ],
     });
-    const rendered = renderComposeFile({ spec, appSlug: spec.name, publishedPort: null });
+    const rendered = renderComposeFile({
+      language: 'fr',
+      spec,
+      appSlug: spec.name,
+      publishedPort: null,
+    });
     assert.equal(rendered.services.app?.read_only, true);
     assert.equal(rendered.services.app?.tmpfs, undefined);
     // A volume is declared: the uid stays the image's.

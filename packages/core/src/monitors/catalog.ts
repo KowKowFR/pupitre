@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { invalid } from "../validation.js";
 import {
-  DEFAULT_UI_LANGUAGE,
   translator,
   type Translate,
   type Translated,
@@ -1693,17 +1692,28 @@ export type AnyMonitorTypeDefinition = {
 };
 
 /**
- * A type's definition, in one language.
+ * A type's definition, in one language: the panel passes its screen's, the
+ * worker the instance's.
  *
- * The default is the fallback language: the worker and the database read a
- * schema, a minimum interval or a log label from it, and have no instance
- * language to offer. The panel passes its own.
+ * The minimum interval is per type because it is a property of the type: what it
+ * costs at the other end, and how fast what it observes can change. An HTTP probe
+ * every minute is reasonable; querying a domain registry every minute would make
+ * the panel a nuisance.
  */
 export function monitorTypeDefinition(
   type: MonitorType,
-  language: UiLanguage = DEFAULT_UI_LANGUAGE,
+  language: UiLanguage,
 ): AnyMonitorTypeDefinition {
   return catalogFor(language)[type] as unknown as AnyMonitorTypeDefinition;
+}
+
+/**
+ * A type's definition in the source language, for what reads its structure — a
+ * schema, a link —, not its words. The schemas' complaints stay in French there:
+ * the screen finds them again by their sentence (`issueMessage()`).
+ */
+function sourceDefinition(type: MonitorType): AnyMonitorTypeDefinition {
+  return MONITOR_TYPES[type] as unknown as AnyMonitorTypeDefinition;
 }
 
 /** Validates a probe's configuration against **its** type's schema. */
@@ -1711,14 +1721,14 @@ export function parseMonitorConfig(
   type: MonitorType,
   config: unknown,
 ): unknown {
-  return monitorTypeDefinition(type).schema.parse(config);
+  return sourceDefinition(type).schema.parse(config);
 }
 
 export function safeParseMonitorConfig(
   type: MonitorType,
   config: unknown,
 ): { ok: true; config: unknown } | { ok: false; error: z.ZodError } {
-  const parsed = monitorTypeDefinition(type).schema.safeParse(config);
+  const parsed = sourceDefinition(type).schema.safeParse(config);
   return parsed.success
     ? { ok: true, config: parsed.data }
     : { ok: false, error: parsed.error };
@@ -1728,7 +1738,7 @@ export function safeParseMonitorConfig(
 export function describeMonitorTarget(
   type: MonitorType,
   config: unknown,
-  language: UiLanguage = DEFAULT_UI_LANGUAGE,
+  language: UiLanguage,
 ): string {
   const definition = monitorTypeDefinition(type, language);
   const parsed = definition.schema.safeParse(config);
@@ -1742,7 +1752,7 @@ export function monitorTargetLink(
   type: MonitorType,
   config: unknown,
 ): string | null {
-  const definition = monitorTypeDefinition(type);
+  const definition = sourceDefinition(type);
   const parsed = definition.schema.safeParse(config);
   if (!parsed.success) return null;
   return definition.linkFor(parsed.data as never);
@@ -1787,7 +1797,7 @@ export function checkMonitorTargetLiterals(
   config: unknown,
   allowlist: readonly Cidr[],
 ): MonitorTargetVerdict {
-  const definition = monitorTypeDefinition(type);
+  const definition = sourceDefinition(type);
   const parsed = definition.schema.safeParse(config);
   // An unreadable configuration is refused elsewhere, with a better message; it
   // is not the guard's job to say it.

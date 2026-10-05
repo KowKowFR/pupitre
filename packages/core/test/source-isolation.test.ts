@@ -41,6 +41,7 @@ describe('a repository’s code, apart in the release', () => {
   it('Compose builds from source/ when the deployment comes from a repository', () => {
     const spec = parseAppSpec(built('examples/bonjour'));
     const fromRepo = renderComposeFile({
+      language: 'fr',
       spec,
       appSlug: 'bonjour',
       publishedPort: 30001,
@@ -50,7 +51,12 @@ describe('a repository’s code, apart in the release', () => {
       context: 'source/examples/bonjour',
       dockerfile: 'Dockerfile',
     });
-    const bundled = renderComposeFile({ spec, appSlug: 'bonjour', publishedPort: 30001 });
+    const bundled = renderComposeFile({
+      language: 'fr',
+      spec,
+      appSlug: 'bonjour',
+      publishedPort: 30001,
+    });
     assert.equal(bundled.services.web?.build?.context, 'examples/bonjour');
     assert.equal(COMPOSE_FILE, 'compose.yml');
   });
@@ -94,7 +100,7 @@ describe('one release per deployment — going back finds the right code', () =>
     });
     const images = (imageTag: string) =>
       Object.fromEntries(
-        renderManifests({ spec, appSlug: 'bonjour', imageTag })
+        renderManifests({ language: 'fr', spec, appSlug: 'bonjour', imageTag })
           .filter((manifest) => manifest.kind === 'Deployment')
           .map((manifest) => [
             manifest.metadata.name,
@@ -106,6 +112,7 @@ describe('one release per deployment — going back finds the right code', () =>
     assert.equal(images('1.0.0-r2').web, 'app-bonjour/web:1.0.0-r2');
 
     const compose = renderComposeFile({
+      language: 'fr',
       spec,
       appSlug: 'bonjour',
       publishedPort: 30001,

@@ -23,8 +23,8 @@ export type ToolRun = {
   stdout: string;
   code: number;
   durationMs: number;
-  /** The session's language: that of a parsing failure. French by default. */
-  language?: UiLanguage;
+  /** The session's language: that of a parsing failure. */
+  language: UiLanguage;
 };
 
 /**
@@ -143,7 +143,7 @@ export function parseJsonOutput<T>(
   run: ToolRun,
   stderrHint: string | null = null,
 ): T {
-  const say = scannerSay(run.language ?? 'fr');
+  const say = scannerSay(run.language);
   const trimmed = run.stdout.trim();
   if (trimmed.length === 0) {
     throw new ScannerError(

@@ -220,7 +220,7 @@ const modelHintsEn: Translated<typeof modelHintsFr> = {
 export const aiModelHints = { fr: modelHintsFr, en: modelHintsEn };
 
 /** The example of the expected shape, in the instance's language. */
-export function aiModelHint(provider: AiProvider, language: UiLanguage = 'fr'): string {
+export function aiModelHint(provider: AiProvider, language: UiLanguage): string {
   return renderMessage(aiModelHints, language, provider);
 }
 
@@ -271,12 +271,9 @@ export function aiModelMismatch(
   model: string,
   options: {
     baseUrl?: string | null | undefined;
-    /**
-     * French by default, the source language: a caller that does not know which
-     * language it speaks gets the original sentence.
-     */
-    language?: UiLanguage;
-  } = {},
+    /** The language of the warning: the screen's, or the instance's. */
+    language: UiLanguage;
+  },
 ): string | null {
   const trimmed = model.trim();
   if (trimmed.length === 0) return null;
@@ -288,7 +285,7 @@ export function aiModelMismatch(
   // serves the catalog it wants.
   if (options.baseUrl && options.baseUrl.trim().length > 0) return null;
 
-  const language = options.language ?? 'fr';
+  const language = options.language;
   const other = aiProviderDescriptors().find(
     (candidate) => candidate.key !== provider && candidate.nativeModel.test(trimmed),
   );

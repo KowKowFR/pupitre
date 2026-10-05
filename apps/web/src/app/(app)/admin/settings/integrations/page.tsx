@@ -2,7 +2,7 @@ import { listGitHubInstallations, type GitHubInstallation } from '@pupitre/core/
 import { countApplicationSources, getAppSettingsValue, getSourceConnection } from '@pupitre/db';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { HelpTip } from '@/components/ui/help-tip';
-import { getT } from '@/i18n/server';
+import { currentLanguage, getT } from '@/i18n/server';
 import { settings as messages } from '@/i18n/messages/settings';
 import { requirePagePermission } from '@/lib/page-auth';
 import { githubConnectionView, githubCredentialsOf, tokenForgeConnectionView } from '@/lib/sources';
@@ -48,7 +48,9 @@ export default async function IntegrationsSettingsPage({
   let installationsError: string | null = null;
   if (connection) {
     try {
-      installations = await listGitHubInstallations(githubCredentialsOf(connection));
+      installations = await listGitHubInstallations(
+        githubCredentialsOf(connection, await currentLanguage()),
+      );
     } catch (error) {
       installationsError = error instanceof Error ? error.message : String(error);
     }

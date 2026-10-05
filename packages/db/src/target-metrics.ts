@@ -1,5 +1,4 @@
 import {
-  DEFAULT_UI_LANGUAGE,
   MONITOR_CHECK_RETENTION_DAYS,
   MONITOR_PRUNE_BATCH,
   translator,
@@ -97,8 +96,8 @@ export function isHostMetricKey(value: string): value is HostMetricKey {
 
 export type HostMetricDefinition = {
   key: HostMetricKey;
-  /** The metric's name, in the requested language (French by default). */
-  label: (language?: UiLanguage) => string;
+  /** The metric's name, in the requested language. */
+  label: (language: UiLanguage) => string;
   /**
    * Default threshold, as a percentage. **These are the values the screen already
    * shows in red** (`host-readouts.tsx`, `saturationTone`): the alert threshold
@@ -112,7 +111,7 @@ export type HostMetricDefinition = {
   /** Extracts from the row the value comparable to the threshold. `null` = not measured. */
   read: (sample: TargetMetricSample) => number | null;
   /** A crossing sentence, for the log and for the screen. */
-  describe: (value: number, sample: TargetMetricSample, language?: UiLanguage) => string;
+  describe: (value: number, sample: TargetMetricSample, language: UiLanguage) => string;
 };
 
 const hostMetricCopy = {
@@ -136,8 +135,7 @@ const hostMetricCopy = {
   },
 } as const;
 
-const metricSay = (language: UiLanguage = DEFAULT_UI_LANGUAGE) =>
-  translator(hostMetricCopy, language);
+const metricSay = (language: UiLanguage) => translator(hostMetricCopy, language);
 
 /**
  * The three monitored dimensions, and the setting that goes with them.

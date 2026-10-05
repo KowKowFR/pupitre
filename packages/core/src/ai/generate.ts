@@ -125,9 +125,9 @@ export type GenerateAppSpecOptions = {
   /**
    * The language of what comes back to the screen: the failure message and the
    * attempts' complaints. The dialogue with the model stays in the prompt's
-   * language, English. French by default.
+   * language, English.
    */
-  language?: UiLanguage;
+  language: UiLanguage;
 };
 
 /**
@@ -142,7 +142,7 @@ export function appSpecJsonSchema(): Record<string, unknown> {
 }
 
 /** Zod's complaints flattened into "path: message" lines, in the requested language. */
-export function formatIssues(error: z.ZodError, language: UiLanguage = 'fr'): string[] {
+export function formatIssues(error: z.ZodError, language: UiLanguage): string[] {
   const say = aiSay(language);
   return error.issues.map((issue) =>
     say('issue', {
@@ -220,7 +220,7 @@ export async function generateAppSpec(
   options: GenerateAppSpecOptions,
 ): Promise<GenerateAppSpecResult> {
   const startedAt = Date.now();
-  const language = options.language ?? 'fr';
+  const language = options.language;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const signal = options.signal ?? AbortSignal.timeout(timeoutMs);
 
@@ -392,7 +392,7 @@ function truncated(error: unknown): boolean {
   return false;
 }
 
-function messageOf(error: unknown, language: UiLanguage = 'fr'): string {
+function messageOf(error: unknown, language: UiLanguage): string {
   if (error instanceof Error) {
     if (error.name === 'TimeoutError' || error.name === 'AbortError') {
       return aiSay(language)('timeout');

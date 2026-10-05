@@ -126,7 +126,7 @@ export async function probeDirect(
   route: ProxyRoute,
   path: string,
   signatures: ProbeSignatures,
-  language: UiLanguage = 'fr',
+  language: UiLanguage,
 ): Promise<RouteProbe> {
   const target = path.startsWith('/') ? path : `/${path}`;
   const plain = await ask('http', entrypoint, route.hostname, target, signatures);

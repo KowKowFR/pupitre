@@ -270,8 +270,8 @@ export type RenderInput = {
   sourceInRelease?: boolean;
   /** The tag of the built images: the release (`releaseName()`). Default: the version. */
   imageTag?: string;
-  /** The language of a render error (a secret without a value). Default: French. */
-  language?: UiLanguage;
+  /** The language of a render error (a secret without a value). */
+  language: UiLanguage;
 };
 
 /** Pupitre's Compose file, always designated by its name (`-f`). */
