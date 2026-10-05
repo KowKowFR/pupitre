@@ -243,6 +243,11 @@ version the application carries — the page shows it ("application version"),
 and the status is sent back to the commit, on GitHub, GitLab and Gitea alike —
 on GitLab, in the commit's pipelines tab.
 
+The `name` of `pupitre.json` names the application **at its creation**. After
+that, the application keeps its name, whatever the file says: that name is its
+project on the machines (below), and a rename in the repository is ignored —
+the worker logs it.
+
 The setting is changed on the page, **Repository → Edit** card, with a third
 option: **on chosen targets**, whether it runs there or not. In "update" mode,
 the **Update from the repository** button takes the branch's latest commit
@@ -937,6 +942,21 @@ Details that matter:
 - An orphan port reservation is released if no deployment remains for the pair.
 - **The audit log outlives what it describes**: `audit_logs.resource_id` is a
   `text` without a foreign key. Purging a run does not purge its trace.
+
+### An application's name
+
+An application's name is also its name on the machines: the Compose project
+`app-{name}`, the K3s namespace `app-{name}`. A deployment keeps the name it was
+made under. Two applications the machines would know under the same name would
+share one project — the second deployment replacing the first one's
+containers, destroying either taking the other along. Hence two refusals, with
+a `409` that names the deployments in question:
+
+- **renaming** an application (its AppSpec's `name`) while a deployment holds
+  it — destroy its deployments first, or keep its name;
+- **creating** an application under a name a deployment of another one still
+  holds — an application renamed before this rule existed may have left one
+  behind.
 
 ### Deleting an application
 

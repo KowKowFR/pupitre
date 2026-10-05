@@ -1158,6 +1158,58 @@ export async function listApplicationDeletionBlockers(
   return blockers;
 }
 
+/** A deployment that holds a name on a machine: who carries it now, and where. */
+export type NameHolder = {
+  applicationId: string;
+  applicationSlug: string;
+  targetName: string;
+  version: number;
+};
+
+/**
+ * The deployments that hold `name` on the machines.
+ *
+ * On a target, an application is `app-{name}` — the Compose project, the K3s
+ * namespace —, and that name is the one of the AppSpec the deployment was made
+ * with, frozen with it: not necessarily its application's current name. Two
+ * applications that end up with the same name there share one project — the
+ * second deployment replaces the first one's containers, and destroying either
+ * takes the other along. "Holds": what the panel must not lose sight of, the
+ * purge's own verdict (`refuse()`); a destroyed deployment holds nothing.
+ */
+export async function listDeploymentsHoldingName(
+  name: string,
+  db: Database = getDb(),
+): Promise<NameHolder[]> {
+  const rows = await db
+    .select({
+      id: deployments.id,
+      number: deployments.number,
+      status: deployments.status,
+      version: deployments.version,
+      applicationId: deployments.applicationId,
+      applicationSlug: applications.slug,
+      targetId: deployments.targetId,
+      targetName: targets.name,
+    })
+    .from(deployments)
+    .innerJoin(applications, eq(applications.id, deployments.applicationId))
+    .innerJoin(targets, eq(targets.id, deployments.targetId))
+    .where(sql`${deployments.appSpec}->>'name' = ${name}`)
+    .orderBy(asc(deployments.version));
+  if (rows.length === 0) return [];
+  const pinned = await listPinnedDeployments(db);
+  const say = dbSay('en');
+  return rows
+    .filter((row) => refuse(row, pinned, say) !== null)
+    .map((row) => ({
+      applicationId: row.applicationId,
+      applicationSlug: row.applicationSlug,
+      targetName: row.targetName,
+      version: row.version,
+    }));
+}
+
 type PurgeCandidate = {
   id: string;
   number: number;

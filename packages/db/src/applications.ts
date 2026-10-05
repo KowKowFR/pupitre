@@ -4,6 +4,11 @@ import { z } from 'zod';
 import { getDb, type Database } from './client.js';
 import { deployments, portAllocations } from './schema/deployments.js';
 import { applications, targets } from './schema/infra.js';
+import {
+  listApplicationDeletionBlockers,
+  listDeploymentsHoldingName,
+  type NameHolder,
+} from './deployments.js';
 
 export type Application = typeof applications.$inferSelect;
 
@@ -90,11 +95,77 @@ export async function createApplication(
   return row;
 }
 
+/**
+ * A name the machines would confuse. `deployed`: the application still holds
+ * deployments under its current name, which is their project's name on the
+ * machines — renaming it would leave them behind, under a name another
+ * application could then take. `held`: another application's deployment still
+ * holds the wanted name there.
+ */
+export class ApplicationNameError extends Error {
+  constructor(
+    readonly reason: 'deployed' | 'held',
+    readonly wanted: string,
+    readonly holders: NameHolder[],
+  ) {
+    super(
+      reason === 'deployed'
+        ? `the application is deployed: its name "${holders[0]?.applicationSlug}" is that of its project on the machines`
+        : `"${wanted}" is still the name of a deployment of "${holders[0]?.applicationSlug}"`,
+    );
+    this.name = 'ApplicationNameError';
+  }
+}
+
+/**
+ * Refuses a name the machines would confuse with another — see
+ * `ApplicationNameError`. `applicationId`: the application being renamed, whose
+ * own deployments do not count against the name it already has.
+ */
+export async function assertApplicationNameFree(
+  name: string,
+  applicationId: string | null,
+  db: Database = getDb(),
+): Promise<void> {
+  const holders = (await listDeploymentsHoldingName(name, db)).filter(
+    (holder) => holder.applicationId !== applicationId,
+  );
+  if (holders.length > 0) throw new ApplicationNameError('held', name, holders);
+}
+
+/**
+ * An application's name is its project on the machines: it only changes while
+ * nothing is deployed under it. A rename with live deployments throws
+ * `ApplicationNameError` — before, the deployments stayed on the machines under
+ * the old name, and the next application to take it shared their project.
+ */
 export async function updateApplication(
   id: string,
   patch: { appSpec?: AppSpec; description?: string; generation?: GenerationOrigin },
   db: Database = getDb(),
 ): Promise<Application | null> {
+  if (patch.appSpec) {
+    const [current] = await db
+      .select({ slug: applications.slug })
+      .from(applications)
+      .where(eq(applications.id, id));
+    if (current && patch.appSpec.name !== current.slug) {
+      const own = await listApplicationDeletionBlockers(id, { language: 'en' }, db);
+      if (own.length > 0) {
+        throw new ApplicationNameError(
+          'deployed',
+          patch.appSpec.name,
+          own.map((blocker) => ({
+            applicationId: id,
+            applicationSlug: current.slug,
+            targetName: blocker.targetName,
+            version: blocker.version,
+          })),
+        );
+      }
+      await assertApplicationNameFree(patch.appSpec.name, id, db);
+    }
+  }
   const values: Record<string, unknown> = { updatedAt: new Date() };
   if (patch.appSpec) {
     values.appSpec = patch.appSpec;
