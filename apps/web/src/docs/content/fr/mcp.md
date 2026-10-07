@@ -21,7 +21,7 @@ Pupitre est un serveur MCP : un agent IA — Claude Code, Claude Desktop, Cursor
 
 La machine de l’agent doit joindre l’adresse du panel — par le réseau privé, un VPN ou un tunnel si le panel n’est pas public.
 
-Vérifiez-le depuis un terminal :
+Vérifiez-le depuis un terminal — macOS, Linux, ou Windows avec WSL ou Git Bash :
 
 ```bash
 curl -s {{origin}}/api/mcp \
@@ -29,6 +29,17 @@ curl -s {{origin}}/api/mcp \
   -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | jq -r '.result.tools[].name'
 ```
+
+Sous Windows, dans PowerShell — sans `curl` ni `jq` :
+
+```powershell
+$headers = @{ Authorization = "Bearer $env:PUPITRE_TOKEN"; Accept = "application/json, text/event-stream" }
+$body = '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+(Invoke-RestMethod -Method Post -Uri "{{origin}}/api/mcp" -Headers $headers `
+  -ContentType "application/json" -Body $body).result.tools.name
+```
+
+Les deux listent les 41 outils.
 
 ## Créer un jeton pour un agent
 
@@ -45,7 +56,17 @@ curl -s {{origin}}/api/mcp \
 
 ## Connecter un client
 
-Dans chaque exemple, exportez d’abord le jeton : `export PUPITRE_TOKEN=pup_…`.
+Dans chaque exemple, le jeton est dans la variable d’environnement `PUPITRE_TOKEN`. Sous macOS et Linux : `export PUPITRE_TOKEN=pup_…`. Sous Windows, dans PowerShell :
+
+```powershell
+$env:PUPITRE_TOKEN = "pup_…"                                                  # cette fenêtre seulement
+[Environment]::SetEnvironmentVariable("PUPITRE_TOKEN", "pup_…", "User")        # pour de bon, pour les clients
+```
+
+Un client lancé depuis le menu Démarrer — Cursor, VS Code, Claude Desktop — ne voit qu’une variable posée « pour de bon », et seulement une fois rouvert.
+
+> [!TIP]
+> Le tiroir **Nouveau jeton** montre une commande `claude mcp add` où le jeton est déjà écrit, sur une seule ligne : elle se colle telle quelle dans bash, zsh, PowerShell et cmd.
 
 ### Claude Code
 
@@ -68,11 +89,17 @@ Ou, partagé dans le `.mcp.json` d’un projet — le jeton reste dans l’envir
 }
 ```
 
-`/mcp` dans Claude Code montre le serveur connecté et ses outils.
+Sous Windows, dans PowerShell :
+
+```powershell
+claude mcp add --transport http pupitre {{origin}}/api/mcp --header "Authorization: Bearer $env:PUPITRE_TOKEN"
+```
+
+`/mcp` dans Claude Code montre le serveur connecté et ses outils ; `claude mcp list` dit s’il répond.
 
 ### Claude Desktop
 
-Claude Desktop démarre des serveurs locaux : le pont `mcp-remote` relaie vers le panel. Dans `claude_desktop_config.json` :
+Claude Desktop démarre des serveurs locaux : le pont `mcp-remote` relaie vers le panel. Il lui faut Node.js sur la machine. Dans `claude_desktop_config.json` — `~/Library/Application Support/Claude/` sous macOS, `%APPDATA%\Claude\` sous Windows (**Settings → Developer → Edit Config**) :
 
 ```json
 {
@@ -86,11 +113,11 @@ Claude Desktop démarre des serveurs locaux : le pont `mcp-remote` relaie vers l
 }
 ```
 
-Ajoutez `"--allow-http"` à `args` si le panel est servi en HTTP simple sur un réseau privé.
+Ajoutez `"--allow-http"` à `args` si le panel est servi en HTTP simple sur un réseau privé. `Authorization:${PUPITRE_AUTH}` n’a pas d’espace exprès : sous Windows, certains clients transmettent mal un argument qui en contient un. Si Windows répond que `npx` n’est pas reconnu, donnez son chemin complet : `"command": "C:\\Program Files\\nodejs\\npx.cmd"`. Redémarrez Claude Desktop après chaque changement.
 
 ### Cursor
 
-`~/.cursor/mcp.json`, ou `.cursor/mcp.json` dans un projet :
+`~/.cursor/mcp.json` — `%USERPROFILE%\.cursor\mcp.json` sous Windows —, ou `.cursor/mcp.json` dans un projet :
 
 ```json
 {
@@ -214,3 +241,6 @@ L’agent enchaîne les outils de lui-même : `whoami`, puis `targets_list` et `
 | un outil répond `HTTP 409` | l’état l’interdit : un déploiement en cours, un domaine pris | lisez le message, puis agissez |
 | `deployment_wait` renvoie « still running » | le déploiement dure plus qu’un appel | rappelez-le, ou lisez `deployment_logs` |
 | `400 Unsupported MCP-Protocol-Version` | le client parle une révision absente de la liste ci-dessus | mettez le client à jour |
+| Windows : `npx` n’est pas reconnu | Node.js manque, ou n’est pas dans le chemin du client | installez Node.js, ou donnez le chemin complet de `npx.cmd` |
+| Windows : `curl -H` refusé par PowerShell | dans Windows PowerShell 5.1, `curl` est `Invoke-WebRequest` | utilisez l’exemple PowerShell ci-dessus, ou `curl.exe` |
+| Windows : le client ne voit pas le jeton | la variable a été posée dans une fenêtre, pas pour de bon | `SetEnvironmentVariable(…, "User")`, puis rouvrez le client |

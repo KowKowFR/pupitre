@@ -325,10 +325,11 @@ function Reveal({
     `  -d '{"applicationId":"…","targetId":"…","runtime":"docker",`,
     `       "images":{"web":"ghcr.io/acme/web:'"$GITHUB_SHA"'"}}'`,
   ].join('\n');
-  const mcpCommand = [
-    `claude mcp add --transport http pupitre ${origin}/api/mcp \\`,
-    '  --header "Authorization: Bearer $PUPITRE_TOKEN"',
-  ].join('\n');
+  // One line, the token written in it, between double quotes: the same command
+  // pastes into bash, zsh, PowerShell and cmd — no variable, no line continuation,
+  // whose syntax differs from one shell to the other. A token only carries
+  // `[A-Za-z0-9_-]`: nothing a shell would interpret.
+  const mcpCommand = `claude mcp add --transport http pupitre ${origin}/api/mcp --header "Authorization: Bearer ${created.token}"`;
   const mcpConfig = JSON.stringify(
     {
       mcpServers: {

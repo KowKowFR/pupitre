@@ -88,8 +88,9 @@ const fr = {
     'Dans votre CI, rangez-le comme secret (« PUPITRE_TOKEN ») puis appelez l’API :',
   'reveal.mcp': 'Depuis un agent IA (MCP)',
   'reveal.mcp.hint':
-    'Claude Code, Cursor, VS Code… se connectent au serveur MCP du panel avec ce jeton. Exportez-le d’abord (« export PUPITRE_TOKEN=… »), puis :',
-  'reveal.mcp.config': 'Ou, dans le fichier de configuration du client :',
+    'Claude Code, Cursor, VS Code… se connectent au serveur MCP du panel avec ce jeton. Cette commande se colle telle quelle dans un terminal macOS, Linux ou Windows (PowerShell comme cmd) :',
+  'reveal.mcp.config':
+    'Ou, dans le fichier de configuration du client, le jeton rangé dans la variable d’environnement PUPITRE_TOKEN :',
   'reveal.mcp.docs': 'Les autres clients et tous les outils, dans la documentation',
   'reveal.copyExample': 'Copier',
   'reveal.exampleCopied': 'Exemple copié',
@@ -185,8 +186,9 @@ const en: Translated<typeof fr> = {
   'reveal.example.hint': 'In your CI, store it as a secret (“PUPITRE_TOKEN”) then call the API:',
   'reveal.mcp': 'From an AI agent (MCP)',
   'reveal.mcp.hint':
-    'Claude Code, Cursor, VS Code… connect to the panel’s MCP server with this token. Export it first (“export PUPITRE_TOKEN=…”), then:',
-  'reveal.mcp.config': 'Or, in the client’s configuration file:',
+    'Claude Code, Cursor, VS Code… connect to the panel’s MCP server with this token. This command pastes as it is into a macOS, Linux or Windows terminal (PowerShell or cmd):',
+  'reveal.mcp.config':
+    'Or, in the client’s configuration file, with the token in the PUPITRE_TOKEN environment variable:',
   'reveal.mcp.docs': 'Other clients and every tool, in the documentation',
   'reveal.copyExample': 'Copy',
   'reveal.exampleCopied': 'Example copied',
