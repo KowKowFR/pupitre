@@ -1,7 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { BookOpen, Plus } from 'lucide-react';
 import { TokenList, type TokenRow } from '@/components/api-tokens/token-list';
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -38,7 +39,13 @@ export function ApiTokensCard({
         }
       >
         <CardTitle>{t('card.title')}</CardTitle>
-        <CardDescription>{t('card.description')}</CardDescription>
+        <CardDescription>
+          {t('card.description')}{' '}
+          <Link href="/docs/api" className="link inline-flex items-center gap-1">
+            <BookOpen aria-hidden className="size-3.5" />
+            {t('card.docs')}
+          </Link>
+        </CardDescription>
       </CardHeader>
       <TokenList rows={rows} emptyHint={t('empty.hint')} />
       <NewTokenDrawer

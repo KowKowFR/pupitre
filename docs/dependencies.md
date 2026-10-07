@@ -14,6 +14,7 @@ from memory.** The readings are dated because they go stale.
 - [Scan tools, installed on the target](#scan-tools-installed-on-the-target)
 - [AI packages](#ai-packages)
 - [Radix, for a single modal](#radix-for-a-single-modal)
+- [MCP, without the SDK](#mcp-without-the-sdk)
 - [The two upgrades set aside](#the-two-upgrades-set-aside)
 - [Resulting code changes](#resulting-code-changes)
 - [What was replayed after the upgrades](#what-was-replayed-after-the-upgrades)
@@ -134,6 +135,25 @@ underfoot.
 
 No other `ui/` component was rewritten: `dialog.tsx` is the only one depending on
 Radix.
+
+## MCP, without the SDK
+
+Read on 2026-10-07 with `npm view @modelcontextprotocol/sdk version dependencies`.
+
+| Package | Latest stable | Kept | Why |
+|---|---|---|---|
+| `@modelcontextprotocol/sdk` | 1.32.1 | ❌ **not installed** | it brings Express, Hono, CORS, `express-rate-limit`, an OAuth client and Ajv — a second HTTP server inside the Next one |
+
+The MCP endpoint (`POST /api/mcp`) only needs the protocol's envelope —
+JSON-RPC, version negotiation, `initialize`, `ping`, tools, resources — in its
+stateless Streamable HTTP form. That fits in `apps/web/src/lib/mcp/protocol.ts`
+and is tested on its own. Authentication, permissions, validation and the audit
+log are already the panel's: each tool hands its request to the REST route.
+
+The revisions understood are those the SDK announced on that date
+(`LATEST_PROTOCOL_VERSION = '2025-11-25'`, then `2025-06-18` and `2025-03-26`),
+read from the package itself rather than from memory. Supporting a new revision
+is a line in `SUPPORTED_PROTOCOL_VERSIONS`, once what it changes is read.
 
 ## The two upgrades set aside
 

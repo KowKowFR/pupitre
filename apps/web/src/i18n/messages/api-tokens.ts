@@ -7,8 +7,9 @@ import type { Translated } from '@pupitre/core';
 const fr = {
   'card.title': 'Jetons d’API',
   'card.description':
-    'Pour qu’une CI — GitHub Actions, GitLab CI — déploie en votre nom, sans navigateur. Un jeton n’a jamais plus de droits que vous, et perd ceux que vous perdez.',
+    'Pour qu’une CI — GitHub Actions, GitLab CI —, un script ou un agent IA par MCP agisse en votre nom, sans navigateur. Un jeton n’a jamais plus de droits que vous, et perd ceux que vous perdez.',
   'card.new': 'Nouveau jeton',
+  'card.docs': 'API et MCP : la documentation',
   'admin.title': 'Jetons d’API de l’instance',
   'admin.description':
     'Ce qui peut agir sans navigateur, et au nom de qui. Révoquer un jeton coupe aussitôt la CI qui s’en sert.',
@@ -58,6 +59,9 @@ const fr = {
   'preset.deploy.hint': 'Lancer un déploiement, changer l’image, le suivre, revenir en arrière',
   'preset.read': 'Lire',
   'preset.read.hint': 'Tout ce que vous pouvez consulter',
+  'preset.all': 'Tout ce que je peux faire',
+  'preset.all.hint':
+    'Pour un agent IA (MCP) ou un script d’automatisation : il pourra tout ce que vous pouvez aujourd’hui. Préférez un choix plus étroit quand c’est possible.',
   'preset.custom': 'Sur mesure',
   'preset.custom.hint': 'Cochez une à une, parmi vos permissions',
   'field.applications': 'Applications',
@@ -82,6 +86,13 @@ const fr = {
   'reveal.example': 'Pour s’en servir',
   'reveal.example.hint':
     'Dans votre CI, rangez-le comme secret (« PUPITRE_TOKEN ») puis appelez l’API :',
+  'reveal.mcp': 'Depuis un agent IA (MCP)',
+  'reveal.mcp.hint':
+    'Claude Code, Cursor, VS Code… se connectent au serveur MCP du panel avec ce jeton. Exportez-le d’abord (« export PUPITRE_TOKEN=… »), puis :',
+  'reveal.mcp.config': 'Ou, dans le fichier de configuration du client :',
+  'reveal.mcp.docs': 'Les autres clients et tous les outils, dans la documentation',
+  'reveal.copyExample': 'Copier',
+  'reveal.exampleCopied': 'Exemple copié',
   'reveal.done': 'J’ai copié le jeton',
 
   'error.unknownPermission': 'Permission inconnue : « {permission} »',
@@ -94,8 +105,9 @@ const fr = {
 const en: Translated<typeof fr> = {
   'card.title': 'API tokens',
   'card.description':
-    'So that a CI — GitHub Actions, GitLab CI — deploys on your behalf, without a browser. A token never has more rights than you, and loses the ones you lose.',
+    'So that a CI — GitHub Actions, GitLab CI —, a script or an AI agent through MCP acts on your behalf, without a browser. A token never has more rights than you, and loses the ones you lose.',
   'card.new': 'New token',
+  'card.docs': 'API and MCP: the documentation',
   'admin.title': 'Instance API tokens',
   'admin.description':
     'What can act without a browser, and on whose behalf. Revoking a token cuts off the CI using it right away.',
@@ -145,6 +157,9 @@ const en: Translated<typeof fr> = {
   'preset.deploy.hint': 'Start a deployment, change the image, follow it, roll back',
   'preset.read': 'Read',
   'preset.read.hint': 'Everything you can read',
+  'preset.all': 'Everything I can do',
+  'preset.all.hint':
+    'For an AI agent (MCP) or an automation script: it can do everything you can today. Prefer a narrower set when you can.',
   'preset.custom': 'Custom',
   'preset.custom.hint': 'Tick them one by one, among your permissions',
   'field.applications': 'Applications',
@@ -168,6 +183,13 @@ const en: Translated<typeof fr> = {
   'reveal.copied': 'Token copied',
   'reveal.example': 'How to use it',
   'reveal.example.hint': 'In your CI, store it as a secret (“PUPITRE_TOKEN”) then call the API:',
+  'reveal.mcp': 'From an AI agent (MCP)',
+  'reveal.mcp.hint':
+    'Claude Code, Cursor, VS Code… connect to the panel’s MCP server with this token. Export it first (“export PUPITRE_TOKEN=…”), then:',
+  'reveal.mcp.config': 'Or, in the client’s configuration file:',
+  'reveal.mcp.docs': 'Other clients and every tool, in the documentation',
+  'reveal.copyExample': 'Copy',
+  'reveal.exampleCopied': 'Example copied',
   'reveal.done': 'I copied the token',
 
   'error.unknownPermission': 'Unknown permission: “{permission}”',

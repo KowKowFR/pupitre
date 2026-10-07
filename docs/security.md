@@ -323,6 +323,15 @@ checkpoint, and the same audit.
   administrator sees all the instance's tokens on **Users** and can revoke one
   (`user:manage`).
 
+**An AI agent uses the same token, through MCP.** `POST /api/mcp` only accepts
+an API token — never a session — and each of its tools hands the request it
+builds to the REST route that does the same thing, in-process, with the same
+`authorization`, IP and `user-agent` headers: the checkpoint, the
+per-application scope and the audit are the route's, not the MCP layer's. An
+agent cannot do more than `curl` with the same token: it cannot make tokens, nor
+reach your account, since those routes refuse tokens. `GET /api/me` (session or
+token) says what a token really holds today. See [`api.md`](api.md#mcp).
+
 A token does not pass the second factor: that is the nature of browserless
 access. That is why it is created from a session — which did pass it —, why it
 is limited in time by default, and why its creation alerts. And when the

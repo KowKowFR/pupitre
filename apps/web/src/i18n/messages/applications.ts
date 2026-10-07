@@ -352,6 +352,7 @@ const fr = {
 
   // ── Route refusals ──────────────────────────────────────────────────────
   'error.notFound': 'Application « {id} » introuvable',
+  'error.appSpecInvalid': 'L’AppSpec ne passe pas la validation : voyez chaque problème dans details.issues',
   'row.imagesOutdated': {
     one: '{count} image à mettre à jour',
     other: '{count} images à mettre à jour',
@@ -775,6 +776,7 @@ const en: Translated<typeof fr> = {
     ' are in the spec. On save, Pupitre generates a value for each, encrypted and never shown again; an alias takes its secret’s value. A value from elsewhere is entered afterwards on the application page.',
 
   'error.notFound': 'Application “{id}” not found',
+  'error.appSpecInvalid': 'The AppSpec does not pass validation: see each problem in details.issues',
   'row.imagesOutdated': {
     one: '{count} image to update',
     other: '{count} images to update',

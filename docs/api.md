@@ -72,16 +72,17 @@ The query parameters keep their original names (`nouvelle`, `annonce`,
 
 | Route | Role | Access |
 |---|---|---|
-| `/account` | My account — password, TOTP | session |
+| `/account` | My account — password, TOTP, API tokens (each one revealed with its `curl` and MCP examples) | session |
+| `/docs` · `/docs/:chapter` | The in-panel documentation, from A to Z, in the instance's language; `?q=` searches every chapter. The chapters are Markdown files, `apps/web/src/docs/content/{fr,en}/` | session |
 | `/onboarding` | Setup guide, a shell without the rail | session |
 | `/login` · `/signup` · `/logout` | | public |
 | `/forbidden` | Refusal screen, **names the missing permission** | public |
 
-The navigation rail carries two groups — **Operations** (Overview, Targets,
+The navigation rail carries three groups — **Operations** (Overview, Targets,
 Applications, Catalog, Servers, Deployments, Domains, Monitoring, Maintenance,
-Jobs) and **Administration** (**Activity log**, Users, Roles, Status pages,
-Settings). Each entry only appears with the matching permission; an empty
-group is not shown. **Account** and **Sign out** live at the foot of the rail,
+Jobs), **Administration** (**Activity log**, Users, Roles, Status pages,
+Settings) and **Help** (Documentation, for every session). Each entry only
+appears with the matching permission; an empty group is not shown. **Account** and **Sign out** live at the foot of the rail,
 deliberately outside the business navigation.
 
 ## API
@@ -91,6 +92,10 @@ deliberately outside the business navigation.
 | Route | Methods | Permission |
 |---|---|---|
 | `/api/health` | GET | **public** — `{ status, db, redis, ai }`, 200 or 503 |
+| `/api/me` | GET | session **or** token — who calls: the account, its roles, its permissions (for a token, what it can really do today), the second factor's state, and the token (`applicationIds`, `null` for all) |
+| `/api/appspec/schema` | GET | session or token — the AppSpec's JSON Schema (its shape; the cross-field rules are `validate`'s) |
+| `/api/appspec/validate` | POST | session or token — the body **is** the AppSpec; `200 { valid, appSpec }` with defaults applied, or `422 invalid_appspec` with **every** problem and its full path (`details.issues`) — what a CI runs on its `pupitre.json` |
+| `/api/mcp` | POST | **an API token**, never a session — the MCP server (Model Context Protocol, Streamable HTTP, stateless). See [MCP](#mcp) below |
 | `/api/auth/[...all]` | GET POST | public — Better Auth; audits sign-ins and sign-outs. `/api/auth/admin/*` answers 404: Pupitre has its own administration API; `/api/auth/two-factor/*` too, except `verify-totp` and `verify-backup-code` — the second factor is enabled and removed through `/api/account/two-factor/*`. Single sign-on starts from `POST /api/auth/sign-in/social` (`{ provider: "oidc", callbackURL }`, returns the provider's address) and comes back through `GET /api/auth/callback/oidc`; a failed return goes back to `/login?error=…` and writes `auth.sso.login.failed` |
 
 ### Account
@@ -303,3 +308,44 @@ it.
 | `/api/notifications/channels/:id/test` | POST | `settings:manage` |
 | `/api/audit-logs` | GET | `audit:read` — paginated, filters `q` (free search: action, resource, actor, IP, payload) `severity` (`high,critical`) `actorId` `action` `resourceType` `from` `to`; each entry carries its `severity` |
 | `/api/onboarding` | GET / PATCH | session — `restart` requires `settings:manage` |
+
+## MCP
+
+`POST /api/mcp` is a Model Context Protocol server: an AI agent (Claude Code,
+Cursor, VS Code, Claude Desktop through `mcp-remote`) connects with an API token
+and drives the panel. The user-facing guide is the **MCP server** chapter of
+the in-panel documentation (`/docs/mcp`).
+
+- **Transport.** Streamable HTTP, **stateless**: one `POST` carries one JSON-RPC
+  message (or a batch), the answer is JSON; a notification gets `202`. `GET` and
+  `DELETE` answer `405` — no server-initiated stream, no `Mcp-Session-Id`.
+  Revisions `2025-11-25`, `2025-06-18`, `2025-03-26`; an unknown
+  `MCP-Protocol-Version` header gets `400`. The envelope is hand-written
+  (`apps/web/src/lib/mcp/protocol.ts`) — see
+  [`dependencies.md`](dependencies.md#mcp-without-the-sdk).
+- **Authentication.** `requireCaller(request, { apiTokenOnly: true })`: a
+  browser session is not enough. A `401` carries `WWW-Authenticate: Bearer`.
+  `apiRoute()` still refuses a write a browser sends from another origin — the
+  Origin check the specification requires against DNS rebinding.
+- **Tools decide nothing.** Each tool builds the request the REST API would
+  receive and hands it, **in-process**, to the Route Handler
+  (`lib/mcp/dispatch.ts`, through the generated `lib/mcp/route-table.ts`), with
+  the MCP request's `authorization`, IP and `user-agent` headers. Permissions,
+  the per-application scope, Zod and `logAudit()` are the route's: an agent can
+  do through MCP exactly what its token can do through `curl`. The audit log
+  names the token, and the client's name as browser.
+- **41 tools** (`lib/mcp/tools.ts`): typed tools for the common work — targets,
+  applications, secrets, domains, deployments (`deploy`, `deployment_wait`,
+  `deployment_logs`, `deployment_rollback`…), running applications, monitors,
+  findings, the audit log —, `api_request` for every other route, and `docs`,
+  which reads and searches the in-panel documentation. `tools/list` only offers
+  what the token holds; a token limited to applications only sees the tools
+  whose route accepts it. Live streams (SSE) are refused with a pointer to the
+  exported form.
+- **Resources.** Each documentation chapter is
+  `pupitre://docs/{fr|en}/{chapter}`, in Markdown.
+- **Guards.** `apps/web/test/mcp.test.mjs` checks that the route table matches
+  `src/app/api` (regenerate it with `pnpm --filter @pupitre/web routes:table`),
+  that each typed tool's route exists, exports its method and requires the
+  permission the tool declares, and runs a conversation against a fake API.
+
