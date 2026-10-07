@@ -1,6 +1,10 @@
+import { findApiTokenByHash, logAudit } from '@pupitre/db';
 import { NextResponse } from 'next/server';
+import { errors } from '@/i18n/messages/errors';
 import { currentLanguage } from '@/i18n/server';
-import { apiRoute } from '@/lib/http';
+import { bearerToken, hashApiToken } from '@/lib/api-token-format';
+import { HttpError, msg } from '@/lib/errors';
+import { apiRoute, clientIp } from '@/lib/http';
 import {
   JSON_RPC_ERRORS,
   SUPPORTED_PROTOCOL_VERSIONS,
@@ -11,6 +15,7 @@ import { callApi } from '@/lib/mcp/dispatch';
 import { handleMessage, type ServerContext } from '@/lib/mcp/server';
 import { logger } from '@/lib/logger';
 import { requireCaller } from '@/lib/rbac';
+import { secureTransport } from '@/lib/secure-transport';
 import { panelOrigin } from '@/lib/sources';
 
 export const runtime = 'nodejs';
@@ -29,8 +34,34 @@ export const maxDuration = 150;
  *
  * `apiRoute()` refuses a write sent by a browser from another origin: that is
  * the Origin check the specification requires against DNS rebinding.
+ *
+ * **HTTPS only**, loopback aside (`lib/secure-transport.ts`): an agent's token
+ * usually carries all its author's permissions, and over plain HTTP anyone on
+ * the path reads it. The refusal comes before anything else, and it is traced
+ * under the token's account: that token travelled in clear, it has to be
+ * revoked.
  */
 const handle = apiRoute(async (request) => {
+  if (secureTransport(request) === null) {
+    const bearer = bearerToken(request.headers);
+    const found =
+      bearer === null || bearer === 'malformed' ? null : await findApiTokenByHash(hashApiToken(bearer));
+    await logAudit({
+      actorId: found?.user.id ?? null,
+      action: 'request.insecure.refused',
+      resourceType: 'request',
+      resourceId: null,
+      after: {
+        method: request.method,
+        path: new URL(request.url).pathname,
+        host: request.headers.get('host'),
+        token: found ? found.token.prefix : null,
+      },
+      ip: clientIp(request),
+    });
+    throw new HttpError(403, 'https_required', msg(errors, 'https_required'));
+  }
+
   const auth = await requireCaller(request, { apiTokenOnly: true });
 
   const version = request.headers.get('mcp-protocol-version');

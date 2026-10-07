@@ -97,6 +97,7 @@ Toutes les erreurs ont la même forme :
 | 403 | `token_refused` | une route qui se fait depuis le panel seulement |
 | 403 | `two_factor_required` | l’instance exige un second facteur que le compte n’a pas |
 | 403 | `cross_site_request` | une écriture d’un navigateur depuis un autre site |
+| 403 | `https_required` | le serveur MCP joint en HTTP simple — voyez [MCP](/docs/mcp#servir-le-panel-en-https) |
 | 404 | `not_found` | la ressource n’existe pas, ou la route est inconnue |
 | 409 | `conflict` et d’autres | l’état l’interdit — un déploiement en cours, un domaine déjà pris, un nom utilisé |
 | 422 | `validation_failed` | le corps ne respecte pas le schéma — `details` dit quels champs |

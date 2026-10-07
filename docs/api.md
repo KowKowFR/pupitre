@@ -323,6 +323,13 @@ the in-panel documentation (`/docs/mcp`).
   `MCP-Protocol-Version` header gets `400`. The envelope is hand-written
   (`apps/web/src/lib/mcp/protocol.ts`) — see
   [`dependencies.md`](dependencies.md#mcp-without-the-sdk).
+- **HTTPS only.** Before anything else, `secureTransport()`
+  (`lib/secure-transport.ts`) requires HTTPS as the client saw it —
+  `X-Forwarded-Proto` / `Forwarded` behind a reverse proxy — or the loopback
+  (`localhost`, an SSH tunnel). Otherwise `403 https_required`, and
+  `request.insecure.refused` (high severity) is written under the token's
+  account: that token travelled in clear. The in-panel MCP chapter says how to
+  serve the panel over HTTPS with the machine's Traefik.
 - **Authentication.** `requireCaller(request, { apiTokenOnly: true })`: a
   browser session is not enough. A `401` carries `WWW-Authenticate: Bearer`.
   `apiRoute()` still refuses a write a browser sends from another origin — the

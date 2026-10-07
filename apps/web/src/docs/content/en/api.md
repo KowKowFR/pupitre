@@ -97,6 +97,7 @@ Every error has the same shape:
 | 403 | `token_refused` | a route done from the panel only |
 | 403 | `two_factor_required` | the instance requires a second factor the account does not have |
 | 403 | `cross_site_request` | a browser write from another site |
+| 403 | `https_required` | the MCP server reached over plain HTTP — see [MCP](/docs/mcp#serve-the-panel-over-https) |
 | 404 | `not_found` | the resource does not exist, or the route is unknown |
 | 409 | `conflict` and others | the state forbids it — a deployment in progress, a domain already taken, a name in use |
 | 422 | `validation_failed` | the body does not match the schema — `details` says which fields |

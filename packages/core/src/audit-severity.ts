@@ -36,6 +36,8 @@ export const AUDIT_SEVERITY_RULES: readonly AuditSeverityRule[] = [
   ['auth.admin_route.refused', 'high'],
   ['auth.two_factor_route.refused', 'high'],
   ['request.cross_site.refused', 'high'],
+  // A token sent over plain HTTP: it travelled in clear, whoever sent it.
+  ['request.insecure.refused', 'high'],
   // … gestures on access…
   ['role.*', 'high'],
   ['user.role.changed', 'high'],
