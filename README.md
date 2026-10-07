@@ -276,6 +276,8 @@ UFW, the healthcheck, rollback, retention — are in
 | Reverse proxy (Traefik or BunkerWeb taken over or installed, Nginx Proxy Manager connected through its API), domains and Let's Encrypt certificates at deployment, all domains and their expiries on one page | [`docs/operations.md`](docs/operations.md#reverse-proxy-and-domains) |
 | Encrypted backups to S3, SFTP or a mounted folder, restore, disaster recovery | [`docs/operations.md`](docs/operations.md#backups) |
 | Deploying from CI (GitHub Actions, GitLab CI) with an API token limited to its applications | [`docs/operations.md`](docs/operations.md#deploying-from-ci) |
+| An MCP server: an AI agent (Claude Code, Cursor, VS Code…) drives the panel with an API token tied to your account, through the same routes, permissions and audit log as the API | [`docs/api.md`](docs/api.md#mcp) |
+| A documentation inside the panel (`/docs`), from A to Z, in French and in English — concepts, procedures, examples, the API and MCP reference —, searchable, and readable by agents through MCP | [`apps/web/src/docs/content`](apps/web/src/docs/content) |
 | Following a GitHub, GitLab or Gitea / Forgejo branch: its `pupitre.json` describes the application, each commit updates or redeploys it, and the state is reported back on the commit | [`docs/operations.md`](docs/operations.md#an-application-from-its-repository) |
 | The code of an application without a repository: an uploaded archive, read entry by entry and rebuilt clean before it leaves for the machine | [`docs/operations.md`](docs/operations.md#the-code-of-an-application-without-a-repository) |
 | A catalog of 28 ready-to-deploy templates, on both runtimes | [`docs/architecture.md`](docs/architecture.md#catalog--ready-made-appspecs) |

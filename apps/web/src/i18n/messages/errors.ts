@@ -47,6 +47,8 @@ const fr = {
   'token.scope': 'Ce jeton d’API est limité à certaines applications : cette route ne l’accepte pas',
   'token.application': 'Ce jeton d’API ne couvre pas cette application',
   'token.sessionOnly': 'Cette route n’accepte pas de jeton d’API : elle se fait depuis le panel',
+  'token.required':
+    'Un jeton d’API est requis : Authorization: Bearer pup_…, créé depuis « Mon compte »',
   'not_found': 'Ressource introuvable',
   /**
    * Two keys rather than a variable: French chose between "fenêtre" and "période"
@@ -78,6 +80,7 @@ const en: Translated<typeof fr> = {
   'token.scope': 'This API token is limited to some applications: this route does not accept it',
   'token.application': 'This API token does not cover this application',
   'token.sessionOnly': 'This route does not accept API tokens: it is done from the panel',
+  'token.required': 'An API token is required: Authorization: Bearer pup_…, created from “My account”',
   'not_found': 'Resource not found',
   'rate_limited.window': 'Too many requests: {limit} per window. Try again in {seconds} s.',
   'rate_limited.period': 'Too many requests: {limit} per period. Try again in {seconds} s.',

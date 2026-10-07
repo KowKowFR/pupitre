@@ -1,5 +1,6 @@
 import {
   Activity,
+  BookOpen,
   Boxes,
   Gauge,
   Globe,
@@ -35,4 +36,5 @@ export const SECTION_ICON: Record<SectionKey, LucideIcon> = {
   roles: KeyRound,
   statusPages: RadioTower,
   settings: SlidersHorizontal,
+  docs: BookOpen,
 };

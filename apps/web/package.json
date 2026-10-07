@@ -9,7 +9,8 @@
     "start": "dotenv -c -e ../../.env -- next start --port ${PORT:-3000}",
     "lint": "eslint .",
     "test": "node --import tsx --test test/*.test.mjs",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "routes:table": "node scripts/route-table.mjs"
   },
   "dependencies": {
     "@pupitre/core": "workspace:*",

@@ -46,6 +46,11 @@ const nextConfig: NextConfig = {
       '../../packages/core/src/ai/prompts/**/*.md',
       '../../packages/core/src/spec/__fixtures__/*.json',
     ],
+    // The documentation's chapters, read at runtime by `lib/docs/content.ts`: by the
+    // pages, and by the MCP endpoint's `docs` tool and resources.
+    '/docs': ['./src/docs/content/**/*.md'],
+    '/docs/*': ['./src/docs/content/**/*.md'],
+    '/api/mcp': ['./src/docs/content/**/*.md'],
   },
   /**
    * The traceability screen is called "Logs" and lives under `/admin/logs`. The

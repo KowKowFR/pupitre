@@ -1,8 +1,9 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
-import { Copy, KeyRound } from 'lucide-react';
+import { BookOpen, Copy, KeyRound } from 'lucide-react';
 import type { Permission } from '@pupitre/core';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -27,7 +28,7 @@ import type { PermissionGroup } from '../admin/roles/roles-editor';
 import { readApiError } from './api-error';
 import { copyText } from '@/lib/secure-origin';
 
-type Preset = 'deploy' | 'read' | 'custom';
+type Preset = 'deploy' | 'read' | 'all' | 'custom';
 type Expiry = '30' | '90' | '365' | 'never';
 
 /** What a CI does with a deployment, end to end: start it, follow it, come back from it. */
@@ -92,6 +93,9 @@ function NewTokenForm({
     () => ({
       deploy: DEPLOY_PRESET.filter((key) => held.includes(key)),
       read: held.filter((key) => key.endsWith(':read')),
+      // An agent driven through MCP does what one asks it, not one gesture: it
+      // gets what its author has — and still loses what they lose.
+      all: [...held],
     }),
     [held],
   );
@@ -190,7 +194,7 @@ function NewTokenForm({
 
           <DrawerSection title={t('field.permissions')}>
             <RadioGroup aria-label={t('field.permissions')}>
-              {(['deploy', 'read', 'custom'] as const).map((value) => (
+              {(['deploy', 'read', 'all', 'custom'] as const).map((value) => (
                 <RadioOption
                   key={value}
                   name="token-preset"
@@ -321,6 +325,23 @@ function Reveal({
     `  -d '{"applicationId":"…","targetId":"…","runtime":"docker",`,
     `       "images":{"web":"ghcr.io/acme/web:'"$GITHUB_SHA"'"}}'`,
   ].join('\n');
+  const mcpCommand = [
+    `claude mcp add --transport http pupitre ${origin}/api/mcp \\`,
+    '  --header "Authorization: Bearer $PUPITRE_TOKEN"',
+  ].join('\n');
+  const mcpConfig = JSON.stringify(
+    {
+      mcpServers: {
+        pupitre: {
+          type: 'http',
+          url: `${origin}/api/mcp`,
+          headers: { Authorization: 'Bearer ${PUPITRE_TOKEN}' },
+        },
+      },
+    },
+    null,
+    2,
+  );
 
   async function copy(): Promise<void> {
     // Not copied: the token stays on screen, selectable by hand.
@@ -354,7 +375,17 @@ function Reveal({
         </div>
         <DrawerSection title={t('reveal.example')}>
           <p className="t-sm text-text-2">{t('reveal.example.hint')}</p>
-          <pre className="codeblock mono t-cap overflow-x-auto whitespace-pre">{example}</pre>
+          <Snippet text={example} />
+        </DrawerSection>
+        <DrawerSection title={t('reveal.mcp')}>
+          <p className="t-sm text-text-2">{t('reveal.mcp.hint')}</p>
+          <Snippet text={mcpCommand} />
+          <p className="t-sm text-text-2">{t('reveal.mcp.config')}</p>
+          <Snippet text={mcpConfig} />
+          <Link href="/docs/mcp" className="link t-sm inline-flex items-center gap-1">
+            <BookOpen aria-hidden className="size-3.5" />
+            {t('reveal.mcp.docs')}
+          </Link>
         </DrawerSection>
       </DrawerBody>
       <DrawerFooter>
@@ -363,5 +394,32 @@ function Reveal({
         </Button>
       </DrawerFooter>
     </>
+  );
+}
+
+/**
+ * An example to paste, with its copy button — in a bar above the code, as in
+ * the documentation, so that a long line never runs under the button.
+ */
+function Snippet({ text }: { text: string }) {
+  const t = useT(messages);
+  return (
+    <div className="doc-code">
+      <div className="doc-code-head">
+        <span />
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          onClick={async () => {
+            if (await copyText(text)) toast({ title: t('reveal.exampleCopied'), tone: 'ok' });
+          }}
+        >
+          <Copy aria-hidden />
+          {t('reveal.copyExample')}
+        </Button>
+      </div>
+      <pre className="codeblock mono t-cap overflow-x-auto whitespace-pre">{text}</pre>
+    </div>
   );
 }

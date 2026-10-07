@@ -79,14 +79,16 @@ describe('hiding by permission', () => {
       'deployments',
       'domains',
       'monitoring',
+      'docs',
     ]);
     // An empty group disappears: no "Administration" without a section.
-    assert.deepEqual(groups.map((group) => group.key), ['operations']);
+    assert.deepEqual(groups.map((group) => group.key), ['operations', 'help']);
   });
 
-  it('an administrator’s rail shows the fourteen sections, catalog included', () => {
+  it('an administrator’s rail shows the fifteen sections, catalog and documentation included', () => {
     const keys = visibleNavigation(ADMIN).flatMap((group) => group.sections.map((section) => section.key));
-    assert.equal(keys.length, 14);
+    assert.equal(keys.length, 15);
+    assert.ok(keys.includes('docs'));
     assert.ok(keys.includes('catalog'));
   });
 

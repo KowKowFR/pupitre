@@ -27,7 +27,8 @@ export type SectionKey =
   | 'logs'
   | 'users'
   | 'roles'
-  | 'settings';
+  | 'settings'
+  | 'docs';
 
 export type NavSection = {
   key: SectionKey;
@@ -41,7 +42,7 @@ export type NavSection = {
   shortcut?: string;
 };
 
-export type NavGroup = { key: 'operations' | 'administration'; sections: NavSection[] };
+export type NavGroup = { key: 'operations' | 'administration' | 'help'; sections: NavSection[] };
 
 const NAVIGATION: readonly NavGroup[] = [
   {
@@ -78,6 +79,12 @@ const NAVIGATION: readonly NavGroup[] = [
       },
       { key: 'settings', href: '/admin/settings', permission: 'settings:read' },
     ],
+  },
+  {
+    key: 'help',
+    // How the panel works, from A to Z: every session reads it — the sections it
+    // describes stay guarded by their own permission.
+    sections: [{ key: 'docs', href: '/docs', permission: null, shortcut: 'H' }],
   },
 ];
 

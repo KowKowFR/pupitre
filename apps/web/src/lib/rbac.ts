@@ -12,6 +12,7 @@ import {
 } from '@pupitre/db';
 import { bearerToken, hashApiToken } from './api-token-format';
 import { getSession, hasPassword } from './auth';
+import { errors } from '@/i18n/messages/errors';
 import {
   AccountDisabledError,
   ApiTokenScopeError,
@@ -20,6 +21,7 @@ import {
   NoAccessError,
   TwoFactorRequiredError,
   UnauthenticatedError,
+  msg,
 } from './errors';
 import { clientIp } from './http';
 import { sessionPolicy } from './session-policy';
@@ -164,11 +166,14 @@ export async function requireSession(request: Request): Promise<AuthContext> {
  * for and what the author can do **today**: a removed role takes away from it what
  * it takes away, a disabled account disables it. It can never do more than its
  * author.
+ *
+ * `permission`: what the route requires, named in the refusal's audit entry —
+ * `null` for a route that requires none (`requireCaller()`).
  */
 async function authenticateToken(
   request: Request,
   bearer: string,
-  permission: Permission,
+  permission: Permission | null,
 ): Promise<AuthContext> {
   const ip = clientIp(request);
   const refuse = async (
@@ -287,6 +292,37 @@ export async function requireTeamMember(request: Request): Promise<AuthContext> 
     throw new NoAccessError();
   }
   return auth;
+}
+
+/**
+ * Who is calling, without requiring any permission: a browser session or an API
+ * token. It serves what describes the caller to themselves (`GET /api/me`), and
+ * the MCP endpoint, which checks nothing more: each of its tools goes through the
+ * route that does.
+ *
+ * `apiTokenOnly`: a browser session is not enough — an agent authenticates with
+ * a token, the cookie it might carry is not looked at. 401 without one.
+ */
+export async function requireCaller(
+  request: Request,
+  options: { apiTokenOnly?: boolean } = {},
+): Promise<AuthContext> {
+  const bearer = bearerToken(request.headers);
+  if (bearer !== null) return authenticateToken(request, bearer, null);
+  if (!options.apiTokenOnly) return requireSession(request);
+
+  await logAudit({
+    action: 'permission.denied',
+    resourceType: 'permission',
+    resourceId: null,
+    after: {
+      reason: 'unauthenticated',
+      method: request.method,
+      path: new URL(request.url).pathname,
+    },
+    ip: clientIp(request),
+  });
+  throw new UnauthenticatedError(msg(errors, 'token.required'));
 }
 
 export type PermissionOptions = {
