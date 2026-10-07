@@ -40,7 +40,7 @@ curl -s {{origin}}/api/health              # {"status":"ok","db":"ok","redis":"o
 
 ## 2. Créer le premier compte
 
-Ouvrez le panel. Tant qu’aucun compte n’existe, l’inscription est ouverte : **le premier compte créé devient administrateur**. Ensuite, l’inscription dépend de `ALLOW_SIGNUP` (fermée par défaut), et un nouveau venu reçoit le rôle **Aucun accès** jusqu’à ce qu’un administrateur lui en choisisse un.
+Ouvrez le panel. Tant qu’aucun compte n’existe, l’inscription est ouverte : **le premier compte créé devient administrateur**, et l’inscription se ferme pour de bon juste après. Les personnes suivantes sont créées ou invitées depuis **Utilisateurs** — voyez [Administration](/docs/administration#les-utilisateurs).
 
 À la première connexion, l’**assistant de démarrage** prend la main : identité et langue de l’instance, première cible, reverse proxy, un rôle, un utilisateur, sécurité et IA. Chaque étape est facultative sauf la première ; vous pouvez suivre ce chapitre à la place et relancer l’assistant plus tard depuis **Paramètres → Assistant de démarrage**.
 

@@ -13,7 +13,7 @@ Les comptes, les rôles et les permissions, la connexion unique, le second facte
 
 Garde-fous : on n’agit pas sur son propre compte depuis ici, et le dernier administrateur actif ne peut être ni rétrogradé, ni désactivé, ni supprimé.
 
-Une inscription publique (`ALLOW_SIGNUP=true`) naît avec le rôle **Aucun accès** : elle ne voit rien tant qu’un administrateur ne lui a pas choisi de rôle, et l’évènement `security.signup_pending` prévient.
+L’inscription publique ne sert qu’à créer le premier compte — l’administrateur —, puis se ferme pour de bon : aucun réglage ne la rouvre. Tous les autres sont créés ou invités ici, ou arrivent par la connexion unique. Un compte qui arrive sans rôle naît **Aucun accès** : il ne voit rien tant qu’un administrateur ne lui a pas choisi de rôle, et l’évènement `security.signup_pending` prévient.
 
 ## Rôles et permissions
 
@@ -108,7 +108,7 @@ curl -s "{{origin}}/api/audit-logs?severity=high,critical&from=2026-10-01" \
 | Sauvegardes | destination, la base du panel |
 | Assistant de démarrage | relancer l’assistant |
 
-Certains réglages sont des variables d’environnement, pas des écrans : `ALLOW_SIGNUP` (inscription publique), `MONITOR_ALLOWED_CIDRS` (adresses privées des sondes), `BETTER_AUTH_URL` (l’adresse du panel).
+Certains réglages sont des variables d’environnement, pas des écrans : `MONITOR_ALLOWED_CIDRS` (adresses privées des sondes), `BETTER_AUTH_URL` (l’adresse du panel), `WEB_PORT` (où le panel écoute).
 
 ## MASTER_KEY et sa rotation
 

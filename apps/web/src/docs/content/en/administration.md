@@ -13,7 +13,7 @@ Accounts, roles and permissions, single sign-on, the second factor, the activity
 
 Safeguards: you cannot act on your own account from here, and the last active administrator can be neither demoted, disabled nor deleted.
 
-A public sign-up (`ALLOW_SIGNUP=true`) is born with the **No access** role: it sees nothing until an administrator chooses its role, and the `security.signup_pending` event warns.
+Public sign-up only creates the first account — the administrator —, then closes for good: there is no setting to reopen it. Everyone else is created or invited here, or comes through single sign-on. An account that arrives without a role is born **No access**: it sees nothing until an administrator chooses its role, and the `security.signup_pending` event warns.
 
 ## Roles and permissions
 
@@ -108,7 +108,7 @@ curl -s "{{origin}}/api/audit-logs?severity=high,critical&from=2026-10-01" \
 | Backups | destination, the panel's database |
 | Setup guide | run the guide again |
 
-Some settings are environment variables, not screens: `ALLOW_SIGNUP` (public sign-up), `MONITOR_ALLOWED_CIDRS` (probes' private addresses), `BETTER_AUTH_URL` (the panel's address).
+Some settings are environment variables, not screens: `MONITOR_ALLOWED_CIDRS` (probes' private addresses), `BETTER_AUTH_URL` (the panel's address), `WEB_PORT` (where the panel listens).
 
 ## MASTER_KEY and its rotation
 

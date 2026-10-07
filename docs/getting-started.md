@@ -25,12 +25,14 @@ and **6380** — shifted so as not to clash with services already installed on t
 workstation. The panel and the worker reach each other through the compose
 network (`postgres:5432`, `redis:6379`) and ignore the URLs in `.env`.
 
-The first account created becomes an administrator. After that, public sign-up
-depends on `ALLOW_SIGNUP` (default `false`), but stays **always open while no
-account exists** — otherwise nobody could create the first admin. An account
-that signs up afterwards gets the **No access** role (`no-access`): it has access
-to nothing, not even the chat, until an administrator chooses a role for it. The
-`security.signup_pending` event announces its arrival.
+The first account created becomes an administrator, and public sign-up **closes
+for good** right after: it only exists to create that first account. There is no
+variable to reopen it — a panel that holds SSH keys has no business taking in
+strangers. People are then created or invited from **Users** (`user:manage`), or
+come through single sign-on, whose default role is **No access** (`no-access`)
+until an administrator chooses one; the `security.signup_pending` event announces
+such an arrival. A sign-up attempt afterwards is refused and logged
+(`auth.signup.blocked`).
 
 The panel speaks English or French, as set for the instance in **Settings →
 Regional settings**. A new instance starts in English (`en-US`); the setup
