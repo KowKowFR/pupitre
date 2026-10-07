@@ -15,6 +15,7 @@ describe('log severity', () => {
     ['backup.restore.failed', 'critical'],
     ['auth.admin_route.refused', 'high'],
     ['request.cross_site.refused', 'high'],
+    ['request.insecure.refused', 'high'],
     ['role.updated', 'high'],
     ['user.role.changed', 'high'],
     ['api_token.created', 'high'],

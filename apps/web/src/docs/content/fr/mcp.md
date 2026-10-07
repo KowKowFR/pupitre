@@ -16,6 +16,7 @@ Pupitre est un serveur MCP : un agent IA — Claude Code, Claude Desktop, Cursor
 | Adresse | `{{origin}}/api/mcp` |
 | Transport | Streamable HTTP, sans état — un `POST` par message, une réponse JSON |
 | Authentification | `Authorization: Bearer pup_…` — un jeton d’API, jamais une session de navigateur |
+| HTTPS | exigé — le HTTP simple reçoit `403 https_required`, sauf depuis la machine elle-même (`localhost`, un tunnel SSH) |
 | Révisions du protocole | `2025-11-25`, `2025-06-18`, `2025-03-26` |
 | Capacités | outils, ressources |
 
@@ -40,6 +41,75 @@ $body = '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 ```
 
 Les deux listent les 41 outils.
+
+## Servir le panel en HTTPS
+
+Le serveur MCP ne répond qu’en **HTTPS** : le jeton d’un agent porte souvent toutes les permissions de son auteur, et en HTTP simple quiconque est sur le chemin le lit à chaque appel. Une requête en clair reçoit `403 https_required`, et le refus est écrit au journal d’activité sous le compte du jeton — ce jeton a circulé en clair : révoquez-le. Seule la machine elle-même est exemptée : `localhost`, donc un tunnel SSH.
+
+### Avec le Traefik de la machine
+
+Quand le panel tourne sur une machine où Pupitre a installé Traefik — le reverse proxy d’une cible —, ce Traefik peut servir le panel aussi, avec un certificat Let’s Encrypt.
+
+1. Faites pointer un domaine vers la machine : un enregistrement `A`, `pupitre.example.com` → son adresse publique.
+2. Trouvez le dossier que surveille Traefik, sur la machine :
+
+   ```bash
+   docker inspect pupitre-traefik | grep -B1 '"Destination": "/etc/traefik/dynamic"'
+   ```
+
+3. Dans ce dossier, écrivez `_panel.yml` — un nom qu’aucune application ne peut prendre, pour que Pupitre n’y touche jamais :
+
+   ```yaml
+   http:
+     routers:
+       pupitre-panel:
+         rule: Host(`pupitre.example.com`)
+         entryPoints: [websecure]
+         service: pupitre-panel
+         tls:
+           certResolver: pupitre
+       pupitre-panel-http:
+         rule: Host(`pupitre.example.com`)
+         entryPoints: [web]
+         middlewares: [pupitre-panel-https]
+         service: pupitre-panel
+     middlewares:
+       pupitre-panel-https:
+         redirectScheme:
+           scheme: https
+           permanent: true
+     services:
+       pupitre-panel:
+         loadBalancer:
+           servers:
+             - url: http://127.0.0.1:3000
+   ```
+
+4. Dans le `.env` du panel : la nouvelle adresse du panel, et son port sur la boucle locale seulement — Traefik l’y joint, Internet ne le joint plus :
+
+   ```bash
+   BETTER_AUTH_URL=https://pupitre.example.com
+   WEB_PORT=127.0.0.1:3000
+   ```
+
+5. Redémarrez, puis vérifiez :
+
+   ```bash
+   docker compose up -d
+   curl -s https://pupitre.example.com/api/health
+   ```
+
+Le certificat est demandé à la première visite en HTTPS ; le port 80 doit être joignable depuis Internet pour le défi. Ouvrez désormais le panel à sa nouvelle adresse : la connexion et les écritures sont liées à `BETTER_AUTH_URL`. Tout autre reverse proxy fait l’affaire — le Traefik d’un cluster, Caddy, nginx — pourvu qu’il termine TLS et transmette `X-Forwarded-Proto: https` au port 3000.
+
+### Sans domaine : un tunnel SSH
+
+Le tunnel chiffre tout entre votre poste et la machine, et le panel voit une requête `localhost` :
+
+```bash
+ssh -N -L 3000:localhost:3000 compte@machine
+```
+
+La commande est la même dans PowerShell. Laissez-la tourner, et utilisez `http://localhost:3000` comme adresse du panel dans le client.
 
 ## Créer un jeton pour un agent
 
@@ -113,7 +183,7 @@ Claude Desktop démarre des serveurs locaux : le pont `mcp-remote` relaie vers l
 }
 ```
 
-Ajoutez `"--allow-http"` à `args` si le panel est servi en HTTP simple sur un réseau privé. `Authorization:${PUPITRE_AUTH}` n’a pas d’espace exprès : sous Windows, certains clients transmettent mal un argument qui en contient un. Si Windows répond que `npx` n’est pas reconnu, donnez son chemin complet : `"command": "C:\\Program Files\\nodejs\\npx.cmd"`. Redémarrez Claude Desktop après chaque changement.
+Par un tunnel SSH, l’adresse est `http://localhost:3000/api/mcp` : ajoutez `"--allow-http"` à `args`. `Authorization:${PUPITRE_AUTH}` n’a pas d’espace exprès : sous Windows, certains clients transmettent mal un argument qui en contient un. Si Windows répond que `npx` n’est pas reconnu, donnez son chemin complet : `"command": "C:\\Program Files\\nodejs\\npx.cmd"`. Redémarrez Claude Desktop après chaque changement.
 
 ### Cursor
 
@@ -227,6 +297,7 @@ L’agent enchaîne les outils de lui-même : `whoami`, puis `targets_list` et `
 - **Le jeton est la limite.** Un agent ne fait jamais plus que son jeton : des permissions choisies parmi les vôtres, ramenées à ce que vous détenez aujourd’hui, éventuellement limitées à certaines applications.
 - **Pas d’escalade de privilèges.** Un jeton ne peut pas créer de jetons, changer votre mot de passe ni ouvrir l’interface ; les routes qui le permettraient refusent les jetons.
 - **Tout est tracé.** Chaque action est dans le journal d’activité sous votre compte, « par le jeton » qui l’a portée, avec le nom du client comme navigateur.
+- **HTTPS seulement.** Une requête en clair est refusée avant tout le reste, et tracée sous le compte du jeton — voyez [Servir le panel en HTTPS](#servir-le-panel-en-https).
 - **Les écritures venues de navigateurs sont contrôlées.** Une requête envoyée par une page web depuis un autre site est refusée, comme le protocole l’exige contre le DNS rebinding.
 - **Révoquer aussitôt.** Depuis [Mon compte](/account) : l’appel suivant est refusé.
 
@@ -235,6 +306,7 @@ L’agent enchaîne les outils de lui-même : `whoami`, puis `targets_list` et `
 | Symptôme | Cause | Que faire |
 |---|---|---|
 | `401` à la connexion | pas de jeton, ou jeton inconnu, révoqué ou échu | vérifiez l’en-tête, créez un nouveau jeton |
+| `403 https_required` | le panel est joint en HTTP simple | servez-le en HTTPS, ou passez par un tunnel SSH — et révoquez le jeton |
 | `403 cross_site_request` | un client qui tourne dans un navigateur envoie son propre `Origin` | utilisez un client de bureau, ou `mcp-remote` |
 | un outil manque | il manque sa permission au jeton, ou le jeton est limité à des applications | `whoami` dit ce qu’il détient ; ajustez le jeton |
 | un outil répond `HTTP 403 forbidden` | la route demande une permission que le jeton a perdue | le message la nomme |

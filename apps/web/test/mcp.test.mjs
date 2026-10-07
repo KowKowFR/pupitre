@@ -355,3 +355,46 @@ describe('MCP — a conversation', () => {
     assert.ok(events[0].error instanceof Error);
   });
 });
+
+const { secureTransport, isLoopbackHost } = await import('../src/lib/secure-transport.ts');
+
+describe('MCP — HTTPS only', () => {
+  const request = (url, headers = {}) => ({ url, headers: new Headers(headers) });
+
+  it('accepts HTTPS, direct or terminated by a reverse proxy', () => {
+    assert.equal(secureTransport(request('https://pupitre.example.com/api/mcp')), 'https');
+    assert.equal(
+      secureTransport(request('http://10.0.0.5:3000/api/mcp', { 'x-forwarded-proto': 'https', host: 'pupitre.example.com' })),
+      'https',
+    );
+    assert.equal(
+      secureTransport(request('http://10.0.0.5:3000/api/mcp', { forwarded: 'for=1.2.3.4;proto=https;host=pupitre.example.com' })),
+      'https',
+    );
+    assert.equal(secureTransport(request('http://x/api/mcp', { 'x-forwarded-proto': 'https, http' })), 'https');
+  });
+
+  it('accepts the machine itself — development, an SSH tunnel', () => {
+    assert.equal(secureTransport(request('http://localhost:3000/api/mcp', { host: 'localhost:3000' })), 'loopback');
+    assert.equal(secureTransport(request('http://127.0.0.1:3000/api/mcp', { host: '127.0.0.1:3000' })), 'loopback');
+    assert.equal(secureTransport(request('http://[::1]:3000/api/mcp', { host: '[::1]:3000' })), 'loopback');
+    assert.ok(isLoopbackHost('pupitre.localhost'));
+  });
+
+  it('refuses plain HTTP from anywhere else', () => {
+    assert.equal(secureTransport(request('http://141.94.33.212:3000/api/mcp', { host: '141.94.33.212:3000' })), null);
+    assert.equal(
+      secureTransport(request('http://10.0.0.5:3000/api/mcp', { 'x-forwarded-proto': 'http', host: 'pupitre.example.com' })),
+      null,
+    );
+    assert.equal(secureTransport(request('http://localhost.example.com/api/mcp', { host: 'localhost.example.com' })), null);
+    assert.ok(!isLoopbackHost('127.0.0.1.example.com'));
+  });
+
+  it('the route checks it before anything else', () => {
+    const source = readFileSync(path.join(apiRoot, 'mcp', 'route.ts'), 'utf8');
+    const guard = source.indexOf('secureTransport(request)');
+    assert.ok(guard > 0, 'the MCP route checks the transport');
+    assert.ok(guard < source.indexOf('requireCaller(request'), 'before authenticating');
+  });
+});

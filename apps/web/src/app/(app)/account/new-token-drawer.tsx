@@ -27,6 +27,7 @@ import { PermissionGroups } from '../admin/roles/permission-groups';
 import type { PermissionGroup } from '../admin/roles/roles-editor';
 import { readApiError } from './api-error';
 import { copyText } from '@/lib/secure-origin';
+import { isLoopbackHost } from '@/lib/secure-transport';
 
 type Preset = 'deploy' | 'read' | 'all' | 'custom';
 type Expiry = '30' | '90' | '365' | 'never';
@@ -318,6 +319,12 @@ function Reveal({
 }) {
   const t = useT(messages);
   const origin = typeof window === 'undefined' ? '' : window.location.origin;
+  // The MCP server refuses plain HTTP outside the machine itself: say so now,
+  // rather than let the agent's first call fail.
+  const insecure =
+    typeof window !== 'undefined' &&
+    window.location.protocol === 'http:' &&
+    !isLoopbackHost(window.location.hostname.replace(/^\[|\]$/g, ''));
   const example = [
     `curl -X POST ${origin}/api/deployments \\`,
     '  -H "Authorization: Bearer $PUPITRE_TOKEN" \\',
@@ -379,6 +386,7 @@ function Reveal({
           <Snippet text={example} />
         </DrawerSection>
         <DrawerSection title={t('reveal.mcp')}>
+          {insecure ? <Alert variant="warn">{t('reveal.mcp.insecure')}</Alert> : null}
           <p className="t-sm text-text-2">{t('reveal.mcp.hint')}</p>
           <Snippet text={mcpCommand} />
           <p className="t-sm text-text-2">{t('reveal.mcp.config')}</p>

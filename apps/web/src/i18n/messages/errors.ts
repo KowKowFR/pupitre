@@ -50,6 +50,8 @@ const fr = {
   'token.required':
     'Un jeton d’API est requis : Authorization: Bearer pup_…, créé depuis « Mon compte »',
   'not_found': 'Ressource introuvable',
+  'https_required':
+    'Le serveur MCP n’accepte que HTTPS : en HTTP, le jeton circule en clair. Servez le panel en HTTPS, ou passez par un tunnel SSH vers localhost — et révoquez ce jeton, il vient de circuler en clair.',
   /**
    * Two keys rather than a variable: French chose between "fenêtre" and "période"
    * through a ternary in the middle of the template. A word variable does not
@@ -82,6 +84,8 @@ const en: Translated<typeof fr> = {
   'token.sessionOnly': 'This route does not accept API tokens: it is done from the panel',
   'token.required': 'An API token is required: Authorization: Bearer pup_…, created from “My account”',
   'not_found': 'Resource not found',
+  'https_required':
+    'The MCP server only accepts HTTPS: over HTTP, the token travels in clear. Serve the panel over HTTPS, or go through an SSH tunnel to localhost — and revoke this token, it just travelled in clear.',
   'rate_limited.window': 'Too many requests: {limit} per window. Try again in {seconds} s.',
   'rate_limited.period': 'Too many requests: {limit} per period. Try again in {seconds} s.',
 };

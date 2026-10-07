@@ -329,7 +329,12 @@ builds to the REST route that does the same thing, in-process, with the same
 `authorization`, IP and `user-agent` headers: the checkpoint, the
 per-application scope and the audit are the route's, not the MCP layer's. An
 agent cannot do more than `curl` with the same token: it cannot make tokens, nor
-reach your account, since those routes refuse tokens. `GET /api/me` (session or
+reach your account, since those routes refuse tokens. And it only answers over
+**HTTPS** — or from the machine itself, an SSH tunnel —: an agent's token
+usually carries all its author's permissions, so a request in clear is refused
+(`403 https_required`) and traced (`request.insecure.refused`, high severity)
+under the token's account, so that the token that travelled in clear gets
+revoked. `GET /api/me` (session or
 token) says what a token really holds today. See [`api.md`](api.md#mcp).
 
 A token does not pass the second factor: that is the nature of browserless
