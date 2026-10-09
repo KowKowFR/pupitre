@@ -116,7 +116,6 @@ jobs:
           MASTER_KEY=$(openssl rand -hex 32)
           BETTER_AUTH_SECRET=$(openssl rand -base64 48)
           BETTER_AUTH_URL=${BASE_URL}
-          ALLOW_SIGNUP=true
           LOG_LEVEL=info
           WEB_PORT=3000
           POSTGRES_PORT=5433

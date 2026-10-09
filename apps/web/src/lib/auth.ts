@@ -45,9 +45,11 @@ import { sessionPolicy, type SessionPolicy } from './session-policy';
 import { peekSsoGroups, rememberSsoGroups, ssoState, takeSsoGroups, type SsoRuntime } from './sso';
 
 /**
- * The role given to a user created without an explicit role — that is, through
- * public sign-up: no permission, waiting for an administrator. An account created
- * from `/admin/users` carries the role chosen by that administrator.
+ * The role given to a user created without an explicit role: no permission,
+ * waiting for an administrator. It is single sign-on's default, and that of a
+ * sign-up that lost the race for the first account — two sign-ups at the same
+ * instant on an empty instance: only the first becomes administrator. An account
+ * created from `/admin/users` carries the role chosen by that administrator.
  */
 const DEFAULT_ROLE: RoleKey = SIGNUP_ROLE;
 
@@ -149,11 +151,13 @@ async function countUsers(): Promise<number> {
 }
 
 /**
- * Public sign-up stays open as long as no account exists, to create the first
- * administrator. Afterwards it depends on `ALLOW_SIGNUP`.
+ * Public sign-up only exists to create the first administrator: open while no
+ * account exists, closed for good afterwards. There is no switch to reopen it —
+ * an instance that holds SSH keys has no business taking in strangers. People are
+ * then added from "Users" (created or invited by an administrator), or come
+ * through single sign-on.
  */
 export async function isSignupOpen(): Promise<boolean> {
-  if (getEnv().ALLOW_SIGNUP) return true;
   return (await countUsers()) === 0;
 }
 

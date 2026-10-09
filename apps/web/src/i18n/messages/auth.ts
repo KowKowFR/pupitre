@@ -103,9 +103,11 @@ const fr = {
   'signup.failed': "L'inscription a échoué.",
   'signup.haveAccount': 'Déjà un compte ?',
   'signup.closed.title': 'Inscription fermée',
-  'signup.closed.description': "L'inscription publique est désactivée sur cette instance.",
-  'signup.closed.hint': 'Demandez un compte à un administrateur, ou activez',
-  /** Returned by the API when `ALLOW_SIGNUP` is false and an account exists. */
+  'signup.closed.description':
+    "L'inscription publique ne sert qu'à créer le premier compte : elle est fermée sur cette instance.",
+  'signup.closed.hint':
+    'Demandez à un administrateur de vous créer un compte ou de vous inviter, depuis « Utilisateurs ».',
+  /** Returned by the API once an account exists. */
   'signup.closed.api':
     "L'inscription publique est désactivée. Demandez un compte à un administrateur.",
 
@@ -268,8 +270,10 @@ const en: Translated<typeof fr> = {
   'signup.failed': 'Signing up failed.',
   'signup.haveAccount': 'Already have an account?',
   'signup.closed.title': 'Signing up is closed',
-  'signup.closed.description': 'Public sign-up is off on this instance.',
-  'signup.closed.hint': 'Ask an administrator for an account, or set',
+  'signup.closed.description':
+    'Public sign-up only creates the first account: it is closed on this instance.',
+  'signup.closed.hint':
+    'Ask an administrator to create an account for you or to invite you, from “Users”.',
   'signup.closed.api': 'Public sign-up is off. Ask an administrator for an account.',
 
   'forgot.title': 'Forgotten password',

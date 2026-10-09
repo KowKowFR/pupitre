@@ -261,10 +261,15 @@ latest: on an **existing** instance, only `admin` gets them automatically. The
 other roles get them from the matrix, by an administrator; it is not up to the
 code to decide that an operator can silence alerts.
 
-**A public sign-up opens nothing.** It says nothing about who signs up: with
-`ALLOW_SIGNUP=true`, giving it the viewer role opened read access to the fleet to
-anyone. The account is born `no-access` and the `security.signup_pending` event
-warns the administrators. Without any permission, it is not a **team member**
+**Public sign-up only creates the first account.** It is open while no account
+exists — that is how the first administrator is born —, then closed for good,
+with no variable to reopen it: a sign-up says nothing about who signs up, and a
+panel holding SSH keys has no business taking in strangers. An attempt
+afterwards is refused before reaching Better Auth and logged
+(`auth.signup.blocked`). Two sign-ups at the same instant on an empty instance:
+only the first becomes administrator, the other is born `no-access`. An account
+that arrives without a role — through single sign-on — is born `no-access` too,
+and the `security.signup_pending` event warns the administrators. Without any permission, it is not a **team member**
 either (`requireTeamMember()`): chat and presence, which require no permission,
 answer it `403`, and the real-time stream only carries screen signals to it. A
 role given or removed closes the stream at the next session re-read (≈ 100 s).

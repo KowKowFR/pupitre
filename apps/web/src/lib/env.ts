@@ -6,13 +6,6 @@ import { z } from 'zod';
 const optional = <T extends z.ZodTypeAny>(schema: T) =>
   z.preprocess((value) => (value === '' ? undefined : value), schema.optional());
 
-const booleanish = z
-  .preprocess(
-    (value) => (typeof value === 'string' ? value.trim().toLowerCase() : value),
-    z.enum(['true', '1', 'yes', 'false', '0', 'no', '']).default('false'),
-  )
-  .transform((value) => value === 'true' || value === '1' || value === 'yes');
-
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   DATABASE_URL: z.string().url(),
@@ -25,11 +18,6 @@ const envSchema = z.object({
   MASTER_KEY_PREVIOUS: z.string().optional(),
   BETTER_AUTH_SECRET: z.string().min(32),
   BETTER_AUTH_URL: z.string().url().default('http://localhost:3000'),
-  /**
-   * Public sign-up. Always allowed as long as no user exists, so that the first
-   * administrator can be created.
-   */
-  ALLOW_SIGNUP: booleanish,
   OPENROUTER_API_KEY: optional(z.string().min(1)),
   /**
    * The OpenRouter model. Empty = `@pupitre/core/ai`'s default, chosen for its
@@ -85,6 +73,15 @@ export function getEnv(): Env {
       `[panel] ${weakAuthSecret} — BETTER_AUTH_SECRET is the example value or a guessable ` +
         'one. Generate one: openssl rand -base64 32. Changing it signs out every account ' +
         'and requires resetting the second factor of those that have one.',
+    );
+  }
+  // `ALLOW_SIGNUP` used to reopen public sign-up after the first account. It is
+  // gone: an instance that still sets it must not believe it applies.
+  if (/^(true|1|yes)$/i.test(process.env.ALLOW_SIGNUP?.trim() ?? '')) {
+    console.warn(
+      '[panel] ALLOW_SIGNUP is no longer read: public sign-up only creates the first ' +
+        'account. Add people from Users — created or invited by an administrator — or ' +
+        'through single sign-on, then remove the variable from .env.',
     );
   }
   cached = parsed.data;

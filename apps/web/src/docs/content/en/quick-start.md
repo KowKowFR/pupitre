@@ -40,7 +40,7 @@ curl -s {{origin}}/api/health              # {"status":"ok","db":"ok","redis":"o
 
 ## 2. Create the first account
 
-Open the panel. While no account exists, sign-up is open: **the first account created becomes an administrator**. Afterwards, sign-up depends on `ALLOW_SIGNUP` (off by default), and a newcomer gets the **No access** role until an administrator chooses one.
+Open the panel. While no account exists, sign-up is open: **the first account created becomes an administrator**, and sign-up closes for good right after. The people who follow are created or invited from **Users** — see [Administration](/docs/administration#users).
 
 At the first sign-in, the **setup guide** takes over: identity and language of the instance, first target, reverse proxy, a role, a user, security and AI. Each step is optional except the first; you can follow this chapter instead and run the guide again later from **Settings → Setup guide**.
 

@@ -1,4 +1,5 @@
 import { strict as assert } from 'node:assert';
+import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
 /**
@@ -57,5 +58,18 @@ describe('writes coming from elsewhere than the panel', () => {
   it('draws the origin from BETTER_AUTH_URL, path and trailing slash included', () => {
     assert.equal(originOf('https://pupitre.exemple.fr/'), PANEL);
     assert.equal(originOf('http://localhost:3000/panel'), 'http://localhost:3000');
+  });
+});
+
+describe('public sign-up', () => {
+  const read = (relative) => readFileSync(new URL(relative, import.meta.url), 'utf8');
+
+  it('only creates the first account: no switch reopens it', () => {
+    const auth = read('../src/lib/auth.ts');
+    const gate = /export async function isSignupOpen\(\)[^{]*\{([^}]*)\}/.exec(auth)?.[1] ?? '';
+    assert.match(gate, /countUsers\(\)\) === 0/);
+    assert.doesNotMatch(gate, /getEnv|process\.env/);
+    assert.doesNotMatch(read('../src/lib/env.ts'), /ALLOW_SIGNUP:\s/);
+    assert.doesNotMatch(read('../../../.env.example'), /^ALLOW_SIGNUP=/m);
   });
 });

@@ -20,9 +20,7 @@ export default async function SignupPage() {
 
     return (
       <AuthCard title={t('signup.closed.title')} description={t('signup.closed.description')}>
-        <Alert variant="info">
-          {t('signup.closed.hint')} <code className="mono">ALLOW_SIGNUP=true</code>.
-        </Alert>
+        <Alert variant="info">{t('signup.closed.hint')}</Alert>
         <Button asChild variant="secondary" className="btn-block">
           <Link href="/login">{t('link.backToLogin')}</Link>
         </Button>

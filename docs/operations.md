@@ -1082,7 +1082,7 @@ provide the default time zone for scheduled tasks created afterwards.
 
 | Setting | Where it really lives |
 |---|---|
-| Public sign-up | `ALLOW_SIGNUP` variable |
+| Public sign-up | nowhere: it only creates the first account, then closes for good — people are created or invited from **Users** |
 | Probes' SSRF guard | `MONITOR_ALLOWED_CIDRS` variable, panel **and** worker |
 | Retention of probe measurements, of release directories | code constants |
 | A machine's reverse proxy | the target's page, **Reverse proxy** tab — see [Reverse proxy and domains](#reverse-proxy-and-domains) |
