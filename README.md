@@ -468,20 +468,32 @@ hard-coded text.
 
 ## License
 
-**GNU AGPL v3 or later** — see [`LICENSE`](LICENSE).
-Copyright © 2026 the Pupitre contributors.
+**Pupitre Non-Commercial License** — see [`LICENSE`](LICENSE).
+Copyright © 2026 Corentin TUJAGUE.
 
-Pupitre is software used over a network: it is a panel, you connect to it, you
-never distribute it. Under a permissive license, someone could offer it as a
-hosted service without ever giving anything back. Section 13 of the AGPL is
-precisely what prevents that: if you modify Pupitre and give users access to it
-over a network, they are entitled to your sources.
+Pupitre is source-available: free to use, modify and redistribute — but not to
+sell. It is not an OSI-approved open source license. In short:
 
-What it does not impose: the applications you deploy **with** Pupitre are not
-derivative works of Pupitre. You remain free to deploy what you want, under the
-license you want.
+- **Free for personal use and for internal business use.** Individuals,
+  non-profits, schools, research institutions and companies can self-host
+  Pupitre at no cost — including a company deploying its own commercial
+  products with it. Employees and contractors working for the company can use
+  its installation.
+- **No resale or paid hosting without written permission.** Selling Pupitre,
+  offering it as a paid hosted or managed service, charging for access to it,
+  giving customers access to its control panel, or bundling it into a paid
+  product requires a separate agreement — even when Pupitre is "included for
+  free".
+- **No commercial hardware bundling without written permission.** Pre-installing
+  Pupitre on servers, NAS devices, AI appliances or other hardware that is sold
+  or rented is not allowed. Installing it yourself on hardware you bought is.
+- **Your applications are yours.** Applications deployed or managed with
+  Pupitre, their `pupitre.json` and the files Pupitre generates for them are not
+  covered by Pupitre's license: license them as you wish, and sell them if you
+  like.
+- **Commercial licensing** requests go to the copyright holder,
+  [github.com/KowKowFR](https://github.com/KowKowFR).
 
-What it costs, said plainly: the AGPL closes the door to integration into a
-proprietary product, and many companies forbid it by internal policy. It is a
-deliberate choice — protecting the return of contributions seemed more important
-than the widest possible adoption for a tool that holds its users' SSH keys.
+Versions previously distributed under the GNU AGPL v3 or later retain the
+rights granted under that license; this license applies to future
+distributions and releases.
