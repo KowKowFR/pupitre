@@ -252,13 +252,23 @@ explains how to set up the K3s target.
 
 ## License of contributions
 
-Pupitre is under the **GNU AGPL v3 or later** ([`LICENSE`](LICENSE)). By
-submitting a contribution, you agree that it is distributed under this license.
-There is no CLA.
+Pupitre is under the **Pupitre Non-Commercial License** ([`LICENSE`](LICENSE)),
+held by Corentin TUJAGUE. You keep the copyright on what you write: nothing in
+this guide transfers ownership of a contribution, and nothing here applies to
+contributions made before this license was adopted.
 
-A consequence to know before contributing code from elsewhere: do not import
-code under a license incompatible with the AGPL, and point out any new
-dependency in your pull request — dependencies have a decision log,
+Because the copyright holder also offers separate commercial licenses for
+Pupitre, a code contribution can only be merged if its author agrees that it may
+be distributed under both the Pupitre Non-Commercial License and those
+commercial licenses. Before merging an outside code contribution, the
+maintainer will ask you to confirm that agreement explicitly, and may ask you to
+sign a contributor license agreement. If you do not wish to give that
+permission, say so in your pull request: the contribution will not be merged,
+but the discussion is still welcome.
+
+Before contributing code from elsewhere: do not import code whose license is
+incompatible with these terms, and point out any new dependency in your pull
+request — dependencies have a decision log,
 [`docs/dependencies.md`](docs/dependencies.md), and are often pinned to the
 exact version for good reasons.
 
